@@ -1,55 +1,120 @@
 # Powdergame
 
 > **상상력을 시뮬레이션하는 세계 창조 샌드박스**
-
-Powdergame은 단순히 재료가 많은 falling-sand 게임을 만드는 프로젝트가 아니다.
-
-이 프로젝트의 출발점은 **Doodle God의 조합·발견·신이 된 듯한 상상력**과 **Powder Game의 실제 공간에서 벌어지는 물리적 상호작용과 창발성**을 하나의 세계 안에서 연결하는 것이다.
-
-핵심 제품 문장은 다음과 같다.
-
+>
 > **플레이어에게 물질을 주는 게임이 아니라, 우주를 발명할 수 있는 문법을 주는 게임.**
+
+Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder Game의 **즉각적인 공간 상호작용·창발성**을 하나의 실제 샌드박스 세계 안에서 결합하는 프로젝트다.
+
+핵심은 현실을 그대로 복제하는 것이 아니다.
+
+> **현실의 자연현상은 참고자료다. Powdergame 안에서 원인과 결과가 이해되고, 서로 영향을 주며, 재미있는 연쇄작용을 만든다면 가상의 물질과 가상의 물리도 완전히 유효하다.**
 
 ## 현재 단계
 
-**Documentation First / Pre-Implementation**
+**Foundation Design 확정 → M0 구현 직전**
 
-지금은 코드를 빠르게 늘리는 단계가 아니라, 프로젝트가 무엇을 만들려는지 먼저 고정하는 단계다. 초기 HTML 프로토타입은 컨셉 검증용 실험이며 제품 구조를 확정하지 않는다.
+현재는 초기 HTML/Browser 프로토타입 방향을 더 이상 제품 구조의 기준으로 사용하지 않는다. 2026-08-15 Foundation Design Session에서 실제 구현을 위한 world model, GPU simulation, 물질/반응 철학, 성능 원칙과 M0 Evidence Gate를 구체적으로 확정했다.
 
-## 기준 문서
+## 현재 공식 개발 경로
 
-1. [`docs/00_USER_VISION.md`](docs/00_USER_VISION.md)  
-   사용자가 원하는 게임과 절대 놓치면 안 되는 설계 의도. **제품 방향에 대한 최우선 기준 문서.**
+```text
+Platform:      Windows
+Language:      Rust
+Window/Input:  winit
+GPU API:       wgpu
+Backend:       DX12
+Primary GPU:   NVIDIA RTX 5090
+World:         finite, chunked dense grid
+Simulation:    GPU authoritative
+Target:        60 simulation TPS baseline
+```
 
-2. [`docs/01_MASTER_DESIGN_REPORT.md`](docs/01_MASTER_DESIGN_REPORT.md)  
-   Doodle God × Powder Game 아이디어를 물리·화학·생명·정보·문명·마법·추상 개념·메타 규칙까지 확장한 종합 설계 보고서.
+현재는 Browser/macOS/범용 GPU 호환을 위해 구조와 성능을 희생하지 않는다. 이 프로젝트는 우선 사용자의 Windows + RTX 5090 환경에서 **큰 세계와 많은 상호작용을 가능한 한 싸게 병렬 실행하는 것**을 최우선으로 한다.
 
-문서끼리 충돌할 경우 우선순위는 다음과 같다.
+## 핵심 엔진 철학
 
-**USER_VISION → 이후 합의된 ADR/설계 결정 → MASTER_DESIGN_REPORT → 프로토타입 구현**
+### One Cell = Max One Matter
+
+한 Cell에는 Matter가 최대 하나만 존재한다. 셀 내부에 Water/Oil/Air의 비율을 저장하는 복합 혼합 모델을 기본으로 하지 않는다.
+
+### Minimum Sufficient Physics
+
+현실의 정밀 공식을 그대로 풀기보다, 원하는 게임 현상을 만드는 **최소 상태 + 최소 local operation**을 사용한다.
+
+예:
+
+```text
+부력      → Density Rank 비교 + local displacement
+열        → ΔT + cheap conductivity/heat-capacity model
+압력      → local ΔP + push/rupture
+연소      → ignition condition + Heat/Smoke
+전기(향후) → conductive + strength/loss frontier
+방사선    → intensity + attenuation
+빛        → transmit / absorb / reflect
+```
+
+> **부력을 계산하지 않는다. 정렬한다.**
+
+### Read Neighbors, Write Self
+
+일반 interaction은 주변 Cell을 읽고 자기 Next state만 쓴다. 다른 Cell의 소유권을 바꾸는 movement/swap/spawn에만 최소 Claim/Resolve를 사용한다.
+
+### Dense State, Sparse Work
+
+셀 데이터 구조는 단순하게 유지하되 실제로 변화할 가능성이 있는 Chunk/Field/frontier만 계산한다.
+
+- 안정된 Stone bulk → Sleep
+- 안정된 Water/Gas bulk → 존재만으로 영원히 Active하지 않음
+- 천천히 타는 Wood → 실제 변화 중이므로 Active
+- 변화가 접근하면 이웃 Chunk/subsystem을 Wake
+
+> **물질의 양보다 변화 가능한 영역이 계산량을 결정하게 만든다.**
+
+## M0 — First World
+
+M0는 많은 콘텐츠를 넣는 단계가 아니라 다음을 실제 RTX 5090에서 증명하는 단계다.
+
+- 2048×2048 reference world
+- 64×64 initial chunk
+- Static / Powder / Liquid / Gas local movement
+- Density Rank 기반 침강·부력·층분리
+- Ice ↔ Water ↔ Steam
+- Temperature
+- Wood/Oil combustion
+- Steam expansion → Pressure → push/rupture/vent
+- Active/Sleep
+- GPU local parallelism
+- subsystem별 performance measurement
+- 실제 플레이에서 단순 Rule의 연쇄작용이 재미있는지 사용자 검증
+
+## 문서
+
+문서 권위와 전체 구조는 [`docs/README.md`](docs/README.md)를 먼저 본다.
+
+핵심 문서:
+
+- [`docs/vision/USER_VISION.md`](docs/vision/USER_VISION.md) — 현재 최상위 제품 비전
+- [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) — 현재 시스템 구조
+- [`docs/specs/SIMULATION_SPEC.md`](docs/specs/SIMULATION_SPEC.md) — 시뮬레이션 구현 계약
+- [`docs/specs/MATERIAL_SPEC.md`](docs/specs/MATERIAL_SPEC.md) — Material 구조/물성 계약
+- [`docs/specs/REACTION_SPEC.md`](docs/specs/REACTION_SPEC.md) — Reaction/Rule 계약
+- [`docs/development/PERFORMANCE.md`](docs/development/PERFORMANCE.md) — 성능 철학과 benchmark 기준
+- [`docs/planning/MILESTONES.md`](docs/planning/MILESTONES.md) — Evidence Gate
+- [`docs/design-history/2026-08-15-foundation-design-session.md`](docs/design-history/2026-08-15-foundation-design-session.md) — 질문·선택·사용자 코멘트까지 포함한 설계 provenance
 
 ## 우리가 만들지 않으려는 것
 
-- 원소 수만 수백·수천 개로 늘린 얕은 파우더 게임
+- 원소 숫자만 많은 얕은 falling-sand 게임
 - 메뉴에서 `A + B = C`만 반복하는 조합 게임
-- 현실 정확성 때문에 상상력과 재미를 희생하는 과학 시뮬레이터
-- 물리, 생명, 문명, 마법이 서로 분리된 미니게임 묶음
-- 브라우저판, Mac판, Windows판이 서로 다른 세 개의 게임이 되는 구조
+- 현실 정확성을 위해 재미·상상력·성능을 희생하는 과학 시뮬레이터
+- 한 Cell에 수많은 미래 상태를 미리 넣어 셀 하나를 비싸게 만드는 구조
+- CPU가 수백만 Cell을 순서대로 해석하는 구조
+- 카메라 밖이라는 이유로 simulation fidelity를 낮추는 spatial LOD
+- bit-perfect replay를 위해 GPU 병렬성과 성능을 크게 희생하는 구조
 
-## 개발 방향 — 현재 가설
+## 최상위 질문
 
-초기에는 브라우저에서 아주 쉽게 실행되는 버전으로 **재미와 상호작용 법칙을 빠르게 검증**한다. 이후 같은 세계 규칙과 데이터 모델을 유지하면서 공용 시뮬레이션 코어로 이동하고, Mac과 Windows에서 더 높은 정밀도와 규모를 열어가는 방향을 지향한다.
+> **“이 세계에 이것을 넣으면 대체 무슨 일이 일어날까?”라는 생각을 계속 하게 만드는가?**
 
-즉 목표는 플랫폼별 복제품이 아니라:
-
-```text
-같은 우주
-같은 규칙
-같은 세이브/콘텐츠 철학
-        │
-        ├─ Browser: 가장 쉽게 실험하고 공유
-        ├─ macOS:   고품질 네이티브 시뮬레이션
-        └─ Windows: 최대 규모/최대 성능 시뮬레이션
-```
-
-기술 스택은 이 목표를 지원하기 위한 수단이며, 게임의 핵심 경험보다 먼저 고정하지 않는다.
+그 질문이 계속 생기고, 세계가 작은 규칙의 조합으로 예상하지 못한 답을 내놓는다면 Powdergame은 올바른 방향에 있다.

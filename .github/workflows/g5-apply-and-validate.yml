@@ -1,0 +1,48 @@
+name: G5 Apply and Validate
+
+on:
+  push:
+    branches:
+      - feature/m0-g5-pressure-field
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout G5 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply G5-A pressure implementation
+        run: python tools/g5_apply.py
+
+      - name: Format Rust
+        run: cargo fmt --all
+
+      - name: Core tests
+        run: cargo test -p powdergame-core
+
+      - name: Compile all targets
+        run: cargo check --workspace --all-targets
+
+      - name: Diff sanity
+        shell: bash
+        run: git diff --check
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add engine/core/src/lib.rs engine/core/src/pressure.rs engine/gpu/src/context.rs engine/gpu/src/world.rs engine/gpu/src/simulation.rs engine/gpu/src/pressure.wgsl engine/gpu/tests/pressure.rs
+          if git diff --cached --quiet; then
+            echo "No implementation diff to commit."
+          else
+            git commit -m "feat: implement G5-A pressure field"
+            git push origin HEAD:feature/m0-g5-pressure-field
+          fi

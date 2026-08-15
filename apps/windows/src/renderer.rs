@@ -1,8 +1,13 @@
-//! Minimal presentation layer for the G0 Windows app.
+//! Minimal presentation layer for the Windows app.
 //!
-//! The Renderer owns the surface + clear/present path only. It is NOT the
+//! The Renderer owns the surface + frame path only. It is NOT the
 //! authoritative owner of simulation state
 //! (`docs/architecture/ARCHITECTURE.md` §15, MILESTONES G0).
+//!
+//! G2 adds an optional read-only world view: the `material_current` GPU
+//! buffer is bound to the fragment shader as read-only storage and drawn
+//! through a fullscreen triangle with per-material debug colors.
+//! Presentation never mutates the authoritative simulation state.
 
 use std::sync::Arc;
 
@@ -11,12 +16,28 @@ use wgpu::TextureFormat;
 use powdergame_gpu::GpuError;
 use winit::window::Window;
 
-/// Window surface renderer: acquire → clear → present.
+/// Read-only view spec for presenting the material world (G2).
+pub struct WorldViewSpec<'a> {
+    pub material_buffer: &'a wgpu::Buffer,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Window surface renderer: acquire → (world view or clear) → present.
 pub struct Renderer {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    world_view: Option<WorldView>,
+}
+
+struct WorldView {
+    pipeline: wgpu::RenderPipeline,
+    bind_group: wgpu::BindGroup,
+    params: wgpu::Buffer,
+    world_width: u32,
+    world_height: u32,
 }
 
 /// Clear color for the empty G0 world frame (a dim slate blue).
@@ -27,14 +48,74 @@ const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     a: 1.0,
 };
 
+/// Params uniform: world width/height + surface width/height (4 u32 = 16 B).
+const WORLD_VIEW_PARAMS_SIZE: u64 = 16;
+
+const WORLD_VIEW_SHADER: &str = r#"
+struct Params {
+    width: u32,
+    height: u32,
+    surface_w: u32,
+    surface_h: u32,
+};
+
+@group(0) @binding(0) var<uniform> params: Params;
+@group(0) @binding(1) var<storage, read> materials: array<u32>;
+
+const EMPTY: u32 = 0u;
+const BOUNDARY: u32 = 1u;
+const STONE: u32 = 2u;
+const SAND: u32 = 3u;
+const WATER: u32 = 4u;
+const OIL: u32 = 5u;
+const STEAM: u32 = 6u;
+const SMOKE: u32 = 7u;
+
+fn debug_color(id: u32) -> vec4<f32> {
+    if (id == EMPTY) { return vec4<f32>(0.02, 0.02, 0.05, 1.0); }
+    if (id == BOUNDARY) { return vec4<f32>(0.62, 0.62, 0.66, 1.0); }
+    if (id == STONE) { return vec4<f32>(0.42, 0.42, 0.44, 1.0); }
+    if (id == SAND) { return vec4<f32>(0.85, 0.72, 0.35, 1.0); }
+    if (id == WATER) { return vec4<f32>(0.15, 0.38, 0.85, 1.0); }
+    if (id == OIL) { return vec4<f32>(0.48, 0.30, 0.10, 1.0); }
+    if (id == STEAM) { return vec4<f32>(0.80, 0.83, 0.87, 1.0); }
+    if (id == SMOKE) { return vec4<f32>(0.34, 0.32, 0.31, 1.0); }
+    return vec4<f32>(1.0, 0.0, 1.0, 1.0); // unknown → magenta (must never appear)
+}
+
+@vertex
+fn vs_main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(3.0, -1.0),
+        vec2<f32>(-1.0, 3.0),
+    );
+    return vec4<f32>(pos[vi], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
+    let fx = clamp(frag.x, 0.0, f32(params.surface_w) - 1.0);
+    let fy = clamp(frag.y, 0.0, f32(params.surface_h) - 1.0);
+    let cell_x = u32((fx / f32(params.surface_w)) * f32(params.width));
+    let cell_y = u32((fy / f32(params.surface_h)) * f32(params.height));
+    let idx = min(cell_y * params.width + cell_x, params.width * params.height - 1u);
+    return debug_color(materials[idx]);
+}
+"#;
+
 impl Renderer {
     /// Creates a surface for `window` on the given instance/adapter/device.
+    ///
+    /// Pass `world_view` to present the material world with debug colors
+    /// (read-only). With `None` the frame is a plain clear (G0 smoke mode).
     pub fn new(
         instance: &wgpu::Instance,
         adapter: &wgpu::Adapter,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         window: Arc<Window>,
+        world_view: Option<WorldViewSpec<'_>>,
     ) -> Result<Self, GpuError> {
         let surface = instance
             .create_surface(window.clone())
@@ -61,11 +142,15 @@ impl Renderer {
         };
         surface.configure(device, &config);
 
+        let world_view =
+            world_view.map(|spec| build_world_view(device, queue, format, &config, spec));
+
         Ok(Self {
             surface,
             config,
             device: device.clone(),
             queue: queue.clone(),
+            world_view,
         })
     }
 
@@ -74,9 +159,12 @@ impl Renderer {
         self.config.width = width.max(1);
         self.config.height = height.max(1);
         self.surface.configure(&self.device, &self.config);
+        if let Some(wv) = &self.world_view {
+            write_world_view_params(&self.queue, wv, &self.config);
+        }
     }
 
-    /// Acquires a frame, clears it, and presents it.
+    /// Acquires a frame, draws it (world view or clear), and presents it.
     pub fn render(&mut self) -> Result<(), GpuError> {
         let frame = self
             .surface
@@ -92,8 +180,8 @@ impl Renderer {
                 label: Some("powdergame-render-encoder"),
             });
         {
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("powdergame-clear-pass"),
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("powdergame-present-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     depth_slice: None,
@@ -107,6 +195,11 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+            if let Some(wv) = &self.world_view {
+                render_pass.set_pipeline(&wv.pipeline);
+                render_pass.set_bind_group(0, &wv.bind_group, &[]);
+                render_pass.draw(0..3, 0..1);
+            }
             // In wgpu 26 the render pass ends implicitly when dropped.
             drop(render_pass);
         }
@@ -120,4 +213,126 @@ impl Renderer {
     pub fn format(&self) -> TextureFormat {
         self.config.format
     }
+}
+
+/// Builds the read-only world-view pipeline + bind group.
+///
+/// The bind group holds the params uniform and the world's material buffer;
+/// the material buffer is bound as read-only storage, so presentation can
+/// never mutate the authoritative simulation state.
+fn build_world_view(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    format: wgpu::TextureFormat,
+    config: &wgpu::SurfaceConfiguration,
+    spec: WorldViewSpec<'_>,
+) -> WorldView {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("powdergame-world-view-shader"),
+        source: wgpu::ShaderSource::Wgsl(WORLD_VIEW_SHADER.into()),
+    });
+
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("powdergame-world-view-bgl"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(WORLD_VIEW_PARAMS_SIZE),
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    });
+
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("powdergame-world-view-pl"),
+        bind_group_layouts: &[&bind_group_layout],
+        push_constant_ranges: &[],
+    });
+
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("powdergame-world-view-pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        multiview: None,
+        cache: None,
+    });
+
+    let params = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("powdergame-world-view-params"),
+        size: WORLD_VIEW_PARAMS_SIZE,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("powdergame-world-view-bg"),
+        layout: &bind_group_layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: params.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: spec.material_buffer.as_entire_binding(),
+            },
+        ],
+    });
+
+    let world_view = WorldView {
+        pipeline,
+        bind_group,
+        params,
+        world_width: spec.width,
+        world_height: spec.height,
+    };
+    write_world_view_params(queue, &world_view, config);
+    world_view
+}
+
+/// Writes the world-view params uniform from the current surface size.
+fn write_world_view_params(
+    queue: &wgpu::Queue,
+    wv: &WorldView,
+    config: &wgpu::SurfaceConfiguration,
+) {
+    let mut data = [0u8; WORLD_VIEW_PARAMS_SIZE as usize];
+    data[0..4].copy_from_slice(&wv.world_width.to_ne_bytes());
+    data[4..8].copy_from_slice(&wv.world_height.to_ne_bytes());
+    data[8..12].copy_from_slice(&config.width.to_ne_bytes());
+    data[12..16].copy_from_slice(&config.height.to_ne_bytes());
+    queue.write_buffer(&wv.params, 0, &data);
 }

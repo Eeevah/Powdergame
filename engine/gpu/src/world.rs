@@ -16,6 +16,10 @@
 //! `EMPTY` interior. The world stays finite and authoritative on the GPU;
 //! CPU-side work here is initialization/staging and small validated edit
 //! hooks only (no per-tick full-world CPU simulation).
+//!
+//! G2: two auxiliary per-cell `u32` buffers support the movement pipeline —
+//! `proposal` (each source's chosen destination) and `resolve` (each
+//! destination's single winner). They hold movement metadata, never Matter.
 
 use wgpu::util::DeviceExt;
 
@@ -124,6 +128,11 @@ pub struct GpuWorld {
     pub pressure_next: wgpu::Buffer,
     pub flags_current: wgpu::Buffer,
     pub flags_next: wgpu::Buffer,
+
+    /// Per-cell movement proposal (destination index, NO_MOVE or VOID_TARGET).
+    pub proposal: wgpu::Buffer,
+    /// Per-cell movement resolution (single winning source index, or NO_SOURCE).
+    pub resolve: wgpu::Buffer,
 }
 
 /// Creates a zero-initialized buffer of `size` bytes.
@@ -217,6 +226,21 @@ impl GpuWorld {
             world_usage(),
         )?;
 
+        // G2 movement metadata (never Matter). Zero-initialized for hygiene;
+        // every entry is rewritten by the movement passes each tick.
+        let proposal = create_zeroed_buffer(
+            device,
+            "world/proposal",
+            layout.material_bytes,
+            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        )?;
+        let resolve = create_zeroed_buffer(
+            device,
+            "world/resolve",
+            layout.material_bytes,
+            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        )?;
+
         let allocation = AllocationReport::from_layout(config, &layout);
 
         Ok(Self {
@@ -232,6 +256,8 @@ impl GpuWorld {
             pressure_next,
             flags_current,
             flags_next,
+            proposal,
+            resolve,
         })
     }
 

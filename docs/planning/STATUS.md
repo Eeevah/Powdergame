@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) 대기.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) VALIDATION (자동/기술 검증 완료, User Validation 대기).
 
 ### Current Phase
 
-**G0 — Runtime: 구현/검증 완료. G1 — World Integrity: 구현/검증 완료 (Windows + RTX 5090 + DX12).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: 구현/기술 검증 완료 (Windows + RTX 5090 + DX12), 사용자 검증 대기.**
 
 ### Current Summary
 
@@ -44,7 +44,7 @@
 - approximate, non-bit-exact determinism
 - M0 Evidence Gates G0~G9
 
-2026-08-16 기준 **G0 (Runtime)**와 **G1 (World Integrity)**가 구현되고 실제 RTX 5090 머신에서 검증되었다.
+2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**가 구현되고 실제 RTX 5090 머신에서 기술 검증되었다. G2는 사용자가 실제 movement demo를 직접 확인해야 최종 승인된다.
 
 ### G0 Runtime Evidence (2026-08-16, local run)
 
@@ -130,11 +130,95 @@ EMPTY가 Material Registry Matter가 아님               PASS
 per-cell mixed amount 없음                            PASS
 editable outer BLOCK                                  PASS
 outer BLOCK 제거 가능                                 PASS
-열린 boundary 밖 Matter가 Void로 소멸                  PASS (domain contract; G2에서 실제 소멸 적용 예정)
+열린 boundary 밖 Matter가 Void로 소멸                  PASS (domain contract; G2에서 실제 소멸 적용)
 invalid material id / out-of-bounds 없음               PASS
 ```
 
-M0 전체는 `ACHIEVED`가 아니다. G2~G9와 사용자 승인이 남아 있다.
+### G2 Local Movement Evidence (2026-08-16, local run)
+
+```text
+Branch:           feature/m0-g2-local-movement (base: eb4c77f82c3663ad0ece7a7291db0668e1acb50a)
+MovementClass:    STATIC = 0 (Boundary Block, Stone)
+                  POWDER = 1 (Sand)
+                  LIQUID = 2 (Water, Oil)
+                  GAS    = 3 (Steam, Smoke)
+Registry:         SAND=3, WATER=4, OIL=5, STEAM=6, SMOKE=7 추가 (기존 ID 유지)
+                  EMPTY는 여전히 registry entry 아님, Void material ID 없음
+Stencils:         STATIC: no move
+                  POWDER: down → down-diagonal → stop
+                  LIQUID: down → down-diagonal → lateral(1 cell) → stop
+                  GAS:    up → up-diagonal → lateral(1 cell) → stop
+                  First-Match, 1-cell local only (scan/teleport 없음)
+                  parity 기반 좌/우 stateless ordering (RNG state 없음)
+Pipeline:         propose (Current read, 1 destination) → resolve (EMPTY cell당
+                  winner exactly one, fixed min-source arbitration)
+                  → commit (각 cell이 자기 material_next slot만 write)
+                  → GPU material_next → material_current copy
+                  CPU는 매 tick full world를 계산/복사하지 않음
+
+GPU tests (movement.rs, 실제 RTX 5090/DX12 — 14개):
+  static_materials_never_move                        PASS
+  sand_falls_exactly_one_cell_per_tick               PASS
+  sand_takes_diagonal_when_down_blocked              PASS
+  sand_stops_when_fully_blocked                      PASS
+  water_falls_down_then_flows_laterally_one_cell     PASS
+  oil_uses_the_liquid_family                         PASS
+  steam_and_smoke_rise                               PASS
+  gas_takes_up_diagonal_when_up_blocked              PASS
+  gas_stable_bulk_center_does_not_swap               PASS (Gas↔Gas 무의미 swap 없음)
+  contention_exactly_one_winner_no_duplication       PASS (winner exactly one,
+                                                        loser valid, matter conserved)
+  chunk_boundary_movement_is_plain_local_movement    PASS (63↔64 경계 양방향)
+  void_exit_loses_exactly_one_matter                 PASS (open boundary로 실제 소멸,
+                                                        OOB memory access 없음)
+  g2_tick_preserves_g1_contracts                     PASS (invalid ID/OOB 거부,
+                                                        boundary erase, EMPTY 미등록)
+  coarse_reference_world_perf                        PASS (sanity observation only)
+
+Performance (2048×2048, RTX 5090):
+  DEFERRED — controlled idle-machine benchmark required.
+  G2 기준점 고정에는 performance 수치를 요구하지 않는다.
+  2026-08-16 busy-machine 참고용 sanity measurement (비공식, baseline 아님):
+  30 ticks wall-clock ≈ 18.7 ms → ~0.62 ms/tick (마지막 tick 후
+  device.poll(PollType::Wait)로 GPU completion 포함한 coarse end-to-end;
+  GPU timestamp benchmark 아님). 초기 16.22 ms/~1849 TPS 측정은 CPU
+  submission timing only였으며 GPU completion 포함 값으로 교체함.
+  이 수치는 공식 TPS / tick-time baseline으로 기록하지 않는다.
+
+Movement demo (User Validation fixture):
+  cargo run -p powdergame-windows -- --movement-demo
+  256×256 world, one-time edit-hook scene: sand fall, water over stone
+  obstacle, oil pool, steam/smoke rise, open boundary → Void exit
+  read-only world view (material_current storage read) — presentation은
+  simulation state를 수정하지 않음
+  bounded run (--movement-demo --smoke-frames 120): exit 0, device lost 없음
+
+G0/G1 regression:
+  cargo test --workspace 전체 PASS (G0 headless + G1 world integrity 유지)
+  Windows smoke (--smoke-frames 60): PASS — RTX 5090/Dx12, 2048×2048, 60 frames
+
+cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
+```
+
+G2 Evidence Gate 판정 (MILESTONES.md 기준):
+
+```text
+STATIC / POWDER / LIQUID / GAS movement family        PASS (registry + GPU tests)
+behavior별 local stencil / First-Match                PASS
+1 tick에 local neighbor 밖 teleport 금지               PASS (1-cell 이동 고정 테스트)
+long-distance empty-cell scan 금지                    PASS
+ownership winner exactly one                         PASS
+loser stays valid / no duplication / no unexplained loss  PASS
+열린 boundary → Void 실제 소멸                         PASS (matter count 정확히 -1)
+OOB GPU memory access 없음                            PASS
+G0/G1 regression 없음                                 PASS
+Performance baseline                                 NOT REQUIRED for G2 pin
+                                                      (DEFERRED — idle-machine benchmark)
+```
+
+G2 User Validation: **PENDING** — 사용자가 `--movement-demo`를 직접 확인해야 한다. AI가 임의로 최종 승인하지 않는다.
+
+M0 전체는 `ACHIEVED`가 아니다. G2 User Validation + G3~G9와 최종 사용자 승인이 남아 있다.
 
 ### Product Direction
 
@@ -144,13 +228,11 @@ M0 전체는 `ACHIEVED`가 아니다. G2~G9와 사용자 승인이 남아 있다
 
 ### Next Action
 
-G2 — Local Movement:
-
-1. STATIC / POWDER / LIQUID / GAS movement family
-2. behavior별 local stencil + First-Match
-3. ownership claim/resolve/commit
-4. Void contract를 이용한 domain 밖 소멸
-5. cheap arbitration baseline
+1. G2 User Validation: `cargo run -p powdergame-windows -- --movement-demo` 실행해
+   Sand fall / Water flow / Oil / Steam-Smoke rise / Void exit를 육안 확인.
+2. G2 기준점 고정 (commit/push) — 사용자 지시 시.
+3. G3 — Density & Displacement: Density Rank, local displacement, layer separation.
+   (G2는 EMPTY destination 전용 baseline이며 density swap은 G3)
 
 ### Blockers
 
@@ -165,6 +247,7 @@ G2 — Local Movement:
 - Agent/Concept/Meta layers
 - Browser/macOS product support
 - broad GPU compatibility
+- **G2 formal performance baseline (controlled idle-machine benchmark)**
 
 ---
 
@@ -172,7 +255,7 @@ G2 — Local Movement:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1 로컬 검증 완료, G2 대기
+M0 implementation: **IN_PROGRESS** — G0/G1 PASS, G2 기술 검증 완료 (User Validation 대기)
 
 M0 `ACHIEVED`: **NO**
 
@@ -195,7 +278,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (24 core + 1 GPU headless smoke + 7 GPU world integrity)
-benchmarks: not_started
-m0_status: IN_PROGRESS (G0 complete, G1 complete)
+tests: passed (41 core + 1 GPU headless smoke + 14 GPU movement + 7 GPU world integrity)
+benchmarks: DEFERRED (controlled idle-machine benchmark required; G2 busy-machine sanity measurement only, not a baseline)
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 tech-validated — user validation pending)
 ```

@@ -1,29 +1,79 @@
-//! Minimal Material identity and registry.
+//! Material identity and registry.
 //!
 //! Contract (`ADR-0001`, `MATERIAL_SPEC` §2/§3, `SIMULATION_SPEC` §3):
 //! - `material_id` is identity. It is never a property ordering.
 //! - `EMPTY` is a valid *absence* value for a cell but is **not** a
 //!   registered Matter and has no descriptor.
 //! - `Void` is not a Material ID and has no array slot.
-//! - G1 registers only the minimum identities needed to prove identity and
-//!   integrity: Boundary Block and Stone. Movement/physics descriptors
-//!   arrive with their own Gates.
+//!
+//! G2 adds the minimum Matter identities needed for local movement and the
+//! `MovementClass` descriptor. Density/thermal/reaction properties are
+//! deliberately NOT added here — they arrive with G3/G4.
 
 /// Absence of Matter in a cell. `EMPTY` is not Matter (ADR-0001).
 pub const MATERIAL_EMPTY: u32 = 0;
 /// Editable outer boundary Block — a real, registered Matter.
 pub const MATERIAL_BOUNDARY_BLOCK: u32 = 1;
-/// Stone — a registered Matter. Movement/physics arrive in later Gates.
+/// Stone — STATIC registered Matter.
 pub const MATERIAL_STONE: u32 = 2;
+/// Sand — POWDER registered Matter.
+pub const MATERIAL_SAND: u32 = 3;
+/// Water — LIQUID registered Matter.
+pub const MATERIAL_WATER: u32 = 4;
+/// Oil — LIQUID registered Matter.
+pub const MATERIAL_OIL: u32 = 5;
+/// Steam — GAS registered Matter.
+pub const MATERIAL_STEAM: u32 = 6;
+/// Smoke — GAS registered Matter.
+pub const MATERIAL_SMOKE: u32 = 7;
+
+/// Movement behavior family (G2).
+///
+/// Only the movement family is defined here. Density ranking (G3), thermal
+/// and reaction properties (G4+) are separate descriptors added later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MovementClass {
+    /// No normal movement (Boundary Block, Stone).
+    Static,
+    /// Falls down / down-diagonal (Sand).
+    Powder,
+    /// Down / down-diagonal / lateral (Water, Oil).
+    Liquid,
+    /// Up / up-diagonal / lateral (Steam, Smoke).
+    Gas,
+}
+
+impl MovementClass {
+    /// Compact u32 encoding used in GPU params (0 = none/static ... 3 = gas).
+    pub const fn as_u32(self) -> u32 {
+        match self {
+            MovementClass::Static => 0,
+            MovementClass::Powder => 1,
+            MovementClass::Liquid => 2,
+            MovementClass::Gas => 3,
+        }
+    }
+
+    /// Decodes the compact u32 encoding.
+    pub const fn from_u32(value: u32) -> Option<Self> {
+        match value {
+            0 => Some(MovementClass::Static),
+            1 => Some(MovementClass::Powder),
+            2 => Some(MovementClass::Liquid),
+            3 => Some(MovementClass::Gas),
+            _ => None,
+        }
+    }
+}
 
 /// Minimum descriptor for a registered Matter identity.
 ///
-/// Deliberately minimal for G1: no movement class, density, thermal
-/// properties, tags or reaction rules yet.
+/// G2 adds only `movement_class`; no density, thermal, tags or reactions yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MaterialDescriptor {
     pub id: u32,
     pub name: &'static str,
+    pub movement_class: MovementClass,
 }
 
 /// The registered Matter catalog.
@@ -34,10 +84,37 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
     MaterialDescriptor {
         id: MATERIAL_BOUNDARY_BLOCK,
         name: "Boundary Block",
+        movement_class: MovementClass::Static,
     },
     MaterialDescriptor {
         id: MATERIAL_STONE,
         name: "Stone",
+        movement_class: MovementClass::Static,
+    },
+    MaterialDescriptor {
+        id: MATERIAL_SAND,
+        name: "Sand",
+        movement_class: MovementClass::Powder,
+    },
+    MaterialDescriptor {
+        id: MATERIAL_WATER,
+        name: "Water",
+        movement_class: MovementClass::Liquid,
+    },
+    MaterialDescriptor {
+        id: MATERIAL_OIL,
+        name: "Oil",
+        movement_class: MovementClass::Liquid,
+    },
+    MaterialDescriptor {
+        id: MATERIAL_STEAM,
+        name: "Steam",
+        movement_class: MovementClass::Gas,
+    },
+    MaterialDescriptor {
+        id: MATERIAL_SMOKE,
+        name: "Smoke",
+        movement_class: MovementClass::Gas,
     },
 ];
 
@@ -51,6 +128,24 @@ pub fn registry_contains(id: u32) -> bool {
 /// Looks up a registered Matter descriptor. `EMPTY` yields `None`.
 pub fn registry_lookup(id: u32) -> Option<&'static MaterialDescriptor> {
     MATERIAL_REGISTRY.iter().find(|m| m.id == id)
+}
+
+/// Returns the movement family of a registered Matter. `EMPTY` is `None`.
+pub fn movement_class(id: u32) -> Option<MovementClass> {
+    registry_lookup(id).map(|m| m.movement_class)
+}
+
+/// Compact per-ID movement-class table for GPU upload.
+///
+/// `table[id]` is `MovementClass::as_u32()`. `EMPTY` (and any unknown id)
+/// maps to `0` (no movement). Sized generously for future material ids;
+/// shaders only read entries for valid ids.
+pub fn movement_class_table() -> [u32; 16] {
+    let mut table = [MovementClass::Static.as_u32(); 16];
+    for m in MATERIAL_REGISTRY {
+        table[m.id as usize] = m.movement_class.as_u32();
+    }
+    table
 }
 
 /// Returns `true` if `value` may be stored as a cell's material value.
@@ -75,23 +170,53 @@ mod tests {
     fn empty_is_not_registered_matter() {
         assert!(!registry_contains(MATERIAL_EMPTY));
         assert_eq!(registry_lookup(MATERIAL_EMPTY), None);
-        assert_eq!(MATERIAL_REGISTRY.len(), 2);
+        assert_eq!(movement_class(MATERIAL_EMPTY), None);
+        assert_eq!(MATERIAL_REGISTRY.len(), 7);
     }
 
     #[test]
-    fn boundary_block_is_registered() {
-        assert!(registry_contains(MATERIAL_BOUNDARY_BLOCK));
-        let d = registry_lookup(MATERIAL_BOUNDARY_BLOCK).expect("boundary block registered");
-        assert_eq!(d.id, MATERIAL_BOUNDARY_BLOCK);
-        assert_eq!(d.name, "Boundary Block");
+    fn all_g2_materials_are_registered() {
+        let expected = [
+            (MATERIAL_BOUNDARY_BLOCK, "Boundary Block"),
+            (MATERIAL_STONE, "Stone"),
+            (MATERIAL_SAND, "Sand"),
+            (MATERIAL_WATER, "Water"),
+            (MATERIAL_OIL, "Oil"),
+            (MATERIAL_STEAM, "Steam"),
+            (MATERIAL_SMOKE, "Smoke"),
+        ];
+        for (id, name) in expected {
+            let d = registry_lookup(id).unwrap_or_else(|| panic!("{name} must be registered"));
+            assert_eq!(d.id, id);
+            assert_eq!(d.name, name);
+        }
     }
 
     #[test]
-    fn stone_is_registered() {
-        assert!(registry_contains(MATERIAL_STONE));
-        let d = registry_lookup(MATERIAL_STONE).expect("stone registered");
-        assert_eq!(d.id, MATERIAL_STONE);
-        assert_eq!(d.name, "Stone");
+    fn movement_classes_are_mapped() {
+        assert_eq!(
+            movement_class(MATERIAL_BOUNDARY_BLOCK),
+            Some(MovementClass::Static)
+        );
+        assert_eq!(movement_class(MATERIAL_STONE), Some(MovementClass::Static));
+        assert_eq!(movement_class(MATERIAL_SAND), Some(MovementClass::Powder));
+        assert_eq!(movement_class(MATERIAL_WATER), Some(MovementClass::Liquid));
+        assert_eq!(movement_class(MATERIAL_OIL), Some(MovementClass::Liquid));
+        assert_eq!(movement_class(MATERIAL_STEAM), Some(MovementClass::Gas));
+        assert_eq!(movement_class(MATERIAL_SMOKE), Some(MovementClass::Gas));
+    }
+
+    #[test]
+    fn movement_class_encoding_round_trip() {
+        for class in [
+            MovementClass::Static,
+            MovementClass::Powder,
+            MovementClass::Liquid,
+            MovementClass::Gas,
+        ] {
+            assert_eq!(MovementClass::from_u32(class.as_u32()), Some(class));
+        }
+        assert_eq!(MovementClass::from_u32(99), None);
     }
 
     #[test]
@@ -100,11 +225,15 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), MATERIAL_REGISTRY.len());
+        // G1 ID contract is preserved: no renumbering.
+        assert_eq!(MATERIAL_EMPTY, 0);
+        assert_eq!(MATERIAL_BOUNDARY_BLOCK, 1);
+        assert_eq!(MATERIAL_STONE, 2);
     }
 
     #[test]
     fn unknown_ids_are_rejected() {
-        for unknown in [3u32, 42, u32::MAX] {
+        for unknown in [8u32, 42, u32::MAX] {
             assert!(!registry_contains(unknown));
             assert_eq!(registry_lookup(unknown), None);
             assert!(!is_valid_cell_material_value(unknown));
@@ -113,8 +242,30 @@ mod tests {
 
     #[test]
     fn valid_cell_values() {
-        assert!(is_valid_cell_material_value(MATERIAL_EMPTY));
-        assert!(is_valid_cell_material_value(MATERIAL_BOUNDARY_BLOCK));
-        assert!(is_valid_cell_material_value(MATERIAL_STONE));
+        for id in [
+            MATERIAL_EMPTY,
+            MATERIAL_BOUNDARY_BLOCK,
+            MATERIAL_STONE,
+            MATERIAL_SAND,
+            MATERIAL_WATER,
+            MATERIAL_OIL,
+            MATERIAL_STEAM,
+            MATERIAL_SMOKE,
+        ] {
+            assert!(is_valid_cell_material_value(id), "id {id}");
+        }
+    }
+
+    #[test]
+    fn movement_class_table_maps_ids() {
+        let table = movement_class_table();
+        assert_eq!(table[MATERIAL_EMPTY as usize], 0); // EMPTY has no movement
+        assert_eq!(table[MATERIAL_BOUNDARY_BLOCK as usize], 0); // static
+        assert_eq!(table[MATERIAL_STONE as usize], 0); // static
+        assert_eq!(table[MATERIAL_SAND as usize], 1); // powder
+        assert_eq!(table[MATERIAL_WATER as usize], 2); // liquid
+        assert_eq!(table[MATERIAL_OIL as usize], 2); // liquid
+        assert_eq!(table[MATERIAL_STEAM as usize], 3); // gas
+        assert_eq!(table[MATERIAL_SMOKE as usize], 3); // gas
     }
 }

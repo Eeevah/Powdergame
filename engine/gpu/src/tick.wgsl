@@ -11,8 +11,9 @@
 //                 that won move (become EMPTY); losers stay; Void dies.
 //
 // No gameplay rule beyond movement. Destinations are EMPTY only (density
-// displacement is G3). Out-of-domain fall direction = Void (never an
-// invisible wall, never clamped, never treated as an EMPTY cell).
+// displacement is G3). ANY out-of-domain stencil candidate (primary,
+// diagonal or lateral) is a Void exit — never an invisible wall, never
+// clamped, never treated as an EMPTY cell.
 
 struct Params {
     cell_count: u32,
@@ -52,18 +53,36 @@ fn target_index(x: i32, y: i32) -> u32 {
 
 fn try_diagonal(x: i32, y: i32, dy: i32, parity: u32) -> u32 {
     // First-match, ordered by cheap stateless parity (no RNG state).
+    // Out-of-domain candidates are Void exits (open side/top/bottom
+    // boundaries are not invisible walls).
     if (parity == 0u) {
-        if (cell_state(x - 1, y + dy) == 1u) {
+        let s = cell_state(x - 1, y + dy);
+        if (s == 0u) {
+            return VOID_TARGET;
+        }
+        if (s == 1u) {
             return target_index(x - 1, y + dy);
         }
-        if (cell_state(x + 1, y + dy) == 1u) {
+        let s2 = cell_state(x + 1, y + dy);
+        if (s2 == 0u) {
+            return VOID_TARGET;
+        }
+        if (s2 == 1u) {
             return target_index(x + 1, y + dy);
         }
     } else {
-        if (cell_state(x + 1, y + dy) == 1u) {
+        let s = cell_state(x + 1, y + dy);
+        if (s == 0u) {
+            return VOID_TARGET;
+        }
+        if (s == 1u) {
             return target_index(x + 1, y + dy);
         }
-        if (cell_state(x - 1, y + dy) == 1u) {
+        let s2 = cell_state(x - 1, y + dy);
+        if (s2 == 0u) {
+            return VOID_TARGET;
+        }
+        if (s2 == 1u) {
             return target_index(x - 1, y + dy);
         }
     }
@@ -72,17 +91,33 @@ fn try_diagonal(x: i32, y: i32, dy: i32, parity: u32) -> u32 {
 
 fn try_lateral(x: i32, y: i32, parity: u32) -> u32 {
     if (parity == 0u) {
-        if (cell_state(x - 1, y) == 1u) {
+        let s = cell_state(x - 1, y);
+        if (s == 0u) {
+            return VOID_TARGET;
+        }
+        if (s == 1u) {
             return target_index(x - 1, y);
         }
-        if (cell_state(x + 1, y) == 1u) {
+        let s2 = cell_state(x + 1, y);
+        if (s2 == 0u) {
+            return VOID_TARGET;
+        }
+        if (s2 == 1u) {
             return target_index(x + 1, y);
         }
     } else {
-        if (cell_state(x + 1, y) == 1u) {
+        let s = cell_state(x + 1, y);
+        if (s == 0u) {
+            return VOID_TARGET;
+        }
+        if (s == 1u) {
             return target_index(x + 1, y);
         }
-        if (cell_state(x - 1, y) == 1u) {
+        let s2 = cell_state(x - 1, y);
+        if (s2 == 0u) {
+            return VOID_TARGET;
+        }
+        if (s2 == 1u) {
             return target_index(x - 1, y);
         }
     }

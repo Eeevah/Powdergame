@@ -10,8 +10,10 @@
 //! - only **1-cell local** neighbors are considered (no teleport, no scan),
 //! - **First-Match**: the first valid candidate wins and searching stops,
 //! - destinations are `EMPTY` only (density displacement is G3),
-//! - an out-of-domain destination is `Void` — never an invisible wall, never
-//!   clamped, never treated as an EMPTY cell.
+//! - an out-of-domain position is `Void` for **every** stencil candidate —
+//!   primary, diagonal or lateral. An open side/top/bottom boundary is a
+//!   Void exit, never an invisible wall, never clamped, never treated as an
+//!   EMPTY cell.
 
 use crate::material::MovementClass;
 
@@ -48,9 +50,10 @@ pub fn prefer_left(x: i64, y: i64) -> bool {
 ///
 /// `lookup(dx, dy)` returns the state of the in-domain cell at `(x+dx, y+dy)`:
 /// - `Some(Empty)` — valid destination,
-/// - `Some(Blocked)` — occupied, not a destination,
-/// - `None` — out-of-domain (Void). For the primary fall direction this is a
-///   `Void` move; for diagonal/lateral it simply is not a candidate.
+/// - `Some(Blocked)` — occupied, not a destination; try the next candidate,
+/// - `None` — out-of-domain (Void). For EVERY stencil candidate this is a
+///   `Void` exit: the mover leaves the world there. It is never an invisible
+///   wall and never clamped.
 pub fn propose_move(
     class: MovementClass,
     x: i64,
@@ -96,6 +99,11 @@ pub fn propose_move(
 }
 
 /// First-match diagonal candidates (±1 in `dy` direction), ordered by parity.
+///
+/// Out-of-domain candidates are `MoveTarget::Void` exits (open side/top/
+/// bottom boundaries are not invisible walls); in-domain occupied cells just
+/// fall through to the next candidate. Returns `None` only when every
+/// candidate was an in-domain blocked cell.
 fn try_diagonals(
     x: i64,
     y: i64,
@@ -109,14 +117,20 @@ fn try_diagonals(
         ((1, dy), (-1, dy))
     };
     for (dx, ddy) in [l, r] {
-        if matches!(lookup(dx, ddy), Some(CellState::Empty)) {
-            return Some(MoveTarget::Cell(x + dx, y + ddy));
+        match lookup(dx, ddy) {
+            None => return Some(MoveTarget::Void),
+            Some(CellState::Empty) => return Some(MoveTarget::Cell(x + dx, y + ddy)),
+            Some(CellState::Blocked) => {}
         }
     }
     None
 }
 
 /// First-match lateral candidate (one cell), ordered by parity.
+///
+/// Same Void semantics as [`try_diagonals`]: an out-of-domain lateral is a
+/// Void exit, not a wall. Returns `None` only when every candidate was an
+/// in-domain blocked cell.
 fn try_lateral(
     x: i64,
     y: i64,
@@ -125,8 +139,10 @@ fn try_lateral(
 ) -> Option<MoveTarget> {
     let (l, r) = if left_first { (-1, 1) } else { (1, -1) };
     for dx in [l, r] {
-        if matches!(lookup(dx, 0), Some(CellState::Empty)) {
-            return Some(MoveTarget::Cell(x + dx, y));
+        match lookup(dx, 0) {
+            None => return Some(MoveTarget::Void),
+            Some(CellState::Empty) => return Some(MoveTarget::Cell(x + dx, y)),
+            Some(CellState::Blocked) => {}
         }
     }
     None
@@ -199,7 +215,7 @@ mod tests {
     fn powder_diagonal_when_down_blocked() {
         // Build: cell below (4,5) = Stone; both diagonals EMPTY.
         let mut g = empty_grid(8, 8);
-        g[5 * 8 + 4] = 2; // stone below
+        g[44] = 2; // stone below (4,5)
         let target = check(MovementClass::Powder, 4, 4, &g, 8, 8);
         match target {
             MoveTarget::Cell(x, y) => {
@@ -233,6 +249,34 @@ mod tests {
     }
 
     #[test]
+    fn powder_diagonal_oob_is_void() {
+        // Powder at the left edge with down blocked: the first-match
+        // diagonal (outward) is out-of-domain → Void exit through the open
+        // side. The side boundary is not an invisible wall.
+        let mut g = empty_grid(8, 8);
+        g[8] = 2; // (0,1) stone — blocks down
+                  // Parity of (0,0) is even → left diagonal first → (−1,1) is OOB.
+        assert_eq!(
+            check(MovementClass::Powder, 0, 0, &g, 8, 8),
+            MoveTarget::Void
+        );
+    }
+
+    #[test]
+    fn liquid_side_diagonal_oob_is_void() {
+        // Liquid at the left edge with down and the inward diagonal blocked:
+        // the outward diagonal is out-of-domain → Void exit.
+        let mut g = empty_grid(8, 8);
+        g[8] = 2; // (0,1) stone — blocks down
+        g[9] = 2; // (1,1) stone — blocks the inward diagonal
+                  // Parity of (0,0) is even → left (outward) diagonal first → OOB.
+        assert_eq!(
+            check(MovementClass::Liquid, 0, 0, &g, 8, 8),
+            MoveTarget::Void
+        );
+    }
+
+    #[test]
     fn liquid_falls_down() {
         let grid = empty_grid(8, 8);
         assert_eq!(
@@ -244,7 +288,7 @@ mod tests {
     #[test]
     fn liquid_diagonal_when_down_blocked() {
         let mut g = empty_grid(8, 8);
-        g[5 * 8 + 4] = 2; // stone below
+        g[44] = 2; // stone below (4,5)
         let target = check(MovementClass::Liquid, 4, 4, &g, 8, 8);
         match target {
             MoveTarget::Cell(x, y) => {
@@ -258,10 +302,10 @@ mod tests {
     #[test]
     fn liquid_lateral_when_down_and_diagonal_blocked() {
         let mut g = empty_grid(8, 8);
-        g[5 * 8 + 4] = 2; // stone below
-        g[5 * 8 + 3] = 2; // down-left stone
-        g[5 * 8 + 5] = 2; // down-right stone
-                          // Laterals are EMPTY.
+        g[44] = 2; // stone below (4,5)
+        g[43] = 2; // down-left stone (3,5)
+        g[45] = 2; // down-right stone (5,5)
+                   // Laterals are EMPTY.
         let target = check(MovementClass::Liquid, 4, 4, &g, 8, 8);
         match target {
             MoveTarget::Cell(x, y) => {
@@ -283,9 +327,9 @@ mod tests {
                 g[4 * 8 + x] = 2; // whole row blocked except far right (7)
             }
         }
-        g[5 * 8 + 3] = 2; // down
-        g[5 * 8 + 2] = 2; // down-left
-        g[5 * 8 + 4] = 2; // down-right
+        g[43] = 2; // down (3,5)
+        g[42] = 2; // down-left (2,5)
+        g[44] = 2; // down-right (4,5)
         let target = check(MovementClass::Liquid, 3, 4, &g, 8, 8);
         assert_eq!(
             target,
@@ -306,7 +350,7 @@ mod tests {
     #[test]
     fn gas_up_diagonal_when_up_blocked() {
         let mut g = empty_grid(8, 8);
-        g[3 * 8 + 4] = 2; // stone above
+        g[28] = 2; // stone above (4,3)
         let target = check(MovementClass::Gas, 4, 4, &g, 8, 8);
         match target {
             MoveTarget::Cell(x, y) => {
@@ -324,6 +368,18 @@ mod tests {
             check(MovementClass::Gas, 4, 0, &grid, 8, 8),
             MoveTarget::Void
         );
+    }
+
+    #[test]
+    fn gas_up_diagonal_oob_is_void() {
+        // Gas at the left edge with up and the inward up-diagonal blocked:
+        // the outward up-diagonal is out-of-domain → Void exit.
+        let mut g = empty_grid(8, 8);
+        g[0] = 2; // (0,0) stone — blocks up
+        g[1] = 2; // (1,0) stone — blocks the inward up-diagonal
+                  // Parity of (0,1) is odd → right (inward) up-diagonal first, then the
+                  // outward (−1,0) one → OOB → Void.
+        assert_eq!(check(MovementClass::Gas, 0, 1, &g, 8, 8), MoveTarget::Void);
     }
 
     #[test]
@@ -346,16 +402,21 @@ mod tests {
 
     #[test]
     fn parity_flips_diagonal_preference() {
+        // Both sources have their primary (down) direction blocked, so the
+        // first-match diagonal is the deciding stage: even parity prefers
+        // the left diagonal, odd parity the right one (source-relative).
         let mut g = empty_grid(8, 8);
-        g[5 * 8 + 4] = 2; // down blocked
-        let left = check(MovementClass::Powder, 4, 4, &g, 8, 8);
-        let right = check(MovementClass::Powder, 5, 4, &g, 8, 8);
-        // The two parity classes must not both always pick the same side.
-        match (left, right) {
-            (MoveTarget::Cell(lx, _), MoveTarget::Cell(rx, _)) => {
-                assert_ne!(lx, rx, "parity must not bias both to one side");
-            }
-            other => panic!("expected diagonal moves, got {other:?}"),
-        }
+        g[44] = 2; // (4,5) stone — down of source A
+        g[45] = 2; // (5,5) stone — down of source B
+        assert_eq!(
+            check(MovementClass::Powder, 4, 4, &g, 8, 8),
+            MoveTarget::Cell(3, 5),
+            "even parity must prefer the left diagonal"
+        );
+        assert_eq!(
+            check(MovementClass::Powder, 5, 4, &g, 8, 8),
+            MoveTarget::Cell(6, 5),
+            "odd parity must prefer the right diagonal"
+        );
     }
 }

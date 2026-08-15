@@ -360,6 +360,58 @@ fn void_exit_loses_exactly_one_matter() {
     );
 }
 
+#[test]
+fn liquid_exits_through_open_side_boundary() {
+    // Open the LEFT side boundary: the outward stencil candidates (which are
+    // out-of-domain) must act as a Void exit, not an invisible wall.
+    let mut sim = eight_by_eight();
+    set(&sim, 0, 1, MATERIAL_EMPTY); // open the ring cell
+    set(&sim, 0, 1, MATERIAL_WATER); // water in the edge cell
+    set(&sim, 0, 2, MATERIAL_STONE); // blocks down
+    set(&sim, 1, 2, MATERIAL_STONE); // blocks the inward (right) diagonal
+    let water_before = count_material(&sim, MATERIAL_WATER);
+
+    // Parity of (0,1) is odd → right (inward) diagonal first (blocked), then
+    // the outward (−1,2) diagonal → out-of-domain → Void.
+    sim.tick().expect("tick");
+
+    assert_eq!(
+        cell(&sim, 0, 1),
+        MATERIAL_EMPTY,
+        "water left the world through the open side"
+    );
+    assert_eq!(
+        count_material(&sim, MATERIAL_WATER),
+        water_before - 1,
+        "exactly one water vanished into Void (no duplication, no invisible wall)"
+    );
+}
+
+#[test]
+fn powder_diagonal_void_exit() {
+    // Powder at the top-left corner with down blocked: the first-match
+    // diagonal (outward, out-of-domain) is a Void exit through the open side.
+    let mut sim = eight_by_eight();
+    set(&sim, 0, 0, MATERIAL_EMPTY); // open the ring corner
+    set(&sim, 0, 0, MATERIAL_SAND);
+    set(&sim, 0, 1, MATERIAL_STONE); // blocks down
+    let sand_before = count_material(&sim, MATERIAL_SAND);
+
+    // Parity of (0,0) is even → left diagonal first → (−1,1) is OOB → Void.
+    sim.tick().expect("tick");
+
+    assert_eq!(
+        cell(&sim, 0, 0),
+        MATERIAL_EMPTY,
+        "sand left through the open side"
+    );
+    assert_eq!(
+        count_material(&sim, MATERIAL_SAND),
+        sand_before - 1,
+        "exactly one sand vanished into Void"
+    );
+}
+
 // ── G1 contract regression inside the G2 tick loop ─────────────────────
 
 #[test]

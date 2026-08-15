@@ -14,20 +14,26 @@
 4. `architecture/ARCHITECTURE.md` — 현재 시스템 구조
 5. `planning/MILESTONES.md` — 무엇을 증명해야 완료인지 정의하는 Evidence Gate
 6. `development/*` — 개발, 테스트, 성능 측정 원칙
-7. `design-history/*` — 질문, 선택지, 사용자 선택/코멘트, superseded 결정까지 포함한 설계 맥락과 provenance
-8. `00_USER_VISION.md` — 초기 사용자 비전 스냅샷
-9. `01_MASTER_DESIGN_REPORT.md` — 프로젝트 초기 심층 리서치/설계 입력 자료
+7. `01_MASTER_DESIGN_REPORT.md` — 현재 Foundation 설계를 한 문서로 읽기 위한 종합 보고서
+8. `design-history/*` — 질문, 선택지, 사용자 선택/코멘트, superseded 결정까지 포함한 설계 provenance와 해석 근거
+9. `00_USER_VISION.md` — 기존 경로 호환용 현재 비전 요약; 상세 기준은 `vision/USER_VISION.md`
 10. 초기 프로토타입/실험 코드
 
-`00_USER_VISION.md`와 `01_MASTER_DESIGN_REPORT.md`는 삭제하지 않는다. 당시의 사고와 연구를 보존하는 역사적 자료다. 다만 이후 사용자와의 명시적 합의로 변경된 플랫폼, 결정성, 셀 모델, 물리 모델, GPU 구조 등에 대해서는 최신 ADR/SPEC이 우선한다.
+### 현재 Q&A의 지위
+
+2026-08-15 Foundation Design Session에서 사용자가 직접 선택·교정한 내용은 구현 전 단계의 초기 연구 가설보다 강한 설계 증거로 취급한다.
+
+따라서 기존 README, `00_USER_VISION.md`, `01_MASTER_DESIGN_REPORT.md`도 현재 Q&A에 맞게 갱신했다. 과거 버전은 Git history가 보존한다.
+
+`design-history/*`에는 superseded 결정도 포함될 수 있으므로 구현 코드가 직접 따라야 할 계약은 최신 ADR/SPEC이다. 다만 **왜 그 계약이 그렇게 되었는지, 사용자의 실제 의도가 무엇인지 해석해야 할 때는 Design History를 반드시 참고한다.**
 
 ## 디렉터리 구조
 
 ```text
 docs/
 ├─ README.md
-├─ 00_USER_VISION.md                  # 초기 스냅샷 / 역사 자료
-├─ 01_MASTER_DESIGN_REPORT.md         # 초기 연구 보고서 / 연구 입력
+├─ 00_USER_VISION.md                  # 기존 경로 호환 / 최신 비전 요약
+├─ 01_MASTER_DESIGN_REPORT.md         # 현재 Foundation 종합 설계 보고서
 ├─ vision/
 │  └─ USER_VISION.md                  # 현재 최상위 제품 비전
 ├─ design-history/
@@ -63,6 +69,10 @@ docs/
 
 `vision/USER_VISION.md`는 **무엇을 만들고 싶은가**를 정의한다. 기술적 편의 때문에 이 문서를 거꾸로 축소하지 않는다.
 
+### Master Design Report
+
+`01_MASTER_DESIGN_REPORT.md`는 Foundation 설계를 한 번에 읽을 수 있도록 통합한 종합 보고서다. 넓은 맥락을 제공하지만 세부 구현에서 SPEC/ADR과 충돌하면 더 구체적이고 최신인 SPEC/ADR이 우선한다.
+
 ### Design History
 
 `design-history/*`는 **어떻게 그 결론에 도달했는가**를 보존한다.
@@ -84,7 +94,7 @@ docs/
 
 ### ADR
 
-ADR은 **왜 이 구조를 선택했는가**를 보존한다. 승인된 과거 ADR은 조용히 다시 쓰지 않는다. 방향이 바뀌면 새 ADR이 이전 ADR을 supersede한다.
+ADR은 **왜 이 구조를 선택했는가**를 보존한다. 승인된 과거 ADR은 조용히 다시 쓰지 않는다. 구현 이후 방향이 바뀌면 새 ADR이 이전 ADR을 supersede한다.
 
 ### Specs
 

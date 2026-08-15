@@ -9,8 +9,9 @@
 //! G2 adds the minimum Matter identities needed for local movement and the
 //! `MovementClass` descriptor. G3 adds `density_rank` — a small gameplay
 //! ordering, NOT a physical constant and never per-cell state
-//! (`SIMULATION_SPEC` §12, `MATERIAL_SPEC` §5). Thermal/reaction properties
-//! are deliberately NOT added here — they arrive with G4.
+//! (`SIMULATION_SPEC` §12, `MATERIAL_SPEC` §5). G4-A adds cheap
+//! `thermal_conductivity` / `heat_capacity` (gameplay scalars, not SI).
+//! Phase / combustion / ignition properties are still not here.
 
 /// Absence of Matter in a cell. `EMPTY` is not Matter (ADR-0001).
 pub const MATERIAL_EMPTY: u32 = 0;
@@ -37,6 +38,22 @@ pub const DENSITY_RANK_SMOKE: u32 = 30;
 pub const DENSITY_RANK_OIL: u32 = 70;
 pub const DENSITY_RANK_WATER: u32 = 90;
 pub const DENSITY_RANK_SAND: u32 = 150;
+
+// G4-A cheap thermal scalars (not SI). Heat capacity is shared by the
+// two liquids so a conductivity-only contrast is testable. Boundary
+// conductivity is 0 so the outer ring is not a hidden heat sink.
+pub const THERMAL_K_BOUNDARY: f32 = 0.0;
+pub const THERMAL_K_STONE: f32 = 0.50;
+pub const THERMAL_K_SAND: f32 = 0.30;
+pub const THERMAL_K_WATER: f32 = 1.00;
+pub const THERMAL_K_OIL: f32 = 0.20;
+pub const THERMAL_K_STEAM: f32 = 0.10;
+pub const THERMAL_K_SMOKE: f32 = 0.10;
+pub const THERMAL_C_BOUNDARY: f32 = 2.0;
+pub const THERMAL_C_STONE: f32 = 2.0;
+pub const THERMAL_C_SAND: f32 = 1.5;
+pub const THERMAL_C_LIQUID: f32 = 2.5;
+pub const THERMAL_C_GAS: f32 = 0.8;
 
 /// Movement behavior family (G2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,9 +93,9 @@ impl MovementClass {
 
 /// Minimum descriptor for a registered Matter identity.
 ///
-/// G2 adds `movement_class`; G3 adds `density_rank`. No thermal, tags or
-/// reactions yet (G4+).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// G2 adds `movement_class`; G3 adds `density_rank`; G4-A adds cheap
+/// thermal scalars. No phase / combustion / ignition fields yet.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MaterialDescriptor {
     pub id: u32,
     pub name: &'static str,
@@ -89,6 +106,11 @@ pub struct MaterialDescriptor {
     /// are never density-displacement targets. `Some(rank)`: movable Matter;
     /// only `>`/`==`/`<` comparisons are meaningful.
     pub density_rank: Option<u32>,
+    /// Gameplay thermal conductivity. `0` means this Matter does not
+    /// exchange heat (the outer Boundary ring).
+    pub thermal_conductivity: f32,
+    /// Gameplay heat capacity. Higher → slower temperature change.
+    pub heat_capacity: f32,
 }
 
 /// The registered Matter catalog.
@@ -101,42 +123,56 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         name: "Boundary Block",
         movement_class: MovementClass::Static,
         density_rank: None,
+        thermal_conductivity: THERMAL_K_BOUNDARY,
+        heat_capacity: THERMAL_C_BOUNDARY,
     },
     MaterialDescriptor {
         id: MATERIAL_STONE,
         name: "Stone",
         movement_class: MovementClass::Static,
         density_rank: None,
+        thermal_conductivity: THERMAL_K_STONE,
+        heat_capacity: THERMAL_C_STONE,
     },
     MaterialDescriptor {
         id: MATERIAL_SAND,
         name: "Sand",
         movement_class: MovementClass::Powder,
         density_rank: Some(DENSITY_RANK_SAND),
+        thermal_conductivity: THERMAL_K_SAND,
+        heat_capacity: THERMAL_C_SAND,
     },
     MaterialDescriptor {
         id: MATERIAL_WATER,
         name: "Water",
         movement_class: MovementClass::Liquid,
         density_rank: Some(DENSITY_RANK_WATER),
+        thermal_conductivity: THERMAL_K_WATER,
+        heat_capacity: THERMAL_C_LIQUID,
     },
     MaterialDescriptor {
         id: MATERIAL_OIL,
         name: "Oil",
         movement_class: MovementClass::Liquid,
         density_rank: Some(DENSITY_RANK_OIL),
+        thermal_conductivity: THERMAL_K_OIL,
+        heat_capacity: THERMAL_C_LIQUID,
     },
     MaterialDescriptor {
         id: MATERIAL_STEAM,
         name: "Steam",
         movement_class: MovementClass::Gas,
         density_rank: Some(DENSITY_RANK_STEAM),
+        thermal_conductivity: THERMAL_K_STEAM,
+        heat_capacity: THERMAL_C_GAS,
     },
     MaterialDescriptor {
         id: MATERIAL_SMOKE,
         name: "Smoke",
         movement_class: MovementClass::Gas,
         density_rank: Some(DENSITY_RANK_SMOKE),
+        thermal_conductivity: THERMAL_K_SMOKE,
+        heat_capacity: THERMAL_C_GAS,
     },
 ];
 
@@ -346,6 +382,20 @@ mod tests {
         for unknown in [8usize, 15] {
             assert_eq!(table[unknown], 0);
         }
+    }
+
+    #[test]
+    fn g4a_thermal_scalars_are_assigned() {
+        let water = registry_lookup(MATERIAL_WATER).unwrap();
+        let oil = registry_lookup(MATERIAL_OIL).unwrap();
+        let stone = registry_lookup(MATERIAL_STONE).unwrap();
+        let boundary = registry_lookup(MATERIAL_BOUNDARY_BLOCK).unwrap();
+        assert_eq!(water.thermal_conductivity, THERMAL_K_WATER);
+        assert_eq!(oil.thermal_conductivity, THERMAL_K_OIL);
+        assert!(water.thermal_conductivity > oil.thermal_conductivity);
+        assert_eq!(water.heat_capacity, oil.heat_capacity);
+        assert!(stone.thermal_conductivity > 0.0);
+        assert_eq!(boundary.thermal_conductivity, THERMAL_K_BOUNDARY);
     }
 
     #[test]

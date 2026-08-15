@@ -29,7 +29,7 @@ use wgpu::util::DeviceExt;
 
 use powdergame_core::{
     initial_material_ids, is_valid_cell_material_value, Domain, WorldConfig, WorldLayout,
-    MATERIAL_ELEM_SIZE, MATERIAL_EMPTY,
+    MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, TEMPERATURE_ELEM_SIZE, TEMPERATURE_REFERENCE,
 };
 
 use crate::context::GpuError;
@@ -339,6 +339,80 @@ impl GpuWorld {
         let bytes = value.to_ne_bytes();
         queue.write_buffer(&self.material_current, offset, &bytes);
         queue.write_buffer(&self.material_next, offset, &bytes);
+        if value == MATERIAL_EMPTY {
+            // EMPTY is not a thermal medium and must not keep leftover heat.
+            let zero = TEMPERATURE_REFERENCE.to_ne_bytes();
+            let t_off = index * TEMPERATURE_ELEM_SIZE;
+            queue.write_buffer(&self.temperature_current, t_off, &zero);
+            queue.write_buffer(&self.temperature_next, t_off, &zero);
+        }
+        Ok(())
+    }
+
+    /// Reads a single cell's temperature (diagnostic/test helper).
+    pub fn read_temperature_cell(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+    ) -> Result<f32, GpuError> {
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * TEMPERATURE_ELEM_SIZE;
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.temperature_current,
+            offset,
+            TEMPERATURE_ELEM_SIZE,
+        )?;
+        Ok(f32::from_ne_bytes(bytes[..4].try_into().unwrap()))
+    }
+
+    /// Reads the entire temperature Current buffer (test helper).
+    pub fn read_temperature_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<f32>, GpuError> {
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.temperature_current,
+            0,
+            self.layout.temperature_bytes,
+        )?;
+        let mut cells = Vec::with_capacity(bytes.len() / 4);
+        for chunk in bytes.chunks_exact(4) {
+            cells.push(f32::from_ne_bytes(chunk.try_into().unwrap()));
+        }
+        Ok(cells)
+    }
+
+    /// Edit hook: sets one cell's temperature on Current and Next.
+    ///
+    /// Non-finite values are rejected. This does not change material.
+    pub fn write_temperature(
+        &self,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+        value: f32,
+    ) -> Result<(), GpuError> {
+        if !value.is_finite() {
+            return Err(GpuError::InvalidTemperature(value));
+        }
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * TEMPERATURE_ELEM_SIZE;
+        let bytes = value.to_ne_bytes();
+        queue.write_buffer(&self.temperature_current, offset, &bytes);
+        queue.write_buffer(&self.temperature_next, offset, &bytes);
         Ok(())
     }
 }

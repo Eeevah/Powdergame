@@ -164,6 +164,8 @@ pub enum GpuError {
     CoordinateOutOfBounds { x: i64, y: i64 },
     /// A material value is neither `EMPTY` nor a registered Matter.
     InvalidMaterialValue(u32),
+    /// A temperature edit is not a finite f32.
+    InvalidTemperature(f32),
     /// Other error with a message.
     Other(String),
 }
@@ -191,6 +193,9 @@ impl std::fmt::Display for GpuError {
                     f,
                     "coordinate ({x}, {y}) is outside the finite world (Void)"
                 )
+            }
+            GpuError::InvalidTemperature(value) => {
+                write!(f, "invalid temperature {value}: must be a finite f32")
             }
             GpuError::InvalidMaterialValue(value) => {
                 write!(

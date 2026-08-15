@@ -10,10 +10,16 @@
 //! claims (propose → claim → commit) so normal moves AND density swaps go
 //! through the same safe path, with a per-cell scratch `claim` buffer. The
 //! GPU remains the authoritative simulation path; the CPU only orchestrates
-//! and stages edits. No gameplay beyond movement + density displacement
-//! (thermal/phase are G4).
+//! and stages edits.
+//!
+//! G4-A: movement commit transports temperature with Matter (same
+//! ownership edge, write-self). After both Current buffers are updated,
+//! a 4-neighbor thermal pass conducts into `temperature_next`. EMPTY is
+//! not a thermal medium. Phase / combustion are not implemented.
 
-use powdergame_core::{density_table, movement_class_table, WorldConfig};
+use powdergame_core::{
+    conductivity_table, density_table, heat_capacity_table, movement_class_table, WorldConfig,
+};
 
 use crate::context::{GpuContext, GpuError};
 use crate::world::GpuWorld;
@@ -79,9 +85,11 @@ pub struct Simulation {
     propose_pipeline: wgpu::ComputePipeline,
     claim_pipeline: wgpu::ComputePipeline,
     commit_pipeline: wgpu::ComputePipeline,
+    thermal_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
+    thermal_bind_group: wgpu::BindGroup,
     marker: wgpu::Buffer,
 
     /// Number of ticks submitted since creation.
@@ -127,6 +135,12 @@ impl Simulation {
                 label: Some("powdergame-g3-movement-commit"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("movement_commit.wgsl").into()),
             });
+        let shader_thermal = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("powdergame-g4a-thermal"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("thermal.wgsl").into()),
+            });
 
         // Bind group layouts.
         let propose_layout =
@@ -164,6 +178,22 @@ impl Simulation {
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // claim
                         buffer_entry(3, &BindingKind::ReadWrite), // material_next
+                        buffer_entry(4, &BindingKind::Read), // temperature_current
+                        buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
+                    ],
+                });
+        let thermal_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g4a-thermal-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // temperature_current
+                        buffer_entry(3, &BindingKind::ReadWrite), // temperature_next
+                        buffer_entry(4, &BindingKind::Read), // conductivity_table
+                        buffer_entry(5, &BindingKind::Read), // capacity_table
                     ],
                 });
 
@@ -208,6 +238,12 @@ impl Simulation {
             &commit_layout,
             &shader_commit,
             "commit_main",
+        );
+        let thermal_pipeline = make_pipeline(
+            "powdergame-g4a-thermal",
+            &thermal_layout,
+            &shader_thermal,
+            "thermal_main",
         );
 
         // Params uniform: cell_count, threads_x, width, height.
@@ -264,6 +300,37 @@ impl Simulation {
         context
             .queue
             .write_buffer(&density_table_buf, 0, &density_data);
+
+        // G4-A thermal property tables (Material cheap scalars, not per-cell).
+        let mut conductivity_data = [0u8; TABLE_SIZE as usize];
+        for (i, value) in conductivity_table().iter().enumerate() {
+            let off = i * 4;
+            conductivity_data[off..off + 4].copy_from_slice(&value.to_ne_bytes());
+        }
+        let conductivity_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g4a/thermal/conductivity-table"),
+            size: TABLE_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context
+            .queue
+            .write_buffer(&conductivity_table_buf, 0, &conductivity_data);
+
+        let mut capacity_data = [0u8; TABLE_SIZE as usize];
+        for (i, value) in heat_capacity_table().iter().enumerate() {
+            let off = i * 4;
+            capacity_data[off..off + 4].copy_from_slice(&value.to_ne_bytes());
+        }
+        let capacity_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g4a/thermal/capacity-table"),
+            size: TABLE_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context
+            .queue
+            .write_buffer(&capacity_table_buf, 0, &capacity_data);
 
         // Diagnostic marker: 16 bytes, one u32 used.
         let marker = context.device.create_buffer(&wgpu::BufferDescriptor {
@@ -349,6 +416,46 @@ impl Simulation {
                         binding: 3,
                         resource: world.material_next.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: world.temperature_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: world.temperature_next.as_entire_binding(),
+                    },
+                ],
+            });
+        let thermal_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("powdergame-g4a-thermal-bg"),
+                layout: &thermal_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: world.material_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: world.temperature_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: world.temperature_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: conductivity_table_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: capacity_table_buf.as_entire_binding(),
+                    },
                 ],
             });
 
@@ -358,17 +465,20 @@ impl Simulation {
             propose_pipeline,
             claim_pipeline,
             commit_pipeline,
+            thermal_pipeline,
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
+            thermal_bind_group,
             marker,
             tick_count: 0,
         })
     }
 
-    /// Submits one movement tick: propose → claim → commit + Next→Current
-    /// copy, all on the GPU. The CPU never simulates or copies the full
-    /// world. Pass boundaries act as full-world barriers.
+    /// Submits one tick on the GPU (no CPU full-world copy):
+    /// propose → claim → commit (material_next + temperature_next) →
+    /// material Next→Current → temperature Next→Current →
+    /// thermal conduction (write-self) → temperature Next→Current.
     pub fn tick(&mut self) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
@@ -411,14 +521,35 @@ impl Simulation {
             dispatch(&mut pass, &self.commit_pipeline, &self.commit_bind_group);
         }
 
-        // Commit Next → Current on the GPU (readable baseline; the CPU does
-        // not copy the full world).
+        // Movement ownership is settled on Current before conduction.
         encoder.copy_buffer_to_buffer(
             &self.world.material_next,
             0,
             &self.world.material_current,
             0,
             self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.temperature_next,
+            0,
+            &self.world.temperature_current,
+            0,
+            self.world.layout.temperature_bytes,
+        );
+
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g4a-thermal-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(&mut pass, &self.thermal_pipeline, &self.thermal_bind_group);
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.world.temperature_next,
+            0,
+            &self.world.temperature_current,
+            0,
+            self.world.layout.temperature_bytes,
         );
 
         self.context.queue.submit([encoder.finish()]);

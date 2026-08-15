@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED (User Validation 승인 완료 2026-08-16), G3 (Density / Displacement) PASS / CLOSED (User Validation 승인 완료 2026-08-16). G4~G9와 최종 M0 사용자 승인 남음.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED (User Validation 승인 완료 2026-08-16), G3 (Density / Displacement) PASS / CLOSED (User Validation 승인 완료 2026-08-16), G4-A (Thermal Baseline) technical sub-step TECHNICAL PASS. G4 전체는 아직 PASS/CLOSED가 아니다. G4~G9와 최종 M0 사용자 승인 남음.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED (자동·기술 검증 + 성능 baseline 기록 + User Validation 사용자 승인 완료). G3 — Density / Displacement: PASS / CLOSED (자동·기술 검증 + User Validation 사용자 승인 완료).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: IN_PROGRESS (G4-A thermal baseline TECHNICAL PASS; phase/combustion/User Validation 없음).**
 
 ### Current Summary
 
@@ -45,6 +45,8 @@
 - M0 Evidence Gates G0~G9
 
 2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**가 구현·검증·승인 완료되었다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했다. G3는 사용자가 개선된 laboratory `--density-demo`를 직접 실행해 약 300 ticks를 관찰한 뒤 Sand/Water 침강, Water/Oil 층분리, Steam/Smoke 정렬이 관찰 가능한 수준으로 동작함을 승인했다.
+
+G4는 아직 열려 있지 않은 단계다 (G4 전체 = IN_PROGRESS). 현재 branch `feature/m0-g4-thermal-phase-combustion`은 G3 baseline `4053fe0a51ecdf59e5515eb58e2079e87c78c740`에서 분기한 **G4-A Thermal Baseline** 기술 하위 단계이며, 자동/기술 검증 완료로 **TECHNICAL PASS** 상태다. Ice/Water/Steam phase (G4-B), Wood/Oil combustion / Fire (G4-C), Pressure logic, thermal demo, G4 User Validation은 아직 구현되지 않았다.
 
 ### G0 Runtime Evidence (2026-08-16, local run)
 
@@ -411,6 +413,72 @@ G3 User Validation:
 
 M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G4~G9와 최종 사용자 승인이 남아 있다.
 
+### G4-A Thermal Baseline (technical sub-step — TECHNICAL PASS, not G4 CLOSED)
+
+```text
+Branch:           feature/m0-g4-thermal-phase-combustion
+Base:             4053fe0a51ecdf59e5515eb58e2079e87c78c740 (G3 PASS/CLOSED)
+Scope:            Temperature f32 4-neighbor conduction ONLY
+Out of scope:     Ice/Water/Steam phase (G4-B), Wood/Oil combustion (G4-C),
+                  Fire, Pressure, thermal demo, G4 User Validation
+Reference T:      0.0 (relative hot/cold scalar; not Celsius)
+State:            per-cell temperature_current / temperature_next
+Material props:   thermal_conductivity, heat_capacity (cheap gameplay scalars)
+                  Boundary k=0 (outer ring은 숨은 heat sink 아님)
+EMPTY:            not a thermal medium; EMPTY self writes 0.0; no conduction
+                  through EMPTY/Void; vacated / Void-exit cells are T=0
+Update:           Read 4-neighbors → write self only
+                  T' = T + clamp(RATE * Σ min(k_self,k_n)*(T_n-T) / C, ±MAX)
+                  deadband |ΔT| < 1e-4 → skip; NaN/Inf → 0.0
+Ownership:        no separate thermal Claim/Resolve. Movement commit
+                  transports T with Matter on the same G3 edge
+                  (stay / move / swap / void / unmatched).
+                  density swap: 각 Matter가 자기 T를 가져감 (열이 좌표에 남지 않음)
+                  Void exit: Matter와 열이 함께 world 밖으로 (T=0)
+                  경쟁 패배/blocked: T 유지
+GPU:              propose → claim → commit(mat+T) → copy both Current →
+                  thermal.wgsl → temperature Next→Current
+Phase/combustion: not started (G4-B / G4-C 미구현)
+G4 전체 상태:      NOT PASS, NOT CLOSED (IN_PROGRESS)
+```
+
+G4-A 기술 검증 (2026-08-16, local run — 실제 RTX 5090/DX12):
+
+```text
+Core pure tests (thermal.rs + material.rs — 8개):
+  hot_neighbor_heats_cold_self / cold_neighbor_cools_hot_self      PASS
+  equal_temperature_is_stable / empty_neighbor_does_not_conduct    PASS
+  conductivity_difference_changes_transfer (Water > Oil)           PASS
+  output_is_always_finite (clamp + NaN/Inf → 0)                    PASS
+  empty_self_has_no_thermal_state / tables_cover_registered_matter PASS
+
+GPU tests (thermal.rs — 13개, 실제 RTX 5090/DX12):
+  two_cell_hot_cold_propagation                    PASS (hot cools, cold heats, ordering 유지)
+  four_neighbor_propagation                        PASS (4방향 > 1방향 전달)
+  empty_gap_blocks_heat                            PASS (EMPTY는 thermal medium 아님)
+  stone_and_water_exchange_heat                    PASS (이종 재질 heat exchange)
+  thermal_crosses_chunk_boundary                   PASS (x=63↔64 경계 전달 — chunk wall 아님)
+  repeated_ticks_stay_finite (200 ticks)           PASS
+  no_nan_or_infinity_in_world                      PASS
+  write_temperature_rejects_non_finite             PASS (NaN edit 거부)
+  empty_cell_temperature_stays_at_reference        PASS
+  hot_matter_carries_temperature_when_moving       PASS (이동 시 열이 destination으로)
+  density_swap_carries_each_matter_temperature     PASS (swap 후 Sand가 여전히 더 뜨거움)
+  void_exit_removes_temperature                    PASS (Void exit 시 T=0, ghost heat 없음)
+  blocked_or_losing_move_keeps_temperature         PASS (blocked/경쟁 패배 시 T 유지,
+                                                     winner가 hot state를 운반)
+
+G0/G1/G2/G3 regression:
+  cargo test --workspace 전체 PASS
+  Windows smoke (--smoke-frames 60): PASS
+  --movement-demo --smoke-frames 120: PASS
+  --density-demo --smoke-frames 180: PASS
+
+cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
+```
+
+**G4-A Thermal Baseline: TECHNICAL PASS.** (G4 전체는 여전히 IN_PROGRESS — PASS/CLOSED 아님. G4-B Phase, G4-C Combustion, G4 User Validation은 미구현.)
+
 ### Product Direction
 
 > **현실을 구현하는 것이 아니라 가상의 재미있는 놀이터를 만든다. 핵심은 나만의 세계 창조다.**
@@ -419,10 +487,13 @@ M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G4~G9와 최�
 
 ### Next Action
 
-1. G4 — Temperature / Phase / Combustion 준비 (이 G3 기준선에서 별도 branch 생성).
-2. G4 구현은 그 branch에서만 시작한다. 이 G3 기준점은 변경하지 않는다.
+1. G4-A thermal baseline: **TECHNICAL PASS** (2026-08-16). thermal demo는 아직 없으므로
+   사용자 확인은 G4-B/C 이후 G4 User Validation에서 진행한다.
+2. 다음 단계 **G4-B — Ice/Water/Steam phase transition** (아직 미구현, 별도 단계).
+3. 그 다음 **G4-C — Wood/Oil combustion / Fire** (아직 미구현).
+4. G4 전체 User Validation 전까지 G4를 PASS/CLOSED로 올리지 않는다.
 
-아직 G4 구현은 시작하지 않는다.
+공식 G4 performance benchmark는 측정하지 않는다 (correctness-first).
 
 ### Blockers
 
@@ -447,7 +518,7 @@ M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G4~G9와 최�
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3 PASS (G2·G3는 User Validation 포함), G4~G9 + 최종 M0 승인 남음
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3 PASS (G2·G3는 User Validation 포함), G4-A thermal baseline TECHNICAL PASS (G4 전체는 CLOSED 아님 — G4-B/C 미구현), G4~G9 + 최종 M0 승인 남음
 
 M0 `ACHIEVED`: **NO**
 
@@ -470,7 +541,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (56 core + 15 GPU density + 1 GPU headless smoke + 16 GPU movement + 7 GPU world integrity, ignored 1 controlled benchmark)
+tests: passed (65 core incl. 8 G4-A thermal + 15 GPU density + 13 GPU thermal + 1 GPU headless smoke + 16 GPU movement + 7 GPU world integrity, ignored 1 controlled benchmark)
 benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark. G3 controlled baseline: deferred (idle-machine 확인 후 별도 측정).
-m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16, G3 PASS/CLOSED incl. user validation 2026-08-16, G4+ pending)
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16, G3 PASS/CLOSED incl. user validation 2026-08-16, G4-A thermal baseline TECHNICAL PASS — G4 not CLOSED, G4-B/G4-C not started, G4+ pending)
 ```

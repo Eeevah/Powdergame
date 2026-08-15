@@ -117,8 +117,14 @@ mod tests {
         let through_stone = pressure_step(MATERIAL_WATER, 12.0, right(MATERIAL_STONE, 100.0));
         assert_eq!(through_empty, 12.0);
         assert_eq!(through_stone, 12.0);
-        assert_eq!(pressure_step(MATERIAL_EMPTY, 99.0, [None; 4]), PRESSURE_REFERENCE);
-        assert_eq!(pressure_step(MATERIAL_STONE, 99.0, [None; 4]), PRESSURE_REFERENCE);
+        assert_eq!(
+            pressure_step(MATERIAL_EMPTY, 99.0, [None; 4]),
+            PRESSURE_REFERENCE
+        );
+        assert_eq!(
+            pressure_step(MATERIAL_STONE, 99.0, [None; 4]),
+            PRESSURE_REFERENCE
+        );
     }
 
     #[test]

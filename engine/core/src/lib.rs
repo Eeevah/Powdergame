@@ -14,6 +14,7 @@ pub mod layout;
 pub mod material;
 pub mod movement;
 pub mod phase;
+pub mod pressure;
 pub mod thermal;
 pub mod world_config;
 
@@ -54,6 +55,10 @@ pub use phase::{
     is_phase_candidate, phase_descriptor_table, select_phase_transition, PhaseGpuDescriptor,
     PhaseTransition, TemperatureCondition, ICE_MELT_ABOVE, NO_PHASE_TARGET, STEAM_CONDENSE_BELOW,
     WATER_BOIL_ABOVE, WATER_FREEZE_BELOW,
+};
+pub use pressure::{
+    is_pressure_medium, pressure_step, sanitize_pressure, PressureNeighbor,
+    PRESSURE_DIFFUSION_RATE, PRESSURE_MAX, PRESSURE_REFERENCE,
 };
 pub use thermal::{
     conductivity_table, heat_capacity_table, sanitize_temperature, thermal_properties,

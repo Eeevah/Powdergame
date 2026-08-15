@@ -1,7 +1,7 @@
 //! G5-A — scalar pressure field GPU semantic/invariant tests.
 //!
 //! These tests require the production Windows + RTX 5090 + DX12 path.
-//! GitHub CI can compile them; the reference machine executes them for final
+//! GitHub CI compiles them; the reference machine executes them for final
 //! technical validation. G5-B expansion generation and G5-C rupture are out
 //! of scope here.
 
@@ -49,7 +49,7 @@ fn set_pressure(sim: &Simulation, x: i64, y: i64, value: f32) {
 }
 
 fn box_water_pair(sim: &Simulation) {
-    // Two Water cells at (3,3)/(4,3), all liquid movement exits blocked.
+    // Two Water cells at (3,3)/(4,3), all of their liquid movement exits blocked.
     for (x, y) in [(2, 3), (5, 3), (2, 4), (3, 4), (4, 4), (5, 4)] {
         set_mat(sim, x, y, MATERIAL_STONE);
     }
@@ -70,7 +70,11 @@ fn pressure_propagates_between_adjacent_liquid_cells() {
     let right = pressure(&sim, 4, 3);
     assert!(left < 100.0 && left > 0.0, "left={left}");
     assert!(right > 0.0 && right < left, "right={right}, left={left}");
-    assert!(((left + right) - 100.0).abs() < 1.0e-3, "sum={}", left + right);
+    assert!(
+        ((left + right) - 100.0).abs() < 1.0e-3,
+        "sum={}",
+        left + right
+    );
 }
 
 #[test]
@@ -87,7 +91,10 @@ fn isolated_pressure_has_no_time_decay() {
     }
 
     let p = pressure(&sim, 3, 3);
-    assert!((p - 42.0).abs() < 1.0e-4, "pressure decayed without a sink: {p}");
+    assert!(
+        (p - 42.0).abs() < 1.0e-4,
+        "pressure decayed without a sink: {p}"
+    );
 }
 
 #[test]
@@ -117,6 +124,7 @@ fn material_edit_clears_stale_spatial_pressure() {
 #[test]
 fn pressure_crosses_chunk_boundary() {
     let mut sim = make_sim(WorldConfig::new(128, 16, 64).unwrap());
+    // Narrow two-cell liquid chamber across x=63/64.
     for (x, y) in [(62, 8), (65, 8), (62, 9), (63, 9), (64, 9), (65, 9)] {
         set_mat(&sim, x, y, MATERIAL_STONE);
     }
@@ -133,6 +141,8 @@ fn pressure_crosses_chunk_boundary() {
 #[test]
 fn void_exit_vents_pressure_with_departing_medium() {
     let mut sim = eight_by_eight();
+    // Replace the editable bottom boundary cell with Water. Its first down
+    // movement target is Void, so the Matter exits before the pressure pass.
     set_mat(&sim, 4, 7, MATERIAL_WATER);
     set_pressure(&sim, 4, 7, 80.0);
 

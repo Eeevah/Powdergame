@@ -166,6 +166,8 @@ pub enum GpuError {
     InvalidMaterialValue(u32),
     /// A temperature edit is not a finite f32.
     InvalidTemperature(f32),
+    /// A pressure edit is not a finite f32.
+    InvalidPressure(f32),
     /// Other error with a message.
     Other(String),
 }
@@ -196,6 +198,9 @@ impl std::fmt::Display for GpuError {
             }
             GpuError::InvalidTemperature(value) => {
                 write!(f, "invalid temperature {value}: must be a finite f32")
+            }
+            GpuError::InvalidPressure(value) => {
+                write!(f, "invalid pressure {value}: must be a finite f32")
             }
             GpuError::InvalidMaterialValue(value) => {
                 write!(

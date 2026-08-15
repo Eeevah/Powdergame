@@ -30,9 +30,13 @@
 //! winner per destination. Pressure is a spatial field (G5) and is never
 //! transported on movement edges.
 //!
+//! G5-A adds scalar pressure propagation after Matter/phase/combustion settle:
+//! Liquid/Gas cells exchange pressure with 4-neighbor Liquid/Gas cells via
+//! Read Neighbors / Write Self. EMPTY/Static/Powder do not transmit it.
+//!
 //! Causal order per tick: movement (Matter carries Temperature + flags) →
-//! thermal conduction → phase transition → combustion → smoke spawn.
-//! Expansion / Pressure are not implemented (G5).
+//! thermal conduction → phase transition → combustion → smoke spawn → pressure.
+//! Blocked expansion generation and rupture remain G5-B/G5-C.
 
 use powdergame_core::{
     combustion_table, conductivity_table, decay_table, density_table, heat_capacity_table,
@@ -115,6 +119,7 @@ pub struct Simulation {
     combustion_pipeline: wgpu::ComputePipeline,
     smoke_claim_pipeline: wgpu::ComputePipeline,
     smoke_commit_pipeline: wgpu::ComputePipeline,
+    pressure_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
@@ -125,6 +130,7 @@ pub struct Simulation {
 
     smoke_claim_bind_group: wgpu::BindGroup,
     smoke_commit_bind_group: wgpu::BindGroup,
+    pressure_bind_group: wgpu::BindGroup,
     marker: wgpu::Buffer,
 
     /// Number of ticks submitted since creation.
@@ -208,6 +214,13 @@ impl Simulation {
                     label: Some("powdergame-g4c-smoke-commit"),
                     source: wgpu::ShaderSource::Wgsl(include_str!("smoke_commit.wgsl").into()),
                 });
+
+        let shader_pressure = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("powdergame-g5a-pressure"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("pressure.wgsl").into()),
+            });
 
         // Bind group layouts.
         let propose_layout =
@@ -337,6 +350,20 @@ impl Simulation {
                     ],
                 });
 
+        let pressure_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g5a-pressure-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // pressure_current
+                        buffer_entry(3, &BindingKind::ReadWrite), // pressure_next
+                        buffer_entry(4, &BindingKind::Read), // movement_class_table
+                    ],
+                });
+
         let make_pipeline = |label: &str,
                              layout: &wgpu::BindGroupLayout,
                              module: &wgpu::ShaderModule,
@@ -414,6 +441,13 @@ impl Simulation {
             &smoke_commit_layout,
             &shader_smoke_commit,
             "smoke_commit_main",
+        );
+
+        let pressure_pipeline = make_pipeline(
+            "powdergame-g5a-pressure",
+            &pressure_layout,
+            &shader_pressure,
+            "pressure_main",
         );
 
         // Params uniform: cell_count, threads_x, width, height.
@@ -860,6 +894,35 @@ impl Simulation {
                     ],
                 });
 
+        let pressure_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("powdergame-g5a-pressure-bg"),
+                layout: &pressure_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: world.material_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: world.pressure_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: world.pressure_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: class_table.as_entire_binding(),
+                    },
+                ],
+            });
+
         Ok(Self {
             context,
             world,
@@ -872,6 +935,7 @@ impl Simulation {
             combustion_pipeline,
             smoke_claim_pipeline,
             smoke_commit_pipeline,
+            pressure_pipeline,
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
@@ -881,6 +945,7 @@ impl Simulation {
             combustion_bind_group,
             smoke_claim_bind_group,
             smoke_commit_bind_group,
+            pressure_bind_group,
 
             marker,
             tick_count: 0,
@@ -898,13 +963,15 @@ impl Simulation {
     /// → smoke claim (destination winner exactly one)
     /// → smoke commit (destination self-write Smoke + hot T)
     /// → copy material/temperature/flags Next→Current
+    /// → scalar pressure 4-neighbor propagation → copy pressure Next→Current
     /// ```
     ///
     /// Causal order: Matter first carries its Temperature and combustion
     /// flags through ownership, then the new location conducts, then the
     /// settled Temperature selects the phase, then combustion state/heat
-    /// runs, then Smoke spawns with ownership. Expansion / Pressure are
-    /// not implemented (G5).
+    /// runs, then Smoke spawns with ownership. G5-A pressure propagation
+    /// runs last on settled Matter. Expansion generation / rupture remain
+    /// G5-B/G5-C.
     pub fn tick(&mut self) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
@@ -1088,6 +1155,28 @@ impl Simulation {
             &self.world.flags_current,
             0,
             self.world.layout.flags_bytes,
+        );
+
+        // G5-A: spatial scalar pressure. It is deliberately not carried on
+        // movement ownership edges; the settled Matter map decides where the
+        // field can exist and which 4-neighbor cells exchange it.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g5a-pressure-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.pressure_pipeline,
+                &self.pressure_bind_group,
+            );
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.world.pressure_next,
+            0,
+            &self.world.pressure_current,
+            0,
+            self.world.layout.pressure_bytes,
         );
 
         self.context.queue.submit([encoder.finish()]);

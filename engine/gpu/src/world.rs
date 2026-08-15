@@ -36,8 +36,8 @@ use wgpu::util::DeviceExt;
 
 use powdergame_core::{
     initial_material_ids, is_valid_cell_material_value, Domain, WorldConfig, WorldLayout,
-    FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, TEMPERATURE_ELEM_SIZE,
-    TEMPERATURE_REFERENCE,
+    FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, PRESSURE_ELEM_SIZE, PRESSURE_REFERENCE,
+    TEMPERATURE_ELEM_SIZE, TEMPERATURE_REFERENCE,
 };
 
 use crate::context::GpuError;
@@ -360,6 +360,12 @@ impl GpuWorld {
         let f_off = index * FLAGS_ELEM_SIZE;
         queue.write_buffer(&self.flags_current, f_off, &zero_flags);
         queue.write_buffer(&self.flags_next, f_off, &zero_flags);
+        // Pressure is spatial, not Matter-owned. An explicit authoring
+        // identity replacement must never inherit stale field state.
+        let zero_pressure = PRESSURE_REFERENCE.to_ne_bytes();
+        let p_off = index * PRESSURE_ELEM_SIZE;
+        queue.write_buffer(&self.pressure_current, p_off, &zero_pressure);
+        queue.write_buffer(&self.pressure_next, p_off, &zero_pressure);
         if value == MATERIAL_EMPTY {
             // EMPTY is not a thermal medium and must not keep leftover heat.
             let zero = TEMPERATURE_REFERENCE.to_ne_bytes();
@@ -493,6 +499,73 @@ impl GpuWorld {
         let bytes = value.to_ne_bytes();
         queue.write_buffer(&self.temperature_current, offset, &bytes);
         queue.write_buffer(&self.temperature_next, offset, &bytes);
+        Ok(())
+    }
+
+    /// Reads one cell's scalar pressure (diagnostic/test helper).
+    pub fn read_pressure_cell(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+    ) -> Result<f32, GpuError> {
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * PRESSURE_ELEM_SIZE;
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.pressure_current,
+            offset,
+            PRESSURE_ELEM_SIZE,
+        )?;
+        Ok(f32::from_ne_bytes(bytes[..4].try_into().unwrap()))
+    }
+
+    /// Reads the entire scalar pressure Current buffer (test helper).
+    pub fn read_pressure_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<f32>, GpuError> {
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.pressure_current,
+            0,
+            self.layout.pressure_bytes,
+        )?;
+        let mut cells = Vec::with_capacity(bytes.len() / 4);
+        for chunk in bytes.chunks_exact(4) {
+            cells.push(f32::from_ne_bytes(chunk.try_into().unwrap()));
+        }
+        Ok(cells)
+    }
+
+    /// Edit/test hook: sets scalar pressure on Current and Next.
+    /// Non-finite values are rejected; the simulation pass later clears
+    /// pressure from cells that are not Liquid/Gas pressure media.
+    pub fn write_pressure(
+        &self,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+        value: f32,
+    ) -> Result<(), GpuError> {
+        if !value.is_finite() {
+            return Err(GpuError::InvalidPressure(value));
+        }
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * PRESSURE_ELEM_SIZE;
+        let bytes = value.to_ne_bytes();
+        queue.write_buffer(&self.pressure_current, offset, &bytes);
+        queue.write_buffer(&self.pressure_next, offset, &bytes);
         Ok(())
     }
 }

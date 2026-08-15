@@ -26,16 +26,19 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 
 ## 2026-08-16 intake
 
-네 개의 대형 조사 결과를 검토 대상으로 받았다.
+다섯 개의 주요 조사/후보 자료를 검토 대상으로 받았다.
 
 - 현실 물성 → Powdergame 정규화 중심의 Material & Phenomenon 조사
 - 현실 재료 / 기존 창작물 / 오리지널 판타지·SF 재료를 함께 다룬 종합 재료 조사
 - 기존 창작물 100종의 행동 문법과 Original Matter 100종을 다룬 가상 물질 동역학 조사
 - 기존 후보에 capacity/fatigue/counter/byproduct를 보강하고 VX-001~010 및 OM-101~180까지 확장한 가상물질 통합 설계 조사
+- 현실·우주·창작물에서 약 230개 항목을 모은 human-readable `MATERIAL_CANDIDATES.md` 후보 노트
 
 앞선 세 자료의 출처 정보, SHA-256, 현재 계약과의 충돌 및 우선 활용 영역은 `2026-08-16-material-research-intake.md`에 기록한다.
 
 네 번째 확장 자료는 `2026-08-16-expanded-fictional-matter-intake.md`에 별도로 기록한다.
+
+다섯 번째 후보 노트는 원문을 `raw/MATERIAL_CANDIDATES.md`로 보존하고, 현재 SPEC 기준 분석을 `2026-08-16-material-candidates-analysis.md`에 기록한다.
 
 ## 권장 변환 파이프라인
 

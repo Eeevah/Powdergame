@@ -129,8 +129,8 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 - Temperature is carried with Matter identity across movement and density swaps.
 
 #### G4-B Phase Transition (TECHNICAL PASS)
-- 1:1 local self-transitions: `Ice (T > -5.0) -> Water`, `Water (T < -20.0) -> Ice`, `Water (T > 60.0) -> Steam`, `Steam (T < 40.0) -> Water`.
-- Hysteresis bands prevent ping-pong oscillation.
+- 1:1 local self-transitions: `Ice (T > -10.0) -> Water`, `Water (T < -20.0) -> Ice`, `Water (T > 60.0) -> Steam`, `Steam (T < 40.0) -> Water`.
+- Hysteresis bands (-20.0 <-> -10.0, 40.0 <-> 60.0) prevent ping-pong oscillation.
 - Phase-transformed Matter adopts new movement behavior on the very next tick.
 
 #### G4-C Combustion & Finite Fuel (TECHNICAL PASS)

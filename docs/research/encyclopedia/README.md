@@ -5,58 +5,145 @@
 - Type: `DERIVED` research encyclopedia
 - Authority: **non-authoritative** — this does not register or implement Materials.
 - Goal: merge all material/world-primitive ideas gathered so far into a searchable, readable Doodle-God-like encyclopedia.
+- Corpus snapshot: **530 source-index rows**. This includes preserved duplicates, aliases, skipped ideas and IP references; it is **not** a claim that the final game should contain 530 Materials.
 
 > 플레이어에게 물질을 주는 게임이 아니라, 우주를 발명할 수 있는 문법을 준다.
 
-이 사전은 숫자표가 아니라 **상상력과 상호작용을 위한 언어집**이다. 각 항목은 먼저 “이건 어떤 존재인가?”를 읽히게 하고, 그 다음에 Powdergame에서 어떤 국소 규칙으로 표현할 수 있는지를 적는다.
+이 사전은 숫자표가 아니라 **상상력과 상호작용을 위한 언어집**이다. 각 항목은 먼저 “이건 어떤 존재인가?”를 읽히게 하고, 그 다음 Powdergame에서 어떤 국소 규칙으로 표현할 수 있는지를 적는다.
 
 ## Entry contract
 
-각 항목은 가능한 한 다음을 가진다.
+각 항목은 가능한 한 다음 두 층을 가진다.
+
+### Player-readable encyclopedia layer
 
 - **도감** — 두들갓처럼 짧고 기억에 남는 정체성 문장
 - **핵심 행동** — 플레이어가 3초 안에 예상할 수 있는 동사
-- **Movement / Layer** — STATIC / POWDER / LIQUID / GAS 또는 Matter가 아닌 Field/Agent/Concept/Meta
+- **발견 가치** — 무엇과 붙였을 때 새 현상을 상상하게 하는가
+
+### Development layer
+
+- **Movement / Layer** — STATIC / POWDER / LIQUID / GAS 또는 Matter가 아닌 Field / Agent / Concept / Meta
 - **상태** — M0 validated / catalog direction / candidate / future / reference-only
-- **출처** — 어느 조사 문서에서 왔는지
-- **주의** — IP 직접명칭, 중복, 전용 시스템 비용, 절대효과 위험
+- **Simulation notes** — Temperature / Pressure / Density / Combustion / Transition 등 어떤 세계 문법으로 표현할지
+- **출처 / provenance** — 어느 조사·현실·창작 reference에서 왔는지
+- **주의** — IP 직접명칭, 중복, 전용 시스템 비용, 절대효과 위험, counter/failure 필요성
+
+설명이 약한 항목은 다음 순서로 보강한다.
+
+```text
+existing Powdergame rule inference
+→ real science / myth / media mechanism research
+→ original imagination
+```
+
+현실 정보는 직관의 앵커이지 게임값의 정답이 아니다.
 
 ## Discovery-first rule
 
-게임 안에서 이 사전을 처음부터 전부 보여주면 안 된다. 실제 제품 Dictionary는 플레이어가 관찰한 현상을 기록하는 **발견 도감**이어야 한다. 여기 있는 전체 문서는 개발·콘텐츠 제작용 master corpus다.
+게임 안에서 이 사전을 처음부터 전부 보여주면 안 된다. 실제 제품 Dictionary는 플레이어가 관찰한 현상을 기록하는 **발견 도감**이어야 한다.
 
 ```text
 Developer Master Encyclopedia
-        ↓ selects / normalizes
+        ↓ select / normalize
 Material / World Primitive definitions
         ↓ runtime
-Player discovers phenomena
+Player observes phenomena
         ↓
-In-game Dictionary reveals only discovered knowledge
+In-game Dictionary reveals discovered knowledge
 ```
+
+따라서 이 디렉터리는 개발·콘텐츠 제작용 master corpus이며 플레이어용 답안지가 아니다.
 
 ## Volumes
 
-1. `01_FOUNDATIONS_REAL_SPACE.md` — M0/초기 catalog, 현실 재료, 우주·과학 앵커
-2. `02A_ORIGINAL_MATTER_OM001_050.md` / `02B_ORIGINAL_MATTER_OM051_100.md` — 첫 Original Matter 100종
-3. `03_ORIGINAL_MATTER_OM101_180_AND_VX.md` — 확장 OM 80종 + 강화형 VX 10종
-4. `04A_REFERENCE_QUARRY_GENERAL_TO_MEDIA_A.md` / `04B_REFERENCE_QUARRY_MEDIA_B_AND_FANTASY.md` — MATERIAL_CANDIDATES의 230개 후보/창작물 mechanics quarry
-5. `05_DOODLEGOD_WORLD_PRIMITIVES.md` — 기억·시간·확률·언어·신화 등 Matter 너머의 후보
-6. `06_WEB_REALITY_ANCHORS.md` — 현실 검색으로 보강한 과학적 영감 앵커
-7. `MASTER_INDEX.md` — 전체 항목 인덱스
+### 01 — Foundation / Reality / Space
+
+- `01A_FOUNDATION_CATALOG.md` — M0 validated 9종과 이미 알려진 초기 catalog 방향
+- `01B_REAL_MATERIAL_LIBRARY.md` — 철·구리·세라믹·연료·고분자·방사성 소재 등 현실 reference
+- `01C_GENERAL_SPACE_CANDIDATES.md` — Dirt/Mud/Clay부터 Dry Ice/Clathrate/Regolith까지 일반·우주 후보
+
+### 02 — Original Matter 001–100
+
+- `02A_ORIGINAL_MATTER_OM001_050.md`
+- `02B_ORIGINAL_MATTER_OM051_100.md`
+
+### 03 — Expanded Original Matter / Derivatives
+
+- `03A_ORIGINAL_MATTER_OM101_130.md`
+- `03B_ORIGINAL_MATTER_OM131_160.md`
+- `03C_ORIGINAL_MATTER_OM161_180.md`
+- `03D_VX_DERIVATIVES.md`
+
+### 04 — Reference Quarry
+
+원자료의 익숙한 이름과 lore를 버리지 않고 mechanics를 채굴하기 위한 보존층이다. 유명 작품 고유명사는 모두 `REFERENCE_ONLY`이며 최종 콘텐츠로 직접 승격하지 않는다.
+
+- `04A_REFERENCE_QUARRY_GENERAL.md`
+- `04B_REFERENCE_QUARRY_SPACE.md`
+- `04C_REFERENCE_QUARRY_MEDIA_A.md`
+- `04D_REFERENCE_QUARRY_MEDIA_B1.md`
+- `04D_REFERENCE_QUARRY_MEDIA_B2.md`
+- `04D_REFERENCE_QUARRY_MEDIA_B3.md`
+- `04E_REFERENCE_QUARRY_FANTASY_ALCHEMY.md`
+- `04F_BROAD_REFERENCE_ADDITIONS.md`
+
+### 05 — Doodle-God World Primitives
+
+- `05_DOODLEGOD_WORLD_PRIMITIVES.md` — 기억 젤, 시간 먼지, 확률 결정, 언어 포자, 신화 잉크, 인과 실 등 Matter를 넘어서는 Field/Agent/Concept/Meta 후보와 발견 레시피
+
+### 06 — Web Reality Anchors
+
+- `06_WEB_REALITY_ANCHORS.md` — Mars perchlorate, methane hydrate, Titan hydrocarbon lakes, aerogel, shape-memory alloy, piezoelectricity, superionic ice 등 설명 보강용 현실 앵커
+
+### Search index
+
+- `MASTER_INDEX.md` — landing page
+- `MASTER_INDEX_A.md` — index part A
+- `MASTER_INDEX_B.md` — index part B
+
+Research/index ID는 실제 Material Registry ID가 아니다.
 
 ## Canonicalization rule
 
-이 문서에 이름이 있다고 실제 게임 Material이 되는 것은 아니다.
+사전에 이름이 있다고 실제 게임 Material이 되는 것은 아니다.
 
 ```text
 source / lore name
 → mechanic extraction
 → behavior family
-→ duplicate merge
+→ duplicate / alias merge
 → Powdergame-original representative
+→ counter / failure / byproduct design
 → user review
 → ADR / SPEC / content registration
 ```
 
-특히 유명 작품 고유명사는 `REFERENCE_ONLY`다. 이름/설정을 그대로 콘텐츠로 채택하기보다 **플레이어가 이해하는 행동 문법**만 뽑아 독자 Matter로 다시 만든다.
+예를 들어 `Methane / Vespene / Tibanna`가 모두 “가연성 가스”라는 같은 핵심 동사에 수렴한다면 세 이름을 그대로 만들 이유가 없다. 반대로 같은 출발점이라도 interaction chain이 완전히 다르면 별도 Matter가 될 수 있다.
+
+## IP / provenance rule
+
+유명 작품의 이름·설정은 `REFERENCE_ONLY`다. 이름을 그대로 쌓아 올리는 게임이 아니라:
+
+```text
+익숙한 그림
+→ 왜 재미있는지 행동으로 분해
+→ 현재 Powdergame 세계 법칙에 맞게 재구성
+→ 독자 이름과 실패 모드까지 설계
+```
+
+하는 것을 기본으로 한다.
+
+## Current next step
+
+이 v0.1 corpus의 다음 작업은 **530 source rows를 최종 고유 dictionary candidate로 canonicalize**하는 것이다.
+
+- exact duplicate / alias 병합
+- palette/lore-only 항목 제거
+- 24 behavior family에 연결
+- IP reference → original representative 변환
+- final player-facing flavor 작성
+- interaction / counter / byproduct 연결
+- `FOUNDATION-COMPATIBLE / NEAR-TERM / FUTURE-FAMILY / META-DEFER` 재판정
+
+그 뒤 사용자 검토를 통과한 항목만 실제 Material/content 설계로 승격한다.

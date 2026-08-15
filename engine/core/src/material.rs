@@ -7,8 +7,10 @@
 //! - `Void` is not a Material ID and has no array slot.
 //!
 //! G2 adds the minimum Matter identities needed for local movement and the
-//! `MovementClass` descriptor. Density/thermal/reaction properties are
-//! deliberately NOT added here — they arrive with G3/G4.
+//! `MovementClass` descriptor. G3 adds `density_rank` — a small gameplay
+//! ordering, NOT a physical constant and never per-cell state
+//! (`SIMULATION_SPEC` §12, `MATERIAL_SPEC` §5). Thermal/reaction properties
+//! are deliberately NOT added here — they arrive with G4.
 
 /// Absence of Matter in a cell. `EMPTY` is not Matter (ADR-0001).
 pub const MATERIAL_EMPTY: u32 = 0;
@@ -27,10 +29,16 @@ pub const MATERIAL_STEAM: u32 = 6;
 /// Smoke — GAS registered Matter.
 pub const MATERIAL_SMOKE: u32 = 7;
 
+// G3 baseline density ranks (gameplay ordering, `MATERIAL_SPEC` §5):
+// heavier sinks below lighter. These are not physical units and may be
+// retuned by gameplay validation.
+pub const DENSITY_RANK_STEAM: u32 = 20;
+pub const DENSITY_RANK_SMOKE: u32 = 30;
+pub const DENSITY_RANK_OIL: u32 = 70;
+pub const DENSITY_RANK_WATER: u32 = 90;
+pub const DENSITY_RANK_SAND: u32 = 150;
+
 /// Movement behavior family (G2).
-///
-/// Only the movement family is defined here. Density ranking (G3), thermal
-/// and reaction properties (G4+) are separate descriptors added later.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MovementClass {
     /// No normal movement (Boundary Block, Stone).
@@ -68,12 +76,19 @@ impl MovementClass {
 
 /// Minimum descriptor for a registered Matter identity.
 ///
-/// G2 adds only `movement_class`; no density, thermal, tags or reactions yet.
+/// G2 adds `movement_class`; G3 adds `density_rank`. No thermal, tags or
+/// reactions yet (G4+).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MaterialDescriptor {
     pub id: u32,
     pub name: &'static str,
     pub movement_class: MovementClass,
+    /// Small gameplay density ordering for local displacement.
+    ///
+    /// `None`: no movable density — `EMPTY`, STATIC Matter and unknown ids
+    /// are never density-displacement targets. `Some(rank)`: movable Matter;
+    /// only `>`/`==`/`<` comparisons are meaningful.
+    pub density_rank: Option<u32>,
 }
 
 /// The registered Matter catalog.
@@ -85,36 +100,43 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         id: MATERIAL_BOUNDARY_BLOCK,
         name: "Boundary Block",
         movement_class: MovementClass::Static,
+        density_rank: None,
     },
     MaterialDescriptor {
         id: MATERIAL_STONE,
         name: "Stone",
         movement_class: MovementClass::Static,
+        density_rank: None,
     },
     MaterialDescriptor {
         id: MATERIAL_SAND,
         name: "Sand",
         movement_class: MovementClass::Powder,
+        density_rank: Some(DENSITY_RANK_SAND),
     },
     MaterialDescriptor {
         id: MATERIAL_WATER,
         name: "Water",
         movement_class: MovementClass::Liquid,
+        density_rank: Some(DENSITY_RANK_WATER),
     },
     MaterialDescriptor {
         id: MATERIAL_OIL,
         name: "Oil",
         movement_class: MovementClass::Liquid,
+        density_rank: Some(DENSITY_RANK_OIL),
     },
     MaterialDescriptor {
         id: MATERIAL_STEAM,
         name: "Steam",
         movement_class: MovementClass::Gas,
+        density_rank: Some(DENSITY_RANK_STEAM),
     },
     MaterialDescriptor {
         id: MATERIAL_SMOKE,
         name: "Smoke",
         movement_class: MovementClass::Gas,
+        density_rank: Some(DENSITY_RANK_SMOKE),
     },
 ];
 
@@ -135,6 +157,14 @@ pub fn movement_class(id: u32) -> Option<MovementClass> {
     registry_lookup(id).map(|m| m.movement_class)
 }
 
+/// Returns the density rank of a registered Matter.
+///
+/// `None` for `EMPTY`, STATIC Matter and unknown ids — those are never
+/// density-displacement targets.
+pub fn density_rank(id: u32) -> Option<u32> {
+    registry_lookup(id).and_then(|m| m.density_rank)
+}
+
 /// Compact per-ID movement-class table for GPU upload.
 ///
 /// `table[id]` is `MovementClass::as_u32()`. `EMPTY` (and any unknown id)
@@ -144,6 +174,21 @@ pub fn movement_class_table() -> [u32; 16] {
     let mut table = [MovementClass::Static.as_u32(); 16];
     for m in MATERIAL_REGISTRY {
         table[m.id as usize] = m.movement_class.as_u32();
+    }
+    table
+}
+
+/// Compact per-ID density-rank table for GPU upload.
+///
+/// `table[id]` is the gameplay density rank, or `0` for no movable density
+/// (`EMPTY`, STATIC, unknown ids). This is a Material property upload, not
+/// per-cell state — no `density_current[]`/`density_next[]` buffers exist.
+pub fn density_table() -> [u32; 16] {
+    let mut table = [0u32; 16];
+    for m in MATERIAL_REGISTRY {
+        if let Some(rank) = m.density_rank {
+            table[m.id as usize] = rank;
+        }
     }
     table
 }
@@ -171,6 +216,7 @@ mod tests {
         assert!(!registry_contains(MATERIAL_EMPTY));
         assert_eq!(registry_lookup(MATERIAL_EMPTY), None);
         assert_eq!(movement_class(MATERIAL_EMPTY), None);
+        assert_eq!(density_rank(MATERIAL_EMPTY), None);
         assert_eq!(MATERIAL_REGISTRY.len(), 7);
     }
 
@@ -237,6 +283,7 @@ mod tests {
             assert!(!registry_contains(unknown));
             assert_eq!(registry_lookup(unknown), None);
             assert!(!is_valid_cell_material_value(unknown));
+            assert_eq!(density_rank(unknown), None);
         }
     }
 
@@ -267,5 +314,59 @@ mod tests {
         assert_eq!(table[MATERIAL_OIL as usize], 2); // liquid
         assert_eq!(table[MATERIAL_STEAM as usize], 3); // gas
         assert_eq!(table[MATERIAL_SMOKE as usize], 3); // gas
+    }
+
+    #[test]
+    fn g3_density_ranks_are_assigned() {
+        assert_eq!(density_rank(MATERIAL_SAND), Some(150));
+        assert_eq!(density_rank(MATERIAL_WATER), Some(90));
+        assert_eq!(density_rank(MATERIAL_OIL), Some(70));
+        assert_eq!(density_rank(MATERIAL_STEAM), Some(20));
+        assert_eq!(density_rank(MATERIAL_SMOKE), Some(30));
+    }
+
+    #[test]
+    fn static_and_empty_have_no_density_rank() {
+        assert_eq!(density_rank(MATERIAL_BOUNDARY_BLOCK), None);
+        assert_eq!(density_rank(MATERIAL_STONE), None);
+        assert_eq!(density_rank(MATERIAL_EMPTY), None);
+    }
+
+    #[test]
+    fn density_table_maps_ids_only() {
+        let table = density_table();
+        assert_eq!(table[MATERIAL_EMPTY as usize], 0);
+        assert_eq!(table[MATERIAL_BOUNDARY_BLOCK as usize], 0);
+        assert_eq!(table[MATERIAL_STONE as usize], 0);
+        assert_eq!(table[MATERIAL_SAND as usize], 150);
+        assert_eq!(table[MATERIAL_WATER as usize], 90);
+        assert_eq!(table[MATERIAL_OIL as usize], 70);
+        assert_eq!(table[MATERIAL_STEAM as usize], 20);
+        assert_eq!(table[MATERIAL_SMOKE as usize], 30);
+        for unknown in [8usize, 15] {
+            assert_eq!(table[unknown], 0);
+        }
+    }
+
+    #[test]
+    fn g3_rank_ordering() {
+        // Gameplay ordering used by local displacement: heavier sinks below.
+        let ranks = [
+            (MATERIAL_STEAM, DENSITY_RANK_STEAM),
+            (MATERIAL_SMOKE, DENSITY_RANK_SMOKE),
+            (MATERIAL_OIL, DENSITY_RANK_OIL),
+            (MATERIAL_WATER, DENSITY_RANK_WATER),
+            (MATERIAL_SAND, DENSITY_RANK_SAND),
+        ];
+        for w in ranks.windows(2) {
+            assert!(
+                w[0].1 < w[1].1,
+                "{} (rank {}) must be lighter than {} (rank {})",
+                w[0].0,
+                w[0].1,
+                w[1].0,
+                w[1].1
+            );
+        }
     }
 }

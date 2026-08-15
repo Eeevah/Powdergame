@@ -3,11 +3,14 @@
 //! winit window → wgpu/DX12 → RTX 5090 → dense GPU world → frames.
 //!
 //! Default (and `--smoke-frames N`): reference 2048×2048 world, empty
-//! clear/present (G0 baseline). `--movement-demo`: 128×128 world with a
-//! staged stylized-forest local-movement scene presented through the
-//! read-only world view (G2 user validation fixture — not a gameplay UI).
+//! clear/present (G0 baseline). Demo fixtures present a staged 128×128 world
+//! through the read-only world view:
+//!   `--movement-demo` — G2 stylized forest scene (approved by the user),
+//!   `--density-demo`  — G3 laboratory tanks (3 large chambers:
+//!                       SAND+WATER sinking, WATER+OIL layer separation,
+//!                       STEAM+SMOKE gas ordering). Forest scene is unused.
 //!
-//! The demo starts PAUSED so the untouched initial scene can be inspected:
+//! Demos start PAUSED so the untouched initial scene can be inspected:
 //!   SPACE  play/pause toggle
 //!   N      single simulation tick while paused
 //!   R      reset the demo scene (re-staged through the validated edit hook)
@@ -35,17 +38,28 @@ use powdergame_core::{
 };
 use powdergame_gpu::{verify_target_hardware, AdapterReport, GpuError, Simulation};
 
-use renderer::{Renderer, WorldViewSpec};
+use renderer::{PresentationPalette, Renderer, WorldViewSpec};
 
 /// Demo observation rate: independent of the render FPS.
 const DEMO_TICKS_PER_SECOND: u32 = 15;
 const DEMO_TICK_INTERVAL: Duration =
     Duration::from_nanos(1_000_000_000 / (DEMO_TICKS_PER_SECOND as u64));
 
-const DEMO_BASE_TITLE: &str = "Powdergame G2 Demo | SAND | WATER | OIL | STEAM | SMOKE";
+const MOVEMENT_DEMO_TITLE: &str = "Powdergame G2 Demo | SAND | WATER | OIL | STEAM | SMOKE";
+const DENSITY_DEMO_TITLE: &str =
+    "Powdergame G3 Density Demo | SAND+WATER | WATER+OIL | STEAM+SMOKE";
 
-/// Demo runtime state (movement-demo mode only).
+/// Which demo fixture (if any) the app presents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DemoMode {
+    None,
+    Movement,
+    Density,
+}
+
+/// Demo runtime state (demo modes only).
 struct DemoState {
+    base_title: &'static str,
     playing: bool,
     ticks: u64,
     last_tick: Option<Instant>,
@@ -54,8 +68,9 @@ struct DemoState {
 }
 
 impl DemoState {
-    fn new(start_playing: bool) -> Self {
+    fn new(base_title: &'static str, start_playing: bool) -> Self {
         Self {
+            base_title,
             playing: start_playing,
             ticks: 0,
             last_tick: None,
@@ -71,7 +86,7 @@ impl DemoState {
         } else {
             "[PAUSED] SPACE Play | N Step | R Reset".to_string()
         };
-        format!("{DEMO_BASE_TITLE} | {state} | tick {}", self.ticks)
+        format!("{} | {state} | tick {}", self.base_title, self.ticks)
     }
 }
 
@@ -83,34 +98,34 @@ struct App {
     renderer: Option<Renderer>,
     frames_rendered: u32,
     smoke_frames: Option<u32>,
-    movement_demo: bool,
+    demo_mode: DemoMode,
     demo: Option<DemoState>,
 }
 
 impl App {
-    fn new(smoke_frames: Option<u32>, movement_demo: bool) -> Self {
+    fn new(smoke_frames: Option<u32>, demo_mode: DemoMode) -> Self {
         Self {
             window: None,
             simulation: None,
             renderer: None,
             frames_rendered: 0,
             smoke_frames,
-            movement_demo,
+            demo_mode,
             demo: None,
         }
     }
 
     fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<(), GpuError> {
-        let title = if self.movement_demo {
-            DEMO_BASE_TITLE
-        } else {
-            "Powdergame — G0 Runtime"
+        let base_title = match self.demo_mode {
+            DemoMode::Movement => MOVEMENT_DEMO_TITLE,
+            DemoMode::Density => DENSITY_DEMO_TITLE,
+            DemoMode::None => "Powdergame — G0 Runtime",
         };
         let window = Arc::new(
             event_loop
                 .create_window(
                     winit::window::WindowAttributes::default()
-                        .with_title(title)
+                        .with_title(base_title)
                         .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0)),
                 )
                 .map_err(|e| GpuError::Other(format!("window create failed: {e}")))?,
@@ -129,35 +144,46 @@ impl App {
             Err(e) => println!("[powdergame] hardware check: UNEXPECTED — {e}"),
         }
 
-        // Headless simulation. Demo mode uses a 128×128 world staged with a
-        // stylized forest movement scene through the validated edit hook;
-        // production stays GPU-authoritative.
-        let config = if self.movement_demo {
-            WorldConfig::new(128, 128, 64).expect("demo world config")
-        } else {
+        // Headless simulation. Demo modes use a 128×128 world staged with a
+        // fixture scene through the validated edit hook; production stays
+        // GPU-authoritative.
+        let config = if self.demo_mode == DemoMode::None {
             WorldConfig::reference()
+        } else {
+            WorldConfig::new(128, 128, 64).expect("demo world config")
         };
         let mut simulation = Simulation::with_context(context, config)?;
         println!("[powdergame] === world allocation ===");
         println!("[powdergame] {}", simulation.world.allocation);
         println!("[powdergame] allocation: success");
 
-        if self.movement_demo {
-            stage_movement_demo(&simulation)?;
-            println!("[powdergame] movement demo: scene staged (one-time edit hook)");
-        } else {
-            // G0 evidence: headless tick before the window exists.
-            simulation.tick()?;
-            println!(
-                "[powdergame] tick ok (headless, no window); marker={}",
-                simulation.read_marker()?
-            );
+        match self.demo_mode {
+            DemoMode::None => {
+                // G0 evidence: headless tick before the window exists.
+                simulation.tick()?;
+                println!(
+                    "[powdergame] tick ok (headless, no window); marker={}",
+                    simulation.read_marker()?
+                );
+            }
+            DemoMode::Movement => {
+                stage_movement_demo(&simulation)?;
+                println!("[powdergame] movement demo: scene staged (one-time edit hook)");
+            }
+            DemoMode::Density => {
+                stage_density_demo(&simulation)?;
+                println!("[powdergame] density demo: scene staged (one-time edit hook)");
+            }
         }
 
-        let world_view = self.movement_demo.then_some(WorldViewSpec {
+        let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
             material_buffer: &simulation.world.material_current,
             width: simulation.world.config.width,
             height: simulation.world.config.height,
+            palette: match self.demo_mode {
+                DemoMode::Density => PresentationPalette::Lab,
+                _ => PresentationPalette::Forest,
+            },
         });
         let renderer = Renderer::new(
             &simulation.context.instance,
@@ -168,11 +194,11 @@ impl App {
             world_view,
         )?;
         println!("[powdergame] surface format: {:?}", renderer.format());
-        if self.movement_demo {
+        if self.demo_mode != DemoMode::None {
             // Interactive sessions start PAUSED so the initial scene is fully
             // visible; bounded smoke runs start PLAYING to exercise ticks.
             let start_playing = self.smoke_frames.is_some();
-            self.demo = Some(DemoState::new(start_playing));
+            self.demo = Some(DemoState::new(base_title, start_playing));
             window.set_title(&self.demo.as_ref().unwrap().title());
             println!(
                 "[powdergame] window + world view ready; demo {}",
@@ -231,13 +257,11 @@ impl App {
     }
 }
 
-/// Stages the stylized-forest movement scene on the 128×128 demo world.
+/// Stages the G2 stylized-forest movement scene on the 128×128 demo world.
 ///
 /// Zones run left→right in the same order as the window title
 /// (SAND | WATER | OIL | STEAM | SMOKE), separated by stone tree-trunk
 /// dividers, plus a small separate Void-exit funnel at the bottom right.
-/// All matter is staged once through the validated edit hook; the GPU
-/// remains authoritative from the first tick on.
 fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
@@ -415,10 +439,93 @@ fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
     Ok(())
 }
 
+/// Stages the G3 laboratory density-validation scene on the 128×128 world.
+///
+/// Three large tanks, left→right matching the window title. No forest
+/// dividers, trees, ledges, or other G2 ornaments. Walls are Stone only.
+///   1. SAND + WATER — large sand block sitting on a deep water pool.
+///   2. WATER + OIL  — inverted layers (water above, oil below).
+///   3. STEAM + SMOKE — sealed chamber, inverted (smoke above, steam below).
+fn stage_density_demo(simulation: &Simulation) -> Result<(), GpuError> {
+    let q = &simulation.context.queue;
+    let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
+    let stone = MATERIAL_STONE;
+
+    // Full-height tanks: left / right / bottom walls, 2 cells thick.
+    // Tank 3 is sealed (top wall too) so gas cannot leave.
+    let tanks = [
+        (4i64, 39i64, false),  // SAND + WATER, open top
+        (46i64, 81i64, false), // WATER + OIL, open top
+        (88i64, 123i64, true), // STEAM + SMOKE, sealed
+    ];
+    let wall_top = 4i64;
+    let wall_bot = 125i64;
+    for &(x0, x1, sealed) in &tanks {
+        for y in wall_top..=wall_bot {
+            set(x0, y, stone)?;
+            set(x0 + 1, y, stone)?;
+            set(x1 - 1, y, stone)?;
+            set(x1, y, stone)?;
+        }
+        for x in x0..=x1 {
+            set(x, wall_bot - 1, stone)?;
+            set(x, wall_bot, stone)?;
+            if sealed {
+                set(x, wall_top, stone)?;
+                set(x, wall_top + 1, stone)?;
+            }
+        }
+    }
+
+    // ── Tank 1 — SAND + WATER ──
+    // Water: 20 rows × 24 cols, filling the lower half of the inner tank.
+    // Sand:  10 rows × 16 cols, a large block sitting on the water.
+    // Paused frame must read as Sand / Water, not a thin pour.
+    for y in 104..=123 {
+        for x in 10..=33 {
+            set(x, y, MATERIAL_WATER)?;
+        }
+    }
+    for y in 94..=103 {
+        for x in 14..=29 {
+            set(x, y, MATERIAL_SAND)?;
+        }
+    }
+
+    // ── Tank 2 — WATER + OIL (deliberately inverted) ──
+    // Oil below, water above; each layer 12 rows × 28 cols.
+    for y in 112..=123 {
+        for x in 50..=77 {
+            set(x, y, MATERIAL_OIL)?;
+        }
+    }
+    for y in 100..=111 {
+        for x in 50..=77 {
+            set(x, y, MATERIAL_WATER)?;
+        }
+    }
+
+    // ── Tank 3 — STEAM + SMOKE (sealed, inverted) ──
+    // Smoke above, steam below; each layer 12 rows × 28 cols, mid-chamber
+    // so the swap has empty space above and below.
+    for y in 52..=63 {
+        for x in 92..=119 {
+            set(x, y, MATERIAL_SMOKE)?;
+        }
+    }
+    for y in 64..=75 {
+        for x in 92..=119 {
+            set(x, y, MATERIAL_STEAM)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Resets the demo world to its pristine boundary-ring state and re-stages
-/// the forest scene, using only the validated edit hook (never touching the
-/// simulation internals). Current and Next stay consistent throughout.
-fn reset_demo_world(simulation: &Simulation) -> Result<(), GpuError> {
+/// the active demo scene, using only the validated edit hook (never touching
+/// the simulation internals). Current and Next stay consistent throughout.
+fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let w = i64::from(simulation.world.config.width);
     let h = i64::from(simulation.world.config.height);
@@ -443,15 +550,19 @@ fn reset_demo_world(simulation: &Simulation) -> Result<(), GpuError> {
             .world
             .write_material(q, w - 1, y, MATERIAL_BOUNDARY_BLOCK)?;
     }
-    stage_movement_demo(simulation)
+    match mode {
+        DemoMode::Movement => stage_movement_demo(simulation),
+        DemoMode::Density => stage_density_demo(simulation),
+        DemoMode::None => Ok(()),
+    }
 }
 
 /// Advances the demo simulation: pending reset/step first, then the
 /// fixed-rate play loop (15 TPS), decoupled from the render rate.
-fn step_demo(simulation: &mut Simulation, demo: &mut DemoState) {
+fn step_demo(simulation: &mut Simulation, demo: &mut DemoState, mode: DemoMode) {
     if demo.reset_pending {
         demo.reset_pending = false;
-        if let Err(e) = reset_demo_world(simulation) {
+        if let Err(e) = reset_demo_world(simulation, mode) {
             eprintln!("[powdergame] demo reset error: {e}");
         } else {
             println!("[powdergame] demo: scene reset to initial state");
@@ -548,7 +659,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if let Some(simulation) = &mut self.simulation {
                     if let Some(demo) = &mut self.demo {
-                        step_demo(simulation, demo);
+                        step_demo(simulation, demo, self.demo_mode);
                     } else if let Err(e) = simulation.tick() {
                         eprintln!("[powdergame] tick error: {e}");
                     }
@@ -561,7 +672,7 @@ impl ApplicationHandler for App {
                         return;
                     }
                 }
-                if self.movement_demo {
+                if self.demo_mode != DemoMode::None {
                     if let Some(demo) = &self.demo {
                         window.set_title(&demo.title());
                     }
@@ -599,12 +710,23 @@ fn parse_smoke_frames() -> Option<u32> {
     frames
 }
 
-/// Parses `--movement-demo` (or `POWDERGAME_MOVEMENT_DEMO=1`).
-fn parse_movement_demo() -> bool {
-    if std::env::var("POWDERGAME_MOVEMENT_DEMO").as_deref() == Ok("1") {
-        return true;
+/// Parses the demo mode: `--movement-demo` / `--density-demo` (or their
+/// `POWDERGAME_*_DEMO=1` env equivalents).
+fn parse_demo_mode() -> DemoMode {
+    for arg in std::env::args().skip(1) {
+        match arg.as_str() {
+            "--movement-demo" => return DemoMode::Movement,
+            "--density-demo" => return DemoMode::Density,
+            _ => {}
+        }
     }
-    std::env::args().skip(1).any(|arg| arg == "--movement-demo")
+    if std::env::var("POWDERGAME_MOVEMENT_DEMO").as_deref() == Ok("1") {
+        return DemoMode::Movement;
+    }
+    if std::env::var("POWDERGAME_DENSITY_DEMO").as_deref() == Ok("1") {
+        return DemoMode::Density;
+    }
+    DemoMode::None
 }
 
 fn main() {
@@ -617,16 +739,22 @@ fn main() {
     if let Some(n) = smoke_frames {
         println!("[powdergame] smoke run: will exit after {n} frames");
     }
-    let movement_demo = parse_movement_demo();
-    if movement_demo {
-        println!(
+    let demo_mode = parse_demo_mode();
+    match demo_mode {
+        DemoMode::Movement => println!(
             "[powdergame] movement demo: 128×128 stylized-forest scene, \
              starts PAUSED (SPACE play | N step | R reset | ESC quit)"
-        );
+        ),
+        DemoMode::Density => println!(
+            "[powdergame] density demo: 128×128 laboratory tanks \
+             (SAND+WATER | WATER+OIL | STEAM+SMOKE), starts PAUSED \
+             (SPACE play | N step | R reset | ESC quit)"
+        ),
+        DemoMode::None => {}
     }
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
-    let mut app = App::new(smoke_frames, movement_demo);
+    let mut app = App::new(smoke_frames, demo_mode);
     event_loop.run_app(&mut app).expect("event loop failed");
     println!("[powdergame] exited cleanly");
 }

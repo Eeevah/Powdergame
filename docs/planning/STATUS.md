@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED (User Validation 승인 완료 2026-08-16). G3~G9와 최종 M0 사용자 승인 남음.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED (User Validation 승인 완료 2026-08-16), G3 (Density / Displacement) PASS / CLOSED (User Validation 승인 완료 2026-08-16). G4~G9와 최종 M0 사용자 승인 남음.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED (자동·기술 검증 + 성능 baseline 기록 + User Validation 사용자 승인 완료).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED (자동·기술 검증 + 성능 baseline 기록 + User Validation 사용자 승인 완료). G3 — Density / Displacement: PASS / CLOSED (자동·기술 검증 + User Validation 사용자 승인 완료).**
 
 ### Current Summary
 
@@ -44,7 +44,7 @@
 - approximate, non-bit-exact determinism
 - M0 Evidence Gates G0~G9
 
-2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**가 구현·검증·승인 완료되었다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했다.
+2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**가 구현·검증·승인 완료되었다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했다. G3는 사용자가 개선된 laboratory `--density-demo`를 직접 실행해 약 300 ticks를 관찰한 뒤 Sand/Water 침강, Water/Oil 층분리, Steam/Smoke 정렬이 관찰 가능한 수준으로 동작함을 승인했다.
 
 ### G0 Runtime Evidence (2026-08-16, local run)
 
@@ -270,7 +270,146 @@ User Validation (movement demo)                       PASS — 사용자 승인 
 
 **G2 — Local Movement: PASS / CLOSED.**
 
-M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G3~G9와 최종 사용자 승인이 남아 있다.
+### G3 Density / Displacement Evidence (2026-08-16, local run)
+
+```text
+Branch:           feature/m0-g3-density-displacement (base: 686ed5a08effcab002912ddca271aac6f4010d56)
+철학:             "부력을 계산하지 않는다. 정렬한다." — buoyancy solver 없음,
+                  small integer Density Rank + local displacement 만으로
+                  침강/층분리/기체 ordering/STATIC exclusion/equal-rank 안정성 증명
+Density Rank:     Material property (density_rank: Option<u32>) — per-cell 저장 금지
+                  Steam = 20   Smoke = 30   Oil = 70
+                  Water = 90   Sand = 150
+                  Boundary Block = None (STATIC)   Stone = None (STATIC)
+                  EMPTY = None (registry Matter 아님)
+                  값은 현실 단위가 아니라 A>B/A==B/A<B 비교용 gameplay ordering.
+                  Material ID는 Identity, Density는 Property — ID를 density 순서로
+                  재배치하지 않음
+GPU lookup:       density_table[material_id] -> u32 (0 = displacement 없음/STATIC/EMPTY sentinel,
+                  20/30/70/90/150 = movable rank) — Material property upload이지
+                  per-cell state 아님. packing/u8 최적화 없음, 가독성 우선
+Density semantics (First-Match 유지, stencil ordering은 G2 그대로):
+                  B == EMPTY          → G2 normal movement
+                  B == STATIC         → blocked (다음 candidate)
+                  B movable + equal rank → density swap 없음 (blocked)
+                  B movable + ordering OK → local SWAP candidate
+                  B movable + ordering inappropriate → blocked
+                  OOB                 → G2 Void exit 의미 유지
+                  POWDER/LIQUID down/down-diagonal: source_rank > dest_rank → SWAP
+                  GAS up/up-diagonal:              source_rank < dest_rank → SWAP
+                  lateral: EMPTY-only (density lateral displacement 없음 — 수직 정렬이
+                  핵심이며 동일 높이 lateral density swap은 무의미한 jitter 방지)
+Shader 구조:      G2 audit risk였던 string brace scanner 제거 — pass별 명시적 WGSL
+                  source로 분리 (movement_propose.wgsl / movement_claim.wgsl /
+                  movement_commit.wgsl). WGSL include/code generator 없음.
+                  refactor 직후 기존 G2 tests 전부 PASS 확인 후 G3 logic 추가
+Ownership:        G3 swap은 source+destination 양쪽 endpoint가 동일 movement edge를
+                  선택해야 실행 (edge selected at source AND at destination).
+                  per-cell claim buffer (ownership arbitration scratch state —
+                  density state 아님). fixed min-source arbitration 유지.
+                  한 Cell이 한 Tick에 두 개의 ownership-changing edge에 동시 참여 불가
+Commit:           write-self 유지 — 각 invocation은 material_next[self]만 write.
+                  swap S<->D: S invocation → next[S]=current[D], D invocation →
+                  next[D]=current[S]. neighbor direct overwrite 없음.
+                  unmatched/경쟁 패배 edge → 양쪽 모두 상태 유지 (corruption보다
+                  conservative no-move)
+
+GPU tests (density.rs, 실제 RTX 5090/DX12 — 15개):
+  sand_swaps_with_water_below                        PASS (Sand directly above Water →
+                                                        local swap, Sand 아래/Water 위,
+                                                        count 보존)
+  sand_sinks_through_water_column                    PASS (여러 tick 후 Sand가 Water
+                                                        아래로 진행 — pixel checksum 없음)
+  water_below_oil_inversion                          PASS (Water above Oil → swap → 정렬)
+  oil_above_water_is_stable                          PASS (density 이유만으로 swap 없음)
+  multi_cell_layer_separation_in_basin               PASS (inverted/mixed → Water가
+                                                        Oil보다 아래 semantic ordering)
+  equal_rank_water_water_no_swap                     PASS (same rank density swap 없음,
+                                                        쓸데없는 흔들림 없음)
+  static_exclusion_stone_and_boundary                PASS (Sand vs Stone / Water vs
+                                                        Boundary → density swap 없음)
+  gas_rank_steam_rises_above_smoke                   PASS (Steam 20 below Smoke 30 →
+                                                        lighter가 위로 정렬)
+  gas_stable_ordering_no_swap                        PASS (반대 stable ordering에서는
+                                                        density swap 없음)
+  overlapping_swap_and_move_no_corruption            PASS (swap+move 겹침 → no duplicate,
+                                                        no unexplained loss, per-material
+                                                        count conserved)
+  overlapping_swap_pair_no_corruption                PASS (swap+swap 겹침 → 동일)
+  contention_no_corruption                           PASS (multiple sources overlapping
+                                                        density candidates)
+  chunk_boundary_density_displacement                PASS (y=63/64 chunk 경계 Sand/Water
+                                                        displacement — chunk는 density
+                                                        wall 아님)
+  void_regression_bottom_side_diagonal               PASS (G2 Void semantics 유지)
+  g3_tick_preserves_g2_contracts                     PASS (invalid ID/OOB 거부, EMPTY
+                                                        미등록, boundary erase 유지)
+
+Core pure tests (movement.rs/material.rs, 56개 total 중 G3 관련):
+  sand_rank_gt_water / water_rank_gt_oil / steam_rank_lt_smoke   PASS
+  EMPTY no rank / Stone·Boundary no movable density             PASS
+  equal rank → no displacement / STATIC target → no displacement PASS
+  sand downward into water allowed / water downward into oil allowed PASS
+  oil downward into water rejected / steam upward into smoke allowed PASS
+  lateral density swap rejected                                  PASS
+  G2 movement/stencil/Void pure tests 전부 유지                   PASS
+
+Density demo (User Validation fixture) — 128×128 laboratory tanks (승인 완료):
+  실행:           cargo run -p powdergame-windows -- --density-demo
+                  또는 상위 폴더의 run_powdergame.bat
+  world/view:     G2와 동일한 128×128 square-cell / PAUSED / 15 TPS /
+                  SPACE·N·R·ESC 관찰 구조 재사용 (새 UI framework 없음)
+  scene:          G2 forest/tree divider를 쓰지 않는 별도 laboratory/tank 장면
+                  좌→우 SAND+WATER | WATER+OIL | STEAM+SMOKE
+                  - Tank 1: 하단 Water pool 위 큰 Sand block — PLAY 시 침강
+                  - Tank 2: inverted (Water 위 / Oil 아래) → 층분리
+                  - Tank 3: sealed (Smoke 위 / Steam 아래) → gas ordering
+  presentation:   G3-only lab palette (Stone = gray). G2 forest green palette와
+                  movement-demo 장면은 변경 없음
+  title:          Powdergame G3 Density Demo | SAND+WATER | WATER+OIL |
+                  STEAM+SMOKE | [PAUSED]/[PLAY 15 TPS] + tick count
+  bounded run:    --density-demo --smoke-frames 180 → exit 0, device lost 없음
+
+G0/G1/G2 regression:
+  cargo test --workspace 전체 PASS (56 core + 15 density + 1 G0 headless +
+  16 movement + 7 integrity = 95, ignored 1 controlled benchmark)
+  Windows smoke (--smoke-frames 60): PASS — RTX 5090/Dx12, 2048×2048
+  --movement-demo --smoke-frames 120: PASS — G2 forest demo regression 없음
+
+cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
+```
+
+G3 Evidence Gate 판정 (MILESTONES.md 기준):
+
+```text
+Density는 Material property (per-cell buffer 없음)      PASS (density_table lookup,
+                                                          current/next density buffer 없음)
+buoyancy float/SI solver 없음                            PASS ("sort, not buoyancy")
+Sand in Water 침강                                       PASS (local swap, count 보존)
+Water/Oil 층분리                                         PASS (inversion + stable + multi-cell)
+Gas density ordering example                             PASS (Steam 20 / Smoke 30)
+STATIC exclusion                                         PASS (Stone/Boundary는 rank None)
+equal-rank 안정성                                        PASS (same rank → no swap)
+lateral density jitter 없음                              PASS (lateral은 EMPTY-only)
+long-distance density scan 없음                          PASS
+swap이 neighbor Next를 직접 overwrite하지 않음            PASS (write-self commit)
+overlapping swap/move에서 duplicate/loss 없음            PASS (edge 양단 agreement,
+                                                          count conserved)
+Void material ID 없음 / EMPTY 미등록 유지                 PASS
+G4 code 없음                                             PASS (temperature/ignition/
+                                                          combustion/phase 전무)
+G0/G1/G2 regression 없음                                 PASS
+User Validation (density demo)                           PASS — 사용자 승인 완료 (2026-08-16)
+```
+
+**G3 — Density / Displacement: PASS / CLOSED.**
+
+G3 User Validation:
+  PASS — 사용자가 개선된 laboratory `--density-demo`를 직접 실행해 약 300 ticks
+  진행 화면을 확인하고, Sand/Water 침강 · Water/Oil 층분리 · Steam/Smoke 정렬이
+  관찰 가능한 수준으로 동작함을 승인 (2026-08-16).
+
+M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G4~G9와 최종 사용자 승인이 남아 있다.
 
 ### Product Direction
 
@@ -280,13 +419,10 @@ M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G3~G9와 최�
 
 ### Next Action
 
-1. G3 — Density / Displacement 준비: Density Rank + local displacement + layer
-   separation Evidence Gate. (G2는 EMPTY destination 전용 baseline이며 density
-   swap은 G3)
-2. G2 기준선(feature/m0-g2-local-movement)에서 G3 branch 생성.
-3. G3 구현 + 자동/기술 검증 후 보고.
+1. G4 — Temperature / Phase / Combustion 준비 (이 G3 기준선에서 별도 branch 생성).
+2. G4 구현은 그 branch에서만 시작한다. 이 G3 기준점은 변경하지 않는다.
 
-아직 G3 구현은 시작하지 않는다.
+아직 G4 구현은 시작하지 않는다.
 
 ### Blockers
 
@@ -303,6 +439,7 @@ M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G3~G9와 최�
 - broad GPU compatibility
 - GPU timestamp query benchmark framework (G2 baseline은 coarse wall-clock로 기록)
 - active/heavy-matter world gameplay performance benchmark (G2 reference-world baseline과 별도 대상)
+- G3 controlled performance baseline (idle-machine 여부 사용자 확인 후 별도 측정 — correctness-first)
 
 ---
 
@@ -310,7 +447,7 @@ M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G3~G9와 최�
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2 PASS (G2는 User Validation 포함), G3~G9 + 최종 M0 승인 남음
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3 PASS (G2·G3는 User Validation 포함), G4~G9 + 최종 M0 승인 남음
 
 M0 `ACHIEVED`: **NO**
 
@@ -333,7 +470,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (44 core + 1 GPU headless smoke + 16 GPU movement + 7 GPU world integrity, ignored 1 controlled benchmark)
-benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark.
-m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16 — G3+ pending)
+tests: passed (56 core + 15 GPU density + 1 GPU headless smoke + 16 GPU movement + 7 GPU world integrity, ignored 1 controlled benchmark)
+benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark. G3 controlled baseline: deferred (idle-machine 확인 후 별도 측정).
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16, G3 PASS/CLOSED incl. user validation 2026-08-16, G4+ pending)
 ```

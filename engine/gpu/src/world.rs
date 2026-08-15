@@ -10,16 +10,20 @@
 //! ```
 //!
 //! No f16, packing, compaction, indirect dispatch or subtile masks
-//! (`docs/development/PERFORMANCE.md` §17, MILESTONES G0).
+//! (`docs/development/PERFORMANCE.md` §17, MILESTONES G0). Density is a
+//! Material table property (G3), NEVER a per-cell buffer — there is no
+//! `density_current[]`/`density_next[]`.
 //!
 //! G1: the initial world has an outermost ring of `BOUNDARY_BLOCK` with an
 //! `EMPTY` interior. The world stays finite and authoritative on the GPU;
 //! CPU-side work here is initialization/staging and small validated edit
 //! hooks only (no per-tick full-world CPU simulation).
 //!
-//! G2: two auxiliary per-cell `u32` buffers support the movement pipeline —
-//! `proposal` (each source's chosen destination) and `resolve` (each
-//! destination's single winner). They hold movement metadata, never Matter.
+//! G2/G3: two auxiliary per-cell `u32` buffers support the movement
+//! pipeline — `proposal` (each source's chosen destination) and `claim`
+//! (each cell's single selected ownership edge, with reciprocal agreement
+//! between both endpoints). They hold movement arbitration scratch state,
+//! never Matter and never density state.
 
 use wgpu::util::DeviceExt;
 
@@ -131,8 +135,8 @@ pub struct GpuWorld {
 
     /// Per-cell movement proposal (destination index, NO_MOVE or VOID_TARGET).
     pub proposal: wgpu::Buffer,
-    /// Per-cell movement resolution (single winning source index, or NO_SOURCE).
-    pub resolve: wgpu::Buffer,
+    /// Per-cell ownership edge claim (reciprocal agreement for moves/swaps).
+    pub claim: wgpu::Buffer,
 }
 
 /// Creates a zero-initialized buffer of `size` bytes.
@@ -226,17 +230,17 @@ impl GpuWorld {
             world_usage(),
         )?;
 
-        // G2 movement metadata (never Matter). Zero-initialized for hygiene;
-        // every entry is rewritten by the movement passes each tick.
+        // Movement arbitration scratch (never Matter, never density state).
+        // Every entry is rewritten by the movement passes each tick.
         let proposal = create_zeroed_buffer(
             device,
             "world/proposal",
             layout.material_bytes,
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         )?;
-        let resolve = create_zeroed_buffer(
+        let claim = create_zeroed_buffer(
             device,
-            "world/resolve",
+            "world/claim",
             layout.material_bytes,
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         )?;
@@ -257,7 +261,7 @@ impl GpuWorld {
             flags_current,
             flags_next,
             proposal,
-            resolve,
+            claim,
         })
     }
 

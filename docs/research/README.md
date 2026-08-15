@@ -48,6 +48,18 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 - `derived/FIRST_EXPANSION_MATERIAL_SHORTLIST.md` — M0를 건드리지 않고 그 이후 첫 확장에 적합한 저비용·고상호작용 Material과 prototype bundle을 정리한다.
 - `derived/MATERIAL_PROTOTYPE_BUNDLES.md` — Dry Ice/CO2, Clathrate/Methane, Clay/Brick, Cryofluid/Ablative, Salt/Brine을 실제 causal-chain 검증 묶음으로 정의하고 prerequisites와 pass evidence를 적는다.
 
+## Master Encyclopedia
+
+`encyclopedia/`는 위 raw/derived 자료를 다시 모아 **두들갓처럼 읽히는 개발용 통합 사전**으로 만든 corpus다.
+
+- `encyclopedia/README.md` — 사전 구조와 canonicalization 규칙
+- `encyclopedia/MASTER_INDEX.md` — 전체 인덱스
+- 현재 **530 source-index rows**를 추적한다.
+- 이 숫자는 중복, 별칭, skip 후보, IP reference까지 보존한 provenance 숫자이며 최종 Material 수가 아니다.
+- Foundation / 현실 재료 / 우주 후보 / OM-001~180 / VX-001~010 / reference quarry / Doodle-God World Primitive / web reality anchor를 한 체계 안에서 검색할 수 있다.
+- 설명이 약한 항목은 기존 Powdergame 법칙 → 현실 조사 → 독자 상상 순서로 보강한다.
+- 실제 게임 Dictionary는 이 master corpus를 그대로 공개하는 답안지가 아니라 **플레이어가 관찰한 현상만 드러나는 발견 도감**으로 파생해야 한다.
+
 핵심 변환은 다음과 같다.
 
 ```text

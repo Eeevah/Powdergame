@@ -3,6 +3,12 @@
 //! Out-of-domain coordinates are `Void` — never clamped back into the world.
 //! There is no hidden collision wall and no Void cell/array slot
 //! (`SIMULATION_SPEC` §4, ADR-0001 "Finite editable boundary").
+//!
+//! Vocabulary contract:
+//! - `EMPTY` = an in-domain cell with no Matter.
+//! - `Void`  = outside the world; there is no cell at all.
+//!
+//! An out-of-domain coordinate must therefore never be reported as `EMPTY`.
 
 use crate::material::{MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY};
 use crate::world_config::{ConfigError, WorldConfig};
@@ -71,9 +77,18 @@ impl Domain {
     }
 }
 
-/// Initial material value for a coordinate: outermost ring is
+/// Initial material value for an **in-bounds** coordinate: outermost ring is
 /// `BOUNDARY_BLOCK`, interior is `EMPTY`.
-pub fn initial_material_value(domain: &Domain, x: i64, y: i64) -> u32 {
+///
+/// This is an in-bounds initialization helper only. The caller must pass a
+/// coordinate inside `domain`; out-of-domain coordinates are `Void` (no cell
+/// exists) and must never be interpreted as `EMPTY`. The only call site is
+/// [`initial_material_ids`], which iterates strictly in-bounds coordinates.
+fn initial_material_value(domain: &Domain, x: i64, y: i64) -> u32 {
+    debug_assert!(
+        domain.contains(x, y),
+        "initial_material_value requires an in-bounds coordinate; ({x},{y}) is Void"
+    );
     if domain.is_outer_edge(x, y) {
         MATERIAL_BOUNDARY_BLOCK
     } else {
@@ -84,8 +99,9 @@ pub fn initial_material_value(domain: &Domain, x: i64, y: i64) -> u32 {
 /// Builds the full initial material state for `config` as a dense row-major
 /// `u32` array (outermost ring = `BOUNDARY_BLOCK`, interior = `EMPTY`).
 ///
-/// CPU-side construction here is initialization/staging only; the production
-/// world stays authoritative on the GPU (`ARCHITECTURE.md` §8).
+/// Every produced value corresponds to an in-domain cell. CPU-side
+/// construction here is initialization/staging only; the production world
+/// stays authoritative on the GPU (`ARCHITECTURE.md` §8).
 pub fn initial_material_ids(config: &WorldConfig) -> Result<Vec<u32>, ConfigError> {
     let domain = Domain::from_config(config);
     let count = domain.cell_count()?;
@@ -143,6 +159,31 @@ mod tests {
         assert_ne!(d.index(-1, 0), d.index(0, 0));
         assert_ne!(d.index(8, 0), d.index(7, 0));
         assert_ne!(d.index(0, 8), d.index(0, 7));
+    }
+
+    #[test]
+    fn oob_is_void_never_empty() {
+        // Contract: EMPTY is an in-domain empty cell; Void is outside the
+        // world. An out-of-domain coordinate must never be reported as EMPTY
+        // by any initialization API.
+        let d = domain_8();
+
+        // 1. Out-of-domain coordinates are not cells at all (Void).
+        for (x, y) in [(-1, 0), (0, -1), (8, 0), (0, 8), (8, 8), (-1, -1)] {
+            assert_eq!(d.index(x, y), None, "({x},{y}) is Void, not a cell");
+        }
+
+        // 2. The initialization path only ever produces values for exactly
+        //    the in-domain cells — never a value for an out-of-domain cell.
+        let config = WorldConfig::new(8, 8, 8).unwrap();
+        let cells = initial_material_ids(&config).unwrap();
+        assert_eq!(cells.len(), 64, "exactly width*height in-domain cells");
+        assert!(
+            cells
+                .iter()
+                .all(|&v| v == MATERIAL_EMPTY || v == MATERIAL_BOUNDARY_BLOCK),
+            "every value must be EMPTY or BOUNDARY_BLOCK for an in-domain cell"
+        );
     }
 
     #[test]

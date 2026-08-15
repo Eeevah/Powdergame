@@ -12,7 +12,7 @@ pub mod layout;
 pub mod material;
 pub mod world_config;
 
-pub use domain::{initial_material_ids, initial_material_value, Domain};
+pub use domain::{initial_material_ids, Domain};
 pub use layout::{
     WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, PRESSURE_ELEM_SIZE, TEMPERATURE_ELEM_SIZE,
 };

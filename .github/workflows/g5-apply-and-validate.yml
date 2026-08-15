@@ -18,6 +18,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Reset generated G5-A files
+        shell: bash
+        run: rm -f engine/core/src/pressure.rs engine/gpu/src/pressure.wgsl engine/gpu/tests/pressure.rs
+
       - name: Apply G5-A pressure implementation
         run: python tools/g5_apply.py
 

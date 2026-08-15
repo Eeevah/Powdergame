@@ -46,6 +46,7 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 
 - `derived/MATERIAL_BEHAVIOR_FAMILIES.md` — 약 230개 후보와 앞선 OM 연구를 24개 행동 family로 압축하고, foundation-compatible / near-term / future / meta-defer를 구분한다.
 - `derived/FIRST_EXPANSION_MATERIAL_SHORTLIST.md` — M0를 건드리지 않고 그 이후 첫 확장에 적합한 저비용·고상호작용 Material과 prototype bundle을 정리한다.
+- `derived/MATERIAL_PROTOTYPE_BUNDLES.md` — Dry Ice/CO2, Clathrate/Methane, Clay/Brick, Cryofluid/Ablative, Salt/Brine을 실제 causal-chain 검증 묶음으로 정의하고 prerequisites와 pass evidence를 적는다.
 
 핵심 변환은 다음과 같다.
 

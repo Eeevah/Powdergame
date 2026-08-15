@@ -1,1240 +1,1268 @@
-> [!NOTE]
-> 이 문서는 프로젝트 착수 전 수행한 심층 리서치/설계 보고서를 저장소용 기준 문서로 정리한 버전이다.
-> ChatGPT 세션 내부에서만 유효한 검색 인용 마커는 제거했다. 외부 사실·기술 선택은 실제 구현 시점에 1차 자료로 다시 검증한다.
-> 기술 스택과 일정은 제안이며, 제품 방향이 충돌할 경우 `00_USER_VISION.md`가 우선한다.
+# Powdergame Master Design Report — Foundation Synthesis
 
-# 두들갓 × 파우더 게임: “상상력을 시뮬레이션하는 세계 창조 샌드박스” 종합 설계 보고서
+> [!IMPORTANT]
+> 이 문서는 2026-08-15 Foundation Design Session의 사용자 선택과 보완을 기준으로 기존 초기 설계 보고서를 전면 재작성한 종합 설계 문서다.
+>
+> 현재 구현 계약은 `vision/USER_VISION.md`, `architecture/decisions/`, `specs/`, `development/`, `planning/MILESTONES.md`가 더 구체적인 경우 그 문서를 따른다.
+>
+> 질문·선택지·사용자 코멘트·중간에 변경된 결정의 provenance는 `design-history/2026-08-15-foundation-design-session.md`에 보존한다.
 
-## 1. 경영진 요약
+---
 
-이 게임의 목표는 **“파우더 게임에 원소를 많이 추가하는 것”이 아니다.**
+# 1. Executive Summary
 
-더 근본적인 목표는 Doodle God의 **개념 조합과 발견의 쾌감**을 Powder Game의 **공간적·물리적 상호작용** 속으로 집어넣어, 플레이어가 단순한 물질뿐 아니라 **생명, 정보, 문명, 마법, 시간, 규칙 자체까지 만들어내는 세계 창조 엔진**을 만드는 것이다.
+Powdergame의 목표는 단순히 원소 수가 많은 falling-sand 게임을 만드는 것이 아니다.
 
-핵심 제안은 다음과 같다.
+이 프로젝트는:
 
-> **모든 것을 입자로 만들지 말라.**
+- **Doodle God의 조합·발견·세계 창조의 감각**
+- **DAN-BALL Powder Game의 직접적인 공간 조작·국소 상호작용·창발성**
 
-게임 세계는 최소 다섯 층으로 나눈다.
+을 하나의 실제 simulation world에 연결한다.
 
-| 세계 층 | 표현 대상 | 예 |
-|---|---|---|
-| 물질층 | 실제 공간을 차지하는 입자 | 모래, 물, 철, 산, 얼음 |
-| 장층 | 공간에 퍼지는 연속 값 | 온도, 압력, 산소, 전기장, 마나 |
-| 생명·에이전트층 | 상태·기억·목표를 가진 존재 | 박테리아, 식물, 동물, 인간, AI |
-| 개념층 | 의미와 집단 상태 | 생명, 언어, 문명, 전쟁, 신앙, 역사 |
-| 메타층 | 세계 법칙 자체 | 확률, 중력 방향, 시간 배율, 규칙 씨앗 |
-
-이 구조를 통해:
-
-```text
-물
-→ 증기
-→ 압력
-→ 터빈
-→ 전기
-→ 회로
-→ 계산
-→ 언어
-→ 네트워크
-→ 문명
-→ 인공지능
-```
-
-같은 인과 사슬이 실제 샌드박스 안에서 발생할 수 있다.
-
-반대로 추상적인 것이 물리 세계에 영향을 줄 수도 있다.
-
-```text
-집단 기억
-→ 신앙
-→ 성지
-→ 마나장
-→ 중력 변화
-→ 새로운 생태계
-```
-
-즉 **물리적 현상이 개념을 탄생시키고, 개념이 다시 물리 세계의 법칙에 영향을 준다.** 이것이 Doodle God과 Powder Game을 단순히 더하는 것이 아니라 **곱하는 설계**다.
-
-한 문장 제품 비전:
+핵심 제품 문장:
 
 > **플레이어에게 물질을 주는 게임이 아니라, 우주를 발명할 수 있는 문법을 주는 게임.**
 
----
+플레이어는 Matter를 뿌리고 정답 레시피를 맞히는 사람이 아니라, 자기 가설을 세계에 던지고 그 세계가 자기 규칙으로 답하는 것을 관찰하는 창조자가 된다.
 
-## 2. 플레이어 경험 목표
-
-가장 먼저 피해야 할 함정은:
-
-> **원소 1,000개 = 깊이 1,000배**
-
-라고 생각하는 것이다.
-
-Doodle God의 매력은 “이 둘을 합치면 대체 무엇이 나오지?”라는 개념적 추론에 있고, Powder Game의 매력은 “내가 예상하지 않았던 일이 실제 공간에서 일어나는 것”에 있다.
-
-따라서 깊이는 원소 수보다 **원소가 맺는 관계의 차원**에서 나온다.
-
-### 핵심 감정 루프
+Powdergame의 핵심 재미는 다음 루프다.
 
 ```text
 호기심
-→ 실험
-→ 예상
-→ 반응
-→ 놀람
-→ 이해
-→ 이용
-→ 창작
+→ 직접 배치/실험
+→ 반응 발생
+→ 예상 밖의 연쇄
+→ 관찰
+→ 원인 이해
+→ 다시 이용
+→ 더 큰 구조 제작
 → 새로운 의문
-→ 다시 실험
 ```
-
-### 최우선 네 목표
-
-**창의성**  
-정답을 찾는 능력이 아니라 자기 목표를 만들 수 있는 능력.
-
-**발견성**  
-모든 반응을 미리 보여주지 않되, 결과는 사후에 인과적으로 이해할 수 있어야 한다.
-
-**창발성**  
-개발자가 직접 작성하지 않은 결과가 규칙의 조합에서 나와야 한다.
-
-**확장성**  
-새로운 물질·생명·규칙을 추가할 때 기존 시스템을 대량 수정하지 않아야 한다.
-
-### 과학적 정확성보다 중요한 것
-
-이 프로젝트는 과학 시뮬레이터가 아니라 **일관된 상상력 시뮬레이터**다.
-
-현실 과학은 강력한 기본 규칙 세트로 사용하되, 마법·신화·꿈·시간·확률 같은 비현실 요소도 내부 규칙만 일관되면 같은 세계 안에서 작동할 수 있어야 한다.
-
-가능한 규칙 프리셋 예시:
-
-| 프리셋 | 철학 |
-|---|---|
-| Science | 현실 물리·화학 우선 |
-| Alchemy | 현실 + 상징적/연금술적 조합 |
-| Myth | 마나, 영혼, 신앙, 의식 활성 |
-| Dream | 기억, 시간, 소문, 확률 등 추상 개념 물리화 |
-| Chaos Lab | 플레이어 규칙 자유 편집 |
-
-중요한 것은 이들이 별개의 게임이 아니라 **같은 엔진 위의 다른 Ruleset**이라는 점이다.
 
 ---
 
-## 3. 세계 모델: Element가 아니라 World Primitive
+# 2. 현실은 참고자료이지 법전이 아니다
 
-핵심 데이터 구조는 단순 `Element`보다 일반적인 **WorldPrimitive**가 되어야 한다.
+Powdergame은 과학 시뮬레이터가 아니다.
 
-```text
-WorldPrimitive
- ├─ identity: id, tags, category
- ├─ spatial: position, radius, layer
- ├─ matter: mass, density, phase
- ├─ thermal: temperature, heat_capacity
- ├─ motion: velocity, viscosity, drag
- ├─ chemistry: reactivity, acidity, oxidation, solubility
- ├─ electricity: charge, conductivity, potential
- ├─ biology: nutrients, genome, metabolism, age
- ├─ information: memory, signal, language
- ├─ magic: mana, affinity, resonance
- ├─ semantics: concepts, ownership, civilization
- └─ meta: time_scale, probability_bias, rule_flags
-```
+현실의:
 
-핵심 최적화 원칙도 여기서 나온다.
-
-> **속성이 없는 요소는 해당 계산에 참여하지 않는다.**
-
-모래에게 언어를 계산할 이유가 없고, 소문에게 질량 충돌을 계산할 이유가 없다.
-
-### 핵심 Field 후보
-
-- Temperature
-- Pressure
-- AirVelocity
-- Oxygen
-- Humidity
-- ElectricPotential
-- Radiation
-- Nutrient
-- Pheromone
-- Mana
-- Information
-- Belief
-- TimeScale
-
-입자만 존재하는 세계보다 **입자 + 장 + 에이전트 + 개념 + 메타 법칙**이 동시에 존재하는 세계를 목표로 한다.
-
----
-
-## 4. 상호작용 폭발을 막는 태그 기반 법칙
-
-원소가 수백~수천 개가 되면 모든 쌍의 관계를 직접 작성할 수 없다.
-
-나쁜 방식:
-
-```text
-water + iron
-water + copper
-water + silver
-water + gold
-...
-```
-
-권장 방식:
-
-```text
-water + material[tag=oxidizable]
-when oxygen > threshold
-→ corrosion
-```
-
-또는:
-
-```text
-fire + material[tag=organic]
-when oxygen > 0.2
-→ ash + smoke + heat
-```
-
-즉 **원소 이름이 아니라 속성·태그·환경 조건을 대상으로 법칙을 작성한다.**
-
-특수한 예외는 일반 법칙보다 높은 우선순위를 가진다.
-
-```text
-fire + organic → ash
-```
-
-보다:
-
-```text
-fire + phoenix_egg → phoenix
-```
-
-가 우선할 수 있다.
-
----
-
-## 5. 반응 엔진
-
-Doodle God식 레시피와 Powder Game식 시뮬레이션을 서로 다른 시스템으로 분리하지 않는다.
-
-일반화된 규칙 모델:
-
-```text
-RULE {
-    trigger
-    participants
-    spatial_condition
-    environmental_condition
-    semantic_condition
-    probability
-    priority
-    consume
-    produce
-    energy_delta
-    field_delta
-    concept_delta
-}
-```
-
-물리·화학뿐 아니라 문명과 마법도 같은 규칙 엔진으로 표현한다.
-
-예시 — 문명 탄생:
-
-```yaml
-id: birth_of_civilization
-trigger: periodic
-conditions:
-  nearby:
-    agents:
-      tag: sapient
-      count: ">= 20"
-  concepts:
-    language: ">= 0.6"
-    cooperation: ">= 0.4"
-  resources:
-    food_surplus: "> 10"
-effects:
-  create_concept: civilization
-  spawn_field:
-    type: culture
-    strength: 0.1
-```
-
-예시 — 살아있는 불:
-
-```yaml
-id: living_fire
-trigger: contact
-participants:
-  - id: fire
-  - id: life
-conditions:
-  mana: "> 0.4"
-effects:
-  transform_all: sentient_flame
-```
-
-물리·화학·생명·정보·마법·문명을 별도 미니게임으로 만들지 않는 것이 중요하다.
-
----
-
-## 6. 한 틱의 해석 순서
-
-실행 순서 때문에 결과가 비정상적으로 바뀌지 않도록 **제안 → 해결 → 커밋** 구조를 사용한다.
-
-권장 단계:
-
-1. 플레이어 입력
-2. 장 이동 — 열, 압력, 공기, 마나 등
-3. 이동 — 중력, 액체, 기체, 에이전트
-4. 충돌
-5. 물리 변화 — 압축, 파손, 상변화
-6. 화학 — 연소, 부식, 용해, 촉매
-7. 생물 — 대사, 성장, 번식
-8. 정보 — 전기, 신호, 기억, 언어
-9. 추상 — 문명, 신앙, 개념 조건
-10. 메타 — 시간, 확률, 규칙 변경
-11. 모든 상태 변화 동시 커밋
-
-### 결정론과 확률
-
-완전 결정론은 예측 가능하고, 순수 확률은 이해하기 어렵다.
-
-권장 원칙:
-
-> **거시적 법칙은 결정론적, 미시적 변이는 확률적.**
-
-난수는 재현 가능하게 생성한다.
-
-```text
-RNG = hash(
-    world_seed,
-    tick,
-    position,
-    rule_id,
-    entity_id
-)
-```
-
-같은 시드와 같은 입력이면 같은 역사가 만들어지는 것이 이상적이다. 이는 Replay, Rewind, 디버깅, 멀티플레이에도 유리하다.
-
----
-
-## 7. Doodle God식 발견의 재해석
-
-단순한 `A + B = C`는 초반 접근성을 위해 남긴다.
-
-하지만 진행할수록 발견 방식이 진화한다.
-
-### A — 조합
-
-```text
-물 + 불 → 증기
-```
-
-### B — 조건부 조합
-
-```text
-물 + 열 + 밀폐 공간 → 압력
-```
-
-### C — 구조
-
-```text
-압력 + 회전 구조 + 금속 → 터빈
-```
-
-### D — 시스템
-
-```text
-터빈 + 자기장 + 전도체 → 발전기
-```
-
-### E — 창발 발견
-
-실제로 일정 전력을 생산하는 구조를 만들면:
-
-```text
-Concept discovered: 발전
-```
-
-### F — 메타 발견
-
-충분히 복잡한 회로가 신호를 처리하면:
-
-```text
-Concept discovered: 계산
-```
-
-후반으로 갈수록 **레시피를 클릭하는 것과 실제 현상을 구현하는 것의 경계가 사라져야 한다.**
-
----
-
-## 8. 샘플 발견 사슬
-
-```text
-물 + 열 → 증기
-모래 + 고열 → 유리
-씨앗 + 물 + 영양 → 식물
-금속 + 전기 → 전도 회로
-기억 젤 + 전기 → 기억 회로
-기억 회로 + 신경 점액 → 원시 신경망
-신경 점액 + 씨앗 → 사고하는 덩굴
-사고하는 덩굴 + 언어 포자 → 이야기 숲
-이야기 숲 + 불 → 신화 재
-신화 재 + 물 → 신화 잉크
-신화 잉크 + 금속 → 룬
-룬 + 회로 + 마나 → 마법 회로
-확률 결정 + 번개 → 확률장
-확률장 + 생명 → 고변이 생태계
-시간 먼지 + 얼음 → 정지된 순간
-정지된 순간 + 열 → 시간 증기
-문명 + 기록 결정 → 역사
-역사 + 신화 잉크 → 종교
-종교 + 마나 → 신성장
-신성장 + 생명 → 신화 생물
-```
-
-일부 결과는 새로운 픽셀을 만드는 대신 **태그·상태·개념**을 추가하는 형태가 될 수 있다.
-
-예를 들어 `문명`은 픽셀 한 종류가 아니라 세계 또는 집단에 붙는 상태다.
-
----
-
-## 9. 독창적 요소 예시
-
-단순한 “새 재료”가 아니라 새로운 게임플레이를 여는 요소를 우선한다.
-
-| 요소 | 유형 | 특징 |
-|---|---|---|
-| 기억 젤 | 물질+정보 | 접촉한 신호 패턴 저장 |
-| 시간 먼지 | 메타 입자 | 주변 시간 속도 변화 |
-| 확률 결정 | 메타 물질 | 주변 확률 반응 편향 |
-| 중력 꽃가루 | 장 생성체 | 발아 지점을 중력원으로 만듦 |
-| 반향 금속 | 물리+정보 | 받은 신호를 지연 반복 |
-| 공허 거품 | 이국 물질 | 질량을 흡수해 빈 공간 성장 |
-| 엔트로피 이끼 | 생물 | 정돈된 구조를 먹고 무작위화 |
-| 언어 포자 | 생물+정보 | 에이전트 사이에 기호 체계 확산 |
-| 신화 잉크 | 추상 물질 | 오래 유지된 형태를 개념화 |
-| 인과 실 | 메타 | 두 물체의 상태 변화 연결 |
-| 재귀 벌레 | 생물+메타 | 접촉한 규칙을 복제 |
-| 위상 목재 | 물리 | 떨어진 두 조각의 내부 공간 연결 |
-| 논리 모래 | 정보 물질 | 주변 패턴에 따라 논리 동작 |
-| 계약 소금 | 마법+개념 | 두 에이전트의 행동 규칙 묶음 |
-| 지각 불꽃 | 생물+에너지 | 먹이를 찾아 이동하는 불 |
-| 적응 유리 | 물질 | 반복 충격 방향에 적응 |
-| 신경 점액 | 생물+전기 | 반복 입력으로 전도 경로 강화 |
-| 기록 결정 | 정보 | 주변 사건의 축약 로그 저장 |
-| 소문 기체 | 추상+기체 | 정보가 변형되며 전파 |
-| 역설 얼음 | 메타 | 녹는 순간 직전 상태를 한 번 복원 |
-| 꿈 안개 | 추상 장 | 개념을 불완전한 물질로 복제 |
-| 관찰자 | 메타 에이전트 | 관찰 여부에 따라 특정 법칙 변경 |
-
----
-
-## 10. 퍼즐 철학
-
-퍼즐은 “정답 레시피” 대신 **조건**을 준다.
-
-예:
-
-| 퍼즐 | 목표 |
-|---|---|
-| 사막에 비를 내려라 | 강수량 일정 이상 |
-| 영구 발전기를 만들어라 | 일정 출력 장시간 유지 |
-| 얼음 없이 냉각하라 | 목표 영역 온도 이하 |
-| 불에 사는 생물을 만들어라 | 고온에서 장기 생존 |
-| 전선 없이 신호를 보내라 | A→B 정보 전달 |
-| 스스로 수리되는 댐 | 손상 후 자동 복구 |
-| 태양 없이 숲을 유지하라 | 장기 생태계 유지 |
-| 전쟁 없는 문명을 만들어라 | 장기 분쟁률 제한 |
-| 규칙 하나만 바꿔 세계를 멸망시켜라 | 전체 생명 소멸 |
-
-해법은 여러 개여야 하며, 예상 밖이지만 세계 규칙상 성립하는 방법도 인정해야 한다.
-
-점수도 단순 속도보다:
-
-- 효율
-- 독창성
-- 안정성
-- 재료 수
-- 생태 다양성
-- 에너지 소비
-- 예상치 못한 방법
-
-같은 여러 축으로 평가할 수 있다.
-
----
-
-## 11. UX: 복잡성을 이해하게 해주는 게임
-
-이 게임에서 시뮬레이션만큼 중요한 것이 **복잡성을 이해하게 해주는 UI**다.
-
-기본 구조 후보:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ 월드 / 발견 / 실험실 / 규칙 / 커뮤니티             │
-├──────────┬──────────────────────────────┬────────────┤
-│ 원소     │            WORLD             │ Inspector  │
-│ Palette  │                              │            │
-│          │                              │ 상태/원인  │
-├──────────┴──────────────────────────────┴────────────┤
-│ Timeline   Undo   Pause   Step   Replay   Rewind     │
-└─────────────────────────────────────────────────────┘
-```
-
-초보자는 브러시만 사용해도 재미있어야 한다.
-
-고급 사용자는 같은 화면에서:
-
-- 온도
+- 열
 - 압력
-- 산소
-- 속도 벡터
-- 전위
-- 영양
-- 마나
-- 정보 흐름
-- 계보
-- 반응 빈도
+- 부력
+- 연소
+- 산화
+- 전기
+- 빛
+- 방사선
+- 유체
 
-등을 오버레이로 볼 수 있다.
+같은 현상은 플레이어가 이미 직관을 갖고 있으므로 훌륭한 참고자료다.
 
-### Causal Inspector — “왜 이런 일이 일어났지?”
+하지만 현실을 정확히 재현하는 것은 목표가 아니다.
 
-복잡한 창발 게임에서 결과를 이해하지 못하면 놀라움이 곧 혼란이 된다.
+## 2.1 User Principle
 
-예:
+> **현실을 구현하는 것이 아니라 가상의 재미있는 놀이터를 만든다. 핵심은 나만의 세계 창조다. 현실 고증보다 게임 안에서 이해 가능한 논리와 상호작용이 중요하다.**
 
-```text
-산소 농도 감소
-→ 대사 효율 저하
-→ 체온 하락
-→ 생존 임계치 초과
-→ 사망
-```
+따라서:
 
-또는:
+- 현실에 없는 Matter를 만들 수 있다.
+- 현실에 없는 상변화를 만들 수 있다.
+- 현실과 다른 연소 조건을 만들 수 있다.
+- 특정 가상 Matter가 열을 흡수하고 압력으로 전기를 방출해도 된다.
+- 현실에서 반응하지 않는 Matter가 Powdergame에서는 특정 조건에 반응해도 된다.
 
-```text
-Fire affinity gene
-+ Wing mutation
-+ Mana field
-+ Myth concept
-→ Dragon phenotype
-```
+중요한 것은:
 
-**인과관계를 설명해주는 Inspector는 핵심 기능 후보다.**
-
----
-
-## 12. 시간, Undo, Replay, World Fork
-
-필수 시간 제어 후보:
-
-```text
-Pause
-1 Tick
-×0.1
-×0.5
-×1
-×4
-×32
-Rewind
-```
-
-세계는 주기적으로 Snapshot을 저장하고 그 사이 입력 이벤트를 기록한다.
-
-```text
-Snapshot 1000
- + Event 1001
- + Event 1002
- + ...
-Snapshot 1200
-```
-
-이를 통해 폭발 직전으로 돌아갈 수 있다.
-
-### Git처럼 세계를 분기한다
-
-```text
-World A
- ├─ A1: 산소 증가
- └─ A2: 마나 증가
-      └─ A2b: 포식자 추가
-```
-
-두 실험 결과를 비교할 수 있다.
-
-이는 과학 실험이자 창작 도구다.
-
----
-
-## 13. 발견 도감은 지식 그래프
-
-진행은 전통적인 레벨 잠금보다 **이해 능력의 확장**이어야 한다.
-
-```text
-4대 원소
-→ 물질/에너지
-→ 유기물
-→ 생명
-→ 신경/생태계
-→ 기억
-→ 언어
-→ 사회/문화
-→ 문명
-→ 과학/신화
-→ 계산/마법
-→ 인공지능
-→ 메타 창조
-→ 새로운 세계 법칙
-```
-
-진행 보상 예:
-
-- 온도계
-- 압력 시각화
-- 현미경
-- 유전자 분석기
-- 반응 그래프
-- 자동 실험기
-- Rule Editor
-- 시간선 분기
-- 세계 생성기
-
-즉 **콘텐츠 자체를 잠그기보다 관찰·창작 능력을 확장한다.**
-
----
-
-## 14. 절차 생성과 인공 생명
-
-절차 생성은 단순 지형 생성보다 넓게 사용한다.
-
-| 대상 | 후보 방법 |
-|---|---|
-| 지형 | noise + erosion |
-| 생태 패턴 | reaction-diffusion |
-| 식물 | L-system |
-| 생물 | genome mutation |
-| 문명 | agent simulation |
-| 퍼즐 | constraint generation |
-| 특이 생명 탐색 | quality-diversity / MAP-Elites 계열 |
-| 건축 배치 | WFC / constraint 기반 |
-
-고급 실험실에서는 플레이어가 목표 특성을 지정하고 다양한 진화 후보를 자동 탐색하는 기능도 가능하다.
-
-예:
-
-> 작고, 물속에서 살고, 독에 강하고, 전기를 먹는 생물을 찾아줘.
-
----
-
-## 15. 커뮤니티는 최종 콘텐츠 공급자
-
-공유 단위는 단순 맵을 넘어선다.
-
-- World
-- Experiment
-- Element Pack
-- Rule Pack
-- Species
-- Machine
-- Ecosystem
-- Puzzle
-- Timeline
-- Mod
-
-모든 창작물은 가능하면:
-
-```text
-Original
-→ Fork
-→ Remix
-→ Fork
-```
-
-계보를 기록한다.
-
-장기적으로 플레이어가 새로운 세계·법칙·생물·문명을 서로 재조합하게 만드는 것이 목표다.
-
----
-
-## 16. 협동 플레이
-
-협동은 “둘이 같이 모래를 뿌리는 것”보다 서로 다른 시스템을 맡아 충돌시키는 방향이 더 재미있다.
-
-예:
-
-```text
-엔지니어가 발전소 건설
-→ 폐열로 호수 온도 상승
-→ 생물학자의 조류 폭증
-→ 산소 고갈
-→ 도시 위기
-→ 마법사가 냉각 룬 설치
-→ 룬이 돌연변이에 영향
-→ 빛나는 생물 탄생
-```
-
-이런 이야기는 시나리오 작가가 직접 작성한 이벤트가 아니라 **시스템 충돌에서 발생해야 한다.**
-
----
-
-## 17. 기술 아키텍처
-
-중요한 원칙:
-
-> **게임 엔진이 곧 시뮬레이션 엔진이 되지 않게 한다.**
-
-독립적인 `Universe Core`를 둔다.
-
-```text
-Editor / UI
-    │
-Player Commands
-    │
-Universe Simulation Core
-    ├─ Particle Solver
-    ├─ Field Solver
-    ├─ Rule Engine / VM
-    ├─ Agent / Biology
-    ├─ Semantic System
-    └─ Meta-rule System
-          │
-          ├─ GPU Compute
-          └─ CPU Worker Pool
-                │
-             World State
-                ├─ Renderer
-                ├─ Snapshot
-                ├─ Event Log
-                └─ Networking
-```
-
-### 데이터 모델
-
-최종적으로 하나의 표현만 쓰기보다 Hybrid가 적합하다.
-
-```text
-Chunk
- ├─ Material Grid
- ├─ Temperature Field
- ├─ Pressure Field
- ├─ Velocity Field
- ├─ Chemical Fields
- ├─ Mana / Information Fields
- ├─ Particle Pool
- └─ Agent References
-```
-
-Dense Grid는 작은 월드에 편하고, Sparse Grid는 큰 빈 세계에 유리하며, Agent는 ECS/객체 구조, Field는 Texture/Buffer 계열이 적합하다.
-
----
-
-## 18. 멀티스케일 시뮬레이션
-
-모든 것을 매 프레임 같은 해상도로 계산하지 않는다.
-
-### 시간 스케일
-
-예시:
-
-| 시스템 | 논리 주기 예시 |
-|---|---:|
-| 입자 이동 | 60 Hz |
-| 충돌·전기 | 60 Hz |
-| 열 | 30 Hz |
-| 압력 | 30 Hz |
-| 화학 | 15~30 Hz |
-| 식물 | 5~15 Hz |
-| 동물 사고 | 5~15 Hz |
-| 진화 | 1 Hz 이하 |
-| 문명 | 0.2~2 Hz |
-| 신앙·문화 | 더 느림 |
-
-도시 문화를 초당 60번 계산할 이유는 없다.
-
-### 공간 스케일
-
-가까이에서는:
-
-```text
-개별 물 입자
-```
-
-멀어지면:
-
-```text
-물 질량 + 평균 속도
-```
-
-행성 규모에서는:
-
-```text
-지역 수분량
-```
-
-하나의 세계가 동시에:
-
-> **픽셀 → 물체 → 생태계 → 도시 → 행성**
-
-규모로 존재할 수 있어야 한다.
-
-이것이 기술적 한계를 넘어서 상상력을 최대화하는 핵심 전략이다.
-
----
-
-## 19. GPU와 CPU 역할
-
-GPU에 적합한 것:
-
-- 셀 이동 후보
-- 열 확산
-- 압력/속도장
-- reaction-diffusion
-- 단순 범용 물질 반응
-- 렌더링
-
-CPU에 적합한 것:
-
-- 복잡한 룰 검색
-- 생물 AI
-- 스크립트 VM
-- 문명
-- 발견 시스템
-- 인과관계 추적
-- 저장과 네트워크
-
-### 핵심 최적화
-
-**Active Chunk**  
-아무것도 움직이거나 반응하지 않는 영역은 업데이트하지 않는다.
-
-**Dirty Cell**  
-변화한 셀 주변만 다음 틱 후보로 등록한다.
-
-**Structure of Arrays**
-
-```text
-type[]
-temperature[]
-velocityX[]
-velocityY[]
-flags[]
-```
-
-**Rule Indexing**
-
-모든 규칙을 순회하지 않고:
-
-```text
-CONTACT + WATER + FLAMMABLE
-```
-
-같은 키로 후보 규칙을 찾는다.
-
-**Event-driven Semantics**
-
-문명 탄생 조건을 모든 픽셀마다 검사하지 않는다.
-
-```text
-sapient_population_changed
-language_level_changed
-food_surplus_changed
-```
-
-같은 이벤트가 발생했을 때만 평가한다.
-
----
-
-## 20. 플랫폼 전략
-
-원래 심층 보고서에서는 빠른 프로토타이핑을 위해 기존 엔진 + 독립 Universe Core도 후보로 제안했다.
-
-이후 프로젝트 방향은 더 명확해졌다.
-
-**브라우저 → 공용 시뮬레이션 코어 → macOS → Windows 고성능 경로**를 하나의 연속선으로 본다.
-
-현재 유력한 장기 기술 방향은:
-
-```text
-Rust Simulation Core
-       │
-       ├─ WebGPU / Browser
-       ├─ Metal / macOS
-       └─ DX12 / Windows
-```
-
-처럼 한 코어를 여러 GPU 백엔드에 연결하는 구조다.
-
-중요한 것은 특정 라이브러리 이름이 아니라:
-
-- 같은 세계 규칙
-- 같은 데이터 모델
-- 같은 저장 의미
-- 결정론적 재현 가능성
-- 플랫폼별 성능 확장
-
-을 유지하는 것이다.
-
-브라우저 버전은 버리는 프로토타입이 아니라 **규칙과 UX의 실험실**로 사용한다.
-
----
-
-## 21. 월드 저장 포맷
-
-개념 예시:
-
-```text
-MyUniverse.world
-│
-├── manifest.json
-├── rules/
-│   ├── chemistry.rule
-│   ├── biology.rule
-│   └── magic.rule
-├── elements/
-│   ├── water.json
-│   └── chronodust.json
-├── chunks/
-│   ├── 0_0.bin
-│   └── 0_1.bin
-├── agents.bin
-├── concepts.json
-├── discovery.json
-├── timeline.log
-├── preview.webp
-└── provenance.json
-```
-
-사람이 편집할 설정은 텍스트/JSON 계열, 대규모 셀 데이터는 바이너리로 분리한다.
-
----
-
-## 22. 사용자 규칙과 모딩 보안
-
-사용자가 실제 Lua/Python/JavaScript를 무제한 실행하게 하면 안 된다.
-
-권장 단계:
-
-### Level 1 — Visual Rule Editor
-
-```text
-[Water] touches [Hot]
-        ↓
-temperature > 100
-        ↓
-create [Steam]
-```
-
-### Level 2 — Rule DSL
-
-고급 사용자용 선언형 언어.
-
-### Level 3 — Sandboxed Scripting
-
-필수 제한:
-
-- 파일 시스템 접근 제한
-- 네트워크 접근 제한
-- OS 명령 차단
-- 메모리 제한
-- 명령 수 제한
-- 생성 객체 수 제한
-- 틱당 시간 예산
-
-하나의 Mod가 게임 전체를 멈추게 해서는 안 된다.
-
----
-
-## 23. 예시 플레이 세션
-
-### 첫 한 시간
-
-플레이어에게:
-
-```text
-흙 / 물 / 불 / 공기
-```
-
-만 준다.
-
-```text
-물 + 불 → 증기
-흙 + 물 → 진흙
-공기 + 불 → 에너지
-```
-
-를 발견한다.
-
-하지만 곧 증기가 실제로 위로 움직이고 밀폐하면 압력이 상승한다는 것을 본다.
-
-플레이어가 생각한다.
-
-> “그럼 이걸 가두면?”
-
-폭발한다.
-
-여기서 진짜 Powdergame이 시작된다.
-
-### 몇 시간 뒤
-
-증기와 금속으로 기계를 만들고 발전을 발견한다.
-
-발전소의 폐열 때문에 식물이 죽고, 냉각수를 만들었더니 조류가 번식한다.
-
-플레이어는 기계를 만든 것이 아니라 **생태계까지 관리하게 된다.**
-
-### 더 진행하면
-
-반복 전기 자극을 받은 신경성 물질이 전도 경로를 강화한다.
-
-센서를 연결해 빛에 반응하는 생물을 만들면:
-
-```text
-새로운 현상 발견: 학습
-```
-
-이 발생할 수 있다.
-
-### 문명의 등장
-
-생명체가 신호를 교환하고 언어와 협력이 충분히 축적되면:
-
-```text
-Concept: Civilization
-```
-
-이 발생한다.
-
-플레이어가 `인간 + 도구 = 문명` 버튼을 누르는 것이 아니라 **문명이 나타나는 조건을 세계 안에 만들었다**는 점이 중요하다.
-
-### 마법의 등장
-
-마법도 처음부터 팔레트에 넣을 필요가 없다.
-
-예:
-
-```text
-생명
-+ 언어
-+ 죽음
-+ 기억
-→ Soul
-```
-
-그 뒤:
-
-```text
-Soul + Energy → Mana
-```
-
-처럼 **세계의 역사에서 마법이 탄생**할 수 있다.
-
-### 최후반
-
-플레이어는 새 원소가 아니라 `Rule Seed`를 얻는다.
-
-```text
-물은 위로 흐른다
-불은 차갑다
-생명체가 죽으면 시간이 느려진다
-```
-
-같은 법칙을 만들 수 있다.
-
-최종 목표는:
-
-> **새로운 우주의 물리학을 발명하라.**
-
-가 된다.
-
----
-
-## 24. 개발 로드맵
-
-아래는 제품 순서에 대한 개념적 로드맵이다. 기간은 고정 약속이 아니다.
-
-| 단계 | 반드시 검증할 것 |
-|---|---|
-| Physics Toy | 모래·물·불 자체를 만지는 것이 재미있는가 |
-| Reaction Core | 태그 기반 규칙에서 예상 밖 반응이 나오는가 |
-| Discovery Prototype | 발견이 실제 동기가 되는가 |
-| Universe Core | 물리 → 개념 연결이 가능한가 |
-| Creator Alpha | 사용자가 새 현상을 만들 수 있는가 |
-| Life Expansion | 장기 생태·진화 관찰이 재미있는가 |
-| Community | World/Rule/Species가 Fork·Remix되는가 |
-| Multiplayer | 협동이 실제로 새로운 시스템 충돌을 만드는가 |
-| Beta | 신규 사용자가 복잡성을 이해할 수 있는가 |
-
-### 초기 프로토타입에서 만들지 말 것
-
-처음부터:
-
-- 문명 전체
-- 고급 AI NPC
-- 멀티플레이
-- 클라우드
-- 1,000개 원소
-- 완성형 Mod 생태계
-
-를 만들지 않는다.
-
-초기에는:
-
-```text
-30종 이하의 재미있는 요소
-+ 온도
-+ 압력 또는 공기
-+ 태그 기반 반응
-+ 발견 시스템
-+ Undo / 관찰 도구
-```
-
-정도로 핵심을 검증한다.
-
-가장 중요한 질문:
-
-> **플레이어가 개발자가 의도하지 않은 재미있는 현상을 실제로 발견하는가?**
-
-이것이 발생하지 않는다면 원소를 500개로 늘려도 본질은 살아나지 않는다.
-
----
-
-## 25. 프로젝트 고유 지표
-
-**Surprise Rate**  
-10분당 처음 보는 현상의 수.
-
-**Causal Depth**  
-한 사건을 만든 인과 단계 수.
-
-예:
-
-```text
-불
-→ 열
-→ 증발
-→ 구름
-→ 비
-→ 식물 성장
-```
-
-**Solution Diversity**  
-같은 목표를 서로 다른 시스템으로 해결한 방법의 수.
-
-**Discovery Branching**  
-한 발견이 몇 개의 새 실험 가능성을 여는가.
-
-**Creation Ratio**  
-정답 찾기보다 자유 창작에 사용한 시간.
-
-**Remix Rate**  
-공유 세계가 Fork/Remix되는 비율.
-
-**Emergence Score**  
-개발자가 직접 정의하지 않은 시스템 조합에서 사건이 발생한 비율.
-
----
-
-## 26. 밸런싱 원칙
-
-강한 시스템을 단순히 약하게 만들지 않는다.
-
-대신 **부산물과 외부효과**를 준다.
-
-불:
-
-```text
-+ 에너지
-- 산소
-+ 열
-+ 연기
-```
-
-원자력:
-
-```text
-+ 막대한 에너지
-+ 방사선
-+ 폐열
-```
-
-마법:
-
-```text
-+ 법칙 위반
-- 마나
-+ 세계 불안정성
-```
-
-문명:
-
-```text
-+ 기술
-+ 생산
-- 자원
-+ 오염
-+ 갈등 가능성
-```
-
-AI:
-
-```text
-+ 자동화
-+ 최적화
-+ 예상하지 못한 목표 행동 가능성
-```
-
-플레이어는 “최강 원소” 하나를 찾는 것이 아니라 **서로 다른 장단점과 외부효과를 가진 시스템을 조율**하게 된다.
-
----
-
-## 27. 최종 설계 결론
-
-이 프로젝트가 가져가야 할 구조는:
-
-> **Particle Sandbox**  
-> **+ Physics**  
-> **+ Chemistry**  
-> **+ Biology**  
-> **+ Evolution**  
-> **+ Information**  
-> **+ Civilization**  
-> **+ Magic**  
-> **+ Abstract Concepts**  
-> **+ User-defined Laws**
+1. 플레이어가 인과를 이해할 수 있는가
+2. 반복해서 이용할 수 있는가
+3. 다른 시스템과 재미있는 연쇄를 만드는가
+4. 같은 조건에서 세계가 상식적으로 일관되는가
+5. 충분히 싸게 계산할 수 있는가
 
 이다.
 
-가장 중요한 세 가지 원칙:
+### 가상 Matter 예시
 
-1. **모든 것을 동일한 원소로 취급하지 않고 입자·장·에이전트·개념·규칙으로 나눈다.**
-2. **수천 개의 개별 레시피보다 속성·태그·환경 조건에 기반한 일반 법칙을 만든다.**
-3. **최종 콘텐츠를 개발자가 전부 만드는 것이 아니라 플레이어가 물질·생명·기계·마법·퍼즐·세계 법칙까지 만들 수 있게 한다.**
+```text
+Vibranium
+- STATIC
+- Density Rank 매우 높음
+- Pressure Resistance 극단적으로 높음
+- Thermal Response 낮음
+- 대부분의 Reaction에 inert
+```
 
-이 게임의 이상적인 최종 상태는 **“원소가 몇 개냐”를 셀 수 없는 상태**다.
+현실에 존재하지 않아도 플레이어가 “이건 거의 반응하지 않는 초강력 방벽이구나”라고 학습할 수 있다면 좋은 Material이다.
 
-어떤 플레이어는 모래와 물로 도시를 만들고,
+---
 
-어떤 플레이어는 박테리아를 진화시키고,
+# 3. 복잡성은 원소 수보다 관계에서 나온다
 
-어떤 플레이어는 생물학적 컴퓨터를 만들고,
+`1,000 Materials` 자체가 목표가 아니다.
 
-어떤 플레이어는 신앙을 에너지로 바꾸는 문명을 만들고,
+같은 Material이라도:
 
-어떤 플레이어는 위치마다 시간이 다르게 흐르는 우주를 만들고,
+- Temperature
+- Pressure
+- 주변 Matter
+- Density
+- combustion state
+- future Electricity
+- Radiation
+- Gameplay Light
 
-다른 플레이어는 그 우주를 Fork해 전혀 다른 법칙을 집어넣는다.
+등과 관계를 맺을 때 깊이가 생긴다.
 
-그 순간 이 작품은 더 이상 “업그레이드된 파우더 게임”이 아니다.
+Powdergame은 한 Cell 안에 정보를 끝없이 쌓아서 복잡성을 만드는 대신:
 
-> **사람이 상상한 가설을 세계에 던지고, 세계가 그 결과를 대답해주는 게임.**
+> **작은 Cell들이 공간적으로 만나며 관계의 수를 늘린다.**
 
-그것이 Doodle God의 “신이 되어 발견하는 재미”와 Powder Game의 “직접 만지고 반응을 지켜보는 재미”를 가장 크게 확장한 형태다.
+이를 통해 개발자가 직접 작성하지 않은 연쇄가 발생해야 한다.
+
+예:
+
+```text
+Laser
+→ Metal absorbs Light
+→ Temperature 상승
+→ Metal transition
+→ Molten Metal 이동
+→ Water 접촉
+→ Steam
+→ Pressure
+→ Wall rupture
+```
+
+`Laser + Wall = Explosion`이라는 특별 Rule 없이도 이런 chain이 생기는 것이 목표다.
+
+---
+
+# 4. Core World Identity
+
+## 4.1 One Cell = Max One Matter
+
+Powdergame의 가장 강한 world invariant다.
+
+한 Cell에는 Matter가 최대 하나만 존재한다.
+
+```text
+[Water]
+```
+
+은 가능하지만:
+
+```text
+[Water 40% + Oil 30% + Air 30%]
+```
+
+같은 내부 혼합 Cell은 기본 world model이 아니다.
+
+이것은 단순한 기술 제한이 아니라 Powder Game의 정체성이다.
+
+## 4.2 Unit Cell Quantity
+
+Matter가 Cell에 있으면 한 단위다.
+
+per-cell:
+
+```text
+0.3 Water
+2.7 Sand mass
+```
+
+같은 amount는 기본적으로 두지 않는다.
+
+Density나 Heat Capacity는 Matter의 property이지 Cell 안의 양이 아니다.
+
+## 4.3 EMPTY is not Matter
+
+`EMPTY`는 Matter가 없다는 뜻이다.
+
+- Air가 아님
+- Vacuum Material이 아님
+- thermal medium이 아님
+- pressure medium이 아님
+
+Air/Oxygen/Gas가 필요하면 실제 Matter로 추가한다.
+
+## 4.4 Fields are not additional Matter
+
+Cell은 개념적으로:
+
+```text
+material_id
+Temperature
+Pressure
+minimal flags/state
+```
+
+를 가질 수 있다.
+
+Temperature/Pressure가 있다고 한 Cell에 Matter가 두 개 존재하는 것이 아니다.
+
+---
+
+# 5. World Size and Boundary
+
+## 5.1 Finite World
+
+현재 reference world:
+
+```text
+2048 × 2048
+= 4,194,304 Cells
+```
+
+Infinite world가 아니다.
+
+World size는 `WorldConfig`로 관리한다.
+
+## 5.2 Initial Chunk
+
+```text
+64 × 64 Cells
+32 × 32 Chunks
+= 1024 Chunks
+```
+
+64는 초기 benchmark baseline이다. 영구 invariant는 아니다.
+
+## 5.3 Editable Outer BLOCK
+
+DAN-BALL Powder Game의 감각을 따른다.
+
+- outer BLOCK을 지울 수 있다.
+- 뒤에 invisible wall을 두지 않는다.
+- boundary 밖으로 빠진 Matter는 Void로 소멸한다.
+- boundary를 지운다고 world가 확장되지는 않는다.
+
+---
+
+# 6. Platform and Architecture
+
+현재 제품 경로는 범용 multi-platform이 아니다.
+
+```text
+Platform: Windows
+Language: Rust
+Window/Input: winit
+GPU API: wgpu
+Backend: DX12
+Primary Performance Target: NVIDIA RTX 5090
+```
+
+현재는 Browser/macOS/다른 GPU fallback을 위해 architecture를 복잡하게 만들지 않는다.
+
+## 6.1 System Boundaries
+
+```text
+Simulation Core
+    ↓
+Game Runtime
+    ↓
+Presentation / Platform
+```
+
+### Simulation Core
+
+- Matter/Field rule execution
+- GPU Production Simulation
+- headless path
+- small CPU Reference
+
+### Game Runtime
+
+- world lifecycle
+- commands/config
+- save/load orchestration
+- event/diagnostic bridge
+
+### Presentation
+
+- Windows rendering/input
+- visual effects
+- sound
+- overlays
+
+Presentation은 Simulation을 읽을 수 있지만 gameplay state를 임의로 수정하지 않는다.
+
+---
+
+# 7. GPU Production is the World Truth
+
+Production simulation은 GPU가 authoritative하다.
+
+```text
+CPU
+→ input / config / command / orchestration
+
+GPU
+→ world simulation
+→ authoritative state
+```
+
+CPU↔GPU로 전체 world를 매 Tick 복사하지 않는다.
+
+CPU Reference는:
+
+- 작은 test world
+- 이해 가능한 reference
+- algorithm debug
+- semantic comparison
+
+용이다.
+
+GPU Production과 pixel-perfect하게 같을 필요가 없다.
+
+---
+
+# 8. Determinism Policy
+
+Powdergame은 bit-perfect deterministic replay를 목표로 하지 않는다.
+
+> **No intentional randomness; no performance sacrifice for bit-perfect replay.**
+
+GPU 병렬 실행/float approximation 때문에 미세한 결과 차이가 나는 것은 허용한다.
+
+목표:
+
+> **Non-exact but stable.**
+
+허용:
+
+- 미세한 pile shape 차이
+- valid winner 차이
+- float approximation
+
+금지:
+
+- 한 Cell에 두 Matter
+- Matter corruption
+- race에 의한 부당한 duplication/loss
+- NaN/Infinity runaway
+- out-of-bounds
+
+Rewind는 exact deterministic replay 대신 실제 state snapshot을 사용한다.
+
+---
+
+# 9. Core GPU Interaction Pattern
+
+## 9.1 Read Neighbors, Write Self
+
+일반 interaction의 기본:
+
+```text
+Read Current Self
++ Read Needed Neighbors
+→ Cheap Local Rule
+→ Write Self Next
+```
+
+예:
+
+```text
+Metal Cell
+→ neighbor Acid 확인
+→ 자기 자신 → Corroded Metal
+```
+
+Acid thread가 Metal을 직접 수정하지 않는다.
+
+## 9.2 Ownership Changes only use Resolve
+
+다음은 예외다.
+
+- movement
+- swap
+- multi-cell spawn
+- phase expansion
+- multiple sources to same target
+
+이때만:
+
+```text
+Propose
+→ Claim / Resolve
+→ Commit
+```
+
+을 사용한다.
+
+> **논리 충돌 때문에 무거운 Resolve를 만들지 않는다. 실제 Cell ownership 충돌만 Resolve한다.**
+
+---
+
+# 10. Locality
+
+## 10.1 Matter Interaction
+
+일반 Reaction 최대 범위:
+
+```text
+8-neighbor
+```
+
+## 10.2 Field Propagation
+
+기본:
+
+```text
+4-neighbor
+```
+
+Temperature, Pressure, 향후 Electricity/diffusive Radiation은 4-neighbor baseline부터 검증한다.
+
+## 10.3 Movement
+
+behavior별 필요한 방향만 읽는다.
+
+First-Match:
+
+```text
+below?
+→ possible: use and stop
+→ blocked: next candidate
+```
+
+> **알 필요 없는 데이터는 읽지 않는다.**
+
+---
+
+# 11. Movement Families
+
+M0에는 네 family가 있다.
+
+## STATIC
+
+일반 gravity/density movement 없음.
+
+Pressure rupture나 special Rule은 영향을 줄 수 있다.
+
+## POWDER
+
+```text
+down
+→ down-diagonal
+```
+
+예: Sand.
+
+## LIQUID
+
+```text
+down
+→ down-diagonal
+→ lateral
+```
+
+한 Tick에 먼 빈 Cell을 탐색하지 않는다.
+
+## GAS
+
+높은 mobility를 갖지만 **항상 움직여야 하는 Matter가 아니다.**
+
+위/대각/측면의 local movement를 사용할 수 있으나 안정된 bulk에서 의미 없는 이동을 계속 계산하지 않는다.
+
+---
+
+# 12. Density: Buoyancy without a Buoyancy Solver
+
+Density는 실제 kg/m³가 아니라 작은 integer rank다.
+
+필요한 관계:
+
+```text
+A > B
+A == B
+A < B
+```
+
+예시:
+
+```text
+Steam       20
+Oil         70
+Water       90
+Sand        150
+MoltenMetal 220
+```
+
+실제 값은 gameplay data다.
+
+## 12.1 Local Displacement
+
+A가 아래 Cell B를 볼 때:
+
+```text
+B == EMPTY
+→ normal move
+
+B STATIC/non-movable
+→ stop
+
+B movable
+→ compare Density Rank
+→ swap candidate if ordering favors it
+```
+
+이 반복으로:
+
+- Sand sinks in Water
+- Oil floats over Water
+- heavy/light Gas stratifies
+- fictional powder can float
+
+같은 현상을 만든다.
+
+핵심 문장:
+
+> **부력을 계산하지 않는다. 정렬한다.**
+
+Density는 per-cell에 반복 저장하지 않고 Material property로 둔다.
+
+---
+
+# 13. Minimum Sufficient Physics
+
+이 프로젝트의 가장 중요한 엔진 철학이다.
+
+> **현실 공식을 재현하지 않고, 플레이어가 현상을 이해하고 이용하는 데 필요한 최소 상태와 최소 local operation만 계산한다.**
+
+Representation rule:
+
+```text
+continuous value needed → f32 / proper numeric
+ordering only           → integer rank
+boolean only            → bit
+few states              → small enum
+```
+
+## 13.1 Why
+
+큰 world에서:
+
+- Temperature
+- Pressure
+- movement
+- reaction
+- combustion
+- future electricity/radiation/light
+
+이 모두 동시에 작동하려면 한 Cell의 비용이 극도로 작아야 한다.
+
+> **싸구려 Rule을 수백만 개 동시에 돌려서 비싼 세계를 만든다.**
+
+---
+
+# 14. Temperature
+
+Temperature는 단순 rank만으로는 충분하지 않다.
+
+M0 baseline:
+
+```text
+f32 Temperature
+4-neighbor propagation
+```
+
+### Minimum thermal properties
+
+필요하면 Material에:
+
+- conductivity
+- heat capacity
+- transition threshold
+- ignition condition
+
+을 둔다.
+
+현실의 정확한 thermodynamics는 목표가 아니다.
+
+개념적으로:
+
+```text
+ΔT = self - neighbor
+
+meaningful difference 없음
+→ no work / equilibrium
+
+meaningful difference 있음
+→ cheap transfer
+→ self next temperature
+```
+
+아주 작은 ΔT를 영원히 계산하지 않기 위한 thermal deadband는 benchmark/gameplay 검증 후보다.
+
+f16은 baseline이 아니다. 실제 병목이 확인된 뒤 experiment한다.
+
+---
+
+# 15. Phase Transition
+
+M0 대표:
+
+```text
+Ice ↔ Water ↔ Steam
+```
+
+정확한 현실 0°C/100°C를 따르는 것이 계약은 아니다.
+
+Transition graph는 game data다.
+
+모든 Material이 현실적인 Solid/Liquid/Gas 세 상태를 가져야 하는 것도 아니다.
+
+가상 transition 예:
+
+```text
+Cryosteel
+→ High Heat
+→ Brittle Cryosteel
+```
+
+## 15.1 Transition Yield
+
+상변화는 1:1일 필요가 없다.
+
+```text
+1 Water
+→ multiple Steam placement requests
+```
+
+공간 부족 시 unresolved expansion을 Pressure로 연결할 수 있다.
+
+---
+
+# 16. Pressure
+
+Pressure는 정밀 compressible-fluid solver가 아니다.
+
+M0 baseline:
+
+```text
+f32 scalar pressure
+4-neighbor local propagation
+```
+
+별도 per-cell velocity vector는 처음에 두지 않는다.
+
+방향은 local ΔP에서 유도한다.
+
+대표 causal chain:
+
+```text
+Water heated
+→ Steam expansion
+→ insufficient room
+→ Pressure generated
+→ local propagation
+→ movable Matter pushed
+→ resistant Matter holds
+→ pressure > rupture threshold
+→ Wall rupture
+→ vent
+```
+
+밀폐된 공간에서 Pressure가 시간이 지났다는 이유만으로 그냥 0으로 사라져서는 안 된다.
+
+---
+
+# 17. Fire / Combustion
+
+Fire는 M0에서 permanent orange Matter가 아니다.
+
+```text
+Fuel Matter
++ sufficient thermal condition
+→ combustion
+→ Heat
+→ Smoke
+→ flame presentation event
+```
+
+Wood와 Oil은 같은 공통 grammar를 쓰는 서로 다른 Material 예시다.
+
+Oxygen은 현실에 필요하다는 이유만으로 하드코딩하지 않는다.
+
+나중에 oxidizer manipulation이 재미를 만들 때 system으로 추가한다.
+
+---
+
+# 18. Reaction Architecture
+
+Material은 자기 interaction rule 목록을 소유한다.
+
+예:
+
+```text
+Oil
+- Hot neighbor → combustion
+- Acid neighbor → special reaction
+
+Metal
+- Acid neighbor → corrosion
+```
+
+거대한 global pair database에 모든 관계를 강제로 정규화하지 않는다.
+
+## 18.1 Ordered First-Match
+
+Material별 Rule은 load/compile 시 미리 정렬한다.
+
+runtime:
+
+```text
+rule 1 matches?
+→ yes: select, stop
+→ no: next
+```
+
+모든 candidate를 모아 다시 sorting/resolution하지 않는다.
+
+## 18.2 Coarse Category Order
+
+세계 전체에는 소수의 coarse category만 둔다.
+
+예:
+
+```text
+Critical / Destroy
+Phase Transition
+Special Reaction
+Combustion
+State Change
+```
+
+정확한 최종 order는 구현/benchmark에서 조정 가능하다.
+
+숫자 priority jungle을 만들지 않는다.
+
+---
+
+# 19. Loose Causal Phases
+
+한 Tick 안에서 모든 원인을 즉시 연결하기 위해 full-world barrier를 반복하지 않는다.
+
+예:
+
+```text
+Tick N
+Wood temperature rises
+
+Tick N+1
+Ignition observes new temperature
+→ combustion starts
+```
+
+60 TPS에서 자연스럽다면 허용한다.
+
+> **물리적 인과는 조금 늦어도 된다. 상태 무결성은 늦으면 안 된다.**
+
+---
+
+# 20. Active / Sleep Architecture
+
+성능은 Matter 수가 아니라 실제 변화 가능한 영역에 비례하도록 만든다.
+
+## 20.1 Active Chunk
+
+Chunk는 subsystem별 activity를 가질 수 있다.
+
+```text
+Matter Active
+Thermal Active
+Pressure Active
+Reaction Active
+```
+
+## 20.2 Short Stable Period → Sleep
+
+Chunk는 몇 Tick 동안 의미 있는 변화가 없으면 Sleep 후보가 된다.
+
+정확한 Tick 수는 benchmark한다.
+
+## 20.3 Slow ≠ Sleeping
+
+천천히 타는 Wood는 여전히 변화 중이다.
+
+따라서 관련 Thermal/Combustion/Reaction은 Active다.
+
+## 20.4 Stable Bulk
+
+다음은 world state를 바꾸지 않는다.
+
+```text
+Water ↔ Water
+Steam ↔ Steam
+```
+
+따라서 안정된 Liquid/Gas bulk 내부는 Sleep할 수 있다.
+
+실제 work는:
+
+- EMPTY interface
+- different Matter interface
+- density inversion
+- Temperature gradient
+- Pressure gradient
+- active reaction frontier
+
+에 집중한다.
+
+핵심:
+
+> **물질의 양이 아니라 변화 가능한 영역이 계산량을 결정하게 한다.**
+
+---
+
+# 21. Slow Rules
+
+산화/부식/성장/노화처럼 느린 Rule은 60Hz로 모든 Cell을 검사하지 않는다.
+
+후보 tier:
+
+```text
+FAST
+MEDIUM
+SLOW
+VERY_SLOW
+```
+
+좌표 기반 분산 schedule 등으로 load를 시간축에 분산할 수 있다.
+
+그러나:
+
+```text
+매 Tick 4.19M thread launch
+→ 대부분 '내 차례 아님' 하고 exit
+```
+
+같은 가짜 최적화는 피한다.
+
+## 21.1 No Universal Progress Field
+
+초기에는 느린 변화를 위해 모든 Cell에:
+
+```text
+oxidation_progress
+wetness_progress
+growth_progress
+```
+
+를 넣는 아이디어가 있었지만 사용자 비용 검토 후 폐기했다.
+
+기본은:
+
+```text
+Copper
+→ Weathered Copper
+→ Oxidized Copper
+```
+
+같은 Material transition이다.
+
+정말 continuous state가 필요한 특정 gameplay가 생길 때만 별도 state를 추가한다.
+
+---
+
+# 22. Approximate Conservation
+
+정확한 글로벌 mass/energy 회계를 하지 않는다.
+
+싸게 가능하면 local transfer는 대략 보존한다.
+
+```text
+A loses heat
+B gains similar heat
+```
+
+하지만 game world Rule은 energy source/sink를 만들 수 있다.
+
+```text
+Magic Crystal → Heat
+Void Matter → Energy disappears
+Explosion → Heat + Pressure source
+```
+
+핵심:
+
+> **로컬에서는 납득 가능하게, 글로벌에서는 회계하지 않는다.**
+
+---
+
+# 23. Future Physics Extension Pattern
+
+M0에는 넣지 않지만 같은 철학으로 확장할 수 있다.
+
+## Electricity
+
+```text
+conductive?
++ electrical strength
++ material loss/resistance
+→ local frontier propagation
+```
+
+전원이 제거되면 strength는 전달/손실로 줄어들 수 있다.
+
+## Radiation
+
+```text
+intensity
+→ blocking / attenuation
+→ remaining intensity
+```
+
+## Gameplay Light
+
+Presentation Light와 분리한다.
+
+Gameplay interaction이 필요할 때만:
+
+```text
+intensity
++ transparent / absorb / reflect
+→ next beam state
+```
+
+## Explosion
+
+복잡한 별도 폭발 solver보다:
+
+```text
+inject Heat
+inject Pressure
+emit Presentation Event
+```
+
+를 하고 기존 systems가 결과를 만든다.
+
+---
+
+# 24. Simulation vs Presentation
+
+원칙:
+
+> **결과는 정직하게, 감각은 과장한다.**
+
+## Simulation Truth
+
+- Matter movement
+- transition
+- Temperature
+- Pressure
+- combustion
+- rupture
+- gameplay electricity/light/radiation 등
+
+## Presentation Effects
+
+- glow
+- heat haze
+- shockwave visual
+- debris
+- distortion
+- sound
+- camera impulse
+
+Presentation이 실제로 일어나지 않은 simulation outcome을 거짓으로 보여 플레이어의 이해를 깨뜨리면 안 된다.
+
+---
+
+# 25. Discovery System
+
+Discovery는 정답표가 아니다.
+
+## 25.1 Phenomenon-level discovery
+
+A와 B 사이에서 처음 관찰한:
+
+- Temperature increase
+- Pressure generation
+- phase change
+- transformation
+- combustion
+
+같은 **현상**을 기록한다.
+
+정확한 threshold/계수는 기본적으로 숨긴다.
+
+## 25.2 Hidden knowledge
+
+사전은:
+
+> 아직 발견하지 못한 성질이 있다.
+
+정도는 알려줄 수 있다.
+
+하지만:
+
+```text
+4 / 17 discovered
+```
+
+같은 exact remaining count는 기본적으로 보여주지 않는다.
+
+> **사전은 정답표가 아니라 플레이어가 발견한 세계의 연구 노트다.**
+
+---
+
+# 26. Rewind
+
+Rewind는 단순 undo가 아니라 experiment tool이다.
+
+현재 방향:
+
+- recent 10 seconds
+- 1-second granularity
+- up to 10 snapshots
+- 과거 상태로 복귀
+- 조건을 바꾸고 다시 simulation 가능
+
+GPU simulation은 bit-exact deterministic하지 않으므로 actual state snapshot을 사용한다.
+
+full snapshots이 충분히 싸다면 단순한 방식을 사용할 수 있고, 아니면 keyframe + changed-chunk delta를 benchmark한다.
+
+---
+
+# 27. Interaction Lab — Deferred Developer Tool
+
+Interaction Lab은 Material 생성기가 아니다.
+
+사용자가 강조한 역할:
+
+```text
+Already-defined Material + Rules
+→ Actual GPU Production Simulation
+→ Existing Materials + representative environments
+→ Observe real interactions
+→ Find unknown / unexpected / regression behavior
+```
+
+기본 탐색 방향:
+
+- new Matter vs existing Matter pair
+- representative Temperature/Pressure/open/confined conditions
+
+실제 truth는 GPU Simulation 결과다.
+
+하지만 Lab이 너무 큰 별도 프로젝트가 될 수 있기 때문에 현재는 **DEFERRED**.
+
+본 게임보다 우선하지 않는다.
+
+M0에는 headless simulation/state injection/observation hook 정도만 자연스럽게 유지한다.
+
+---
+
+# 28. DAN-BALL as an Idea Mine
+
+DAN-BALL Powder Game 1/2뿐 아니라 전체 작품군을 장기적인 idea mine으로 참고한다.
+
+목적은 과거 기능을 그대로 복사하는 것이 아니다.
+
+검토할 것:
+
+- 어떤 mechanic이 재미있었는가
+- 당시 구조/하드웨어 제약은 무엇이었는가
+- 현대 RTX 5090 GPU simulation에서 더 크게 만들 수 있는가
+- 현재 Powdergame의 Matter/Field/Discovery와 어떻게 결합할 수 있는가
+
+연구 후보는 자동으로 Roadmap에 들어가지 않는다.
+
+별도 candidate 검토 후 채택한다.
+
+---
+
+# 29. Long-term World Layers
+
+장기적인 개념 구조:
+
+1. Matter
+2. Field
+3. Agent
+4. Concept
+5. Meta
+
+가능한 장기 trajectory:
+
+```text
+Matter
+→ Energy / Chemistry
+→ Life / Ecosystem
+→ Machine
+→ Information
+→ Language
+→ Society / Civilization
+→ Belief / Myth
+→ AI
+→ Space / Time
+→ World Rules
+```
+
+하지만 이것은 M0에서 framework를 미리 다 만들라는 뜻이 아니다.
+
+현재는 Matter + Field만 구현한다.
+
+Agent/Concept/Meta는 이전 계층이 실제로 재미있고 빠르게 동작한 뒤 추가한다.
+
+---
+
+# 30. M0 — First World
+
+M0는 콘텐츠량을 증명하는 단계가 아니다.
+
+핵심 질문:
+
+> **2048×2048 world에서 수백만 개의 매우 싼 local rule을 RTX 5090에서 병렬 실행해 작은 규칙들이 실제로 살아 있는 세계를 만드는가?**
+
+M0 Matter:
+
+- Boundary Block
+- Stone
+- Sand
+- Ice
+- Water
+- Steam
+- Smoke
+- Wood
+- Oil
+
+M0 systems:
+
+- Static / Powder / Liquid / Gas
+- Density Rank
+- Temperature
+- Ice ↔ Water ↔ Steam
+- Combustion
+- Pressure
+- rupture / vent
+- Active / Sleep
+
+Evidence Gates:
+
+```text
+G0 Runtime
+G1 World Integrity
+G2 Local Movement
+G3 Density
+G4 Thermal / Reaction
+G5 Pressure
+G6 Parallel Integrity
+G7 Sleeping
+G8 Performance Evidence
+G9 Product Validation
+```
+
+최종 `ACHIEVED`는 사용자가 직접 플레이하고 승인해야 한다.
+
+---
+
+# 31. Performance Strategy
+
+M0에서 숫자 performance target을 억지로 정하지 않는다.
+
+먼저 baseline을 만든다.
+
+Required scenarios:
+
+- Sand Fall
+- Water Flow
+- Fire / Heat
+- Pressure Burst
+- Heavy Mixed World
+
+Required metrics:
+
+- Render FPS
+- simulation tick time
+- GPU simulation time
+- GPU rendering time
+- Matter cost
+- Thermal cost
+- Pressure cost
+- Reaction cost
+- Resolve cost
+- Active/Sleep management cost
+- active Cell count
+- active Chunk count
+- VRAM usage
+
+병목을 본 뒤 해당 subsystem만 최적화한다.
+
+Candidate optimizations:
+
+1. Active Chunk skipping
+2. field-specific Active Set
+3. stable frontier optimization
+4. active compaction / indirect dispatch
+5. shared-memory tile
+6. descriptor packing
+7. chunk size comparison
+8. f16 experiment
+9. subtile mask if needed
+
+> **계산을 줄이려고 더 비싼 관리 시스템을 만들지 않는다.**
+
+---
+
+# 32. Documentation and Evidence
+
+현재 저장소는 설계의 결론뿐 아니라 provenance를 보존한다.
+
+- `vision/USER_VISION.md` — 무엇을 만들 것인가
+- `architecture/decisions/` — 왜 이 구조를 선택했는가
+- `specs/` — 현재 구현 계약
+- `development/` — 구현/테스트/성능 철학
+- `planning/MILESTONES.md` — 무엇을 증명해야 완료인가
+- `design-history/2026-08-15-foundation-design-session.md` — 질문, 선택지, 사용자 선택, 추가 코멘트, superseded decision
+
+문서화 원칙:
+
+> **요약하지 않는다. 정리한다.**
+
+사용자의 선택/교정/의도를 잃지 않는다.
+
+---
+
+# 33. Final Thesis
+
+Powdergame은 현실 전체를 정확히 계산하려는 게임이 아니다.
+
+우리는:
+
+```text
+작은 Matter
++ 작은 Field
++ 작은 local Rule
++ 작은 integer/bit/f32 state
++ massive GPU parallelism
+```
+
+을 이용해:
+
+```text
+열
+→ 상변화
+→ 압력
+→ 파열
+→ 이동
+→ 연소
+→ 또 다른 반응
+```
+
+같은 큰 현상을 만든다.
+
+핵심 설계는 다음 두 문장으로 압축된다.
+
+> **Game-Consistent Minimum Sufficient Physics.**
+>
+> **셀 하나는 극도로 싸게, 세계 전체는 믿을 수 없을 만큼 풍부하게.**
+
+그리고 최종 제품 질문은 여전히 이것이다.
+
+> **“이 세계에 이것을 넣으면 대체 무슨 일이 일어날까?”라는 생각을 계속 하게 만드는가?**
+
+그 질문이 계속 생긴다면 Powdergame은 올바른 방향에 있다.

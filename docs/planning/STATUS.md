@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) VALIDATION (자동/기술 검증 완료 + 성능 baseline 기록, User Validation 대기).
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED (User Validation 승인 완료 2026-08-16). G3~G9와 최종 M0 사용자 승인 남음.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: 구현/기술 검증 완료 (Windows + RTX 5090 + DX12) + controlled 성능 baseline 기록, 사용자 검증 대기.**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED (자동·기술 검증 + 성능 baseline 기록 + User Validation 사용자 승인 완료).**
 
 ### Current Summary
 
@@ -44,7 +44,7 @@
 - approximate, non-bit-exact determinism
 - M0 Evidence Gates G0~G9
 
-2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**가 구현되고 실제 RTX 5090 머신에서 기술 검증되었다. G2는 사용자가 실제 movement demo를 직접 확인해야 최종 승인된다.
+2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**가 구현·검증·승인 완료되었다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했다.
 
 ### G0 Runtime Evidence (2026-08-16, local run)
 
@@ -204,14 +204,38 @@ Performance — Controlled reference-world baseline (2048×2048, RTX 5090, DX12)
   실행 방법:      cargo test --release -p powdergame-gpu --test movement \
                     controlled_reference_world_perf -- --ignored --nocapture
 
-Movement demo (User Validation fixture):
-  cargo run -p powdergame-windows -- --movement-demo
-  또는 상위 폴더의 run_powdergame.bat
-  256×256 world, one-time edit-hook scene: sand fall, water over stone
-  obstacle, oil pool, steam/smoke rise, open boundary → Void exit
-  read-only world view (material_current storage read) — presentation은
-  simulation state를 수정하지 않음
-  bounded run (--movement-demo --smoke-frames 120): exit 0, device lost 없음
+Movement demo (User Validation fixture) — 128×128 가상 숲 (승인 완료):
+  실행:           cargo run -p powdergame-windows -- --movement-demo
+                  또는 상위 폴더의 run_powdergame.bat
+  world:          128×128 (chunk 64) — cell이 충분히 커서 pixel movement
+                  를 육안 관찰 가능. reference 2048×2048은 변경 없음
+  scene:          stylized 가상 숲 — Stone을 녹색 지형/나무로 표현
+                  zone은 좌→우 SAND | WATER | OIL | STEAM | SMOKE 순,
+                  stone tree-trunk divider로 분리 + 우하단 별도 Void funnel
+                  - SAND:  언덕+나무 위로 모래 쏟아짐 → ledge/ground로
+                           계단식 낙하·퇴적 (bump, tree canopy에 쌓임)
+                  - WATER: cliff 위 물이 양쪽으로 흘러 폭포 → mid ledge에
+                           떨어졌다가 basin에 고임 (나무가 선 연못)
+                  - OIL:   stone bowl에 oil이 떨어져 고이는 LIQUID pool
+                  - STEAM: geyser basin → slab 밑을 돌아 canopy gap으로 상승
+                  - SMOKE: pit에서 canopy gap으로 상승
+                  - Void:  platform+funnel의 모래가 열린 boundary hole로
+                           빠져 실제 소멸 (matter count 감소)
+  view:           square-cell aspect-preserving (letterbox, scale=min ratio,
+                  crisp cell edge) — 1280×720에서 ~720×720 정사각 표시
+  initial state:  PAUSED — staging 직후 원본 scene을 먼저 볼 수 있음
+  controls:       SPACE play/pause | N step (paused) | R reset | ESC quit
+  demo TPS:       15 TPS (render FPS와 분리 — 관찰용, Simulation::tick
+                  semantics와 60 TPS target은 변경 없음)
+  title:          zone 순서 + [PAUSED]/[PLAY 15 TPS] + tick count 표시
+  renderer:       read-only (material_current storage read) — presentation은
+                  simulation state를 수정하지 않음
+  bounded run:    --movement-demo --smoke-frames 120 → exit 0, device lost 없음
+
+G2 User Validation:
+  PASS — 사용자가 개선된 movement demo를 직접 실행해 Sand / Water / Oil /
+  Steam / Smoke movement와 관찰 fixture(PAUSED/SPACE/N/R, 15 TPS,
+  square-cell view)가 정상 동작함을 승인 ("잘된다", 2026-08-16).
 
 G0/G1 regression:
   cargo test --workspace 전체 PASS (G0 headless + G1 world integrity 유지)
@@ -241,11 +265,12 @@ Performance observation                          REFERENCE BASELINE RECORDED —
                                                       active/heavy-matter gameplay throughput
                                                       validation은 향후 별도 scenario/
                                                       benchmark 대상으로 남김
+User Validation (movement demo)                       PASS — 사용자 승인 완료 (2026-08-16)
 ```
 
-G2 User Validation: **PENDING** — 사용자가 `--movement-demo`를 직접 확인해야 한다. AI가 임의로 최종 승인하지 않는다.
+**G2 — Local Movement: PASS / CLOSED.**
 
-M0 전체는 `ACHIEVED`가 아니다. G2 User Validation + G3~G9와 최종 사용자 승인이 남아 있다.
+M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G3~G9와 최종 사용자 승인이 남아 있다.
 
 ### Product Direction
 
@@ -255,11 +280,13 @@ M0 전체는 `ACHIEVED`가 아니다. G2 User Validation + G3~G9와 최종 사�
 
 ### Next Action
 
-1. G2 User Validation: `--movement-demo` (또는 `run_powdergame.bat`) 실행해
-   Sand fall / Water flow / Oil / Steam-Smoke rise / Void exit를 육안 확인.
-2. G2 기준점 고정 (commit/push) — 사용자 지시 시.
-3. G3 — Density & Displacement: Density Rank, local displacement, layer separation.
-   (G2는 EMPTY destination 전용 baseline이며 density swap은 G3)
+1. G3 — Density / Displacement 준비: Density Rank + local displacement + layer
+   separation Evidence Gate. (G2는 EMPTY destination 전용 baseline이며 density
+   swap은 G3)
+2. G2 기준선(feature/m0-g2-local-movement)에서 G3 branch 생성.
+3. G3 구현 + 자동/기술 검증 후 보고.
+
+아직 G3 구현은 시작하지 않는다.
 
 ### Blockers
 
@@ -283,7 +310,7 @@ M0 전체는 `ACHIEVED`가 아니다. G2 User Validation + G3~G9와 최종 사�
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1 PASS, G2 기술 검증 완료 + 성능 baseline 기록 (User Validation 대기)
+M0 implementation: **IN_PROGRESS** — G0/G1/G2 PASS (G2는 User Validation 포함), G3~G9 + 최종 M0 승인 남음
 
 M0 `ACHIEVED`: **NO**
 
@@ -308,5 +335,5 @@ chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
 tests: passed (44 core + 1 GPU headless smoke + 16 GPU movement + 7 GPU world integrity, ignored 1 controlled benchmark)
 benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark.
-m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 tech-validated + reference perf baseline recorded — user validation pending)
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16 — G3+ pending)
 ```

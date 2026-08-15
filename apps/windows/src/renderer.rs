@@ -8,6 +8,11 @@
 //! buffer is bound to the fragment shader as read-only storage and drawn
 //! through a fullscreen triangle with per-material debug colors.
 //! Presentation never mutates the authoritative simulation state.
+//!
+//! The world view preserves square cells: it letterboxes the world into the
+//! surface with `scale = min(surface_w / world_w, surface_h / world_h)` and
+//! maps pixels to cells with integer truncation, so cell edges stay crisp
+//! and the world aspect ratio is never distorted.
 
 use std::sync::Arc;
 
@@ -71,15 +76,18 @@ const OIL: u32 = 5u;
 const STEAM: u32 = 6u;
 const SMOKE: u32 = 7u;
 
+// Presentation-only debug palette (material IDs never change). Stone reads
+// as forest-green terrain/trees so the demo world looks like a stylized
+// virtual forest; everything else stays clearly distinguishable.
 fn debug_color(id: u32) -> vec4<f32> {
-    if (id == EMPTY) { return vec4<f32>(0.02, 0.02, 0.05, 1.0); }
-    if (id == BOUNDARY) { return vec4<f32>(0.62, 0.62, 0.66, 1.0); }
-    if (id == STONE) { return vec4<f32>(0.42, 0.42, 0.44, 1.0); }
-    if (id == SAND) { return vec4<f32>(0.85, 0.72, 0.35, 1.0); }
-    if (id == WATER) { return vec4<f32>(0.15, 0.38, 0.85, 1.0); }
-    if (id == OIL) { return vec4<f32>(0.48, 0.30, 0.10, 1.0); }
-    if (id == STEAM) { return vec4<f32>(0.80, 0.83, 0.87, 1.0); }
-    if (id == SMOKE) { return vec4<f32>(0.34, 0.32, 0.31, 1.0); }
+    if (id == EMPTY) { return vec4<f32>(0.03, 0.03, 0.06, 1.0); }
+    if (id == BOUNDARY) { return vec4<f32>(0.55, 0.57, 0.60, 1.0); }
+    if (id == STONE) { return vec4<f32>(0.28, 0.42, 0.24, 1.0); }
+    if (id == SAND) { return vec4<f32>(0.88, 0.75, 0.38, 1.0); }
+    if (id == WATER) { return vec4<f32>(0.15, 0.42, 0.85, 1.0); }
+    if (id == OIL) { return vec4<f32>(0.48, 0.27, 0.07, 1.0); }
+    if (id == STEAM) { return vec4<f32>(0.85, 0.88, 0.92, 1.0); }
+    if (id == SMOKE) { return vec4<f32>(0.32, 0.32, 0.34, 1.0); }
     return vec4<f32>(1.0, 0.0, 1.0, 1.0); // unknown → magenta (must never appear)
 }
 
@@ -93,13 +101,28 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> {
     return vec4<f32>(pos[vi], 0.0, 1.0);
 }
 
+// Square-cell, aspect-preserving view: the world is letterboxed into the
+// surface at scale = min(surface/world) and each pixel maps to exactly one
+// cell via integer truncation (crisp cell edges, no stretching).
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
-    let fx = clamp(frag.x, 0.0, f32(params.surface_w) - 1.0);
-    let fy = clamp(frag.y, 0.0, f32(params.surface_h) - 1.0);
-    let cell_x = u32((fx / f32(params.surface_w)) * f32(params.width));
-    let cell_y = u32((fy / f32(params.surface_h)) * f32(params.height));
-    let idx = min(cell_y * params.width + cell_x, params.width * params.height - 1u);
+    let fw = f32(params.surface_w);
+    let fh = f32(params.surface_h);
+    let ww = f32(params.width);
+    let wh = f32(params.height);
+    let scale = min(fw / ww, fh / wh);
+    let off_x = (fw - ww * scale) * 0.5;
+    let off_y = (fh - wh * scale) * 0.5;
+    let px = frag.x;
+    let py = frag.y;
+    let in_viewport = px >= off_x && px < off_x + ww * scale
+                   && py >= off_y && py < off_y + wh * scale;
+    if (!in_viewport) {
+        return vec4<f32>(0.06, 0.07, 0.10, 1.0); // letterbox background
+    }
+    let cell_x = min(u32((px - off_x) / scale), params.width - 1u);
+    let cell_y = min(u32((py - off_y) / scale), params.height - 1u);
+    let idx = cell_y * params.width + cell_x;
     return debug_color(materials[idx]);
 }
 "#;

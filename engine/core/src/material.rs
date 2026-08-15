@@ -11,7 +11,11 @@
 //! ordering, NOT a physical constant and never per-cell state
 //! (`SIMULATION_SPEC` §12, `MATERIAL_SPEC` §5). G4-A adds cheap
 //! `thermal_conductivity` / `heat_capacity` (gameplay scalars, not SI).
-//! Phase / combustion / ignition properties are still not here.
+//! G4-B adds `phase_transitions` — the Material's own small ordered rule
+//! set for temperature-based 1:1 self transitions (Ice ↔ Water ↔ Steam).
+//! Combustion / ignition properties are still not here.
+
+use crate::phase::{PhaseTransition, TemperatureCondition};
 
 /// Absence of Matter in a cell. `EMPTY` is not Matter (ADR-0001).
 pub const MATERIAL_EMPTY: u32 = 0;
@@ -29,6 +33,8 @@ pub const MATERIAL_OIL: u32 = 5;
 pub const MATERIAL_STEAM: u32 = 6;
 /// Smoke — GAS registered Matter.
 pub const MATERIAL_SMOKE: u32 = 7;
+/// Ice — STATIC registered Matter (G4-B phase transition target).
+pub const MATERIAL_ICE: u32 = 8;
 
 // G3 baseline density ranks (gameplay ordering, `MATERIAL_SPEC` §5):
 // heavier sinks below lighter. These are not physical units and may be
@@ -49,16 +55,18 @@ pub const THERMAL_K_WATER: f32 = 1.00;
 pub const THERMAL_K_OIL: f32 = 0.20;
 pub const THERMAL_K_STEAM: f32 = 0.10;
 pub const THERMAL_K_SMOKE: f32 = 0.10;
+pub const THERMAL_K_ICE: f32 = 0.60;
 pub const THERMAL_C_BOUNDARY: f32 = 2.0;
 pub const THERMAL_C_STONE: f32 = 2.0;
 pub const THERMAL_C_SAND: f32 = 1.5;
 pub const THERMAL_C_LIQUID: f32 = 2.5;
 pub const THERMAL_C_GAS: f32 = 0.8;
+pub const THERMAL_C_ICE: f32 = 2.0;
 
 /// Movement behavior family (G2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MovementClass {
-    /// No normal movement (Boundary Block, Stone).
+    /// No normal movement (Boundary Block, Stone, Ice).
     Static,
     /// Falls down / down-diagonal (Sand).
     Powder,
@@ -94,7 +102,9 @@ impl MovementClass {
 /// Minimum descriptor for a registered Matter identity.
 ///
 /// G2 adds `movement_class`; G3 adds `density_rank`; G4-A adds cheap
-/// thermal scalars. No phase / combustion / ignition fields yet.
+/// thermal scalars; G4-B adds the Material's own `phase_transitions`
+/// (ordered First-Match, `REACTION_SPEC` §6). No combustion / ignition
+/// fields yet.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MaterialDescriptor {
     pub id: u32,
@@ -111,6 +121,11 @@ pub struct MaterialDescriptor {
     pub thermal_conductivity: f32,
     /// Gameplay heat capacity. Higher → slower temperature change.
     pub heat_capacity: f32,
+    /// Temperature-based 1:1 self transitions, pre-ordered First-Match.
+    ///
+    /// Empty means this Matter has no phase transition (EMPTY, Stone, Sand,
+    /// Oil, Smoke, Boundary). This is Material data — never per-cell state.
+    pub phase_transitions: &'static [PhaseTransition],
 }
 
 /// The registered Matter catalog.
@@ -125,6 +140,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         density_rank: None,
         thermal_conductivity: THERMAL_K_BOUNDARY,
         heat_capacity: THERMAL_C_BOUNDARY,
+        phase_transitions: &[],
     },
     MaterialDescriptor {
         id: MATERIAL_STONE,
@@ -133,6 +149,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         density_rank: None,
         thermal_conductivity: THERMAL_K_STONE,
         heat_capacity: THERMAL_C_STONE,
+        phase_transitions: &[],
     },
     MaterialDescriptor {
         id: MATERIAL_SAND,
@@ -141,6 +158,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         density_rank: Some(DENSITY_RANK_SAND),
         thermal_conductivity: THERMAL_K_SAND,
         heat_capacity: THERMAL_C_SAND,
+        phase_transitions: &[],
     },
     MaterialDescriptor {
         id: MATERIAL_WATER,
@@ -149,6 +167,18 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         density_rank: Some(DENSITY_RANK_WATER),
         thermal_conductivity: THERMAL_K_WATER,
         heat_capacity: THERMAL_C_LIQUID,
+        phase_transitions: &[
+            PhaseTransition {
+                condition: TemperatureCondition::Below,
+                threshold: crate::phase::WATER_FREEZE_BELOW,
+                target_material: MATERIAL_ICE,
+            },
+            PhaseTransition {
+                condition: TemperatureCondition::Above,
+                threshold: crate::phase::WATER_BOIL_ABOVE,
+                target_material: MATERIAL_STEAM,
+            },
+        ],
     },
     MaterialDescriptor {
         id: MATERIAL_OIL,
@@ -157,6 +187,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         density_rank: Some(DENSITY_RANK_OIL),
         thermal_conductivity: THERMAL_K_OIL,
         heat_capacity: THERMAL_C_LIQUID,
+        phase_transitions: &[],
     },
     MaterialDescriptor {
         id: MATERIAL_STEAM,
@@ -165,6 +196,11 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         density_rank: Some(DENSITY_RANK_STEAM),
         thermal_conductivity: THERMAL_K_STEAM,
         heat_capacity: THERMAL_C_GAS,
+        phase_transitions: &[PhaseTransition {
+            condition: TemperatureCondition::Below,
+            threshold: crate::phase::STEAM_CONDENSE_BELOW,
+            target_material: MATERIAL_WATER,
+        }],
     },
     MaterialDescriptor {
         id: MATERIAL_SMOKE,
@@ -173,6 +209,20 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         density_rank: Some(DENSITY_RANK_SMOKE),
         thermal_conductivity: THERMAL_K_SMOKE,
         heat_capacity: THERMAL_C_GAS,
+        phase_transitions: &[],
+    },
+    MaterialDescriptor {
+        id: MATERIAL_ICE,
+        name: "Ice",
+        movement_class: MovementClass::Static,
+        density_rank: None,
+        thermal_conductivity: THERMAL_K_ICE,
+        heat_capacity: THERMAL_C_ICE,
+        phase_transitions: &[PhaseTransition {
+            condition: TemperatureCondition::Above,
+            threshold: crate::phase::ICE_MELT_ABOVE,
+            target_material: MATERIAL_WATER,
+        }],
     },
 ];
 
@@ -253,7 +303,7 @@ mod tests {
         assert_eq!(registry_lookup(MATERIAL_EMPTY), None);
         assert_eq!(movement_class(MATERIAL_EMPTY), None);
         assert_eq!(density_rank(MATERIAL_EMPTY), None);
-        assert_eq!(MATERIAL_REGISTRY.len(), 7);
+        assert_eq!(MATERIAL_REGISTRY.len(), 8);
     }
 
     #[test]
@@ -266,6 +316,7 @@ mod tests {
             (MATERIAL_OIL, "Oil"),
             (MATERIAL_STEAM, "Steam"),
             (MATERIAL_SMOKE, "Smoke"),
+            (MATERIAL_ICE, "Ice"),
         ];
         for (id, name) in expected {
             let d = registry_lookup(id).unwrap_or_else(|| panic!("{name} must be registered"));
@@ -286,6 +337,7 @@ mod tests {
         assert_eq!(movement_class(MATERIAL_OIL), Some(MovementClass::Liquid));
         assert_eq!(movement_class(MATERIAL_STEAM), Some(MovementClass::Gas));
         assert_eq!(movement_class(MATERIAL_SMOKE), Some(MovementClass::Gas));
+        assert_eq!(movement_class(MATERIAL_ICE), Some(MovementClass::Static));
     }
 
     #[test]
@@ -315,7 +367,7 @@ mod tests {
 
     #[test]
     fn unknown_ids_are_rejected() {
-        for unknown in [8u32, 42, u32::MAX] {
+        for unknown in [9u32, 42, u32::MAX] {
             assert!(!registry_contains(unknown));
             assert_eq!(registry_lookup(unknown), None);
             assert!(!is_valid_cell_material_value(unknown));
@@ -334,6 +386,7 @@ mod tests {
             MATERIAL_OIL,
             MATERIAL_STEAM,
             MATERIAL_SMOKE,
+            MATERIAL_ICE,
         ] {
             assert!(is_valid_cell_material_value(id), "id {id}");
         }
@@ -350,6 +403,7 @@ mod tests {
         assert_eq!(table[MATERIAL_OIL as usize], 2); // liquid
         assert_eq!(table[MATERIAL_STEAM as usize], 3); // gas
         assert_eq!(table[MATERIAL_SMOKE as usize], 3); // gas
+        assert_eq!(table[MATERIAL_ICE as usize], 0); // static
     }
 
     #[test]
@@ -365,6 +419,7 @@ mod tests {
     fn static_and_empty_have_no_density_rank() {
         assert_eq!(density_rank(MATERIAL_BOUNDARY_BLOCK), None);
         assert_eq!(density_rank(MATERIAL_STONE), None);
+        assert_eq!(density_rank(MATERIAL_ICE), None);
         assert_eq!(density_rank(MATERIAL_EMPTY), None);
     }
 
@@ -379,7 +434,8 @@ mod tests {
         assert_eq!(table[MATERIAL_OIL as usize], 70);
         assert_eq!(table[MATERIAL_STEAM as usize], 20);
         assert_eq!(table[MATERIAL_SMOKE as usize], 30);
-        for unknown in [8usize, 15] {
+        assert_eq!(table[MATERIAL_ICE as usize], 0);
+        for unknown in [9usize, 15] {
             assert_eq!(table[unknown], 0);
         }
     }
@@ -396,6 +452,19 @@ mod tests {
         assert_eq!(water.heat_capacity, oil.heat_capacity);
         assert!(stone.thermal_conductivity > 0.0);
         assert_eq!(boundary.thermal_conductivity, THERMAL_K_BOUNDARY);
+    }
+
+    #[test]
+    fn ice_is_registered_static_with_thermal() {
+        let ice = registry_lookup(MATERIAL_ICE).unwrap();
+        assert_eq!(ice.name, "Ice");
+        assert_eq!(ice.movement_class, MovementClass::Static);
+        assert_eq!(ice.density_rank, None);
+        assert_eq!(ice.thermal_conductivity, THERMAL_K_ICE);
+        assert_eq!(ice.heat_capacity, THERMAL_C_ICE);
+        assert!(ice.thermal_conductivity.is_finite());
+        assert!(ice.heat_capacity.is_finite());
+        assert_eq!(ice.phase_transitions.len(), 1);
     }
 
     #[test]

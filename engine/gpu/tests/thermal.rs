@@ -4,16 +4,22 @@
 //! per-cell f32 field that belongs to the occupying Matter: movement commit
 //! transports it on the same ownership edge. 4-neighbor conduction is
 //! write-self only and runs after ownership is settled. EMPTY is not a
-//! hidden thermal medium. Phase / combustion are out of scope.
+//! hidden thermal medium. Phase / combustion are out of scope (G4-B).
 //!
 //! `0.0` is the simulation reference temperature (relative hot/cold scalar).
 //! Exact global energy conservation is not required.
+//!
+//! G4-B note: Steam now condenses below 40.0, so any Steam in these
+//! scenarios is placed at a stable hot temperature.
 
 use powdergame_core::{
     WorldConfig, MATERIAL_EMPTY, MATERIAL_SAND, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
     TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::Simulation;
+
+/// Stable hot temperature for Steam fixtures (above condensation 40.0).
+const STEAM_STABLE_T: f32 = 80.0;
 
 fn make_sim(config: WorldConfig) -> Simulation {
     pollster::block_on(Simulation::new(config)).expect("DX12 + RTX 5090 simulation init")
@@ -330,7 +336,9 @@ fn blocked_or_losing_move_keeps_temperature() {
 
     // Contention: two Steam cells propose the same EMPTY (3,1).
     // min-source wins — (2,2) has the lower index — and carries T=90.
-    // The loser stays at (4,2) with its own cooler temperature.
+    // The loser stays at (4,2) with its own temperature. Both are placed
+    // above the condensation threshold so the phase pass (G4-B) cannot
+    // turn them into Water mid-test.
     let mut sim = eight_by_eight();
     set_mat(&sim, 1, 1, MATERIAL_STONE);
     set_mat(&sim, 2, 1, MATERIAL_STONE);
@@ -338,7 +346,7 @@ fn blocked_or_losing_move_keeps_temperature() {
     set_mat(&sim, 2, 2, MATERIAL_STEAM);
     set_mat(&sim, 4, 2, MATERIAL_STEAM);
     set_t(&sim, 2, 2, 90.0);
-    set_t(&sim, 4, 2, 10.0);
+    set_t(&sim, 4, 2, STEAM_STABLE_T);
 
     sim.tick().expect("tick");
 

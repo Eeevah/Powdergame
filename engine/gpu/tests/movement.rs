@@ -9,6 +9,10 @@
 //! G2 scope: local 1-cell stencils only, EMPTY destinations only, no
 //! density/displacement (G3), no temperature/pressure (G4).
 //!
+//! G4-B note: Steam now has a condensation phase rule, so Steam fixtures
+//! place Steam at a stable hot temperature (T = 80.0, above the 40.0
+//! condensation threshold) — the movement intent itself is unchanged.
+//!
 //! Note: the default 8×8 fixture has 28 boundary-ring blocks, so absolute
 //! `matter_count` includes those. Per-material counts are used where the
 //! invariant is about a specific Matter.
@@ -18,6 +22,9 @@ use powdergame_core::{
     MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
 };
 use powdergame_gpu::{GpuError, Simulation};
+
+/// Stable hot temperature for Steam fixtures (above condensation 40.0).
+const STEAM_STABLE_T: f32 = 80.0;
 
 fn make_sim(config: WorldConfig) -> Simulation {
     pollster::block_on(Simulation::new(config)).expect("DX12 + RTX 5090 simulation init")
@@ -38,6 +45,12 @@ fn set(sim: &Simulation, x: i64, y: i64, id: u32) {
     sim.world
         .write_material(&sim.context.queue, x, y, id)
         .expect("validated edit must succeed")
+}
+
+fn set_t(sim: &Simulation, x: i64, y: i64, t: f32) {
+    sim.world
+        .write_temperature(&sim.context.queue, x, y, t)
+        .expect("validated temperature edit must succeed")
 }
 
 /// Total non-EMPTY cells (includes the boundary ring).
@@ -203,6 +216,7 @@ fn oil_uses_the_liquid_family() {
 fn steam_and_smoke_rise() {
     let mut sim = eight_by_eight();
     set(&sim, 6, 6, MATERIAL_STEAM);
+    set_t(&sim, 6, 6, STEAM_STABLE_T); // G4-B: Steam must stay Steam
     sim.tick().expect("tick");
     assert_eq!(cell(&sim, 6, 5), MATERIAL_STEAM, "steam rises up");
 
@@ -216,6 +230,7 @@ fn steam_and_smoke_rise() {
 fn gas_takes_up_diagonal_when_up_blocked() {
     let mut sim = eight_by_eight();
     set(&sim, 5, 6, MATERIAL_STEAM);
+    set_t(&sim, 5, 6, STEAM_STABLE_T);
     set(&sim, 5, 5, MATERIAL_STONE);
     sim.tick().expect("tick");
     let up_diag = [cell(&sim, 4, 5), cell(&sim, 6, 5)];
@@ -234,6 +249,7 @@ fn gas_stable_bulk_center_does_not_swap() {
     for y in 2..=4 {
         for x in 2..=4 {
             set(&sim, x, y, MATERIAL_STEAM);
+            set_t(&sim, x, y, STEAM_STABLE_T); // uniform hot: no conduction
         }
     }
     sim.tick().expect("tick");
@@ -260,7 +276,9 @@ fn contention_exactly_one_winner_no_duplication() {
     set(&sim, 2, 1, MATERIAL_STONE);
     set(&sim, 4, 1, MATERIAL_STONE);
     set(&sim, 2, 2, MATERIAL_STEAM);
+    set_t(&sim, 2, 2, STEAM_STABLE_T);
     set(&sim, 4, 2, MATERIAL_STEAM);
+    set_t(&sim, 4, 2, STEAM_STABLE_T);
 
     let before = matter_count(&sim);
     sim.tick().expect("tick");

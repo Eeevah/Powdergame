@@ -15,10 +15,17 @@
 //! G4-A: movement commit transports temperature with Matter (same
 //! ownership edge, write-self). After both Current buffers are updated,
 //! a 4-neighbor thermal pass conducts into `temperature_next`. EMPTY is
-//! not a thermal medium. Phase / combustion are not implemented.
+//! not a thermal medium.
+//!
+//! G4-B: after conduction, a phase transition pass (self-write only,
+//! Material-owned temperature rules, Ice ↔ Water ↔ Steam) transforms
+//! `material_next` from the settled `material_current` + temperature.
+//! Causal order per tick: movement → thermal conduction → phase.
+//! Combustion / expansion / Pressure are not implemented.
 
 use powdergame_core::{
-    conductivity_table, density_table, heat_capacity_table, movement_class_table, WorldConfig,
+    conductivity_table, density_table, heat_capacity_table, movement_class_table,
+    phase_descriptor_table, WorldConfig,
 };
 
 use crate::context::{GpuContext, GpuError};
@@ -37,6 +44,8 @@ const THREADS_X: u64 = (WORKGROUPS_X as u64) * (WORKGROUP_SIZE as u64);
 const PARAMS_SIZE: u64 = 16;
 /// Material table buffer size (16 u32 entries each).
 const TABLE_SIZE: u64 = 64;
+/// Phase descriptor table: 16 descriptors × 16 bytes.
+const PHASE_TABLE_SIZE: u64 = 256;
 /// Size of the diagnostic marker buffer (one `u32` + padding).
 const MARKER_SIZE: u64 = 16;
 /// Upper bound for cell indices so the claim encoding `(peer << 2) | kind`
@@ -86,10 +95,12 @@ pub struct Simulation {
     claim_pipeline: wgpu::ComputePipeline,
     commit_pipeline: wgpu::ComputePipeline,
     thermal_pipeline: wgpu::ComputePipeline,
+    phase_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
     thermal_bind_group: wgpu::BindGroup,
+    phase_bind_group: wgpu::BindGroup,
     marker: wgpu::Buffer,
 
     /// Number of ticks submitted since creation.
@@ -140,6 +151,12 @@ impl Simulation {
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("powdergame-g4a-thermal"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("thermal.wgsl").into()),
+            });
+        let shader_phase = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("powdergame-g4b-phase"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("phase_transition.wgsl").into()),
             });
 
         // Bind group layouts.
@@ -196,6 +213,19 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::Read), // capacity_table
                     ],
                 });
+        let phase_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g4b-phase-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // temperature_current
+                        buffer_entry(3, &BindingKind::Read), // phase_table
+                        buffer_entry(4, &BindingKind::ReadWrite), // material_next
+                    ],
+                });
 
         let make_pipeline = |label: &str,
                              layout: &wgpu::BindGroupLayout,
@@ -244,6 +274,12 @@ impl Simulation {
             &thermal_layout,
             &shader_thermal,
             "thermal_main",
+        );
+        let phase_pipeline = make_pipeline(
+            "powdergame-g4b-phase",
+            &phase_layout,
+            &shader_phase,
+            "phase_main",
         );
 
         // Params uniform: cell_count, threads_x, width, height.
@@ -331,6 +367,24 @@ impl Simulation {
         context
             .queue
             .write_buffer(&capacity_table_buf, 0, &capacity_data);
+
+        // G4-B phase descriptor table (16 × 16 bytes; Material data, not
+        // per-cell state). Compiled from each Material's ordered rules.
+        let mut phase_data = [0u8; PHASE_TABLE_SIZE as usize];
+        for (i, desc) in phase_descriptor_table().iter().enumerate() {
+            let off = i * 16;
+            phase_data[off..off + 4].copy_from_slice(&desc.below_target.to_ne_bytes());
+            phase_data[off + 4..off + 8].copy_from_slice(&desc.above_target.to_ne_bytes());
+            phase_data[off + 8..off + 12].copy_from_slice(&desc.below_threshold.to_ne_bytes());
+            phase_data[off + 12..off + 16].copy_from_slice(&desc.above_threshold.to_ne_bytes());
+        }
+        let phase_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g4b/phase/table"),
+            size: PHASE_TABLE_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context.queue.write_buffer(&phase_table_buf, 0, &phase_data);
 
         // Diagnostic marker: 16 bytes, one u32 used.
         let marker = context.device.create_buffer(&wgpu::BufferDescriptor {
@@ -458,6 +512,34 @@ impl Simulation {
                     },
                 ],
             });
+        let phase_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("powdergame-g4b-phase-bg"),
+                layout: &phase_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: world.material_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: world.temperature_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: phase_table_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: world.material_next.as_entire_binding(),
+                    },
+                ],
+            });
 
         Ok(Self {
             context,
@@ -466,10 +548,12 @@ impl Simulation {
             claim_pipeline,
             commit_pipeline,
             thermal_pipeline,
+            phase_pipeline,
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
             thermal_bind_group,
+            phase_bind_group,
             marker,
             tick_count: 0,
         })
@@ -478,7 +562,13 @@ impl Simulation {
     /// Submits one tick on the GPU (no CPU full-world copy):
     /// propose → claim → commit (material_next + temperature_next) →
     /// material Next→Current → temperature Next→Current →
-    /// thermal conduction (write-self) → temperature Next→Current.
+    /// thermal conduction (write-self) → temperature Next→Current →
+    /// phase transition (self-write, Material-owned temperature rules) →
+    /// material Next→Current.
+    ///
+    /// Causal order: Matter first carries its Temperature through ownership,
+    /// then the new location conducts, then the settled Temperature selects
+    /// the phase. Combustion / expansion / Pressure are not implemented.
     pub fn tick(&mut self) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
@@ -488,7 +578,7 @@ impl Simulation {
             self.context
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("powdergame-g3-tick-encoder"),
+                    label: Some("powdergame-g4b-tick-encoder"),
                 });
 
         let dispatch = |pass: &mut wgpu::ComputePass<'_>,
@@ -550,6 +640,21 @@ impl Simulation {
             &self.world.temperature_current,
             0,
             self.world.layout.temperature_bytes,
+        );
+
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g4b-phase-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(&mut pass, &self.phase_pipeline, &self.phase_bind_group);
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.world.material_next,
+            0,
+            &self.world.material_current,
+            0,
+            self.world.layout.material_bytes,
         );
 
         self.context.queue.submit([encoder.finish()]);

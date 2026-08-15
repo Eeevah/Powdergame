@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED (User Validation 승인 완료 2026-08-16), G3 (Density / Displacement) PASS / CLOSED (User Validation 승인 완료 2026-08-16), G4-A (Thermal Baseline) technical sub-step TECHNICAL PASS. G4 전체는 아직 PASS/CLOSED가 아니다. G4~G9와 최종 M0 사용자 승인 남음.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4-A (Thermal Baseline) TECHNICAL PASS, G4-B (Phase Transition) TECHNICAL PASS. G4 전체는 아직 PASS/CLOSED가 아니다 (G4-C Combustion 미구현). G4~G9와 최종 M0 사용자 승인 남음.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: IN_PROGRESS (G4-A thermal baseline TECHNICAL PASS; phase/combustion/User Validation 없음).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: IN_PROGRESS (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion 미구현, G4 User Validation PENDING).**
 
 ### Current Summary
 
@@ -44,9 +44,9 @@
 - approximate, non-bit-exact determinism
 - M0 Evidence Gates G0~G9
 
-2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**가 구현·검증·승인 완료되었다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했다. G3는 사용자가 개선된 laboratory `--density-demo`를 직접 실행해 약 300 ticks를 관찰한 뒤 Sand/Water 침강, Water/Oil 층분리, Steam/Smoke 정렬이 관찰 가능한 수준으로 동작함을 승인했다.
+2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**가 구현·검증·승인 완료되었고, **G4-A (Thermal Baseline)**와 **G4-B (Phase Transition)**는 기술 검증 완료 상태(TECHNICAL PASS)다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했고, G3는 laboratory `--density-demo`를 직접 실행해 약 300 ticks 관찰 후 승인했다.
 
-G4는 아직 열려 있지 않은 단계다 (G4 전체 = IN_PROGRESS). 현재 branch `feature/m0-g4-thermal-phase-combustion`은 G3 baseline `4053fe0a51ecdf59e5515eb58e2079e87c78c740`에서 분기한 **G4-A Thermal Baseline** 기술 하위 단계이며, 자동/기술 검증 완료로 **TECHNICAL PASS** 상태다. Ice/Water/Steam phase (G4-B), Wood/Oil combustion / Fire (G4-C), Pressure logic, thermal demo, G4 User Validation은 아직 구현되지 않았다.
+G4 전체는 여전히 IN_PROGRESS다. 현재 branch `feature/m0-g4-thermal-phase-combustion`(base: `4053fe0a51ecdf59e5515eb58e2079e87c78c740` — G3 PASS/CLOSED)에는 G4-A Thermal Baseline + thermal ownership hardening과 G4-B Ice↔Water↔Steam Phase Transition이 구현되어 있다. G4-C (Wood/Oil combustion / Fire), Pressure logic, phase expansion, thermal demo, G4 User Validation은 아직 구현되지 않았다.
 
 ### G0 Runtime Evidence (2026-08-16, local run)
 
@@ -167,7 +167,7 @@ GPU tests (movement.rs, 실제 RTX 5090/DX12 — 16개 + ignored benchmark 1개)
   sand_stops_when_fully_blocked                      PASS
   water_falls_down_then_flows_laterally_one_cell     PASS
   oil_uses_the_liquid_family                         PASS
-  steam_and_smoke_rise                               PASS
+  steam_and_smoke_rise                               PASS (steam T=80 stable staging)
   gas_takes_up_diagonal_when_up_blocked              PASS
   gas_stable_bulk_center_does_not_swap               PASS (Gas↔Gas 무의미 swap 없음)
   contention_exactly_one_winner_no_duplication       PASS (winner exactly one,
@@ -175,10 +175,8 @@ GPU tests (movement.rs, 실제 RTX 5090/DX12 — 16개 + ignored benchmark 1개)
   chunk_boundary_movement_is_plain_local_movement    PASS (63↔64 경계 양방향)
   void_exit_loses_exactly_one_matter                 PASS (open boundary로 실제 소멸,
                                                         OOB memory access 없음)
-  liquid_exits_through_open_side_boundary            PASS (side opening Void exit,
-                                                        water count 정확히 -1)
-  powder_diagonal_void_exit                          PASS (diagonal OOB Void exit,
-                                                        sand count 정확히 -1)
+  liquid_exits_through_open_side_boundary            PASS (side opening Void exit)
+  powder_diagonal_void_exit                          PASS (diagonal OOB Void exit)
   g2_tick_preserves_g1_contracts                     PASS (invalid ID/OOB 거부,
                                                         boundary erase, EMPTY 미등록)
   coarse_reference_world_perf                        PASS (sanity observation only)
@@ -220,6 +218,7 @@ Movement demo (User Validation fixture) — 128×128 가상 숲 (승인 완료):
                            떨어졌다가 basin에 고임 (나무가 선 연못)
                   - OIL:   stone bowl에 oil이 떨어져 고이는 LIQUID pool
                   - STEAM: geyser basin → slab 밑을 돌아 canopy gap으로 상승
+                           (G4-B: Steam은 T=80 stable로 staging)
                   - SMOKE: pit에서 canopy gap으로 상승
                   - Void:  platform+funnel의 모래가 열린 boundary hole로
                            빠져 실제 소멸 (matter count 감소)
@@ -317,59 +316,36 @@ Commit:           write-self 유지 — 각 invocation은 material_next[self]만
                   conservative no-move)
 
 GPU tests (density.rs, 실제 RTX 5090/DX12 — 15개):
-  sand_swaps_with_water_below                        PASS (Sand directly above Water →
-                                                        local swap, Sand 아래/Water 위,
-                                                        count 보존)
-  sand_sinks_through_water_column                    PASS (여러 tick 후 Sand가 Water
-                                                        아래로 진행 — pixel checksum 없음)
-  water_below_oil_inversion                          PASS (Water above Oil → swap → 정렬)
-  oil_above_water_is_stable                          PASS (density 이유만으로 swap 없음)
-  multi_cell_layer_separation_in_basin               PASS (inverted/mixed → Water가
-                                                        Oil보다 아래 semantic ordering)
-  equal_rank_water_water_no_swap                     PASS (same rank density swap 없음,
-                                                        쓸데없는 흔들림 없음)
-  static_exclusion_stone_and_boundary                PASS (Sand vs Stone / Water vs
-                                                        Boundary → density swap 없음)
-  gas_rank_steam_rises_above_smoke                   PASS (Steam 20 below Smoke 30 →
-                                                        lighter가 위로 정렬)
-  gas_stable_ordering_no_swap                        PASS (반대 stable ordering에서는
-                                                        density swap 없음)
-  overlapping_swap_and_move_no_corruption            PASS (swap+move 겹침 → no duplicate,
-                                                        no unexplained loss, per-material
-                                                        count conserved)
-  overlapping_swap_pair_no_corruption                PASS (swap+swap 겹침 → 동일)
-  contention_no_corruption                           PASS (multiple sources overlapping
-                                                        density candidates)
-  chunk_boundary_density_displacement                PASS (y=63/64 chunk 경계 Sand/Water
-                                                        displacement — chunk는 density
-                                                        wall 아님)
-  void_regression_bottom_side_diagonal               PASS (G2 Void semantics 유지)
-  g3_tick_preserves_g2_contracts                     PASS (invalid ID/OOB 거부, EMPTY
-                                                        미등록, boundary erase 유지)
+  sand_swaps_with_water_below                        PASS
+  sand_sinks_through_water_column                    PASS
+  water_swaps_with_oil_below                         PASS
+  oil_above_water_does_not_swap                      PASS
+  mixed_water_oil_channel_separates_into_layers      PASS
+  equal_rank_water_does_not_jitter                   PASS
+  static_targets_never_swap                          PASS
+  steam_swaps_up_through_smoke_when_blocked_above    PASS (steam T=80 stable staging)
+  stable_gas_ordering_does_not_swap                  PASS (steam T=80 stable staging)
+  gas_channel_orders_steam_above_smoke               PASS (steam T=120, 12 ticks —
+                                                        밀봉 채널에서 응축 방지)
+  overlapping_swap_chain_corrupts_nothing            PASS
+  density_contention_exactly_one_winner              PASS
+  density_swap_crosses_chunk_boundary                PASS
+  sand_sinks_then_exits_through_open_boundary        PASS
+  density_pipeline_executes_on_gpu                   PASS
 
-Core pure tests (movement.rs/material.rs, 56개 total 중 G3 관련):
-  sand_rank_gt_water / water_rank_gt_oil / steam_rank_lt_smoke   PASS
-  EMPTY no rank / Stone·Boundary no movable density             PASS
-  equal rank → no displacement / STATIC target → no displacement PASS
-  sand downward into water allowed / water downward into oil allowed PASS
-  oil downward into water rejected / steam upward into smoke allowed PASS
-  lateral density swap rejected                                  PASS
-  G2 movement/stencil/Void pure tests 전부 유지                   PASS
+Core pure tests (movement.rs/material.rs): density rank/ordering/STATIC/equal-rank/
+  lateral-rejection 전부 PASS — G2 movement/stencil/Void pure tests 전부 유지
 
 Density demo (User Validation fixture) — 128×128 laboratory tanks (승인 완료):
   실행:           cargo run -p powdergame-windows -- --density-demo
                   또는 상위 폴더의 run_powdergame.bat
   world/view:     G2와 동일한 128×128 square-cell / PAUSED / 15 TPS /
                   SPACE·N·R·ESC 관찰 구조 재사용 (새 UI framework 없음)
-  scene:          G2 forest/tree divider를 쓰지 않는 별도 laboratory/tank 장면
-                  좌→우 SAND+WATER | WATER+OIL | STEAM+SMOKE
+  scene:          좌→우 SAND+WATER | WATER+OIL | STEAM+SMOKE laboratory tanks
                   - Tank 1: 하단 Water pool 위 큰 Sand block — PLAY 시 침강
                   - Tank 2: inverted (Water 위 / Oil 아래) → 층분리
                   - Tank 3: sealed (Smoke 위 / Steam 아래) → gas ordering
-  presentation:   G3-only lab palette (Stone = gray). G2 forest green palette와
-                  movement-demo 장면은 변경 없음
-  title:          Powdergame G3 Density Demo | SAND+WATER | WATER+OIL |
-                  STEAM+SMOKE | [PAUSED]/[PLAY 15 TPS] + tick count
+                            (G4-B: Steam은 T=80 stable로 staging)
   bounded run:    --density-demo --smoke-frames 180 → exit 0, device lost 없음
 
 G0/G1/G2 regression:
@@ -406,18 +382,12 @@ User Validation (density demo)                           PASS — 사용자 승�
 
 **G3 — Density / Displacement: PASS / CLOSED.**
 
-G3 User Validation:
-  PASS — 사용자가 개선된 laboratory `--density-demo`를 직접 실행해 약 300 ticks
-  진행 화면을 확인하고, Sand/Water 침강 · Water/Oil 층분리 · Steam/Smoke 정렬이
-  관찰 가능한 수준으로 동작함을 승인 (2026-08-16).
-
 M0 전체는 여전히 `IN_PROGRESS` — `ACHIEVED`가 아니다. G4~G9와 최종 사용자 승인이 남아 있다.
 
 ### G4-A Thermal Baseline (technical sub-step — TECHNICAL PASS, not G4 CLOSED)
 
 ```text
-Branch:           feature/m0-g4-thermal-phase-combustion
-Base:             4053fe0a51ecdf59e5515eb58e2079e87c78c740 (G3 PASS/CLOSED)
+Branch:           feature/m0-g4-thermal-phase-combustion (base: 4053fe0a51ecdf59e5515eb58e2079e87c78c740 — G3 PASS/CLOSED)
 Scope:            Temperature f32 4-neighbor conduction ONLY
 Out of scope:     Ice/Water/Steam phase (G4-B), Wood/Oil combustion (G4-C),
                   Fire, Pressure, thermal demo, G4 User Validation
@@ -466,18 +436,113 @@ GPU tests (thermal.rs — 13개, 실제 RTX 5090/DX12):
   density_swap_carries_each_matter_temperature     PASS (swap 후 Sand가 여전히 더 뜨거움)
   void_exit_removes_temperature                    PASS (Void exit 시 T=0, ghost heat 없음)
   blocked_or_losing_move_keeps_temperature         PASS (blocked/경쟁 패배 시 T 유지,
-                                                     winner가 hot state를 운반)
+                                                     winner가 hot state를 운반 — G4-B 이후
+                                                     loser Steam은 T=80 stable로 staging)
+```
 
-G0/G1/G2/G3 regression:
-  cargo test --workspace 전체 PASS
-  Windows smoke (--smoke-frames 60): PASS
+**G4-A Thermal Baseline: TECHNICAL PASS.**
+
+### G4-B Phase Transition (technical sub-step — TECHNICAL PASS, not G4 CLOSED)
+
+```text
+Branch:           feature/m0-g4-thermal-phase-combustion (G4-A 위에 추가)
+Scope:            Temperature-based 1:1 SELF transitions only
+                  Ice → Water, Water → Ice, Water → Steam, Steam → Water
+Out of scope:     combustion, Fire, Wood, ignition, Smoke spawn (G4-C),
+                  phase expansion / 1:N spawn, blocked expansion, Pressure,
+                  latent heat, exact energy conservation, thermal demo
+Material:         ICE = 8 추가 (기존 ID 변경 없음)
+                  movement_class = STATIC, density_rank = None
+                  thermal_conductivity = 0.60, heat_capacity = 2.0 (gameplay)
+Data model:       MaterialDescriptor.phase_transitions: &'static [PhaseTransition]
+                  (condition Below/Above + threshold + target_material)
+                  — Material-owned small ordered rule set (REACTION_SPEC §6),
+                  shader에 material-name branch 없음. GPU는 compiled
+                  PhaseGpuDescriptor table (below_target/above_target/
+                  below_threshold/above_threshold, NO_PHASE_TARGET=0xFFFF_FFFF
+                  sentinel — EMPTY=0과 혼동 없음)만 사용
+Thresholds:       Water freeze below -20 / boil above 60
+                  Ice melt above -10 / Steam condense below 40
+                  (relative gameplay scalar, not Celsius; hysteresis bands
+                  -20↔-10과 40↔60에서 ping-pong 방지)
+GPU pass:         phase_transition.wgsl — read material_current +
+                  temperature_current + phase_table → write material_next[self]
+                  only. Claim/Resolve/atomic 없음 (1:1 self transform)
+Tick order:       movement (Matter + T 수송) → thermal conduction → phase
+                  (새 위치에서 settle된 Temperature 기준으로 phase 선택)
+Temperature:      1:1 transform에서 보존 (latent heat는 scope 밖)
+EMPTY:            phase rule 없음, table sentinel, T==0 invariant 유지
+Matter count:     1:1 — cell/matter count 변화 없음, spawn/duplicate 없음
+```
+
+G4-B 기술 검증 (2026-08-16, local run — 실제 RTX 5090/DX12):
+
+```text
+Core pure tests (phase.rs + material.rs — 13개):
+  water_freezes_below_threshold / water_boils_above_threshold         PASS
+  ice_melts_above_threshold / steam_condenses_below_threshold         PASS
+  neutral_temperatures_are_stable / hysteresis_bands_prevent_ping_pong PASS
+  non_phase_materials_never_transition (EMPTY/Stone/Sand/Oil/Smoke)   PASS
+  unknown_ids_never_transition / targets_are_registered_matter        PASS
+  phase_candidates_are_only_water_ice_steam                           PASS
+  gpu_descriptor_table_matches_reference                              PASS
+  ice_thermal_properties_are_sane                                     PASS
+  material.rs: ICE 등록/STATIC/density None/unique ID/valid values     PASS
+
+GPU tests (phase.rs — 16개, 실제 RTX 5090/DX12):
+  water_freezes_to_ice                                PASS (T=-30 → Ice, 1:1 count 보존)
+  ice_melts_to_water                                  PASS (T=-5 → Water, T 보존)
+  water_boils_to_steam                                PASS (T=70 → Steam, 1:1 count 보존)
+  steam_condenses_to_water                            PASS (T=30 → Water)
+  neutral_water_is_stable                             PASS
+  hysteresis_prevents_ping_pong                       PASS (water -15, ice -15,
+                                                        water +50, steam +50 모두 유지)
+  non_phase_materials_never_transform_on_gpu          PASS (Sand/Oil/Smoke/Stone
+                                                        극온에서도 불변)
+  phase_preserves_temperature                         PASS (boil 후 T가 reference로
+                                                        reset되지 않음)
+  thermal_heating_triggers_boiling                    PASS (hot stone reservoir →
+                                                        온도장이 Water를 boil threshold
+                                                        넘김 → Steam 자발 생성)
+  thermal_cooling_triggers_freezing                   PASS (cold reservoir → Ice 자발 생성)
+  hot_water_moves_then_boils_at_destination           PASS (1 tick chain: movement →
+                                                        T 수송 → no conduction → phase,
+                                                        old cell EMPTY/T=0, new cell STEAM/T≈80)
+  melted_ice_uses_water_movement_next_tick            PASS (tick1: STATIC Ice가 제자리에서
+                                                        Water로 melt(phase는 movement 뒤라
+                                                        이동 안 함) → tick2: LIQUID identity가
+                                                        아래로 이동, T 동반, old cell EMPTY/T=0,
+                                                        matter 보존)
+  boiled_water_uses_steam_movement_next_tick          PASS (tick1: Water T=80이 밀봉 상태로
+                                                        제자리에서 Steam으로 boil → tick2:
+                                                        GAS identity가 위로 이동, hot T 동반,
+                                                        source EMPTY/T=0, matter 보존)
+                                                        → phase-changed Matter adopts new
+                                                        movement behavior on following tick
+                                                        (phase는 단순 ID repaint가 아님)
+  ice_is_static_and_never_density_swaps               PASS (Ice는 STATIC, density None)
+  phase_transition_crosses_chunk_boundary             PASS (x=63↔64 경계를 넘어
+                                                        freezing — chunk는 phase wall 아님)
+  phase_pipeline_executes_on_gpu                      PASS (marker=1)
+
+기존 Steam fixture 갱신 (thermal semantics에 맞는 stable staging — movement/density
+intent 변경 없음):
+  movement.rs: steam 4개 테스트 Steam T=80
+  density.rs: steam 3개 테스트 Steam T=80 (long sealed ordering만 T=120 + 12 ticks)
+  thermal.rs: 경쟁 패자 Steam T=10 → 80 (winner 90 > loser 80 유지)
+  main.rs demos: movement-demo steam zone + density-demo tank 3 Steam T=80
+
+G0/G1/G2/G3/G4-A regression:
+  cargo test --workspace 전체 PASS (78 core + 15 density + 16 phase + 1 G0 headless
+  + 16 movement + 13 thermal + 7 integrity = 146, ignored 1 controlled benchmark)
+  Windows smoke (--smoke-frames 60): PASS — RTX 5090/Dx12, 2048×2048
   --movement-demo --smoke-frames 120: PASS
   --density-demo --smoke-frames 180: PASS
 
 cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
 ```
 
-**G4-A Thermal Baseline: TECHNICAL PASS.** (G4 전체는 여전히 IN_PROGRESS — PASS/CLOSED 아님. G4-B Phase, G4-C Combustion, G4 User Validation은 미구현.)
+**G4-B Phase Transition: TECHNICAL PASS.** (G4 전체는 여전히 IN_PROGRESS — G4-C Combustion 미구현, G4 User Validation PENDING.)
 
 ### Product Direction
 
@@ -487,10 +552,9 @@ cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
 
 ### Next Action
 
-1. G4-A thermal baseline: **TECHNICAL PASS** (2026-08-16). thermal demo는 아직 없으므로
-   사용자 확인은 G4-B/C 이후 G4 User Validation에서 진행한다.
-2. 다음 단계 **G4-B — Ice/Water/Steam phase transition** (아직 미구현, 별도 단계).
-3. 그 다음 **G4-C — Wood/Oil combustion / Fire** (아직 미구현).
+1. G4-A thermal baseline + G4-B phase transition: **TECHNICAL PASS** (2026-08-16).
+2. 다음 단계 **G4-C — Wood/Oil combustion / Fire** (아직 미구현).
+3. G4 전체 통합 thermal/phase User Validation demo (G4-C 완료 후) → G4 User Validation.
 4. G4 전체 User Validation 전까지 G4를 PASS/CLOSED로 올리지 않는다.
 
 공식 G4 performance benchmark는 측정하지 않는다 (correctness-first).
@@ -518,7 +582,7 @@ cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3 PASS (G2·G3는 User Validation 포함), G4-A thermal baseline TECHNICAL PASS (G4 전체는 CLOSED 아님 — G4-B/C 미구현), G4~G9 + 최종 M0 승인 남음
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3 PASS (G2·G3는 User Validation 포함), G4-A/B TECHNICAL PASS (G4 전체는 CLOSED 아님 — G4-C 미구현), G4~G9 + 최종 M0 승인 남음
 
 M0 `ACHIEVED`: **NO**
 
@@ -541,7 +605,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (65 core incl. 8 G4-A thermal + 15 GPU density + 13 GPU thermal + 1 GPU headless smoke + 16 GPU movement + 7 GPU world integrity, ignored 1 controlled benchmark)
+tests: passed (78 core incl. 8 G4-A thermal + 12 G4-B phase + 1 G4-B material (ICE) + 15 GPU density + 16 GPU phase + 1 GPU headless smoke + 16 GPU movement + 13 GPU thermal + 7 GPU world integrity = 146 total, ignored 1 controlled benchmark)
 benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark. G3 controlled baseline: deferred (idle-machine 확인 후 별도 측정).
-m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16, G3 PASS/CLOSED incl. user validation 2026-08-16, G4-A thermal baseline TECHNICAL PASS — G4 not CLOSED, G4-B/G4-C not started, G4+ pending)
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16, G3 PASS/CLOSED incl. user validation 2026-08-16, G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS incl. next-tick movement adoption evidence — G4 not CLOSED, G4-C combustion not implemented, G4 User Validation not yet run, G4+ pending)
 ```

@@ -11,6 +11,7 @@ pub mod domain;
 pub mod layout;
 pub mod material;
 pub mod movement;
+pub mod phase;
 pub mod thermal;
 pub mod world_config;
 
@@ -22,14 +23,19 @@ pub use material::{
     density_rank, density_table, is_valid_cell_material_value, movement_class,
     movement_class_table, registry_contains, registry_lookup, MaterialDescriptor, MovementClass,
     DENSITY_RANK_OIL, DENSITY_RANK_SAND, DENSITY_RANK_SMOKE, DENSITY_RANK_STEAM,
-    DENSITY_RANK_WATER, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_REGISTRY,
-    MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, THERMAL_C_GAS,
-    THERMAL_C_LIQUID, THERMAL_C_SAND, THERMAL_C_STONE, THERMAL_K_OIL, THERMAL_K_STONE,
-    THERMAL_K_WATER,
+    DENSITY_RANK_WATER, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL,
+    MATERIAL_REGISTRY, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE,
+    MATERIAL_WATER, THERMAL_C_GAS, THERMAL_C_ICE, THERMAL_C_LIQUID, THERMAL_C_SAND,
+    THERMAL_C_STONE, THERMAL_K_ICE, THERMAL_K_OIL, THERMAL_K_STONE, THERMAL_K_WATER,
 };
 pub use movement::{
     density_displacement_allowed, prefer_left, propose_move, CellState, DensityDirection,
     MoveTarget,
+};
+pub use phase::{
+    is_phase_candidate, phase_descriptor_table, select_phase_transition, PhaseGpuDescriptor,
+    PhaseTransition, TemperatureCondition, ICE_MELT_ABOVE, NO_PHASE_TARGET, STEAM_CONDENSE_BELOW,
+    WATER_BOIL_ABOVE, WATER_FREEZE_BELOW,
 };
 pub use thermal::{
     conductivity_table, heat_capacity_table, sanitize_temperature, thermal_properties,

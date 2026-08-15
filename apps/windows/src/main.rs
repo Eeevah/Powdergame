@@ -19,6 +19,9 @@
 //! from the render rate. Bounded smoke runs start PLAYING so they exercise
 //! ticks + presentation.
 //!
+//! G4-B note: Steam now condenses below 40.0, so demo Steam is staged at a
+//! stable hot temperature (T = 80.0).
+//!
 //! The Simulation runs headless; the Renderer only reads/presents.
 
 mod renderer;
@@ -44,6 +47,10 @@ use renderer::{PresentationPalette, Renderer, WorldViewSpec};
 const DEMO_TICKS_PER_SECOND: u32 = 15;
 const DEMO_TICK_INTERVAL: Duration =
     Duration::from_nanos(1_000_000_000 / (DEMO_TICKS_PER_SECOND as u64));
+
+/// Stable hot temperature for staged Steam (above the 40.0 condensation
+/// threshold, G4-B).
+const STEAM_STABLE_T: f32 = 80.0;
 
 const MOVEMENT_DEMO_TITLE: &str = "Powdergame G2 Demo | SAND | WATER | OIL | STEAM | SMOKE";
 const DENSITY_DEMO_TITLE: &str =
@@ -265,6 +272,7 @@ impl App {
 fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
+    let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
     let stone = MATERIAL_STONE;
 
     // Tree dividers (zone separators): trunk column + stylized canopy.
@@ -398,6 +406,7 @@ fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 106..=110 {
         for x in 80..=84 {
             set(x, y, MATERIAL_STEAM)?;
+            set_t(x, y, STEAM_STABLE_T)?; // G4-B: hot Steam stays Steam
         }
     }
 
@@ -449,6 +458,7 @@ fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
 fn stage_density_demo(simulation: &Simulation) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
+    let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
     let stone = MATERIAL_STONE;
 
     // Full-height tanks: left / right / bottom walls, 2 cells thick.
@@ -516,6 +526,7 @@ fn stage_density_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 64..=75 {
         for x in 92..=119 {
             set(x, y, MATERIAL_STEAM)?;
+            set_t(x, y, STEAM_STABLE_T)?; // G4-B: hot Steam stays Steam
         }
     }
 

@@ -90,6 +90,7 @@ const WATER: u32 = 4u;
 const OIL: u32 = 5u;
 const STEAM: u32 = 6u;
 const SMOKE: u32 = 7u;
+const ICE: u32 = 8u;
 const PALETTE_LAB: u32 = 1u;
 
 // 3x5 uppercase glyphs, bit = gy*3+gx. Presentation overlay only.
@@ -152,6 +153,7 @@ fn debug_color(id: u32, palette: u32) -> vec4<f32> {
         if (id == OIL) { return vec4<f32>(0.66, 0.38, 0.10, 1.0); }
         if (id == STEAM) { return vec4<f32>(0.96, 0.97, 0.99, 1.0); }
         if (id == SMOKE) { return vec4<f32>(0.18, 0.18, 0.20, 1.0); }
+        if (id == ICE) { return vec4<f32>(0.72, 0.92, 0.99, 1.0); }
         return vec4<f32>(1.0, 0.0, 1.0, 1.0);
     }
     if (id == EMPTY) { return vec4<f32>(0.03, 0.03, 0.06, 1.0); }
@@ -162,6 +164,7 @@ fn debug_color(id: u32, palette: u32) -> vec4<f32> {
     if (id == OIL) { return vec4<f32>(0.48, 0.27, 0.07, 1.0); }
     if (id == STEAM) { return vec4<f32>(0.85, 0.88, 0.92, 1.0); }
     if (id == SMOKE) { return vec4<f32>(0.32, 0.32, 0.34, 1.0); }
+    if (id == ICE) { return vec4<f32>(0.72, 0.92, 0.99, 1.0); }
     return vec4<f32>(1.0, 0.0, 1.0, 1.0); // unknown → magenta (must never appear)
 }
 

@@ -15,12 +15,22 @@
 //! No exact pixel checksums are required (DETERMINISM_SPEC §7); semantic
 //! invariants are what matter. Density is a Material table property — there
 //! are no per-cell density buffers.
+//!
+//! G4-B note: Steam now has a condensation phase rule, so Steam fixtures
+//! place Steam at a stable hot temperature (above the 40.0 condensation
+//! threshold). The density intent itself is unchanged.
 
 use powdergame_core::{
     WorldConfig, MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM,
     MATERIAL_STONE, MATERIAL_WATER,
 };
 use powdergame_gpu::Simulation;
+
+/// Stable hot temperature for Steam fixtures (above condensation 40.0).
+const STEAM_STABLE_T: f32 = 80.0;
+/// Hotter Steam for the long sealed-channel ordering test: it must survive
+/// many ticks of conduction with cold Smoke/Stone and never condense.
+const STEAM_VERY_HOT_T: f32 = 120.0;
 
 fn make_sim(config: WorldConfig) -> Simulation {
     pollster::block_on(Simulation::new(config)).expect("DX12 + RTX 5090 simulation init")
@@ -41,6 +51,12 @@ fn set(sim: &Simulation, x: i64, y: i64, id: u32) {
     sim.world
         .write_material(&sim.context.queue, x, y, id)
         .expect("validated edit must succeed");
+}
+
+fn set_t(sim: &Simulation, x: i64, y: i64, t: f32) {
+    sim.world
+        .write_temperature(&sim.context.queue, x, y, t)
+        .expect("validated temperature edit must succeed");
 }
 
 /// Seals a 1-cell-wide vertical channel at column `cx` with stone walls on
@@ -249,6 +265,7 @@ fn steam_swaps_up_through_smoke_when_blocked_above() {
     set(&sim, 3, 2, MATERIAL_STONE); // block smoke's escape upward
     set(&sim, 3, 3, MATERIAL_SMOKE);
     set(&sim, 3, 4, MATERIAL_STEAM);
+    set_t(&sim, 3, 4, STEAM_STABLE_T); // G4-B: Steam must stay Steam
     let before = matter_count(&sim);
 
     sim.tick().expect("tick");
@@ -265,6 +282,7 @@ fn stable_gas_ordering_does_not_swap() {
     seal_channel(&sim, 3);
     set(&sim, 3, 2, MATERIAL_STONE);
     set(&sim, 3, 3, MATERIAL_STEAM);
+    set_t(&sim, 3, 3, STEAM_STABLE_T);
     set(&sim, 3, 4, MATERIAL_SMOKE);
 
     for _ in 0..5 {
@@ -285,9 +303,14 @@ fn gas_channel_orders_steam_above_smoke() {
     set(&sim, 3, 3, MATERIAL_SMOKE);
     set(&sim, 3, 4, MATERIAL_SMOKE);
     set(&sim, 3, 5, MATERIAL_STEAM);
+    set_t(&sim, 3, 5, STEAM_VERY_HOT_T); // G4-B: hot enough to never condense
     set(&sim, 3, 6, MATERIAL_STEAM);
+    set_t(&sim, 3, 6, STEAM_VERY_HOT_T);
 
-    for _ in 0..60 {
+    // 12 ticks: the ordering completes in ~5 ticks; the shorter run keeps
+    // the hot Steam well above the condensation threshold despite
+    // conduction with the cold Smoke/Stone (no phase interference).
+    for _ in 0..12 {
         sim.tick().expect("tick");
     }
 

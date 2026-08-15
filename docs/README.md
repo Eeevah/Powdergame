@@ -1,0 +1,116 @@
+# Powdergame Documentation
+
+> 이 디렉터리는 Powdergame의 제품 의도, 설계 결정, 구현 계약, 검증 기준과 결정 역사를 보존한다.
+>
+> **중요:** 이 프로젝트의 문서는 단순 요약본이 아니다. 현재의 정답뿐 아니라 왜 그 결정을 했는지, 사용자가 어떤 선택을 했고 어떤 전제를 수정했는지까지 추적할 수 있어야 한다.
+
+## 문서 권위 순서
+
+문서가 서로 충돌할 경우 다음 순서를 따른다.
+
+1. `vision/USER_VISION.md` — 사용자가 원하는 게임의 최상위 제품 원칙
+2. 최신 `architecture/decisions/ADR-*` — 명시적으로 승인된 구조적 결정과 변경 이력
+3. `specs/*` — 현재 구현이 따라야 하는 구체적인 시뮬레이션/물질/반응/결정성 계약
+4. `architecture/ARCHITECTURE.md` — 현재 시스템 구조
+5. `planning/MILESTONES.md` — 무엇을 증명해야 완료인지 정의하는 Evidence Gate
+6. `development/*` — 개발, 테스트, 성능 측정 원칙
+7. `design-history/*` — 질문, 선택지, 사용자 선택/코멘트, superseded 결정까지 포함한 설계 맥락과 provenance
+8. `00_USER_VISION.md` — 초기 사용자 비전 스냅샷
+9. `01_MASTER_DESIGN_REPORT.md` — 프로젝트 초기 심층 리서치/설계 입력 자료
+10. 초기 프로토타입/실험 코드
+
+`00_USER_VISION.md`와 `01_MASTER_DESIGN_REPORT.md`는 삭제하지 않는다. 당시의 사고와 연구를 보존하는 역사적 자료다. 다만 이후 사용자와의 명시적 합의로 변경된 플랫폼, 결정성, 셀 모델, 물리 모델, GPU 구조 등에 대해서는 최신 ADR/SPEC이 우선한다.
+
+## 디렉터리 구조
+
+```text
+docs/
+├─ README.md
+├─ 00_USER_VISION.md                  # 초기 스냅샷 / 역사 자료
+├─ 01_MASTER_DESIGN_REPORT.md         # 초기 연구 보고서 / 연구 입력
+├─ vision/
+│  └─ USER_VISION.md                  # 현재 최상위 제품 비전
+├─ design-history/
+│  └─ 2026-08-15-foundation-design-session.md
+├─ planning/
+│  ├─ ROADMAP.md
+│  ├─ MILESTONES.md
+│  └─ STATUS.md
+├─ architecture/
+│  ├─ ARCHITECTURE.md
+│  └─ decisions/
+│     ├─ ADR-0001-world-cell-invariants.md
+│     ├─ ADR-0002-gpu-authoritative-local-simulation.md
+│     ├─ ADR-0003-minimum-sufficient-physics.md
+│     └─ ADR-0004-approximate-determinism-and-arbitration.md
+├─ specs/
+│  ├─ SIMULATION_SPEC.md
+│  ├─ MATERIAL_SPEC.md
+│  ├─ REACTION_SPEC.md
+│  └─ DETERMINISM_SPEC.md
+├─ development/
+│  ├─ DEVELOPMENT.md
+│  ├─ TESTING.md
+│  └─ PERFORMANCE.md
+└─ HANDOFF.md
+```
+
+미래의 Life, Agent, Civilization, Magic 등의 문서는 필요해질 때 추가한다. 아직 구현하지 않는 계층을 빈 코드/빈 문서로 미리 확장하지 않는다.
+
+## 문서 역할
+
+### Vision
+
+`vision/USER_VISION.md`는 **무엇을 만들고 싶은가**를 정의한다. 기술적 편의 때문에 이 문서를 거꾸로 축소하지 않는다.
+
+### Design History
+
+`design-history/*`는 **어떻게 그 결론에 도달했는가**를 보존한다.
+
+가능한 경우 다음을 남긴다.
+
+- Assistant가 던진 설계 질문
+- 제시된 주요 선택지
+- 당시 추천안
+- 사용자가 실제 선택한 답
+- 사용자가 추가한 조건/반례/교정
+- 논의를 통해 바뀐 최종안
+- 선택하지 않은 대안과 이유
+- 성능 측정 후 재검토하기로 한 항목
+- superseded된 이전 결정
+- 최종적으로 어느 SPEC/ADR에 반영되었는지
+
+중요한 사용자 발언은 `User Principle` 또는 `User Commentary`로 원래 의미를 최대한 유지해 기록한다.
+
+### ADR
+
+ADR은 **왜 이 구조를 선택했는가**를 보존한다. 승인된 과거 ADR은 조용히 다시 쓰지 않는다. 방향이 바뀌면 새 ADR이 이전 ADR을 supersede한다.
+
+### Specs
+
+SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않아도 코드를 작성할 수 있을 정도로 구체적이어야 한다.
+
+### Planning
+
+- `ROADMAP.md`: 장기 방향. 약속이 아니라 방향성.
+- `MILESTONES.md`: Evidence Gate. 기능 체크리스트가 아니라 증명 계약.
+- `STATUS.md`: 지금 실제로 어디까지 되었는가.
+
+### Development
+
+개발/테스트/성능 문서는 구현 절차와 측정 철학을 고정한다. 특히 성능 최적화는 추측이 아니라 실제 benchmark 증거를 기반으로 한다.
+
+## 핵심 문서화 원칙
+
+> **요약하지 않는다. 정리한다.**
+
+대화의 중복 표현과 말버릇은 다듬어도, 다음 정보는 임의로 버리지 않는다.
+
+- 왜 그런 결정을 했는가
+- 어떤 대안이 있었는가
+- 사용자가 무엇을 직접 선택했는가
+- 사용자가 어떤 가정을 수정했는가
+- 어떤 부분은 아직 benchmark가 필요해 확정하지 않았는가
+- 어떤 결정이 나중에 superseded되었는가
+
+이 문서 집합의 목표는 새로운 사람이나 AI/Codex 세션이 읽었을 때 **결론뿐 아니라 사용자의 의도와 설계의 경계까지 복구할 수 있게 하는 것**이다.

@@ -1,0 +1,19 @@
+[package]
+name = "powdergame-windows"
+description = "Powdergame Windows executable: winit window, wgpu/DX12 surface, renderer, platform lifecycle."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "powdergame-windows"
+path = "src/main.rs"
+
+[dependencies]
+powdergame-core = { workspace = true }
+powdergame-gpu = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+pollster = { workspace = true }
+env_logger = { workspace = true }
+log = "0.4"

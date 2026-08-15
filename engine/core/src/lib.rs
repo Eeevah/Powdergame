@@ -7,16 +7,17 @@
 //! - `powdergame-gpu` MUST NOT depend on Window/Renderer/Input.
 //! - only `apps/windows` may combine core + gpu with the platform layer.
 
+pub mod domain;
 pub mod layout;
+pub mod material;
 pub mod world_config;
 
+pub use domain::{initial_material_ids, initial_material_value, Domain};
 pub use layout::{
     WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, PRESSURE_ELEM_SIZE, TEMPERATURE_ELEM_SIZE,
 };
+pub use material::{
+    is_valid_cell_material_value, registry_contains, registry_lookup, MaterialDescriptor,
+    MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_REGISTRY, MATERIAL_STONE,
+};
 pub use world_config::{ConfigError, WorldConfig};
-
-/// `material_id` value for an empty cell.
-///
-/// `EMPTY` is not a Matter and has no material properties
-/// (see ADR-0001 / SIMULATION_SPEC §3.4). Its dense-array slot is `0`.
-pub const MATERIAL_EMPTY: u32 = 0;

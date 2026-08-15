@@ -159,6 +159,11 @@ pub enum GpuError {
     ReadbackFailed(String),
     /// Buffer creation failed.
     BufferCreateFailed(String),
+    /// A coordinate lies outside the finite world (Void). It must never be
+    /// clamped into the domain or turned into a buffer index.
+    CoordinateOutOfBounds { x: i64, y: i64 },
+    /// A material value is neither `EMPTY` nor a registered Matter.
+    InvalidMaterialValue(u32),
     /// Other error with a message.
     Other(String),
 }
@@ -181,6 +186,18 @@ impl std::fmt::Display for GpuError {
             GpuError::ShaderCompileFailed(msg) => write!(f, "shader compilation failed: {msg}"),
             GpuError::ReadbackFailed(msg) => write!(f, "GPU readback failed: {msg}"),
             GpuError::BufferCreateFailed(msg) => write!(f, "buffer creation failed: {msg}"),
+            GpuError::CoordinateOutOfBounds { x, y } => {
+                write!(
+                    f,
+                    "coordinate ({x}, {y}) is outside the finite world (Void)"
+                )
+            }
+            GpuError::InvalidMaterialValue(value) => {
+                write!(
+                    f,
+                    "invalid material value {value}: must be EMPTY or a registered Matter"
+                )
+            }
             GpuError::Other(msg) => write!(f, "{msg}"),
         }
     }

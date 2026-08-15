@@ -1,6 +1,6 @@
 //! Dense GPU world state.
 //!
-//! G0 baseline: eight dense logical buffers — for each of Current and Next:
+//! G1 baseline: eight dense logical buffers — for each of Current and Next:
 //!
 //! ```text
 //! material_id[] : u32
@@ -11,10 +11,18 @@
 //!
 //! No f16, packing, compaction, indirect dispatch or subtile masks
 //! (`docs/development/PERFORMANCE.md` §17, MILESTONES G0).
+//!
+//! G1: the initial world has an outermost ring of `BOUNDARY_BLOCK` with an
+//! `EMPTY` interior. The world stays finite and authoritative on the GPU;
+//! CPU-side work here is initialization/staging and small validated edit
+//! hooks only (no per-tick full-world CPU simulation).
 
 use wgpu::util::DeviceExt;
 
-use powdergame_core::{WorldConfig, WorldLayout, MATERIAL_EMPTY};
+use powdergame_core::{
+    initial_material_ids, is_valid_cell_material_value, Domain, WorldConfig, WorldLayout,
+    MATERIAL_ELEM_SIZE, MATERIAL_EMPTY,
+};
 
 use crate::context::GpuError;
 
@@ -104,6 +112,7 @@ impl std::fmt::Display for AllocationReport {
 /// Dense Current/Next world buffers allocated on the GPU.
 pub struct GpuWorld {
     pub config: WorldConfig,
+    pub domain: Domain,
     pub layout: WorldLayout,
     pub allocation: AllocationReport,
 
@@ -139,32 +148,80 @@ fn create_zeroed_buffer(
 }
 
 impl GpuWorld {
-    /// Allocates the full dense Current/Next world on `device`.
+    /// Allocates the full dense Current/Next world on `device` and uploads
+    /// the initial material state (outermost ring `BOUNDARY_BLOCK`, interior
+    /// `EMPTY`).
     ///
-    /// The world state is zero-initialized: every cell is `EMPTY`
-    /// (`material_id == MATERIAL_EMPTY`), temperature/pressure/flags start at
-    /// zero. This is baseline plumbing only, not EMPTY gameplay semantics.
+    /// The initial material data is built on the CPU as initialization
+    /// staging only; the authoritative world state lives on the GPU.
     pub fn new(device: &wgpu::Device, config: WorldConfig) -> Result<Self, GpuError> {
         let layout = config
             .layout()
             .map_err(|e| GpuError::Other(format!("invalid world config: {e}")))?;
+        let domain = Domain::from_config(&config);
 
-        let mk =
-            |label: &str, bytes: u64| create_zeroed_buffer(device, label, bytes, world_usage());
+        // Initial material state (staging): ring of BOUNDARY_BLOCK, EMPTY interior.
+        let initial_ids = initial_material_ids(&config)
+            .map_err(|e| GpuError::Other(format!("initial world build failed: {e}")))?;
+        let mut material_bytes: Vec<u8> = Vec::with_capacity(initial_ids.len() * 4);
+        for id in &initial_ids {
+            material_bytes.extend_from_slice(&id.to_ne_bytes());
+        }
 
-        let material_current = mk("world/material/current", layout.material_bytes)?;
-        let material_next = mk("world/material/next", layout.material_bytes)?;
-        let temperature_current = mk("world/temperature/current", layout.temperature_bytes)?;
-        let temperature_next = mk("world/temperature/next", layout.temperature_bytes)?;
-        let pressure_current = mk("world/pressure/current", layout.pressure_bytes)?;
-        let pressure_next = mk("world/pressure/next", layout.pressure_bytes)?;
-        let flags_current = mk("world/flags/current", layout.flags_bytes)?;
-        let flags_next = mk("world/flags/next", layout.flags_bytes)?;
+        // Note: wgpu 26 `create_buffer_init` returns the buffer directly.
+        let material_current = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/material/current"),
+            contents: &material_bytes,
+            usage: world_usage(),
+        });
+        let material_next = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/material/next"),
+            contents: &material_bytes,
+            usage: world_usage(),
+        });
+
+        let temperature_current = create_zeroed_buffer(
+            device,
+            "world/temperature/current",
+            layout.temperature_bytes,
+            world_usage(),
+        )?;
+        let temperature_next = create_zeroed_buffer(
+            device,
+            "world/temperature/next",
+            layout.temperature_bytes,
+            world_usage(),
+        )?;
+        let pressure_current = create_zeroed_buffer(
+            device,
+            "world/pressure/current",
+            layout.pressure_bytes,
+            world_usage(),
+        )?;
+        let pressure_next = create_zeroed_buffer(
+            device,
+            "world/pressure/next",
+            layout.pressure_bytes,
+            world_usage(),
+        )?;
+        let flags_current = create_zeroed_buffer(
+            device,
+            "world/flags/current",
+            layout.flags_bytes,
+            world_usage(),
+        )?;
+        let flags_next = create_zeroed_buffer(
+            device,
+            "world/flags/next",
+            layout.flags_bytes,
+            world_usage(),
+        )?;
 
         let allocation = AllocationReport::from_layout(config, &layout);
 
         Ok(Self {
             config,
+            domain,
             layout,
             allocation,
             material_current,
@@ -177,6 +234,124 @@ impl GpuWorld {
             flags_next,
         })
     }
+
+    /// Reads a single cell's material value (diagnostic/test helper).
+    ///
+    /// Out-of-bounds coordinates fail with `CoordinateOutOfBounds` (Void) —
+    /// they are never clamped or turned into a buffer index.
+    pub fn read_material_cell(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+    ) -> Result<u32, GpuError> {
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * MATERIAL_ELEM_SIZE;
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.material_current,
+            offset,
+            MATERIAL_ELEM_SIZE,
+        )?;
+        Ok(u32::from_ne_bytes(bytes[..4].try_into().unwrap()))
+    }
+
+    /// Reads the entire material Current buffer (test helper for small worlds).
+    pub fn read_material_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.material_current,
+            0,
+            self.layout.material_bytes,
+        )?;
+        let mut cells = Vec::with_capacity(bytes.len() / 4);
+        for chunk in bytes.chunks_exact(4) {
+            cells.push(u32::from_ne_bytes(chunk.try_into().unwrap()));
+        }
+        Ok(cells)
+    }
+
+    /// Minimal world-edit hook: sets one cell's material value.
+    ///
+    /// Validation before any write:
+    /// - `value` must be `EMPTY` or a registered Matter, otherwise
+    ///   `InvalidMaterialValue` — unknown IDs never enter the world.
+    /// - `(x, y)` must be inside the finite world, otherwise
+    ///   `CoordinateOutOfBounds` (Void) — no invisible-wall clamping.
+    ///
+    /// Writes both Current and Next so the two halves stay consistent at
+    /// rest. This is an edit/command hook, not a per-tick CPU simulation.
+    pub fn write_material(
+        &self,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+        value: u32,
+    ) -> Result<(), GpuError> {
+        if !is_valid_cell_material_value(value) {
+            return Err(GpuError::InvalidMaterialValue(value));
+        }
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * MATERIAL_ELEM_SIZE;
+        let bytes = value.to_ne_bytes();
+        queue.write_buffer(&self.material_current, offset, &bytes);
+        queue.write_buffer(&self.material_next, offset, &bytes);
+        Ok(())
+    }
+}
+
+/// Copies `size` bytes out of `source` at `offset` and maps them back to CPU.
+fn read_back_bytes(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    source: &wgpu::Buffer,
+    offset: u64,
+    size: u64,
+) -> Result<Vec<u8>, GpuError> {
+    let staging = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("world/readback-staging"),
+        size,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("world-readback-encoder"),
+    });
+    encoder.copy_buffer_to_buffer(source, offset, &staging, 0, size);
+    queue.submit([encoder.finish()]);
+
+    let _ = device.poll(wgpu::PollType::Wait);
+
+    let slice = staging.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |result| {
+        let _ = tx.send(result);
+    });
+    let _ = device.poll(wgpu::PollType::Wait);
+
+    rx.recv()
+        .map_err(|e| GpuError::ReadbackFailed(format!("map callback lost: {e}")))?
+        .map_err(|e| GpuError::ReadbackFailed(e.to_string()))?;
+
+    let mapped = slice.get_mapped_range();
+    let data = mapped.to_vec();
+    drop(mapped);
+    staging.unmap();
+    Ok(data)
 }
 
 /// `material_id` value for an empty cell, re-exported for shader-side

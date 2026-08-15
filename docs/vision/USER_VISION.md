@@ -292,40 +292,130 @@ Gameplay Light
 
 ---
 
-## 10. 결과는 정직하게, 감각은 과장한다
+## 10. 결과는 정직하게, 감각은 과장한다 — Cell Simulation ≠ Pixel-bound Presentation
 
-Simulation과 Presentation을 분리한다.
+Simulation과 Presentation을 강하게 분리한다.
+
+> **Powdergame의 Cell은 세계를 계산하는 단위이지, 최종 화면을 그리는 해상도나 미술 스타일의 한계가 아니다.**
+
+> **Cell-based simulation does not imply cell-bound presentation.**
+
+Powdergame이 falling-sand / cell simulation이라는 이유만으로 불꽃, 연기, 열, 빛, 파동, 왜곡까지 모두 cell-sized pixel effect로 표현해야 한다고 해석하지 않는다. **이 게임은 retro pixel-art presentation을 강제하지 않는다.**
 
 ### Simulation Truth
 
-플레이 결과에 실제 영향을 주는 것:
+플레이 결과에 실제 영향을 주는 authoritative state:
 
 - Matter 이동/변환
 - Temperature
 - Pressure
-- 연소
+- 연소 상태
 - 파열
 - 상변화
 - 전기/방사선/빛 등 미래 gameplay state
+- semantic simulation events
 
-### Presentation Effects
+이 층은 싸고 명확한 discrete GPU world rules를 유지한다.
 
-시뮬레이션 결과를 더 강하게 느끼게 만드는 것:
+### Presentation / FX Truth
 
-- heat haze
-- glow
-- bloom
-- shockwave visual
-- debris
-- local distortion
+Presentation은 Simulation Truth를 읽고 그 결과를 플레이어가 강하게 느끼게 만든다. **Presentation FX는 simulation grid와 1:1로 대응할 필요가 없다.** 화면 해상도, 연속 좌표, interpolation, procedural animation, post-processing을 자유롭게 사용할 수 있다.
+
+향후 허용되는 방향의 예:
+
+- heat haze / refraction / shimmering
+- screen-space distortion
+- bloom / glow / emissive lighting
+- smooth flame shapes
+- high-resolution particles / trails / sparks / embers
+- continuous smoke / mist / vapor presentation
+- shockwave / pressure-wave distortion
+- light scattering style effects
+- temporal/procedural noise
 - camera impulse
 - sound
+- 기타 modern GPU post-processing
 
-원칙:
+즉 다음과 같은 구조를 목표로 할 수 있다.
+
+```text
+Millions of cheap discrete simulation cells
+        ↓
+Matter / Temperature / Pressure / Flags / Semantic Events
+        ↓
+Presentation Extraction
+        ↓
+Modern continuous high-resolution GPU FX
+        ↓
+Final Frame
+```
+
+### Heat 예시
+
+최종 Heat 표현은 단순히 `hot cell → orange pixel`로 끝날 필요가 없다.
+
+```text
+Temperature field
+→ presentation에서 sampling / smoothing
+→ full-resolution distortion field
+→ heat haze / refraction / shimmer / glow
+```
+
+뜨거운 영역 때문에 주변 배경 자체가 울렁이거나 굴절되어도 된다. 그 FX는 simulation cell보다 훨씬 높은 해상도에서 동작할 수 있다.
+
+### Fire 예시
+
+Simulation Truth는 다음과 같을 수 있다.
+
+```text
+Wood / Oil
++ COMBUSTING state
++ Temperature
++ presentation event
+```
+
+여기서 `MATERIAL_FIRE`라는 영구적인 orange pixel Matter를 만들 필요가 없다. 동시에 Wood/Oil cell을 단순히 주황색으로 칠하는 것을 최종 Fire presentation이라고 간주하지도 않는다.
+
+향후 renderer/FX layer는 COMBUSTING Matter와 event를 바탕으로 cell grid 바깥의 smooth flame, glow, bloom, distortion, sparks, high-resolution particles를 만들 수 있다.
+
+### Smoke 예시
+
+`MATERIAL_SMOKE`가 gameplay에 참여하는 실제 Matter일 수 있다는 것과 최종 smoke visual이 `Smoke cell 하나 = 회색 네모 하나`여야 한다는 것은 별개다.
+
+```text
+Simulation Smoke distribution
+→ presentation density/source
+→ smoothing / interpolation / procedural detail
+→ continuous visual smoke
+```
+
+Simulation Smoke는 gameplay truth이고 Presentation Smoke는 그 truth가 어떻게 보이는지를 담당한다.
+
+### One-way authority
+
+기본 권한 방향은 다음이다.
+
+```text
+Simulation
+→ semantic state / event
+→ Presentation / FX
+```
+
+heat haze texture가 Temperature를 결정하거나, flame particle이 authoritative combustion state를 임의로 바꾸는 식으로 Presentation이 Simulation Truth를 역으로 정의하지 않는다. 실제 gameplay feedback이 필요한 특수 효과는 명시적인 command/rule 경계를 통해서만 연결한다.
+
+### 현재 debug rendering은 최종 미술 방향이 아니다
+
+M0/G4의 material color, temperature tint, combustion coloring, pixel Smoke 표시는 **계측·디버그·User Validation을 위한 diagnostic visualization**이다.
+
+> **현재 ThermalLab을 Powdergame의 최종 불/연기/열 그래픽 목표로 해석하지 않는다.**
+
+최종 modern FX layer는 의도적으로 후속 단계로 미룬다. 지금은 simulation causality를 먼저 증명한다.
+
+### 핵심 원칙
 
 > **결과는 정직하게, 감각은 과장한다.**
 
-실제로 움직이지 않은 Matter가 이동한 것처럼 보여 플레이어가 세계 법칙을 잘못 이해하게 만드는 Presentation은 피한다.
+실제로 움직이지 않은 Matter가 이동한 것처럼 보여 플레이어가 세계 법칙을 잘못 이해하게 만드는 Presentation은 피한다. 그러나 Simulation Truth를 왜곡하지 않는 범위에서는 감각적 표현을 과감하게 현대적으로 확장한다.
 
 ---
 

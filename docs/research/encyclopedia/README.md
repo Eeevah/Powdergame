@@ -39,6 +39,22 @@ existing Powdergame rule inference
 
 현실 정보는 직관의 앵커이지 게임값의 정답이 아니다.
 
+## Coverage policy
+
+사전은 구현보다 넓어야 한다.
+
+- **현실 물질:** 플레이어가 의미 있게 구분할 수 있는 현실 물질/재료 아키타입을 폭넓게 수용한다. 모든 화합물·합금 규격을 literal하게 복제하지는 않지만, 익숙한 물질을 검색했을 때 사전에 둘 자리가 있는 것을 목표로 한다.
+- **Doodle-God-like elements:** Matter뿐 아니라 생명, 구조물, 도구, 사회, 마법, 추상 개념까지 웬만하면 검토 대상으로 보존한다.
+- **런타임:** 사전에 있다고 전부 Material ID가 되는 것은 아니다. Matter / Phenomenon / Field / Agent / Structure / Concept / Meta 중 올바른 층으로 보낸다.
+
+```text
+encyclopedia inclusion is generous
+        ↓
+primitive classification is strict
+        ↓
+implementation remains evidence-gated
+```
+
 ## Discovery-first rule
 
 게임 안에서 이 사전을 처음부터 전부 보여주면 안 된다. 실제 제품 Dictionary는 플레이어가 관찰한 현상을 기록하는 **발견 도감**이어야 한다.
@@ -96,6 +112,14 @@ In-game Dictionary reveals discovered knowledge
 
 - `06_WEB_REALITY_ANCHORS.md` — Mars perchlorate, methane hydrate, Titan hydrocarbon lakes, aerogel, shape-memory alloy, piezoelectricity, superionic ice 등 설명 보강용 현실 앵커
 
+### 07 — Real-world coverage policy
+
+- `07_REAL_WORLD_COVERAGE_POLICY.md` — 현실 물질을 사전에는 폭넓게 넣되, behavior family/alias/variant를 통해 runtime을 불필요하게 폭발시키지 않는 기준
+
+### 08 — Doodle God coverage review
+
+- `08_DOODLE_GOD_COVERAGE_REVIEW.md` — classic/Blitz 계열의 물질·생명·기술·사회·마법·추상 요소를 거의 전수 검토하는 층 분류와 Powdergame 변환 원칙
+
 ### Search index
 
 - `MASTER_INDEX.md` — landing page
@@ -121,6 +145,8 @@ source / lore name
 
 예를 들어 `Methane / Vespene / Tibanna`가 모두 “가연성 가스”라는 같은 핵심 동사에 수렴한다면 세 이름을 그대로 만들 이유가 없다. 반대로 같은 출발점이라도 interaction chain이 완전히 다르면 별도 Matter가 될 수 있다.
 
+현실 물질은 이 규칙을 조금 다르게 적용한다. 익숙한 실재 이름 자체가 discovery value를 갖기 때문에 encyclopedia entry는 유지할 수 있지만, runtime에서는 동일 behavior family의 variant/alias가 될 수 있다.
+
 ## IP / provenance rule
 
 유명 작품의 이름·설정은 `REFERENCE_ONLY`다. 이름을 그대로 쌓아 올리는 게임이 아니라:
@@ -134,12 +160,22 @@ source / lore name
 
 하는 것을 기본으로 한다.
 
+Doodle God 역시 동일하다. 개별 조합식을 복사하는 것이 아니라 **‘물질→생명→도구→사회→개념으로 발견 그래프가 확장되는 감각’**을 Powdergame의 causal simulation으로 번역한다.
+
 ## Current next step
 
-이 v0.1 corpus의 다음 작업은 **530 source rows를 최종 고유 dictionary candidate로 canonicalize**하는 것이다.
+이 corpus의 다음 작업은 두 축을 병행한다.
+
+### Broad coverage
+
+- 현실 물질 family의 빈 영역 채우기
+- Doodle God classic/Blitz element sweep에서 누락된 자연물·생명·제품·기술·사회·마법 개념 추가
+- 각 항목을 Matter / Field / Agent / Structure / Concept / Meta로 분류
+
+### Canonicalization
 
 - exact duplicate / alias 병합
-- palette/lore-only 항목 제거
+- palette/lore-only 항목 제거 또는 reference-only 유지
 - 24 behavior family에 연결
 - IP reference → original representative 변환
 - final player-facing flavor 작성

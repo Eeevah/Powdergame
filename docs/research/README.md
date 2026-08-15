@@ -49,6 +49,7 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 - `derived/MATERIAL_PROTOTYPE_BUNDLES.md` — Dry Ice/CO2, Clathrate/Methane, Clay/Brick, Cryofluid/Ablative, Salt/Brine을 실제 causal-chain 검증 묶음으로 정의하고 prerequisites와 pass evidence를 적는다.
 - `derived/MATERIAL_SELECTION_FRAMEWORK.md` — **현실의 특징 강한 물질 → 역사적 자연관/연금술 → interaction gap → 필요한 만큼만 오리지널 Matter** 순서로 후보를 줄이는 interaction-first 선정 원칙.
 - `derived/CURATED_INTERACTION_CORE.md` — 위 선정 원칙을 실제 후보에 적용해 현실 물질 중심의 수십 종 core와 소수의 original gap-filler를 제안한다.
+- `derived/FIRST_INTERACTION_ROSTER.md` — 현재 16종 기반을 포함해 **38개 Matter identity**를 첫 넓은 interaction roster로 정리한다. 현실/일반 15종 + 현실 exotic 3종 + original gap-filler 4종만 추가하며, reserve/merge/defer 규칙도 함께 기록한다.
 
 ## Master Encyclopedia
 

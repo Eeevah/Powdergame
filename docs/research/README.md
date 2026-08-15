@@ -40,6 +40,25 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 
 다섯 번째 후보 노트는 원문을 `raw/MATERIAL_CANDIDATES.md`로 보존하고, 현재 SPEC 기준 분석을 `2026-08-16-material-candidates-analysis.md`에 기록한다.
 
+## Derived outputs
+
+원자료를 현재 Powdergame 세계 문법에 맞게 압축한 결과는 `derived/`에 둔다. 이 문서들도 여전히 구현 계약이 아니다.
+
+- `derived/MATERIAL_BEHAVIOR_FAMILIES.md` — 약 230개 후보와 앞선 OM 연구를 24개 행동 family로 압축하고, foundation-compatible / near-term / future / meta-defer를 구분한다.
+- `derived/FIRST_EXPANSION_MATERIAL_SHORTLIST.md` — M0를 건드리지 않고 그 이후 첫 확장에 적합한 저비용·고상호작용 Material과 prototype bundle을 정리한다.
+
+핵심 변환은 다음과 같다.
+
+```text
+source name / lore
+→ lore-free mechanic
+→ behavior family
+→ duplicate merge
+→ Powdergame-original representative
+→ user review
+→ ADR / SPEC / content registration
+```
+
 ## 권장 변환 파이프라인
 
 ```text

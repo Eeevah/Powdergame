@@ -466,8 +466,9 @@ fn g2_tick_preserves_g1_contracts() {
     assert_eq!(cell(&sim, 0, 0), MATERIAL_EMPTY);
 }
 
-// ── Coarse performance observation (2048×2048) ─────────────────────────
+// ── Performance ────────────────────────────────────────────────────────
 
+/// Coarse sanity observation (runs in normal `cargo test`; 30 ticks only).
 #[test]
 fn coarse_reference_world_perf() {
     let mut sim = make_sim(WorldConfig::reference());
@@ -485,10 +486,73 @@ fn coarse_reference_world_perf() {
     let per_tick_ms = elapsed.as_secs_f64() * 1000.0 / f64::from(TICKS);
     let approx_tps = f64::from(TICKS) / elapsed.as_secs_f64();
     eprintln!(
-        "[powdergame-g2][perf] world={}x{} ticks={TICKS} elapsed={elapsed:?} per_tick={per_tick_ms:.3} ms approx_tps={approx_tps:.1} \
-         (coarse end-to-end wall-clock incl. GPU completion; not a GPU timestamp benchmark)",
+        "[powdergame-g2][perf-sanity] world={}x{} ticks={TICKS} elapsed={elapsed:?} per_tick={per_tick_ms:.3} ms approx_tps={approx_tps:.1} \
+         (coarse sanity observation; not a baseline)",
         sim.world.config.width, sim.world.config.height
     );
+    assert_eq!(
+        sim.read_marker().expect("marker"),
+        1,
+        "the 2048×2048 movement pipeline must actually execute on the GPU"
+    );
+}
+
+/// Controlled idle-machine performance baseline.
+///
+/// Run explicitly (ignored by default so normal `cargo test` stays fast):
+///
+/// ```text
+/// cargo test --release -p powdergame-gpu --test movement \
+///   controlled_reference_world_perf -- --ignored --nocapture
+/// ```
+///
+/// Protocol: create the simulation once, warm up 100 ticks (excluded), then
+/// measure 5 runs of 1000 ticks each, waiting for GPU completion
+/// (`PollType::Wait`) before each timer stop. The median per-tick time is
+/// the official G2 baseline.
+///
+/// Measurement is: **controlled idle-machine, release, coarse end-to-end
+/// wall-clock including GPU completion** — NOT a GPU timestamp benchmark.
+#[test]
+#[ignore]
+fn controlled_reference_world_perf() {
+    const WARM_UP_TICKS: u32 = 100;
+    const MEASURE_TICKS: u32 = 1000;
+    const RUNS: usize = 5;
+
+    let mut sim = make_sim(WorldConfig::reference());
+
+    // Warm-up: exclude initialization and first-submission effects.
+    for _ in 0..WARM_UP_TICKS {
+        sim.tick().expect("warm-up tick");
+    }
+    let _ = sim.context.device.poll(wgpu::PollType::Wait);
+
+    let mut per_tick_samples = Vec::with_capacity(RUNS);
+    for run in 1..=RUNS {
+        let start = std::time::Instant::now();
+        for _ in 0..MEASURE_TICKS {
+            sim.tick().expect("measured tick");
+        }
+        let _ = sim.context.device.poll(wgpu::PollType::Wait); // GPU completion
+        let elapsed = start.elapsed();
+        let per_tick_ms = elapsed.as_secs_f64() * 1000.0 / f64::from(MEASURE_TICKS);
+        let approx_tps = f64::from(MEASURE_TICKS) / elapsed.as_secs_f64();
+        eprintln!(
+            "[powdergame-g2][perf-ctrl] run {run}/{RUNS}: ticks={MEASURE_TICKS} elapsed={elapsed:?} per_tick={per_tick_ms:.4} ms approx_tps={approx_tps:.1}"
+        );
+        per_tick_samples.push(per_tick_ms);
+    }
+
+    per_tick_samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median_ms = per_tick_samples[RUNS / 2];
+    let median_tps = 1000.0 / median_ms;
+    eprintln!(
+        "[powdergame-g2][perf-ctrl] MEDIAN per_tick={median_ms:.4} ms approx_tps={median_tps:.1} \
+         (release, controlled idle-machine, coarse end-to-end wall-clock incl. GPU completion; \
+         not a GPU timestamp benchmark)"
+    );
+
     assert_eq!(
         sim.read_marker().expect("marker"),
         1,

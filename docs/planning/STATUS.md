@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) VALIDATION (자동/기술 검증 완료, User Validation 대기).
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) VALIDATION (자동/기술 검증 완료 + 성능 baseline 기록, User Validation 대기).
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: 구현/기술 검증 완료 (Windows + RTX 5090 + DX12), 사용자 검증 대기.**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: 구현/기술 검증 완료 (Windows + RTX 5090 + DX12) + controlled 성능 baseline 기록, 사용자 검증 대기.**
 
 ### Current Summary
 
@@ -150,13 +150,15 @@ Stencils:         STATIC: no move
                   GAS:    up → up-diagonal → lateral(1 cell) → stop
                   First-Match, 1-cell local only (scan/teleport 없음)
                   parity 기반 좌/우 stateless ordering (RNG state 없음)
+                  모든 stencil candidate(primary/diagonal/lateral)의 OOB는
+                  Void exit — open side/top/bottom은 invisible wall 아님
 Pipeline:         propose (Current read, 1 destination) → resolve (EMPTY cell당
                   winner exactly one, fixed min-source arbitration)
                   → commit (각 cell이 자기 material_next slot만 write)
                   → GPU material_next → material_current copy
                   CPU는 매 tick full world를 계산/복사하지 않음
 
-GPU tests (movement.rs, 실제 RTX 5090/DX12 — 14개):
+GPU tests (movement.rs, 실제 RTX 5090/DX12 — 16개 + ignored benchmark 1개):
   static_materials_never_move                        PASS
   sand_falls_exactly_one_cell_per_tick               PASS
   sand_takes_diagonal_when_down_blocked              PASS
@@ -171,22 +173,40 @@ GPU tests (movement.rs, 실제 RTX 5090/DX12 — 14개):
   chunk_boundary_movement_is_plain_local_movement    PASS (63↔64 경계 양방향)
   void_exit_loses_exactly_one_matter                 PASS (open boundary로 실제 소멸,
                                                         OOB memory access 없음)
+  liquid_exits_through_open_side_boundary            PASS (side opening Void exit,
+                                                        water count 정확히 -1)
+  powder_diagonal_void_exit                          PASS (diagonal OOB Void exit,
+                                                        sand count 정확히 -1)
   g2_tick_preserves_g1_contracts                     PASS (invalid ID/OOB 거부,
                                                         boundary erase, EMPTY 미등록)
   coarse_reference_world_perf                        PASS (sanity observation only)
+  controlled_reference_world_perf                    PASS (ignored; release benchmark,
+                                                        see Performance below)
 
-Performance (2048×2048, RTX 5090):
-  DEFERRED — controlled idle-machine benchmark required.
-  G2 기준점 고정에는 performance 수치를 요구하지 않는다.
-  2026-08-16 busy-machine 참고용 sanity measurement (비공식, baseline 아님):
-  30 ticks wall-clock ≈ 18.7 ms → ~0.62 ms/tick (마지막 tick 후
-  device.poll(PollType::Wait)로 GPU completion 포함한 coarse end-to-end;
-  GPU timestamp benchmark 아님). 초기 16.22 ms/~1849 TPS 측정은 CPU
-  submission timing only였으며 GPU completion 포함 값으로 교체함.
-  이 수치는 공식 TPS / tick-time baseline으로 기록하지 않는다.
+Performance — Controlled reference-world baseline (2048×2048, RTX 5090, DX12):
+  scenario:       2048×2048 initial reference world (outer Boundary Block
+                  ring + EMPTY interior) — reference 초기 상태 기준
+  build:          release, idle machine
+  protocol:       simulation 1회 생성 → warm-up 100 ticks (제외)
+                  → device.poll(PollType::Wait) (warm-up GPU work와 측정
+                  interval 분리) → 측정 1000 ticks × 5 runs → 각 run 마지막
+                  submission 후 device.poll(PollType::Wait) → timer 종료 → median
+  runs:           0.1506 / 0.1503 / 0.1462 / 0.1442 / 0.1445 ms/tick
+                  (≈ 6641 / 6655 / 6838 / 6935 / 6919 TPS)
+  MEDIAN:         0.1462 ms/tick ≈ 6838 TPS
+  의미:           reference 초기 world에 대한 full G2 propose → resolve →
+                  commit → Next→Current pipeline의 baseline cost를 측정한 것.
+                  active/heavy-matter gameplay benchmark가 아니다. 60 TPS
+                  목표 대비 여유(~114×)는 이 reference scenario 한정 결과다.
+  명시:           controlled idle-machine, release, coarse end-to-end
+                  wall-clock including GPU completion — GPU timestamp
+                  benchmark 아님. GPU timestamp framework는 G2 범위 밖.
+  실행 방법:      cargo test --release -p powdergame-gpu --test movement \
+                    controlled_reference_world_perf -- --ignored --nocapture
 
 Movement demo (User Validation fixture):
   cargo run -p powdergame-windows -- --movement-demo
+  또는 상위 폴더의 run_powdergame.bat
   256×256 world, one-time edit-hook scene: sand fall, water over stone
   obstacle, oil pool, steam/smoke rise, open boundary → Void exit
   read-only world view (material_current storage read) — presentation은
@@ -209,11 +229,18 @@ behavior별 local stencil / First-Match                PASS
 long-distance empty-cell scan 금지                    PASS
 ownership winner exactly one                         PASS
 loser stays valid / no duplication / no unexplained loss  PASS
-열린 boundary → Void 실제 소멸                         PASS (matter count 정확히 -1)
+열린 boundary → Void 실제 소멸                         PASS (bottom/side/diagonal, matter count 정확히 -1)
 OOB GPU memory access 없음                            PASS
 G0/G1 regression 없음                                 PASS
-Performance baseline                                 NOT REQUIRED for G2 pin
-                                                      (DEFERRED — idle-machine benchmark)
+Performance observation                          REFERENCE BASELINE RECORDED —
+                                                      controlled idle-machine, release,
+                                                      median ~0.146 ms/tick (≈6838 TPS)
+                                                      @2048×2048 reference initial world
+                                                      (Boundary ring + EMPTY interior),
+                                                      coarse end-to-end incl. GPU completion.
+                                                      active/heavy-matter gameplay throughput
+                                                      validation은 향후 별도 scenario/
+                                                      benchmark 대상으로 남김
 ```
 
 G2 User Validation: **PENDING** — 사용자가 `--movement-demo`를 직접 확인해야 한다. AI가 임의로 최종 승인하지 않는다.
@@ -228,7 +255,7 @@ M0 전체는 `ACHIEVED`가 아니다. G2 User Validation + G3~G9와 최종 사�
 
 ### Next Action
 
-1. G2 User Validation: `cargo run -p powdergame-windows -- --movement-demo` 실행해
+1. G2 User Validation: `--movement-demo` (또는 `run_powdergame.bat`) 실행해
    Sand fall / Water flow / Oil / Steam-Smoke rise / Void exit를 육안 확인.
 2. G2 기준점 고정 (commit/push) — 사용자 지시 시.
 3. G3 — Density & Displacement: Density Rank, local displacement, layer separation.
@@ -247,7 +274,8 @@ M0 전체는 `ACHIEVED`가 아니다. G2 User Validation + G3~G9와 최종 사�
 - Agent/Concept/Meta layers
 - Browser/macOS product support
 - broad GPU compatibility
-- **G2 formal performance baseline (controlled idle-machine benchmark)**
+- GPU timestamp query benchmark framework (G2 baseline은 coarse wall-clock로 기록)
+- active/heavy-matter world gameplay performance benchmark (G2 reference-world baseline과 별도 대상)
 
 ---
 
@@ -255,7 +283,7 @@ M0 전체는 `ACHIEVED`가 아니다. G2 User Validation + G3~G9와 최종 사�
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1 PASS, G2 기술 검증 완료 (User Validation 대기)
+M0 implementation: **IN_PROGRESS** — G0/G1 PASS, G2 기술 검증 완료 + 성능 baseline 기록 (User Validation 대기)
 
 M0 `ACHIEVED`: **NO**
 
@@ -278,7 +306,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (41 core + 1 GPU headless smoke + 14 GPU movement + 7 GPU world integrity)
-benchmarks: DEFERRED (controlled idle-machine benchmark required; G2 busy-machine sanity measurement only, not a baseline)
-m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 tech-validated — user validation pending)
+tests: passed (44 core + 1 GPU headless smoke + 16 GPU movement + 7 GPU world integrity, ignored 1 controlled benchmark)
+benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark.
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 tech-validated + reference perf baseline recorded — user validation pending)
 ```

@@ -131,7 +131,7 @@ mod tests {
     use super::*;
     use crate::material::{
         MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL, MATERIAL_SAND,
-        MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
+        MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
     };
     use crate::thermal::{heat_capacity_table, thermal_properties};
 
@@ -209,6 +209,7 @@ mod tests {
             MATERIAL_SAND,
             MATERIAL_OIL,
             MATERIAL_SMOKE,
+            MATERIAL_WOOD,
         ] {
             assert!(!is_phase_candidate(id), "material {id} has no phase rules");
             assert_eq!(select_phase_transition(id, -1000.0), None);
@@ -218,7 +219,7 @@ mod tests {
 
     #[test]
     fn unknown_ids_never_transition() {
-        for unknown in [9u32, 42, u32::MAX] {
+        for unknown in [10u32, 42, u32::MAX] {
             assert!(!is_phase_candidate(unknown));
             assert_eq!(select_phase_transition(unknown, -50.0), None);
         }
@@ -288,11 +289,12 @@ mod tests {
             MATERIAL_SAND,
             MATERIAL_OIL,
             MATERIAL_SMOKE,
+            MATERIAL_WOOD,
         ] {
             assert_eq!(table[id as usize].below_target, NO_PHASE_TARGET);
             assert_eq!(table[id as usize].above_target, NO_PHASE_TARGET);
         }
-        for unknown in [9usize, 15] {
+        for unknown in [10usize, 15] {
             assert_eq!(table[unknown].below_target, NO_PHASE_TARGET);
             assert_eq!(table[unknown].above_target, NO_PHASE_TARGET);
         }

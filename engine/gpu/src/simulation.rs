@@ -20,11 +20,22 @@
 //! G4-B: after conduction, a phase transition pass (self-write only,
 //! Material-owned temperature rules, Ice ↔ Water ↔ Steam) transforms
 //! `material_next` from the settled `material_current` + temperature.
-//! Causal order per tick: movement → thermal conduction → phase.
-//! Combustion / expansion / Pressure are not implemented.
+//!
+//! G4-C: movement commit also transports Matter-owned combustion flags on
+//! the same ownership edge. After phase, a combustion pass (self-write)
+//! updates temperature/flags from the generic Material combustion table and
+//! requests at most one local Smoke spawn per burning source; a smoke
+//! claim/commit pair (reusing the movement `proposal`/`claim` scratch,
+//! safe because the passes are sequential) spawns Smoke with exactly one
+//! winner per destination. Pressure is a spatial field (G5) and is never
+//! transported on movement edges.
+//!
+//! Causal order per tick: movement (Matter carries Temperature + flags) →
+//! thermal conduction → phase transition → combustion → smoke spawn.
+//! Expansion / Pressure are not implemented (G5).
 
 use powdergame_core::{
-    conductivity_table, density_table, heat_capacity_table, movement_class_table,
+    combustion_table, conductivity_table, density_table, heat_capacity_table, movement_class_table,
     phase_descriptor_table, WorldConfig,
 };
 
@@ -46,6 +57,8 @@ const PARAMS_SIZE: u64 = 16;
 const TABLE_SIZE: u64 = 64;
 /// Phase descriptor table: 16 descriptors × 16 bytes.
 const PHASE_TABLE_SIZE: u64 = 256;
+/// Combustion descriptor table: 16 descriptors × 16 bytes.
+const COMBUSTION_TABLE_SIZE: u64 = 256;
 /// Size of the diagnostic marker buffer (one `u32` + padding).
 const MARKER_SIZE: u64 = 16;
 /// Upper bound for cell indices so the claim encoding `(peer << 2) | kind`
@@ -96,11 +109,17 @@ pub struct Simulation {
     commit_pipeline: wgpu::ComputePipeline,
     thermal_pipeline: wgpu::ComputePipeline,
     phase_pipeline: wgpu::ComputePipeline,
+    combustion_pipeline: wgpu::ComputePipeline,
+    smoke_claim_pipeline: wgpu::ComputePipeline,
+    smoke_commit_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
     thermal_bind_group: wgpu::BindGroup,
     phase_bind_group: wgpu::BindGroup,
+    combustion_bind_group: wgpu::BindGroup,
+    smoke_claim_bind_group: wgpu::BindGroup,
+    smoke_commit_bind_group: wgpu::BindGroup,
     marker: wgpu::Buffer,
 
     /// Number of ticks submitted since creation.
@@ -158,6 +177,26 @@ impl Simulation {
                 label: Some("powdergame-g4b-phase"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("phase_transition.wgsl").into()),
             });
+        let shader_combustion = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("powdergame-g4c-combustion"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("combustion.wgsl").into()),
+            });
+        let shader_smoke_claim =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g4c-smoke-claim"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("smoke_claim.wgsl").into()),
+                });
+        let shader_smoke_commit =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g4c-smoke-commit"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("smoke_commit.wgsl").into()),
+                });
 
         // Bind group layouts.
         let propose_layout =
@@ -197,6 +236,8 @@ impl Simulation {
                         buffer_entry(3, &BindingKind::ReadWrite), // material_next
                         buffer_entry(4, &BindingKind::Read), // temperature_current
                         buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
+                        buffer_entry(6, &BindingKind::Read), // flags_current
+                        buffer_entry(7, &BindingKind::ReadWrite), // flags_next
                     ],
                 });
         let thermal_layout =
@@ -223,6 +264,47 @@ impl Simulation {
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // temperature_current
                         buffer_entry(3, &BindingKind::Read), // phase_table
+                        buffer_entry(4, &BindingKind::ReadWrite), // material_next
+                    ],
+                });
+        let combustion_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g4c-combustion-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // temperature_current
+                        buffer_entry(3, &BindingKind::Read), // flags_current
+                        buffer_entry(4, &BindingKind::Read), // combustion_table
+                        buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
+                        buffer_entry(6, &BindingKind::ReadWrite), // flags_next
+                        buffer_entry(7, &BindingKind::ReadWrite), // proposal (smoke request)
+                    ],
+                });
+        let smoke_claim_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g4c-smoke-claim-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // proposal (smoke request)
+                        buffer_entry(3, &BindingKind::ReadWrite), // claim (smoke winner)
+                    ],
+                });
+        let smoke_commit_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g4c-smoke-commit-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // claim (smoke winner)
+                        buffer_entry(3, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
                     ],
                 });
@@ -280,6 +362,24 @@ impl Simulation {
             &phase_layout,
             &shader_phase,
             "phase_main",
+        );
+        let combustion_pipeline = make_pipeline(
+            "powdergame-g4c-combustion",
+            &combustion_layout,
+            &shader_combustion,
+            "combustion_main",
+        );
+        let smoke_claim_pipeline = make_pipeline(
+            "powdergame-g4c-smoke-claim",
+            &smoke_claim_layout,
+            &shader_smoke_claim,
+            "smoke_claim_main",
+        );
+        let smoke_commit_pipeline = make_pipeline(
+            "powdergame-g4c-smoke-commit",
+            &smoke_commit_layout,
+            &shader_smoke_commit,
+            "smoke_commit_main",
         );
 
         // Params uniform: cell_count, threads_x, width, height.
@@ -386,6 +486,28 @@ impl Simulation {
         });
         context.queue.write_buffer(&phase_table_buf, 0, &phase_data);
 
+        // G4-C combustion descriptor table (16 × 16 bytes; Material data,
+        // not per-cell state). Generic: Wood/Oil share one grammar.
+        let mut combustion_data = [0u8; COMBUSTION_TABLE_SIZE as usize];
+        for (i, desc) in combustion_table().iter().enumerate() {
+            let off = i * 16;
+            combustion_data[off..off + 4].copy_from_slice(&desc.is_combustible.to_ne_bytes());
+            combustion_data[off + 4..off + 8]
+                .copy_from_slice(&desc.ignition_threshold.to_ne_bytes());
+            combustion_data[off + 8..off + 12]
+                .copy_from_slice(&desc.sustain_threshold.to_ne_bytes());
+            combustion_data[off + 12..off + 16].copy_from_slice(&desc.heat_per_tick.to_ne_bytes());
+        }
+        let combustion_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g4c/combustion/table"),
+            size: COMBUSTION_TABLE_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context
+            .queue
+            .write_buffer(&combustion_table_buf, 0, &combustion_data);
+
         // Diagnostic marker: 16 bytes, one u32 used.
         let marker = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g3/movement/marker"),
@@ -478,6 +600,14 @@ impl Simulation {
                         binding: 5,
                         resource: world.temperature_next.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: world.flags_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: world.flags_next.as_entire_binding(),
+                    },
                 ],
             });
         let thermal_bind_group = context
@@ -540,6 +670,99 @@ impl Simulation {
                     },
                 ],
             });
+        let combustion_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("powdergame-g4c-combustion-bg"),
+                layout: &combustion_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: world.material_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: world.temperature_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: world.flags_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: combustion_table_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: world.temperature_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: world.flags_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: world.proposal.as_entire_binding(),
+                    },
+                ],
+            });
+        let smoke_claim_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("powdergame-g4c-smoke-claim-bg"),
+                layout: &smoke_claim_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: world.material_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: world.proposal.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: world.claim.as_entire_binding(),
+                    },
+                ],
+            });
+        let smoke_commit_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-g4c-smoke-commit-bg"),
+                    layout: &smoke_commit_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.temperature_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.material_next.as_entire_binding(),
+                        },
+                    ],
+                });
 
         Ok(Self {
             context,
@@ -549,26 +772,40 @@ impl Simulation {
             commit_pipeline,
             thermal_pipeline,
             phase_pipeline,
+            combustion_pipeline,
+            smoke_claim_pipeline,
+            smoke_commit_pipeline,
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
             thermal_bind_group,
             phase_bind_group,
+            combustion_bind_group,
+            smoke_claim_bind_group,
+            smoke_commit_bind_group,
             marker,
             tick_count: 0,
         })
     }
 
     /// Submits one tick on the GPU (no CPU full-world copy):
-    /// propose → claim → commit (material_next + temperature_next) →
-    /// material Next→Current → temperature Next→Current →
-    /// thermal conduction (write-self) → temperature Next→Current →
-    /// phase transition (self-write, Material-owned temperature rules) →
-    /// material Next→Current.
     ///
-    /// Causal order: Matter first carries its Temperature through ownership,
-    /// then the new location conducts, then the settled Temperature selects
-    /// the phase. Combustion / expansion / Pressure are not implemented.
+    /// ```text
+    /// movement propose → claim → commit (material + temperature + flags)
+    /// → copy material/temperature/flags Next→Current
+    /// → thermal conduction (write-self) → copy temperature Next→Current
+    /// → phase transition (self-write) → copy material Next→Current
+    /// → combustion (self-write heat/flags + Smoke spawn request)
+    /// → smoke claim (destination winner exactly one)
+    /// → smoke commit (destination self-write Smoke + hot T)
+    /// → copy material/temperature/flags Next→Current
+    /// ```
+    ///
+    /// Causal order: Matter first carries its Temperature and combustion
+    /// flags through ownership, then the new location conducts, then the
+    /// settled Temperature selects the phase, then combustion state/heat
+    /// runs, then Smoke spawns with ownership. Expansion / Pressure are
+    /// not implemented (G5).
     pub fn tick(&mut self) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
@@ -578,7 +815,7 @@ impl Simulation {
             self.context
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("powdergame-g4b-tick-encoder"),
+                    label: Some("powdergame-g4c-tick-encoder"),
                 });
 
         let dispatch = |pass: &mut wgpu::ComputePass<'_>,
@@ -626,6 +863,13 @@ impl Simulation {
             0,
             self.world.layout.temperature_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.world.flags_next,
+            0,
+            &self.world.flags_current,
+            0,
+            self.world.layout.flags_bytes,
+        );
 
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -655,6 +899,65 @@ impl Simulation {
             &self.world.material_current,
             0,
             self.world.layout.material_bytes,
+        );
+
+        // G4-C: combustion state/heat (self-write) + Smoke spawn requests.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g4c-combustion-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.combustion_pipeline,
+                &self.combustion_bind_group,
+            );
+        }
+        // Smoke spawn ownership: destination winner exactly one (the
+        // movement `proposal`/`claim` scratch is safe to reuse here — the
+        // movement passes fully consumed it earlier in this tick).
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g4c-smoke-claim-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.smoke_claim_pipeline,
+                &self.smoke_claim_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g4c-smoke-commit-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.smoke_commit_pipeline,
+                &self.smoke_commit_bind_group,
+            );
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.world.material_next,
+            0,
+            &self.world.material_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.temperature_next,
+            0,
+            &self.world.temperature_current,
+            0,
+            self.world.layout.temperature_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.flags_next,
+            0,
+            &self.world.flags_current,
+            0,
+            self.world.layout.flags_bytes,
         );
 
         self.context.queue.submit([encoder.finish()]);

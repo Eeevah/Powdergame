@@ -7,6 +7,7 @@
 //! - `powdergame-gpu` MUST NOT depend on Window/Renderer/Input.
 //! - only `apps/windows` may combine core + gpu with the platform layer.
 
+pub mod combustion;
 pub mod domain;
 pub mod layout;
 pub mod material;
@@ -15,6 +16,14 @@ pub mod phase;
 pub mod thermal;
 pub mod world_config;
 
+pub use combustion::{
+    combustion_descriptor, combustion_flag_mask, combustion_flags_next, combustion_step,
+    combustion_table, pick_smoke_spawn, CombustionDescriptor, CombustionGpuDescriptor,
+    CombustionResult, SmokeSpawnDirection, COMBUSTION_MAX_TEMPERATURE,
+    COMBUSTION_OIL_HEAT_PER_TICK, COMBUSTION_OIL_IGNITION, COMBUSTION_OIL_SUSTAIN,
+    COMBUSTION_WOOD_HEAT_PER_TICK, COMBUSTION_WOOD_IGNITION, COMBUSTION_WOOD_SUSTAIN,
+    FLAG_COMBUSTING, FLAG_FLAME_EVENT,
+};
 pub use domain::{initial_material_ids, Domain};
 pub use layout::{
     WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, PRESSURE_ELEM_SIZE, TEMPERATURE_ELEM_SIZE,
@@ -25,8 +34,9 @@ pub use material::{
     DENSITY_RANK_OIL, DENSITY_RANK_SAND, DENSITY_RANK_SMOKE, DENSITY_RANK_STEAM,
     DENSITY_RANK_WATER, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL,
     MATERIAL_REGISTRY, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE,
-    MATERIAL_WATER, THERMAL_C_GAS, THERMAL_C_ICE, THERMAL_C_LIQUID, THERMAL_C_SAND,
-    THERMAL_C_STONE, THERMAL_K_ICE, THERMAL_K_OIL, THERMAL_K_STONE, THERMAL_K_WATER,
+    MATERIAL_WATER, MATERIAL_WOOD, THERMAL_C_GAS, THERMAL_C_ICE, THERMAL_C_LIQUID, THERMAL_C_SAND,
+    THERMAL_C_STONE, THERMAL_C_WOOD, THERMAL_K_ICE, THERMAL_K_OIL, THERMAL_K_STONE,
+    THERMAL_K_WATER, THERMAL_K_WOOD,
 };
 pub use movement::{
     density_displacement_allowed, prefer_left, propose_move, CellState, DensityDirection,

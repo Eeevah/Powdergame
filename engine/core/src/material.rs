@@ -13,8 +13,14 @@
 //! `thermal_conductivity` / `heat_capacity` (gameplay scalars, not SI).
 //! G4-B adds `phase_transitions` — the Material's own small ordered rule
 //! set for temperature-based 1:1 self transitions (Ice ↔ Water ↔ Steam).
-//! Combustion / ignition properties are still not here.
+//! G4-C adds `combustion` — the Material's generic ignition/sustain/heat
+//! descriptor (Wood and Oil share one grammar, `REACTION_SPEC` §11).
 
+use crate::combustion::{
+    CombustionDescriptor, COMBUSTION_OIL_HEAT_PER_TICK, COMBUSTION_OIL_IGNITION,
+    COMBUSTION_OIL_SUSTAIN, COMBUSTION_WOOD_HEAT_PER_TICK, COMBUSTION_WOOD_IGNITION,
+    COMBUSTION_WOOD_SUSTAIN,
+};
 use crate::phase::{PhaseTransition, TemperatureCondition};
 
 /// Absence of Matter in a cell. `EMPTY` is not Matter (ADR-0001).
@@ -35,6 +41,8 @@ pub const MATERIAL_STEAM: u32 = 6;
 pub const MATERIAL_SMOKE: u32 = 7;
 /// Ice — STATIC registered Matter (G4-B phase transition target).
 pub const MATERIAL_ICE: u32 = 8;
+/// Wood — STATIC registered Matter (G4-C combustible).
+pub const MATERIAL_WOOD: u32 = 9;
 
 // G3 baseline density ranks (gameplay ordering, `MATERIAL_SPEC` §5):
 // heavier sinks below lighter. These are not physical units and may be
@@ -56,17 +64,19 @@ pub const THERMAL_K_OIL: f32 = 0.20;
 pub const THERMAL_K_STEAM: f32 = 0.10;
 pub const THERMAL_K_SMOKE: f32 = 0.10;
 pub const THERMAL_K_ICE: f32 = 0.60;
+pub const THERMAL_K_WOOD: f32 = 0.15;
 pub const THERMAL_C_BOUNDARY: f32 = 2.0;
 pub const THERMAL_C_STONE: f32 = 2.0;
 pub const THERMAL_C_SAND: f32 = 1.5;
 pub const THERMAL_C_LIQUID: f32 = 2.5;
 pub const THERMAL_C_GAS: f32 = 0.8;
 pub const THERMAL_C_ICE: f32 = 2.0;
+pub const THERMAL_C_WOOD: f32 = 2.0;
 
 /// Movement behavior family (G2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MovementClass {
-    /// No normal movement (Boundary Block, Stone, Ice).
+    /// No normal movement (Boundary Block, Stone, Ice, Wood).
     Static,
     /// Falls down / down-diagonal (Sand).
     Powder,
@@ -103,8 +113,8 @@ impl MovementClass {
 ///
 /// G2 adds `movement_class`; G3 adds `density_rank`; G4-A adds cheap
 /// thermal scalars; G4-B adds the Material's own `phase_transitions`
-/// (ordered First-Match, `REACTION_SPEC` §6). No combustion / ignition
-/// fields yet.
+/// (ordered First-Match, `REACTION_SPEC` §6); G4-C adds the generic
+/// `combustion` descriptor (Wood/Oil share one grammar).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MaterialDescriptor {
     pub id: u32,
@@ -124,8 +134,14 @@ pub struct MaterialDescriptor {
     /// Temperature-based 1:1 self transitions, pre-ordered First-Match.
     ///
     /// Empty means this Matter has no phase transition (EMPTY, Stone, Sand,
-    /// Oil, Smoke, Boundary). This is Material data — never per-cell state.
+    /// Oil, Smoke, Wood, Boundary). This is Material data — never per-cell
+    /// state.
     pub phase_transitions: &'static [PhaseTransition],
+    /// Generic combustion properties (ignition/sustain/heat).
+    ///
+    /// `None` means this Matter never combusts. This is Material data —
+    /// the per-cell `flags` field stores only the combustion bits.
+    pub combustion: Option<CombustionDescriptor>,
 }
 
 /// The registered Matter catalog.
@@ -141,6 +157,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         thermal_conductivity: THERMAL_K_BOUNDARY,
         heat_capacity: THERMAL_C_BOUNDARY,
         phase_transitions: &[],
+        combustion: None,
     },
     MaterialDescriptor {
         id: MATERIAL_STONE,
@@ -150,6 +167,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         thermal_conductivity: THERMAL_K_STONE,
         heat_capacity: THERMAL_C_STONE,
         phase_transitions: &[],
+        combustion: None,
     },
     MaterialDescriptor {
         id: MATERIAL_SAND,
@@ -159,6 +177,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         thermal_conductivity: THERMAL_K_SAND,
         heat_capacity: THERMAL_C_SAND,
         phase_transitions: &[],
+        combustion: None,
     },
     MaterialDescriptor {
         id: MATERIAL_WATER,
@@ -179,6 +198,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
                 target_material: MATERIAL_STEAM,
             },
         ],
+        combustion: None,
     },
     MaterialDescriptor {
         id: MATERIAL_OIL,
@@ -188,6 +208,11 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         thermal_conductivity: THERMAL_K_OIL,
         heat_capacity: THERMAL_C_LIQUID,
         phase_transitions: &[],
+        combustion: Some(CombustionDescriptor {
+            ignition_threshold: COMBUSTION_OIL_IGNITION,
+            sustain_threshold: COMBUSTION_OIL_SUSTAIN,
+            heat_per_tick: COMBUSTION_OIL_HEAT_PER_TICK,
+        }),
     },
     MaterialDescriptor {
         id: MATERIAL_STEAM,
@@ -201,6 +226,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             threshold: crate::phase::STEAM_CONDENSE_BELOW,
             target_material: MATERIAL_WATER,
         }],
+        combustion: None,
     },
     MaterialDescriptor {
         id: MATERIAL_SMOKE,
@@ -210,6 +236,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         thermal_conductivity: THERMAL_K_SMOKE,
         heat_capacity: THERMAL_C_GAS,
         phase_transitions: &[],
+        combustion: None,
     },
     MaterialDescriptor {
         id: MATERIAL_ICE,
@@ -223,6 +250,21 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             threshold: crate::phase::ICE_MELT_ABOVE,
             target_material: MATERIAL_WATER,
         }],
+        combustion: None,
+    },
+    MaterialDescriptor {
+        id: MATERIAL_WOOD,
+        name: "Wood",
+        movement_class: MovementClass::Static,
+        density_rank: None,
+        thermal_conductivity: THERMAL_K_WOOD,
+        heat_capacity: THERMAL_C_WOOD,
+        phase_transitions: &[],
+        combustion: Some(CombustionDescriptor {
+            ignition_threshold: COMBUSTION_WOOD_IGNITION,
+            sustain_threshold: COMBUSTION_WOOD_SUSTAIN,
+            heat_per_tick: COMBUSTION_WOOD_HEAT_PER_TICK,
+        }),
     },
 ];
 
@@ -303,7 +345,7 @@ mod tests {
         assert_eq!(registry_lookup(MATERIAL_EMPTY), None);
         assert_eq!(movement_class(MATERIAL_EMPTY), None);
         assert_eq!(density_rank(MATERIAL_EMPTY), None);
-        assert_eq!(MATERIAL_REGISTRY.len(), 8);
+        assert_eq!(MATERIAL_REGISTRY.len(), 9);
     }
 
     #[test]
@@ -317,6 +359,7 @@ mod tests {
             (MATERIAL_STEAM, "Steam"),
             (MATERIAL_SMOKE, "Smoke"),
             (MATERIAL_ICE, "Ice"),
+            (MATERIAL_WOOD, "Wood"),
         ];
         for (id, name) in expected {
             let d = registry_lookup(id).unwrap_or_else(|| panic!("{name} must be registered"));
@@ -338,6 +381,7 @@ mod tests {
         assert_eq!(movement_class(MATERIAL_STEAM), Some(MovementClass::Gas));
         assert_eq!(movement_class(MATERIAL_SMOKE), Some(MovementClass::Gas));
         assert_eq!(movement_class(MATERIAL_ICE), Some(MovementClass::Static));
+        assert_eq!(movement_class(MATERIAL_WOOD), Some(MovementClass::Static));
     }
 
     #[test]
@@ -367,7 +411,7 @@ mod tests {
 
     #[test]
     fn unknown_ids_are_rejected() {
-        for unknown in [9u32, 42, u32::MAX] {
+        for unknown in [10u32, 42, u32::MAX] {
             assert!(!registry_contains(unknown));
             assert_eq!(registry_lookup(unknown), None);
             assert!(!is_valid_cell_material_value(unknown));
@@ -387,6 +431,7 @@ mod tests {
             MATERIAL_STEAM,
             MATERIAL_SMOKE,
             MATERIAL_ICE,
+            MATERIAL_WOOD,
         ] {
             assert!(is_valid_cell_material_value(id), "id {id}");
         }
@@ -404,6 +449,7 @@ mod tests {
         assert_eq!(table[MATERIAL_STEAM as usize], 3); // gas
         assert_eq!(table[MATERIAL_SMOKE as usize], 3); // gas
         assert_eq!(table[MATERIAL_ICE as usize], 0); // static
+        assert_eq!(table[MATERIAL_WOOD as usize], 0); // static
     }
 
     #[test]
@@ -420,6 +466,7 @@ mod tests {
         assert_eq!(density_rank(MATERIAL_BOUNDARY_BLOCK), None);
         assert_eq!(density_rank(MATERIAL_STONE), None);
         assert_eq!(density_rank(MATERIAL_ICE), None);
+        assert_eq!(density_rank(MATERIAL_WOOD), None);
         assert_eq!(density_rank(MATERIAL_EMPTY), None);
     }
 
@@ -435,7 +482,8 @@ mod tests {
         assert_eq!(table[MATERIAL_STEAM as usize], 20);
         assert_eq!(table[MATERIAL_SMOKE as usize], 30);
         assert_eq!(table[MATERIAL_ICE as usize], 0);
-        for unknown in [9usize, 15] {
+        assert_eq!(table[MATERIAL_WOOD as usize], 0);
+        for unknown in [10usize, 15] {
             assert_eq!(table[unknown], 0);
         }
     }
@@ -465,6 +513,33 @@ mod tests {
         assert!(ice.thermal_conductivity.is_finite());
         assert!(ice.heat_capacity.is_finite());
         assert_eq!(ice.phase_transitions.len(), 1);
+        assert_eq!(ice.combustion, None);
+    }
+
+    #[test]
+    fn wood_is_registered_static_with_combustion() {
+        let wood = registry_lookup(MATERIAL_WOOD).unwrap();
+        assert_eq!(wood.name, "Wood");
+        assert_eq!(wood.movement_class, MovementClass::Static);
+        assert_eq!(wood.density_rank, None);
+        assert_eq!(wood.thermal_conductivity, THERMAL_K_WOOD);
+        assert_eq!(wood.heat_capacity, THERMAL_C_WOOD);
+        assert!(wood.thermal_conductivity.is_finite());
+        assert!(wood.heat_capacity.is_finite());
+        assert!(wood.phase_transitions.is_empty());
+        let combustion = wood.combustion.expect("Wood must be combustible");
+        assert_eq!(combustion.ignition_threshold, COMBUSTION_WOOD_IGNITION);
+        assert_eq!(combustion.sustain_threshold, COMBUSTION_WOOD_SUSTAIN);
+        assert_eq!(combustion.heat_per_tick, COMBUSTION_WOOD_HEAT_PER_TICK);
+    }
+
+    #[test]
+    fn oil_has_combustion_descriptor() {
+        let oil = registry_lookup(MATERIAL_OIL).unwrap();
+        let combustion = oil.combustion.expect("Oil must be combustible");
+        assert_eq!(combustion.ignition_threshold, COMBUSTION_OIL_IGNITION);
+        assert_eq!(combustion.sustain_threshold, COMBUSTION_OIL_SUSTAIN);
+        assert_eq!(combustion.heat_per_tick, COMBUSTION_OIL_HEAT_PER_TICK);
     }
 
     #[test]

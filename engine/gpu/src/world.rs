@@ -23,13 +23,21 @@
 //! pipeline — `proposal` (each source's chosen destination) and `claim`
 //! (each cell's single selected ownership edge, with reciprocal agreement
 //! between both endpoints). They hold movement arbitration scratch state,
-//! never Matter and never density state.
+//! never Matter and never density state. G4-C reuses both buffers for the
+//! smoke spawn proposal/claim after movement ownership has fully settled
+//! (sequential passes, safe reuse).
+//!
+//! G4-C: `flags` holds Matter-owned combustion bits. Replacing a cell's
+//! Material identity through the edit hook resets the cell's flags on both
+//! Current and Next, so a stale `COMBUSTING` bit can never survive an
+//! identity change.
 
 use wgpu::util::DeviceExt;
 
 use powdergame_core::{
     initial_material_ids, is_valid_cell_material_value, Domain, WorldConfig, WorldLayout,
-    MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, TEMPERATURE_ELEM_SIZE, TEMPERATURE_REFERENCE,
+    FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, TEMPERATURE_ELEM_SIZE,
+    TEMPERATURE_REFERENCE,
 };
 
 use crate::context::GpuError;
@@ -134,8 +142,11 @@ pub struct GpuWorld {
     pub flags_next: wgpu::Buffer,
 
     /// Per-cell movement proposal (destination index, NO_MOVE or VOID_TARGET).
+    /// G4-C reuses this buffer for smoke spawn proposals after movement
+    /// ownership has fully settled.
     pub proposal: wgpu::Buffer,
     /// Per-cell ownership edge claim (reciprocal agreement for moves/swaps).
+    /// G4-C reuses this buffer for smoke spawn claims (sequential passes).
     pub claim: wgpu::Buffer,
 }
 
@@ -319,6 +330,11 @@ impl GpuWorld {
     /// - `(x, y)` must be inside the finite world, otherwise
     ///   `CoordinateOutOfBounds` (Void) — no invisible-wall clamping.
     ///
+    /// Replacing a cell's Material identity resets its Matter-owned flags
+    /// on both Current and Next (a new identity never inherits a stale
+    /// `COMBUSTING` state, `MATERIAL_SPEC` §4). Writing `EMPTY` also
+    /// resets temperature to the reference.
+    ///
     /// Writes both Current and Next so the two halves stay consistent at
     /// rest. This is an edit/command hook, not a per-tick CPU simulation.
     pub fn write_material(
@@ -339,6 +355,11 @@ impl GpuWorld {
         let bytes = value.to_ne_bytes();
         queue.write_buffer(&self.material_current, offset, &bytes);
         queue.write_buffer(&self.material_next, offset, &bytes);
+        // Matter-owned flags never survive an identity replacement.
+        let zero_flags = 0u32.to_ne_bytes();
+        let f_off = index * FLAGS_ELEM_SIZE;
+        queue.write_buffer(&self.flags_current, f_off, &zero_flags);
+        queue.write_buffer(&self.flags_next, f_off, &zero_flags);
         if value == MATERIAL_EMPTY {
             // EMPTY is not a thermal medium and must not keep leftover heat.
             let zero = TEMPERATURE_REFERENCE.to_ne_bytes();
@@ -347,6 +368,65 @@ impl GpuWorld {
             queue.write_buffer(&self.temperature_next, t_off, &zero);
         }
         Ok(())
+    }
+
+    /// Diagnostic/test hook: sets one cell's flags on Current and Next.
+    ///
+    /// Used to stage Matter-owned state (e.g. `FLAG_COMBUSTING`) in
+    /// fixtures. Coordinate-validated; no material coupling by design.
+    pub fn write_flags(
+        &self,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+        value: u32,
+    ) -> Result<(), GpuError> {
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * FLAGS_ELEM_SIZE;
+        let bytes = value.to_ne_bytes();
+        queue.write_buffer(&self.flags_current, offset, &bytes);
+        queue.write_buffer(&self.flags_next, offset, &bytes);
+        Ok(())
+    }
+
+    /// Reads a single cell's flags (diagnostic/test helper).
+    pub fn read_flags_cell(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+    ) -> Result<u32, GpuError> {
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * FLAGS_ELEM_SIZE;
+        let bytes = read_back_bytes(device, queue, &self.flags_current, offset, FLAGS_ELEM_SIZE)?;
+        Ok(u32::from_ne_bytes(bytes[..4].try_into().unwrap()))
+    }
+
+    /// Reads the entire flags Current buffer (test helper).
+    pub fn read_flags_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.flags_current,
+            0,
+            self.layout.flags_bytes,
+        )?;
+        let mut cells = Vec::with_capacity(bytes.len() / 4);
+        for chunk in bytes.chunks_exact(4) {
+            cells.push(u32::from_ne_bytes(chunk.try_into().unwrap()));
+        }
+        Ok(cells)
     }
 
     /// Reads a single cell's temperature (diagnostic/test helper).

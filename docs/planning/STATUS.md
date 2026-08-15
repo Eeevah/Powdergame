@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4-A (Thermal Baseline) TECHNICAL PASS, G4-B (Phase Transition) TECHNICAL PASS. G4 전체는 아직 PASS/CLOSED가 아니다 (G4-C Combustion 미구현). G4~G9와 최종 M0 사용자 승인 남음.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4-A (Thermal Baseline) TECHNICAL PASS, G4-B (Phase Transition) TECHNICAL PASS, G4-C (Combustion) TECHNICAL PASS. G4 전체는 아직 PASS/CLOSED가 아니다 (G4 User Validation 미실행). G4~G9와 최종 M0 사용자 승인 남음.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: IN_PROGRESS (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion 미구현, G4 User Validation PENDING).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: IN_PROGRESS (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion TECHNICAL PASS, G4 User Validation PENDING / NOT YET RUN).**
 
 ### Current Summary
 
@@ -44,9 +44,9 @@
 - approximate, non-bit-exact determinism
 - M0 Evidence Gates G0~G9
 
-2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**가 구현·검증·승인 완료되었고, **G4-A (Thermal Baseline)**와 **G4-B (Phase Transition)**는 기술 검증 완료 상태(TECHNICAL PASS)다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했고, G3는 laboratory `--density-demo`를 직접 실행해 약 300 ticks 관찰 후 승인했다.
+2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**가 구현·검증·승인 완료되었고, **G4-A (Thermal Baseline)**, **G4-B (Phase Transition)**, **G4-C (Combustion)**는 기술 검증 완료 상태(TECHNICAL PASS)다. G2는 사용자가 개선된 128×128 가상 숲 movement demo를 직접 실행해 ("잘된다") 승인했고, G3는 laboratory `--density-demo`를 직접 실행해 약 300 ticks 관찰 후 승인했다.
 
-G4 전체는 여전히 IN_PROGRESS다. 현재 branch `feature/m0-g4-thermal-phase-combustion`(base: `4053fe0a51ecdf59e5515eb58e2079e87c78c740` — G3 PASS/CLOSED)에는 G4-A Thermal Baseline + thermal ownership hardening과 G4-B Ice↔Water↔Steam Phase Transition이 구현되어 있다. G4-C (Wood/Oil combustion / Fire), Pressure logic, phase expansion, thermal demo, G4 User Validation은 아직 구현되지 않았다.
+G4 전체는 여전히 IN_PROGRESS다. 현재 branch `feature/m0-g4-thermal-phase-combustion`(base: `4053fe0a51ecdf59e5515eb58e2079e87c78c740` — G3 PASS/CLOSED)에는 G4-A Thermal Baseline + thermal ownership hardening, G4-B Ice↔Water↔Steam Phase Transition, G4-C Wood/Oil Combustion이 구현되어 있다. G4 통합 User Validation demo, G5 Pressure logic, phase expansion은 아직 구현되지 않았다.
 
 ### G0 Runtime Evidence (2026-08-16, local run)
 
@@ -408,7 +408,7 @@ Ownership:        no separate thermal Claim/Resolve. Movement commit
                   경쟁 패배/blocked: T 유지
 GPU:              propose → claim → commit(mat+T) → copy both Current →
                   thermal.wgsl → temperature Next→Current
-Phase/combustion: not started (G4-B / G4-C 미구현)
+Phase/combustion: not started (G4-B / G4-C 미구현 at G4-A)
 G4 전체 상태:      NOT PASS, NOT CLOSED (IN_PROGRESS)
 ```
 
@@ -482,7 +482,7 @@ Core pure tests (phase.rs + material.rs — 13개):
   water_freezes_below_threshold / water_boils_above_threshold         PASS
   ice_melts_above_threshold / steam_condenses_below_threshold         PASS
   neutral_temperatures_are_stable / hysteresis_bands_prevent_ping_pong PASS
-  non_phase_materials_never_transition (EMPTY/Stone/Sand/Oil/Smoke)   PASS
+  non_phase_materials_never_transition (EMPTY/Stone/Sand/Oil/Smoke/Wood) PASS
   unknown_ids_never_transition / targets_are_registered_matter        PASS
   phase_candidates_are_only_water_ice_steam                           PASS
   gpu_descriptor_table_matches_reference                              PASS
@@ -542,7 +542,152 @@ G0/G1/G2/G3/G4-A regression:
 cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
 ```
 
-**G4-B Phase Transition: TECHNICAL PASS.** (G4 전체는 여전히 IN_PROGRESS — G4-C Combustion 미구현, G4 User Validation PENDING.)
+**G4-B Phase Transition: TECHNICAL PASS.** (G4 전체는 여전히 IN_PROGRESS — G4-C 이후 G4 User Validation 남음.)
+
+### G4-C Combustion (technical sub-step — TECHNICAL PASS, not G4 CLOSED)
+
+```text
+Branch:           feature/m0-g4-thermal-phase-combustion (G4-B 위에 추가)
+Scope:            Wood/Oil combustion ENGINE + tests ONLY — generic ignition
+                  / sustain / heat / Smoke request / presentation event
+Out of scope:     Oxygen simulation, stoichiometry, Ash, finite fuel mass,
+                  burn-age counter, realistic flame chemistry, Pressure /
+                  rupture / vent, phase expansion (G5), G4 demo, Active/Sleep,
+                  Reaction DSL editor, performance optimization
+Material:         WOOD = 9 추가 (기존 ID 변경 없음)
+                  movement_class = STATIC, density_rank = None
+                  thermal_conductivity = 0.15, heat_capacity = 2.0 (gameplay)
+                  Oil은 combustion descriptor 추가 (기존 ID/property 유지)
+Data model:       MaterialDescriptor.combustion: Option<CombustionDescriptor>
+                  { ignition_threshold, sustain_threshold, heat_per_tick }
+                  — Wood/Oil share ONE generic grammar (REACTION_SPEC §11),
+                  shader에 material-name branch 없음. GPU는 compiled
+                  CombustionGpuDescriptor table (is_combustible + 3 floats,
+                  16 slots × 16 bytes)만 사용
+Tuning (baseline):Oil  ignite 75 / sustain 45 / heat +5 per tick
+                  Wood ignite 90 / sustain 55 / heat +4 per tick
+                  (relative gameplay scalar, not SI; retunable)
+Fire is NOT Matter: flame = Matter + FLAG_COMBUSTING + heat +
+                  FLAG_FLAME_EVENT presentation signal (permanent orange
+                  Fire ID 없음)
+Flags:            FLAG_COMBUSTING (1<<0) persistent Matter-owned state,
+                  FLAG_FLAME_EVENT (1<<1) per-tick presentation pulse
+                  — combustion은 자기 bit만 set/clear, 미래 subsystem bit 보존
+Ownership:        flags는 Matter-owned state — movement commit이 temperature와
+                  같은 edge를 따라 수송 (stay/move/swap/void/unmatched 전부).
+                  flags[] contract: occupying Matter에 부착된 state bits 전용
+                  field (EMPTY flags=0). Pressure 같은 spatial/cell-owned state는
+                  flags에 넣지 않고 별도 field 사용 — movement edge에서 미수송.
+Edit invariant:   write_material이 identity 교체 시 Current/Next flags를 0으로
+                  reset — stale COMBUSTING이 새 identity에 남지 않음
+Tick order:       movement (Matter + T + flags) → thermal → phase →
+                  combustion (self-write heat/flags + Smoke request) →
+                  smoke claim (destination winner exactly one) →
+                  smoke commit (destination self-write Smoke + hot T)
+Smoke spawn:      max 1 local 1-cell candidate per burning source per tick
+                  (up → up-diagonal → lateral, parity ordered; in-domain
+                  EMPTY only; blocked → no spawn; Void는 spawn target 아님).
+                  Smoke proposal은 기존 movement proposal/claim scratch를
+                  sequential pass 안전 재사용. new Smoke T = burning source T
+                  (finite). source Wood/Oil는 spawn으로 사라지지 않음.
+```
+
+G4-C 기술 검증 (2026-08-16, local run — 실제 RTX 5090/DX12):
+
+```text
+Core pure tests (combustion.rs + material.rs — 19개):
+  Wood/Oil 같은 generic descriptor 구조 / nonflammable(Stone/Water/Sand/
+  Ice/Steam/Smoke/Boundary/EMPTY) combustion None                     PASS
+  Oil 75/ Wood 90 ignition threshold / sustain 45/55 continuation      PASS
+  burning 아래 sustain → extinguish / burning → heat_per_tick 증가     PASS
+  ignition tick도 heat 추가 / nonflammable hot → never ignites         PASS
+  no Oxygen concept in pure rule (signature에 산소 입력 없음)           PASS
+  outputs always finite / cap은 더 뜨거운 cell을 줄이지 않음            PASS
+  combustion flags는 unrelated bit 보존 (bit mask)                    PASS
+  smoke stencil ordering (up → diag parity → lateral parity → none)    PASS
+  combustion table은 combustible만 1 (sentinel is_combustible=0)       PASS
+  material.rs: WOOD 등록/STATIC/density None/thermal/combustion        PASS
+
+GPU tests (combustion.rs — 25개, 실제 RTX 5090/DX12):
+  hot_oil_ignites                                 PASS (T=80 → COMBUSTING + FLAME_EVENT, heat 추가)
+  hot_wood_ignites                               PASS (T=95 → COMBUSTING)
+  cold_oil_does_not_ignite / cold_wood_does_not_ignite  PASS
+  burning_adds_heat                              PASS (T 증가)
+  cooling_below_sustain_extinguishes             PASS (COMBUSTING/FLAME_EVENT 해제)
+  nonflammable_hot_material_does_not_combust     PASS (Stone T=100, stale bit도 무시)
+  no_oxygen_requirement                          PASS (완전 밀폐 stone chamber에서 점화,
+                                                     smoke spawn도 차단)
+  flame_event_emitted_on_ignition                PASS (presentation signal)
+  combustion_flag_bits_are_preserved             PASS (unrelated bit 보존)
+  burning_oil_carries_flags_when_moving          PASS (move edge로 flags 수송,
+                                                     vacated source flags=0)
+  burning_matter_swap_carries_flags              PASS (density swap으로 Oil의
+                                                     COMBUSTING 이동, Smoke가 훔치지 않음)
+  burning_matter_void_exit_clears_flags          PASS (EMPTY/T=0/flags=0, OOB write 없음)
+  blocked_or_losing_burning_matter_keeps_flags   PASS (blocked 시 flags 유지)
+  burning_wood_spawns_smoke / burning_oil_spawns_smoke  PASS (같은 generic path,
+                                                     source 유지, one cell per request,
+                                                     hot Smoke T = source T)
+  smoke_spawn_contention_exactly_one             PASS (두 source → 같은 target,
+                                                     winner exactly one, Wood 2 유지)
+  smoke_spawn_crosses_chunk_boundary             PASS (x=63→64 spawn — chunk wall 아님)
+  thermal_heating_triggers_ignition              PASS (hot reservoir 전도만으로
+                                                     Wood가 ignition threshold 통과)
+  edit_replaces_material_and_clears_flags        PASS (burning Wood → Stone,
+                                                     flags reset)
+  burning_source_keeps_heat_and_flags_while_spawning_smoke  PASS (1 tick 안에 combustion
+                                                     self effects(heat + COMBUSTING +
+                                                     FLAME_EVENT)와 Smoke spawn 동시 검증 —
+                                                     후속 smoke commit이 source heat/flags를
+                                                     clobber하지 않음)
+  spawned_smoke_does_not_inherit_combustion_flags PASS (Smoke는 source T는 파생하지만
+                                                     COMBUSTING/FLAME_EVENT는 복제하지 않음)
+  unrelated_flag_bit_survives_combustion         PASS (TEST_UNRELATED_FLAG(1<<10) 보존 —
+                                                     flags word 전체 덮어쓰기 없음)
+  nonflammable_material_clears_stale_combustion_bits  PASS (Water에 stale combustion bits
+                                                     설정 → tick 후 clear, T 증가 없음,
+                                                     unrelated bit 보존)
+  flame_event_is_set_on_active_ticks_and_cleared_on_extinguish  PASS (ephemeral pulse vs
+                                                     persistent COMBUSTING 구분)
+
+Integration hardening evidence:
+  - combustion self effects → smoke proposal/claim/commit 후속 pass가 앞선
+    combustion 결과를 clobber하지 않음 (heat + flags 보존)
+  - spawned Smoke는 combustion flags를 상속하지 않음 (identity/state 복제 없음)
+  - combustion shader는 flags word 전체를 덮지 않고 자기 bit만 조작
+  - nonflammable Matter는 stale combustion state를 clear
+  - FLAME_EVENT는 per-tick presentation pulse (ephemeral), COMBUSTING은 persistent
+
+G0/G1/G2/G3/G4-A/G4-B regression:
+  cargo test --workspace 전체 PASS (97 core + 25 combustion + 15 density +
+  16 phase + 1 G0 headless + 16 movement + 13 thermal + 7 integrity
+  = 190, ignored 1 controlled benchmark)
+  Windows smoke (--smoke-frames 60): PASS — RTX 5090/Dx12, 2048×2048, marker=1
+  --movement-demo --smoke-frames 120: PASS — G2 forest demo regression 없음
+  --density-demo --smoke-frames 180: PASS — G3 lab demo regression 없음
+
+cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
+공식 performance benchmark: 측정 안 함 (correctness-first; 추가 GPU passes의
+잠재 cost는 risk 항목으로 기록)
+```
+
+G4-C Evidence Gate 판정 (MILESTONES.md G4 Required Evidence 기준):
+
+```text
+Temperature f32 baseline                                PASS (G4-A)
+4-neighbor thermal propagation baseline                 PASS (G4-A)
+EMPTY가 숨은 thermal medium 아님                        PASS (G4-A)
+Material별 cheap conductivity/heat-capacity              PASS (G4-A)
+Ice ↔ Water ↔ Steam                                     PASS (G4-B)
+heating/cooling 양방향 transition                       PASS (G4-B)
+Wood/Oil 공통 combustion grammar                        PASS (descriptor + GPU)
+combustion → Heat + Smoke + presentation event          PASS (heat + spawn + FLAME_EVENT)
+Oxygen이 하드코딩 필수 조건 아님                          PASS (no_oxygen GPU test + pure signature)
+NaN/Infinity runaway 없음                                PASS (sanitize + cap + finite tests)
+G4 User Validation                                       PENDING — G4 통합 demo 후 사용자 확인 필요
+```
+
+**G4-C Combustion: TECHNICAL PASS.** (G4 전체는 여전히 IN_PROGRESS — G4 User Validation PENDING / NOT YET RUN. G4 통합 demo는 아직 만들지 않았다.)
 
 ### Product Direction
 
@@ -552,10 +697,11 @@ cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
 
 ### Next Action
 
-1. G4-A thermal baseline + G4-B phase transition: **TECHNICAL PASS** (2026-08-16).
-2. 다음 단계 **G4-C — Wood/Oil combustion / Fire** (아직 미구현).
-3. G4 전체 통합 thermal/phase User Validation demo (G4-C 완료 후) → G4 User Validation.
-4. G4 전체 User Validation 전까지 G4를 PASS/CLOSED로 올리지 않는다.
+1. G4-A thermal baseline + G4-B phase transition + G4-C combustion: **TECHNICAL PASS** (2026-08-16).
+2. 다음 단계: **G4-A+B+C 통합 thermal/phase/combustion User Validation demo** (기본 60 TPS) → G4 User Validation.
+3. G4 User Validation 후 G4 전체 검토 (필요 시 gameplay tuning).
+4. 그 다음 **G5 — Pressure Chain** 준비 (phase expansion / yield / Pressure / rupture / vent).
+5. G4 User Validation 전까지 G4를 PASS/CLOSED로 올리지 않는다.
 
 공식 G4 performance benchmark는 측정하지 않는다 (correctness-first).
 
@@ -575,6 +721,7 @@ cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
 - GPU timestamp query benchmark framework (G2 baseline은 coarse wall-clock로 기록)
 - active/heavy-matter world gameplay performance benchmark (G2 reference-world baseline과 별도 대상)
 - G3 controlled performance baseline (idle-machine 여부 사용자 확인 후 별도 측정 — correctness-first)
+- G4 combustion 추가 GPU passes의 성능 비용 측정 (G4 통합 demo 이후 별도 검토 — correctness-first)
 
 ---
 
@@ -582,11 +729,11 @@ cargo fmt / build / test / clippy(-D warnings) / git diff --check: 모두 PASS
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3 PASS (G2·G3는 User Validation 포함), G4-A/B TECHNICAL PASS (G4 전체는 CLOSED 아님 — G4-C 미구현), G4~G9 + 최종 M0 승인 남음
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3 PASS (G2·G3는 User Validation 포함), G4-A/B/C TECHNICAL PASS (G4 전체는 CLOSED 아님 — G4 User Validation 미실행), G4~G9 + 최종 M0 승인 남음
 
 M0 `ACHIEVED`: **NO**
 
-최종 M0 완료는 실제 구현/benchmark/play validation 후 사용자 승인이 필요하다.
+최종 M0 완료는 실제 구현/benchmark/play validation 후 사용자가 승인해야 한다.
 
 ---
 
@@ -605,7 +752,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (78 core incl. 8 G4-A thermal + 12 G4-B phase + 1 G4-B material (ICE) + 15 GPU density + 16 GPU phase + 1 GPU headless smoke + 16 GPU movement + 13 GPU thermal + 7 GPU world integrity = 146 total, ignored 1 controlled benchmark)
-benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark. G3 controlled baseline: deferred (idle-machine 확인 후 별도 측정).
-m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16, G3 PASS/CLOSED incl. user validation 2026-08-16, G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS incl. next-tick movement adoption evidence — G4 not CLOSED, G4-C combustion not implemented, G4 User Validation not yet run, G4+ pending)
+tests: passed (97 core incl. 8 G4-A thermal + 12 G4-B phase + 1 G4-B material (ICE) + 17 G4-C combustion + 2 G4-C material (WOOD/Oil) + 25 GPU combustion + 15 GPU density + 16 GPU phase + 1 GPU headless smoke + 16 GPU movement + 13 GPU thermal + 7 GPU world integrity = 190 total, ignored 1 controlled benchmark)
+benchmarks: G2 controlled reference-world baseline (2048x2048 initial world, Boundary ring + EMPTY interior): release, idle machine, 100 warm-up ticks + GPU completion, 1000 measured ticks x 5 runs, GPU completion included — median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12, coarse end-to-end incl. GPU completion). Reference-scenario baseline only; NOT an active/heavy-matter gameplay benchmark. G3 controlled baseline: deferred (idle-machine 확인 후 별도 측정). G4: correctness-first, no official benchmark (additional GPU passes' cost deferred).
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED incl. user validation 2026-08-16, G3 PASS/CLOSED incl. user validation 2026-08-16, G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS incl. next-tick movement adoption evidence, G4-C combustion TECHNICAL PASS incl. flags ownership + Smoke spawn ownership + integration hardening (spawn clobber-free, flags hygiene, FLAME_EVENT ephemerality) evidence — G4 not CLOSED, G4 User Validation not yet run, G4+ pending)
 ```

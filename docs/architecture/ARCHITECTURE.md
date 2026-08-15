@@ -13,7 +13,7 @@ Simulation Core
     ↓
 Game Runtime
     ↓
-Presentation / Platform
+Presentation / FX / Platform
 ```
 
 ### Simulation Core
@@ -33,15 +33,19 @@ Presentation / Platform
 - discovery/event 전달
 - developer diagnostics hook
 
-### Presentation / Platform
+### Presentation / FX / Platform
 
 - Windows window/input
 - rendering
 - visual effects
 - audio
 - overlays/debug UI
+- simulation state/event의 presentation extraction
+- simulation grid와 독립적인 high-resolution GPU FX 허용
 
 Presentation은 Simulation state를 읽을 수 있지만 gameplay state를 임의로 수정하지 않는다.
+
+**Cell simulation resolution은 presentation resolution 계약이 아니다.** Simulation이 discrete grid로 동작해도 최종 FX는 screen resolution, continuous coordinates, interpolation, procedural animation, post-processing을 사용할 수 있다.
 
 ---
 
@@ -360,23 +364,148 @@ Subtile mask, active compaction, indirect dispatch 등의 더 복잡한 최적�
 
 ---
 
-## 15. Simulation vs Presentation
+## 15. Simulation vs Presentation / Modern FX
 
-Gameplay 결과는 Simulation의 책임이다.
+Gameplay 결과는 Simulation의 책임이다. **Presentation은 그 결과를 표현하는 층이지 Simulation grid의 미술적 복사본이 아니다.**
+
+핵심 계약:
+
+> **Cell-based simulation does not imply cell-bound presentation.**
+
+> **Simulation grid resolution does not define final FX resolution.**
 
 지속적인 visual effect는 read-only simulation state를 읽을 수 있고, 순간적인 효과는 semantic simulation event를 받을 수 있다.
 
 예:
 
 ```text
-Simulation Event
+Simulation State / Event
+- Temperature field
+- Pressure field
+- COMBUSTING state
+- Smoke Matter distribution
 - PressureBurst
 - MaterialRuptured
 - CombustionStarted
 - PhaseExpanded
 ```
 
-Presentation은 이를 이용해 heat haze, glow, debris, distortion, camera impulse 등을 만들 수 있지만 simulation state를 임의로 되돌려 쓰지 않는다.
+Presentation은 이 state/event를 직접 화면의 cell-sized 색으로만 복사할 필요가 없다. 필요하면 별도의 extraction/smoothing 단계를 거쳐 full-resolution FX input으로 변환할 수 있다.
+
+권장 장기 구조:
+
+```text
+GPU Simulation Core
+    ↓
+Authoritative Matter / Fields / Flags / Semantic Events
+    ↓
+Presentation Extraction
+    ↓
+Modern FX Layer
+    ↓
+Final Renderer / Composite
+```
+
+### Presentation Extraction
+
+Presentation Extraction은 simulation truth를 렌더링 친화적인 입력으로 바꾸는 비권위적 단계다.
+
+가능한 예:
+
+- Temperature field sampling / interpolation
+- Smoke distribution → visual density source
+- COMBUSTING cells → flame emitter regions
+- PressureBurst event → shockwave origin/radius input
+- high-frequency rendering을 위한 temporal interpolation
+
+이 단계는 gameplay truth를 새로 만들지 않는다.
+
+### Modern FX Layer
+
+Modern FX Layer는 simulation cell보다 높은 해상도와 연속 좌표에서 동작할 수 있다.
+
+허용되는 예:
+
+- heat haze / refraction / shimmering
+- screen-space distortion
+- glow / bloom / emissive response
+- smooth non-cell-bound flame geometry
+- sparks / embers / trails
+- high-resolution particles
+- continuous smoke / mist / vapor presentation
+- procedural/temporal noise
+- shockwave / pressure-wave distortion
+- light scattering style effects
+- post-processing
+- camera impulse
+- audio coupling
+
+이 효과들은 128×128 debug fixture나 2048×2048 production simulation cell과 1:1 대응할 필요가 없다.
+
+### Fire
+
+Simulation의 Fire/Combustion truth는 예를 들어:
+
+```text
+Wood/Oil Matter
++ COMBUSTING flag
++ Temperature
++ semantic event
+```
+
+로 존재할 수 있다.
+
+최종 Fire visual은 `MATERIAL_FIRE`라는 orange Matter를 요구하지 않으며, Wood/Oil pixel을 단순히 orange로 칠하는 것에 제한되지도 않는다. Presentation은 이를 emitter/source로 사용해 smooth flame, glow, bloom, distortion, sparks 등을 만들 수 있다.
+
+### Smoke
+
+`MATERIAL_SMOKE`가 실제 gameplay Matter로 존재해도 최종 smoke가 `1 Smoke cell = 1 gray square`일 필요는 없다.
+
+```text
+Smoke Matter distribution
+→ Presentation Extraction
+→ smooth density / procedural detail / particles
+→ final visual smoke
+```
+
+Simulation Smoke는 gameplay truth를, Presentation Smoke는 시각적 품질을 담당한다.
+
+### Heat
+
+Temperature는 simulation field다. 최종 열 표현은:
+
+```text
+Temperature
+→ sampled/smoothed presentation field
+→ heat haze / refraction / distortion / glow
+```
+
+처럼 주변 화면 자체를 울렁이게 만들 수 있다.
+
+### Authority Direction
+
+기본 방향은 단방향이다.
+
+```text
+Simulation
+→ Presentation Extraction
+→ FX
+```
+
+FX texture/particle이 authoritative Temperature, combustion, Matter movement를 직접 결정하지 않는다. gameplay feedback이 필요한 경우에는 명시적인 Game Runtime command/rule 경계를 통해 별도 설계한다.
+
+### Current M0/G4 Rendering Is Diagnostic
+
+현재 M0/G4에서 사용하는 material palette, temperature tint, combustion coloring, pixel Smoke는 **validation/debug visualization**이다.
+
+이 화면은 다음을 확인하기 위한 계측 도구다.
+
+- 물질이 실제로 이동하는가
+- 열이 전달되는가
+- phase transition이 발생하는가
+- ignition/combustion causal chain이 동작하는가
+
+**현재 ThermalLab rendering을 Powdergame의 최종 art direction이나 최종 Fire/Smoke/Heat FX 품질 기준으로 해석하지 않는다.** Modern FX 구현은 simulation causality가 안정된 뒤 별도 presentation 단계로 의도적으로 미룬다.
 
 ---
 

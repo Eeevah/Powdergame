@@ -35,8 +35,8 @@
 //! Expansion / Pressure are not implemented (G5).
 
 use powdergame_core::{
-    combustion_table, conductivity_table, density_table, heat_capacity_table, movement_class_table,
-    phase_descriptor_table, WorldConfig,
+    combustion_table, conductivity_table, decay_table, density_table, heat_capacity_table,
+    movement_class_table, phase_descriptor_table, WorldConfig,
 };
 
 use crate::context::{GpuContext, GpuError};
@@ -57,8 +57,10 @@ const PARAMS_SIZE: u64 = 16;
 const TABLE_SIZE: u64 = 64;
 /// Phase descriptor table: 16 descriptors × 16 bytes.
 const PHASE_TABLE_SIZE: u64 = 256;
-/// Combustion descriptor table: 16 descriptors × 16 bytes.
-const COMBUSTION_TABLE_SIZE: u64 = 256;
+/// Combustion descriptor table: 16 descriptors × 20 bytes.
+const COMBUSTION_TABLE_SIZE: u64 = 320;
+/// Decay descriptor table: 16 descriptors × 8 bytes.
+const DECAY_TABLE_SIZE: u64 = 128;
 /// Size of the diagnostic marker buffer (one `u32` + padding).
 const MARKER_SIZE: u64 = 16;
 /// Upper bound for cell indices so the claim encoding `(peer << 2) | kind`
@@ -109,6 +111,7 @@ pub struct Simulation {
     commit_pipeline: wgpu::ComputePipeline,
     thermal_pipeline: wgpu::ComputePipeline,
     phase_pipeline: wgpu::ComputePipeline,
+    decay_pipeline: wgpu::ComputePipeline,
     combustion_pipeline: wgpu::ComputePipeline,
     smoke_claim_pipeline: wgpu::ComputePipeline,
     smoke_commit_pipeline: wgpu::ComputePipeline,
@@ -117,7 +120,9 @@ pub struct Simulation {
     commit_bind_group: wgpu::BindGroup,
     thermal_bind_group: wgpu::BindGroup,
     phase_bind_group: wgpu::BindGroup,
+    decay_bind_group: wgpu::BindGroup,
     combustion_bind_group: wgpu::BindGroup,
+
     smoke_claim_bind_group: wgpu::BindGroup,
     smoke_commit_bind_group: wgpu::BindGroup,
     marker: wgpu::Buffer,
@@ -176,6 +181,12 @@ impl Simulation {
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("powdergame-g4b-phase"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("phase_transition.wgsl").into()),
+            });
+        let shader_decay = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("powdergame-g4d-decay"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("decay.wgsl").into()),
             });
         let shader_combustion = context
             .device
@@ -267,6 +278,22 @@ impl Simulation {
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
                     ],
                 });
+        let decay_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g4d-decay-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // flags_current
+                        buffer_entry(3, &BindingKind::Read), // temperature_current
+                        buffer_entry(4, &BindingKind::Read), // decay_table
+                        buffer_entry(5, &BindingKind::ReadWrite), // material_next
+                        buffer_entry(6, &BindingKind::ReadWrite), // flags_next
+                        buffer_entry(7, &BindingKind::ReadWrite), // temperature_next
+                    ],
+                });
         let combustion_layout =
             context
                 .device
@@ -281,6 +308,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(6, &BindingKind::ReadWrite), // flags_next
                         buffer_entry(7, &BindingKind::ReadWrite), // proposal (smoke request)
+                        buffer_entry(8, &BindingKind::ReadWrite), // material_next (consumed fuel)
                     ],
                 });
         let smoke_claim_layout =
@@ -362,6 +390,12 @@ impl Simulation {
             &phase_layout,
             &shader_phase,
             "phase_main",
+        );
+        let decay_pipeline = make_pipeline(
+            "powdergame-g4d-decay",
+            &decay_layout,
+            &shader_decay,
+            "decay_main",
         );
         let combustion_pipeline = make_pipeline(
             "powdergame-g4c-combustion",
@@ -486,17 +520,35 @@ impl Simulation {
         });
         context.queue.write_buffer(&phase_table_buf, 0, &phase_data);
 
-        // G4-C combustion descriptor table (16 × 16 bytes; Material data,
+        // G4-D decay descriptor table (16 × 8 bytes; Material data,
+        // not per-cell state). Generic: Smoke/transient matter share one grammar.
+        let mut decay_data = [0u8; DECAY_TABLE_SIZE as usize];
+        for (i, desc) in decay_table().iter().enumerate() {
+            let off = i * 8;
+            decay_data[off..off + 4].copy_from_slice(&desc.lifetime_ticks.to_ne_bytes());
+            decay_data[off + 4..off + 8].copy_from_slice(&desc.target_material.to_ne_bytes());
+        }
+        let decay_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g4d/decay/table"),
+            size: DECAY_TABLE_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context.queue.write_buffer(&decay_table_buf, 0, &decay_data);
+
+        // G4-C combustion descriptor table (16 × 20 bytes; Material data,
         // not per-cell state). Generic: Wood/Oil share one grammar.
         let mut combustion_data = [0u8; COMBUSTION_TABLE_SIZE as usize];
         for (i, desc) in combustion_table().iter().enumerate() {
-            let off = i * 16;
+            let off = i * 20;
             combustion_data[off..off + 4].copy_from_slice(&desc.is_combustible.to_ne_bytes());
             combustion_data[off + 4..off + 8]
                 .copy_from_slice(&desc.ignition_threshold.to_ne_bytes());
             combustion_data[off + 8..off + 12]
                 .copy_from_slice(&desc.sustain_threshold.to_ne_bytes());
             combustion_data[off + 12..off + 16].copy_from_slice(&desc.heat_per_tick.to_ne_bytes());
+            combustion_data[off + 16..off + 20]
+                .copy_from_slice(&desc.burn_duration_ticks.to_ne_bytes());
         }
         let combustion_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g4c/combustion/table"),
@@ -670,6 +722,46 @@ impl Simulation {
                     },
                 ],
             });
+        let decay_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("powdergame-g4d-decay-bg"),
+                layout: &decay_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: world.material_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: world.flags_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: world.temperature_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: decay_table_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: world.material_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: world.flags_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: world.temperature_next.as_entire_binding(),
+                    },
+                ],
+            });
         let combustion_bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -707,6 +799,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 7,
                         resource: world.proposal.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 8,
+                        resource: world.material_next.as_entire_binding(),
                     },
                 ],
             });
@@ -772,6 +868,7 @@ impl Simulation {
             commit_pipeline,
             thermal_pipeline,
             phase_pipeline,
+            decay_pipeline,
             combustion_pipeline,
             smoke_claim_pipeline,
             smoke_commit_pipeline,
@@ -780,9 +877,11 @@ impl Simulation {
             commit_bind_group,
             thermal_bind_group,
             phase_bind_group,
+            decay_bind_group,
             combustion_bind_group,
             smoke_claim_bind_group,
             smoke_commit_bind_group,
+
             marker,
             tick_count: 0,
         })
@@ -901,7 +1000,38 @@ impl Simulation {
             self.world.layout.material_bytes,
         );
 
+        // G4-D: decay pass (age increment + finite lifetime decay to EMPTY).
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g4d-decay-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(&mut pass, &self.decay_pipeline, &self.decay_bind_group);
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.world.material_next,
+            0,
+            &self.world.material_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.temperature_next,
+            0,
+            &self.world.temperature_current,
+            0,
+            self.world.layout.temperature_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.flags_next,
+            0,
+            &self.world.flags_current,
+            0,
+            self.world.layout.flags_bytes,
+        );
+
         // G4-C: combustion state/heat (self-write) + Smoke spawn requests.
+
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-combustion-pass"),

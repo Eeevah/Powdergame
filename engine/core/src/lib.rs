@@ -8,6 +8,7 @@
 //! - only `apps/windows` may combine core + gpu with the platform layer.
 
 pub mod combustion;
+pub mod decay;
 pub mod domain;
 pub mod layout;
 pub mod material;
@@ -18,12 +19,19 @@ pub mod world_config;
 
 pub use combustion::{
     combustion_descriptor, combustion_flag_mask, combustion_flags_next, combustion_step,
-    combustion_table, pick_smoke_spawn, CombustionDescriptor, CombustionGpuDescriptor,
-    CombustionResult, SmokeSpawnDirection, COMBUSTION_MAX_TEMPERATURE,
-    COMBUSTION_OIL_HEAT_PER_TICK, COMBUSTION_OIL_IGNITION, COMBUSTION_OIL_SUSTAIN,
-    COMBUSTION_WOOD_HEAT_PER_TICK, COMBUSTION_WOOD_IGNITION, COMBUSTION_WOOD_SUSTAIN,
-    FLAG_COMBUSTING, FLAG_FLAME_EVENT,
+    combustion_table, fuel_progress, pick_smoke_spawn, with_fuel_progress, CombustionDescriptor,
+    CombustionGpuDescriptor, CombustionResult, SmokeSpawnDirection, COMBUSTION_MAX_TEMPERATURE,
+    COMBUSTION_OIL_BURN_DURATION, COMBUSTION_OIL_HEAT_PER_TICK, COMBUSTION_OIL_IGNITION,
+    COMBUSTION_OIL_SUSTAIN, COMBUSTION_WOOD_BURN_DURATION, COMBUSTION_WOOD_HEAT_PER_TICK,
+    COMBUSTION_WOOD_IGNITION, COMBUSTION_WOOD_SUSTAIN, FLAG_COMBUSTING, FLAG_FLAME_EVENT,
+    FLAG_FUEL_PROGRESS_MASK, FLAG_FUEL_PROGRESS_SHIFT,
 };
+pub use decay::{
+    decay_age, decay_descriptor, decay_flag_mask, decay_step, decay_table, with_decay_age,
+    DecayDescriptor, DecayGpuDescriptor, DecayResult, FLAG_DECAY_AGE_MASK, FLAG_DECAY_AGE_SHIFT,
+    SMOKE_LIFETIME_TICKS,
+};
+
 pub use domain::{initial_material_ids, Domain};
 pub use layout::{
     WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, PRESSURE_ELEM_SIZE, TEMPERATURE_ELEM_SIZE,

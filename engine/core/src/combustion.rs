@@ -1,20 +1,33 @@
-//! G4-C — Combustion: temperature-based ignition / sustain / heat / Smoke.
+//! G4-C — Combustion: temperature-based ignition / sustain / heat / Smoke
+//! + finite fuel lifecycle.
 //!
 //! Wood and Oil share ONE generic combustion grammar (`REACTION_SPEC` §11):
 //! a Material-owned `CombustionDescriptor` decides
 //!
 //! ```text
-//! unlit + T >= ignition  → ignite (COMBUSTING + FLAME_EVENT)
-//! burning + T >= sustain → keep burning, add heat_per_tick, emit FLAME_EVENT
-//! burning + T  < sustain → extinguish
-//! non-combustible        → never ignites (combustion bits cleared)
+//! unlit + T >= ignition    → ignite (COMBUSTING + FLAME_EVENT)
+//! burning + T >= sustain   → keep burning, add heat_per_tick, emit FLAME_EVENT
+//! burning + T  < sustain   → extinguish (COMBUSTING/FLAME_EVENT clear)
+//! burning fuel progress    → +1 per ACTIVE burning tick; progress survives
+//!                            extinguish and continues on reignition
+//! progress >= burn_duration → fuel consumed → cell becomes EMPTY
+//!                            (material/T/flags self-reset)
+//! non-combustible          → never ignites (combustion bits cleared)
 //! ```
+//!
+//! Fuel semantics (`MATERIAL_SPEC` §4 Matter-owned state):
+//! - `FUEL_PROGRESS` = accumulated active burn ticks (consumed fuel amount).
+//!   It is stored in the per-cell `flags` bits 8..23 (u16) — Matter-owned,
+//!   transported on movement edges like `temperature`.
+//! - Burning is the ONLY source of progress; extinguish preserves it and
+//!   reignition continues from it (extinguish→reignite never restores fuel).
+//! - Identity replacement, EMPTY and Void all reset it.
 //!
 //! Contracts:
 //! - Combustion is a **Material property** (descriptor), never per-cell
-//!   state. The per-cell `flags` field stores only the combustion **bits**
-//!   (Matter-owned state, `MATERIAL_SPEC` §4). No fuel mass / burn-age /
-//!   Ash (finite fuel depletion is deferred; `No Universal Future State`).
+//!   state. No fuel mass / Ash / burn-age counter beyond the progress bits
+//!   (no `No Universal Future State` violation: progress is the consumed
+//!   fuel amount, a single u16).
 //! - Fire is NOT a Material: flame is Matter + COMBUSTING + heat + a
 //!   presentation signal (`FLAG_FLAME_EVENT`), never a permanent orange ID.
 //! - No Oxygen requirement — ignition needs only the thermal condition
@@ -28,12 +41,19 @@
 
 use crate::material::{registry_lookup, MATERIAL_REGISTRY};
 use crate::thermal::sanitize_temperature;
+use crate::TEMPERATURE_REFERENCE;
 
 /// Persists across ticks: this Matter is actively combusting.
 pub const FLAG_COMBUSTING: u32 = 1 << 0;
 /// Ephemeral per-tick presentation signal: flame is visible this tick
 /// (set on the ignition tick and on every active-combustion tick).
 pub const FLAG_FLAME_EVENT: u32 = 1 << 1;
+
+/// Fuel progress bit range (bits 4..15, 12 bits, u12 = 0..4095). Stored in the Matter-owned
+/// `flags` field and transported on movement edges like temperature.
+pub const FLAG_FUEL_PROGRESS_SHIFT: u32 = 4;
+/// Mask of the fuel-progress bits (bits 4..15 inclusive).
+pub const FLAG_FUEL_PROGRESS_MASK: u32 = 0x0FFF << FLAG_FUEL_PROGRESS_SHIFT;
 
 /// Gameplay cap on combustion heat (finite, not a physical unit).
 pub const COMBUSTION_MAX_TEMPERATURE: f32 = 1000.0;
@@ -42,11 +62,15 @@ pub const COMBUSTION_MAX_TEMPERATURE: f32 = 1000.0;
 pub const COMBUSTION_OIL_IGNITION: f32 = 75.0;
 pub const COMBUSTION_OIL_SUSTAIN: f32 = 45.0;
 pub const COMBUSTION_OIL_HEAT_PER_TICK: f32 = 5.0;
+/// Oil fuel: 600 active burn ticks ≈ 10 s at 60 TPS (gameplay baseline).
+pub const COMBUSTION_OIL_BURN_DURATION: u32 = 600;
 
 /// Wood baseline tuning (relative gameplay scalar, not physical units).
 pub const COMBUSTION_WOOD_IGNITION: f32 = 90.0;
 pub const COMBUSTION_WOOD_SUSTAIN: f32 = 55.0;
 pub const COMBUSTION_WOOD_HEAT_PER_TICK: f32 = 4.0;
+/// Wood fuel: 900 active burn ticks ≈ 15 s at 60 TPS (gameplay baseline).
+pub const COMBUSTION_WOOD_BURN_DURATION: u32 = 900;
 
 /// Generic combustion properties owned by a combustible Material.
 ///
@@ -60,9 +84,12 @@ pub struct CombustionDescriptor {
     pub sustain_threshold: f32,
     /// Per-tick temperature added while burning (gameplay heat).
     pub heat_per_tick: f32,
+    /// Fuel life in active burning ticks. When `FUEL_PROGRESS` reaches this
+    /// value the Matter is consumed and the cell becomes `EMPTY`.
+    pub burn_duration_ticks: u32,
 }
 
-/// Compact per-Material descriptor for GPU upload (16 bytes each).
+/// Compact per-Material descriptor for GPU upload (20 bytes each).
 ///
 /// `is_combustible == 0` is the safe sentinel — a non-combustible Matter
 /// can never read thresholds as if it were burning.
@@ -72,6 +99,7 @@ pub struct CombustionGpuDescriptor {
     pub ignition_threshold: f32,
     pub sustain_threshold: f32,
     pub heat_per_tick: f32,
+    pub burn_duration_ticks: u32,
 }
 
 /// Returns the combustion descriptor of a registered Matter.
@@ -81,13 +109,25 @@ pub fn combustion_descriptor(id: u32) -> Option<&'static CombustionDescriptor> {
     registry_lookup(id).and_then(|m| m.combustion.as_ref())
 }
 
-/// Combustion-owned flag bits. The combustion pass only ever sets/clears
-/// these bits; all other flags bits belong to future subsystems.
-pub fn combustion_flag_mask() -> u32 {
-    FLAG_COMBUSTING | FLAG_FLAME_EVENT
+/// Extracts the accumulated fuel progress (u16) from a flags word.
+pub fn fuel_progress(flags: u32) -> u32 {
+    (flags & FLAG_FUEL_PROGRESS_MASK) >> FLAG_FUEL_PROGRESS_SHIFT
 }
 
-/// Compiles the GPU combustion table (16 material slots × 16 bytes).
+/// Replaces the fuel-progress field in a flags word, preserving every other
+/// bit.
+pub fn with_fuel_progress(flags: u32, progress: u32) -> u32 {
+    (flags & !FLAG_FUEL_PROGRESS_MASK) | ((progress & 0x0FFF) << FLAG_FUEL_PROGRESS_SHIFT)
+}
+
+/// Combustion-owned flag bits (the two bool state bits + the fuel-progress
+/// field). The combustion pass only ever sets/clears these bits; all other
+/// flags bits belong to future subsystems.
+pub fn combustion_flag_mask() -> u32 {
+    FLAG_COMBUSTING | FLAG_FLAME_EVENT | FLAG_FUEL_PROGRESS_MASK
+}
+
+/// Compiles the GPU combustion table (16 material slots × 20 bytes).
 ///
 /// Material data → compact generic table; the shader contains no
 /// material-name branches. This is a Material property upload, not
@@ -98,6 +138,7 @@ pub fn combustion_table() -> [CombustionGpuDescriptor; 16] {
         ignition_threshold: 0.0,
         sustain_threshold: 0.0,
         heat_per_tick: 0.0,
+        burn_duration_ticks: 0,
     };
     let mut table = [none; 16];
     for m in MATERIAL_REGISTRY {
@@ -107,6 +148,7 @@ pub fn combustion_table() -> [CombustionGpuDescriptor; 16] {
                 ignition_threshold: desc.ignition_threshold,
                 sustain_threshold: desc.sustain_threshold,
                 heat_per_tick: desc.heat_per_tick,
+                burn_duration_ticks: desc.burn_duration_ticks,
             };
         }
     }
@@ -122,6 +164,12 @@ pub struct CombustionResult {
     pub flame_event: bool,
     /// The cell's temperature after this tick's rule (always finite).
     pub temperature: f32,
+    /// Accumulated fuel progress after this tick's rule (consumed amount in
+    /// active burn ticks). Preserved on extinguish; continues on reignition.
+    pub fuel_progress: u32,
+    /// True when the fuel reached `burn_duration_ticks` this tick — the
+    /// cell becomes `EMPTY` (material/T/flags self-reset, no spawn).
+    pub consumed: bool,
 }
 
 /// Pure reference: applies the G4-C combustion rule to one cell.
@@ -129,14 +177,20 @@ pub struct CombustionResult {
 /// This is a unit/reference helper — the production full-world path is the
 /// GPU combustion pass, never a CPU world loop. There is no Oxygen input:
 /// ignition depends only on the thermal condition.
+///
+/// Fuel boundary (matches the GPU pass): the ignition tick is active burn
+/// tick 1 (`progress += 1`); when progress reaches `burn_duration_ticks`
+/// that tick consumes the fuel (`consumed == true`).
 pub fn combustion_step(material_id: u32, temperature: f32, flags: u32) -> CombustionResult {
     let Some(desc) = combustion_descriptor(material_id) else {
         // Non-combustible Matter / EMPTY / unknown: never burns, and the
-        // combustion bits are cleared (the pass preserves unrelated bits).
+        // combustion bits (including any stale fuel progress) are cleared.
         return CombustionResult {
             burning: false,
             flame_event: false,
             temperature: sanitize_temperature(temperature),
+            fuel_progress: 0,
+            consumed: false,
         };
     };
     let t = sanitize_temperature(temperature);
@@ -147,22 +201,39 @@ pub fn combustion_step(material_id: u32, temperature: f32, flags: u32) -> Combus
     if burning && t < desc.sustain_threshold {
         burning = false;
     }
+    // Fuel progress: +1 per ACTIVE burning tick. Preserved when not burning
+    // (extinguish keeps the partial progress; reignition continues from it).
+    let mut progress = fuel_progress(flags);
+    if burning {
+        progress += 1;
+    }
+    let consumed = burning && progress >= desc.burn_duration_ticks;
     // Cap at the gameplay bound but never reduce an already-hotter cell.
-    let temperature = if burning {
+    // A consumed cell resets to the reference temperature (EMPTY is not a
+    // thermal medium).
+    let temperature = if consumed {
+        TEMPERATURE_REFERENCE
+    } else if burning {
         (t + desc.heat_per_tick).min(t.max(COMBUSTION_MAX_TEMPERATURE))
     } else {
         t
     };
     CombustionResult {
-        burning,
-        flame_event: burning,
+        burning: burning && !consumed,
+        flame_event: burning && !consumed,
         temperature: sanitize_temperature(temperature),
+        fuel_progress: progress,
+        consumed,
     }
 }
 
 /// What `flags_next` should be after the combustion rule: the combustion
-/// bits are set/cleared, all unrelated future flag bits are preserved.
+/// bits are set/cleared, all unrelated future flag bits are preserved, and
+/// a consumed cell resets to `0` (EMPTY has no Matter-owned state).
 pub fn combustion_flags_next(flags: u32, result: &CombustionResult) -> u32 {
+    if result.consumed {
+        return 0;
+    }
     let mut next = flags & !combustion_flag_mask();
     if result.burning {
         next |= FLAG_COMBUSTING;
@@ -170,7 +241,7 @@ pub fn combustion_flags_next(flags: u32, result: &CombustionResult) -> u32 {
     if result.flame_event {
         next |= FLAG_FLAME_EVENT;
     }
-    next
+    with_fuel_progress(next, result.fuel_progress)
 }
 
 /// Local smoke spawn direction (max one 1-cell candidate per source).
@@ -252,6 +323,8 @@ mod tests {
         assert_eq!(wood_gpu.is_combustible, oil_gpu.is_combustible);
         assert!(wood.ignition_threshold.is_finite());
         assert!(oil.ignition_threshold.is_finite());
+        assert_eq!(wood_gpu.burn_duration_ticks, wood.burn_duration_ticks);
+        assert_eq!(oil_gpu.burn_duration_ticks, oil.burn_duration_ticks);
     }
 
     #[test]
@@ -366,7 +439,7 @@ mod tests {
 
     #[test]
     fn combustion_flags_preserve_unrelated_bits() {
-        let unrelated = 1u32 << 8;
+        let unrelated = 1u32 << 28; // outside the combustion-owned bits
         let result = combustion_step(MATERIAL_OIL, 80.0, FLAG_COMBUSTING | unrelated);
         let next = combustion_flags_next(FLAG_COMBUSTING | unrelated, &result);
         assert_ne!(next & unrelated, 0, "unrelated bits must survive");
@@ -438,5 +511,164 @@ mod tests {
         let oil = table[MATERIAL_OIL as usize];
         let wood = table[MATERIAL_WOOD as usize];
         assert!(oil.ignition_threshold < wood.ignition_threshold);
+    }
+
+    // -----------------------------------------------------------------
+    // Finite fuel (G4-C hardening)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn wood_has_finite_burn_duration() {
+        let wood = combustion_descriptor(MATERIAL_WOOD).expect("Wood combusts");
+        assert_eq!(wood.burn_duration_ticks, COMBUSTION_WOOD_BURN_DURATION);
+        assert_eq!(
+            combustion_table()[MATERIAL_WOOD as usize].burn_duration_ticks,
+            900
+        );
+    }
+
+    #[test]
+    fn oil_has_finite_burn_duration() {
+        let oil = combustion_descriptor(MATERIAL_OIL).expect("Oil combusts");
+        assert_eq!(oil.burn_duration_ticks, COMBUSTION_OIL_BURN_DURATION);
+        assert_eq!(
+            combustion_table()[MATERIAL_OIL as usize].burn_duration_ticks,
+            600
+        );
+    }
+
+    #[test]
+    fn burn_duration_fits_progress_encoding() {
+        // The u16 fuel-progress field must hold the full fuel life.
+        const {
+            assert!(COMBUSTION_WOOD_BURN_DURATION <= 0xFFFF);
+        };
+        const {
+            assert!(COMBUSTION_OIL_BURN_DURATION <= 0xFFFF);
+        };
+    }
+
+    #[test]
+    fn progress_increments_only_while_burning() {
+        // Unlit (even hot below sustain or cold) never advances progress.
+        let cold_unlit = combustion_step(MATERIAL_WOOD, 0.0, 0);
+        assert_eq!(cold_unlit.fuel_progress, 0);
+        let below_ignition = combustion_step(MATERIAL_WOOD, 50.0, 0);
+        assert_eq!(below_ignition.fuel_progress, 0);
+        // Ignition tick is active burn tick 1.
+        let ignite = combustion_step(MATERIAL_WOOD, 95.0, 0);
+        assert!(ignite.burning);
+        assert_eq!(ignite.fuel_progress, 1);
+        // Burning continues to advance progress each tick.
+        let burning = combustion_step(MATERIAL_WOOD, 95.0, with_fuel_progress(FLAG_COMBUSTING, 5));
+        assert_eq!(burning.fuel_progress, 6);
+    }
+
+    #[test]
+    fn extinguish_preserves_progress() {
+        let flags = with_fuel_progress(FLAG_COMBUSTING, 200);
+        let result = combustion_step(MATERIAL_WOOD, 20.0, flags); // below sustain
+        assert!(!result.burning);
+        assert_eq!(result.fuel_progress, 200, "progress survives extinguish");
+        // The next flags word keeps the progress bits.
+        let next = combustion_flags_next(flags, &result);
+        assert_eq!(fuel_progress(next), 200);
+        assert_eq!(next & FLAG_COMBUSTING, 0);
+    }
+
+    #[test]
+    fn reignite_does_not_restore_fuel() {
+        // Extinguish at progress 200, then reignite: progress continues at
+        // 201 — the fuel is NOT restored to zero.
+        let cooled = combustion_step(
+            MATERIAL_WOOD,
+            20.0,
+            with_fuel_progress(FLAG_COMBUSTING, 200),
+        );
+        assert!(!cooled.burning);
+        assert_eq!(cooled.fuel_progress, 200);
+        let flags_after_extinguish =
+            combustion_flags_next(with_fuel_progress(FLAG_COMBUSTING, 200), &cooled);
+        let reignited = combustion_step(MATERIAL_WOOD, 95.0, flags_after_extinguish);
+        assert!(reignited.burning);
+        assert_eq!(
+            reignited.fuel_progress, 201,
+            "reignition continues from the remaining fuel"
+        );
+    }
+
+    #[test]
+    fn exact_duration_consumes_fuel() {
+        let flags = with_fuel_progress(FLAG_COMBUSTING, 899);
+        let result = combustion_step(MATERIAL_WOOD, 95.0, flags);
+        assert!(result.consumed, "reaching the burn duration consumes fuel");
+        assert!(!result.burning);
+        assert_eq!(result.temperature, TEMPERATURE_REFERENCE);
+        assert_eq!(
+            combustion_flags_next(flags, &result),
+            0,
+            "consumed cell resets all Matter-owned state"
+        );
+    }
+
+    #[test]
+    fn duration_minus_one_does_not_consume() {
+        let flags = with_fuel_progress(FLAG_COMBUSTING, 898);
+        let result = combustion_step(MATERIAL_WOOD, 95.0, flags);
+        assert!(!result.consumed, "one tick before the duration still burns");
+        assert!(result.burning);
+        assert_eq!(result.fuel_progress, 899);
+    }
+
+    #[test]
+    fn nonflammable_has_no_fuel_progress() {
+        for id in [MATERIAL_STONE, MATERIAL_SAND, MATERIAL_WATER, MATERIAL_ICE] {
+            let result = combustion_step(id, 1000.0, FLAG_COMBUSTING);
+            assert!(!result.burning);
+            assert_eq!(result.fuel_progress, 0, "material {id} has no fuel");
+        }
+    }
+
+    #[test]
+    fn stale_progress_cleared_on_nonflammable() {
+        let stale = FLAG_COMBUSTING | FLAG_FLAME_EVENT | with_fuel_progress(0, 500);
+        let result = combustion_step(MATERIAL_STONE, 0.0, stale);
+        assert!(!result.consumed);
+        let next = combustion_flags_next(stale, &result);
+        assert_eq!(
+            next & combustion_flag_mask(),
+            0,
+            "nonflammable Matter cannot keep stale combustion state"
+        );
+    }
+
+    #[test]
+    fn unrelated_flag_bits_preserved() {
+        let unrelated = 1u32 << 28;
+        let flags = FLAG_COMBUSTING | with_fuel_progress(0, 10) | unrelated;
+        let result = combustion_step(MATERIAL_WOOD, 95.0, flags);
+        let next = combustion_flags_next(flags, &result);
+        assert_ne!(next & unrelated, 0);
+        assert_ne!(next & FLAG_COMBUSTING, 0);
+        assert_eq!(fuel_progress(next), 11);
+    }
+
+    #[test]
+    fn progress_encode_decode_boundaries() {
+        assert_eq!(fuel_progress(0), 0);
+        assert_eq!(fuel_progress(FLAG_FUEL_PROGRESS_MASK), 0x0FFF);
+        for p in [0u32, 1, 255, 256, 899, 900, 0x0FFF] {
+            let f = with_fuel_progress(0, p);
+            assert_eq!(fuel_progress(f), p, "round trip for {p}");
+            // Non-fuel bits survive a progress rewrite.
+            let base = FLAG_COMBUSTING | FLAG_FLAME_EVENT | (1u32 << 28);
+            let f2 = with_fuel_progress(base, p);
+            assert_eq!(fuel_progress(f2), p);
+            assert_ne!(f2 & FLAG_COMBUSTING, 0);
+            assert_ne!(f2 & FLAG_FLAME_EVENT, 0);
+            assert_ne!(f2 & (1u32 << 28), 0);
+        }
+        let overflow = with_fuel_progress(0, 0x1_0000 + 7);
+        assert_eq!(fuel_progress(overflow), 7);
     }
 }

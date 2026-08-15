@@ -8,23 +8,33 @@
 //!   `--movement-demo` — G2 stylized forest scene (approved by the user),
 //!   `--density-demo`  — G3 laboratory tanks (3 large chambers:
 //!                       SAND+WATER sinking, WATER+OIL layer separation,
-//!                       STEAM+SMOKE gas ordering). Forest scene is unused.
+//!                       STEAM+SMOKE gas ordering),
+//!   `--thermal-demo`  — G4 thermal lab (PHASE: sequential Ice melt by
+//!                       distance from the hot source; HEAT FLOW: sealed
+//!                       Water vs Oil conduction tubes; COMBUSTION: Wood
+//!                       ignition front travelling along a strip).
+//! Forest scene is unused by the G3/G4 demos.
 //!
 //! Demos start PAUSED so the untouched initial scene can be inspected:
 //!   SPACE  play/pause toggle
 //!   N      single simulation tick while paused
 //!   R      reset the demo scene (re-staged through the validated edit hook)
 //!   ESC    exit
-//! The demo simulation runs at a fixed observation rate (15 TPS), decoupled
-//! from the render rate. Bounded smoke runs start PLAYING so they exercise
+//! Each demo runs at its own fixed observation rate, decoupled from the
+//! render rate: Movement/Density = 15 TPS (approved fixtures, unchanged),
+//! Thermal = 60 TPS. Bounded smoke runs start PLAYING so they exercise
 //! ticks + presentation.
 //!
 //! G4-B note: Steam now condenses below 40.0, so demo Steam is staged at a
-//! stable hot temperature (T = 80.0).
+//! stable hot temperature (T = 80.0). G4-C note: Wood/Oil combustion is
+//! driven by real thermal conduction from staged hot Stone reservoirs —
+//! the demo never writes a Material ID mid-tick.
 //!
 //! The Simulation runs headless; the Renderer only reads/presents.
 
+mod observatory;
 mod renderer;
+mod text_renderer;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -35,26 +45,27 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
+use observatory::ObservatoryCollector;
 use powdergame_core::{
-    WorldConfig, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_SAND,
-    MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
+    WorldConfig, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL,
+    MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
 };
 use powdergame_gpu::{verify_target_hardware, AdapterReport, GpuError, Simulation};
 
 use renderer::{PresentationPalette, Renderer, WorldViewSpec};
 
-/// Demo observation rate: independent of the render FPS.
-const DEMO_TICKS_PER_SECOND: u32 = 15;
-const DEMO_TICK_INTERVAL: Duration =
-    Duration::from_nanos(1_000_000_000 / (DEMO_TICKS_PER_SECOND as u64));
-
-/// Stable hot temperature for staged Steam (above the 40.0 condensation
-/// threshold, G4-B).
-const STEAM_STABLE_T: f32 = 80.0;
+/// Demo observation rates: independent of the render FPS. Movement/Density
+/// keep the approved 15 TPS fixture timing; Thermal runs at 60 TPS so the
+/// heat/phase/combustion chain reads at a natural speed.
+const MOVEMENT_DEMO_TPS: u32 = 15;
+const DENSITY_DEMO_TPS: u32 = 15;
+const THERMAL_DEMO_TPS: u32 = 60;
 
 const MOVEMENT_DEMO_TITLE: &str = "Powdergame G2 Demo | SAND | WATER | OIL | STEAM | SMOKE";
 const DENSITY_DEMO_TITLE: &str =
     "Powdergame G3 Density Demo | SAND+WATER | WATER+OIL | STEAM+SMOKE";
+const THERMAL_DEMO_TITLE: &str =
+    "Powdergame G4 Thermal Observatory | 4 Large Panels + Live Metrics";
 
 /// Which demo fixture (if any) the app presents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,11 +73,31 @@ enum DemoMode {
     None,
     Movement,
     Density,
+    Thermal,
+}
+
+impl DemoMode {
+    /// Observation rate for this mode (production `Simulation::tick`
+    /// semantics and the 60 TPS target are unchanged — this only throttles
+    /// the demo runtime loop).
+    fn ticks_per_second(self) -> u32 {
+        match self {
+            DemoMode::None => 60,
+            DemoMode::Movement => MOVEMENT_DEMO_TPS,
+            DemoMode::Density => DENSITY_DEMO_TPS,
+            DemoMode::Thermal => THERMAL_DEMO_TPS,
+        }
+    }
+
+    fn tick_interval(self) -> Duration {
+        Duration::from_nanos(1_000_000_000 / (self.ticks_per_second() as u64))
+    }
 }
 
 /// Demo runtime state (demo modes only).
 struct DemoState {
     base_title: &'static str,
+    tps: u32,
     playing: bool,
     ticks: u64,
     last_tick: Option<Instant>,
@@ -75,9 +106,10 @@ struct DemoState {
 }
 
 impl DemoState {
-    fn new(base_title: &'static str, start_playing: bool) -> Self {
+    fn new(base_title: &'static str, tps: u32, start_playing: bool) -> Self {
         Self {
             base_title,
+            tps,
             playing: start_playing,
             ticks: 0,
             last_tick: None,
@@ -89,7 +121,7 @@ impl DemoState {
     /// Human-readable state for the window title.
     fn title(&self) -> String {
         let state = if self.playing {
-            format!("[PLAY {DEMO_TICKS_PER_SECOND} TPS] SPACE Pause")
+            format!("[PLAY {} TPS] SPACE Pause", self.tps)
         } else {
             "[PAUSED] SPACE Play | N Step | R Reset".to_string()
         };
@@ -103,6 +135,7 @@ struct App {
     window: Option<Arc<Window>>,
     simulation: Option<Simulation>,
     renderer: Option<Renderer>,
+    observatory_collector: Option<ObservatoryCollector>,
     frames_rendered: u32,
     smoke_frames: Option<u32>,
     demo_mode: DemoMode,
@@ -115,6 +148,7 @@ impl App {
             window: None,
             simulation: None,
             renderer: None,
+            observatory_collector: None,
             frames_rendered: 0,
             smoke_frames,
             demo_mode,
@@ -126,14 +160,22 @@ impl App {
         let base_title = match self.demo_mode {
             DemoMode::Movement => MOVEMENT_DEMO_TITLE,
             DemoMode::Density => DENSITY_DEMO_TITLE,
+            DemoMode::Thermal => THERMAL_DEMO_TITLE,
             DemoMode::None => "Powdergame — G0 Runtime",
+        };
+        // The thermal observatory uses a larger 320×192 world, so it gets a
+        // 1600×900 window; the G2/G3 fixtures keep 1280×720.
+        let (window_w, window_h) = if self.demo_mode == DemoMode::Thermal {
+            (1600.0, 900.0)
+        } else {
+            (1280.0, 720.0)
         };
         let window = Arc::new(
             event_loop
                 .create_window(
                     winit::window::WindowAttributes::default()
                         .with_title(base_title)
-                        .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0)),
+                        .with_inner_size(winit::dpi::LogicalSize::new(window_w, window_h)),
                 )
                 .map_err(|e| GpuError::Other(format!("window create failed: {e}")))?,
         );
@@ -151,18 +193,29 @@ impl App {
             Err(e) => println!("[powdergame] hardware check: UNEXPECTED — {e}"),
         }
 
-        // Headless simulation. Demo modes use a 128×128 world staged with a
-        // fixture scene through the validated edit hook; production stays
+        // Headless simulation. Demo modes use a small staged world through
+        // the validated edit hook (128×128 for the G2/G3 fixtures, 320×192
+        // for the G4 thermal observatory); production stays
         // GPU-authoritative.
         let config = if self.demo_mode == DemoMode::None {
             WorldConfig::reference()
         } else {
-            WorldConfig::new(128, 128, 64).expect("demo world config")
+            let (w, h) = match self.demo_mode {
+                DemoMode::Thermal => (320, 192),
+                _ => (128, 128),
+            };
+            WorldConfig::new(w, h, 64).expect("demo world config")
         };
         let mut simulation = Simulation::with_context(context, config)?;
         println!("[powdergame] === world allocation ===");
         println!("[powdergame] {}", simulation.world.allocation);
         println!("[powdergame] allocation: success");
+
+        let observatory_collector = if self.demo_mode == DemoMode::Thermal {
+            Some(ObservatoryCollector::new(&simulation))
+        } else {
+            None
+        };
 
         match self.demo_mode {
             DemoMode::None => {
@@ -181,14 +234,21 @@ impl App {
                 stage_density_demo(&simulation)?;
                 println!("[powdergame] density demo: scene staged (one-time edit hook)");
             }
+            DemoMode::Thermal => {
+                stage_thermal_demo(&simulation)?;
+                println!("[powdergame] thermal demo: 4-panel large observatory staged");
+            }
         }
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
             material_buffer: &simulation.world.material_current,
+            temperature_buffer: Some(&simulation.world.temperature_current),
+            flags_buffer: Some(&simulation.world.flags_current),
             width: simulation.world.config.width,
             height: simulation.world.config.height,
             palette: match self.demo_mode {
                 DemoMode::Density => PresentationPalette::Lab,
+                DemoMode::Thermal => PresentationPalette::ThermalLab,
                 _ => PresentationPalette::Forest,
             },
         });
@@ -205,8 +265,9 @@ impl App {
             // Interactive sessions start PAUSED so the initial scene is fully
             // visible; bounded smoke runs start PLAYING to exercise ticks.
             let start_playing = self.smoke_frames.is_some();
-            self.demo = Some(DemoState::new(base_title, start_playing));
-            window.set_title(&self.demo.as_ref().unwrap().title());
+            let demo = DemoState::new(base_title, self.demo_mode.ticks_per_second(), start_playing);
+            window.set_title(&demo.title());
+            self.demo = Some(demo);
             println!(
                 "[powdergame] window + world view ready; demo {}",
                 if start_playing {
@@ -222,6 +283,7 @@ impl App {
         self.window = Some(window);
         self.simulation = Some(simulation);
         self.renderer = Some(renderer);
+        self.observatory_collector = observatory_collector;
         Ok(())
     }
 
@@ -229,8 +291,8 @@ impl App {
         if let Some(demo) = &mut self.demo {
             demo.playing = !demo.playing;
             if demo.playing {
-                demo.last_tick = None; // restart the 15 TPS clock on resume
-                println!("[powdergame] demo: PLAY ({} TPS)", DEMO_TICKS_PER_SECOND);
+                demo.last_tick = None; // restart the tick clock on resume
+                println!("[powdergame] demo: PLAY ({} TPS)", demo.tps);
             } else {
                 println!("[powdergame] demo: PAUSED");
             }
@@ -257,6 +319,9 @@ impl App {
             demo.playing = false;
             demo.last_tick = None;
             demo.ticks = 0;
+            if let Some(collector) = &mut self.observatory_collector {
+                collector.reset();
+            }
             println!("[powdergame] demo: reset requested");
             window.set_title(&demo.title());
             window.request_redraw();
@@ -265,17 +330,11 @@ impl App {
 }
 
 /// Stages the G2 stylized-forest movement scene on the 128×128 demo world.
-///
-/// Zones run left→right in the same order as the window title
-/// (SAND | WATER | OIL | STEAM | SMOKE), separated by stone tree-trunk
-/// dividers, plus a small separate Void-exit funnel at the bottom right.
 fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
-    let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
     let stone = MATERIAL_STONE;
 
-    // Tree dividers (zone separators): trunk column + stylized canopy.
     for dx in [22i64, 48, 70, 94] {
         for y in 4..=126 {
             set(dx, y, stone)?;
@@ -287,246 +346,386 @@ fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
         }
     }
 
-    // ── Zone 1 — SAND: forest hill with trees; sand pours from the sky. ──
     for x in 6..=18 {
         set(x, 84, stone)?;
-        set(x, 85, stone)?; // upper ledge
+        set(x, 85, stone)?;
     }
     for x in 12..=14 {
-        set(x, 82, stone)?; // bump on the ledge
+        set(x, 82, stone)?;
     }
-    for x in 3..=20 {
-        set(x, 104, stone)?;
-        set(x, 105, stone)?;
-        set(x, 106, stone)?; // lower ground
-    }
-    // Trees standing on the ledge.
-    for y in 70..=83 {
-        set(9, y, stone)?;
-        set(16, y, stone)?;
-    }
-    for y in 68..=69 {
-        for x in 8..=10 {
-            set(x, y, stone)?;
-        }
-        for x in 15..=17 {
+    for x in 2..=21 {
+        for y in 100..=126 {
             set(x, y, stone)?;
         }
     }
-    // Sand pour: falls onto trees/ledge, spills down to the ground below.
-    for y in 6..=8 {
-        for x in 9..=15 {
+    for y in 4..=36 {
+        for x in 6..=16 {
             set(x, y, MATERIAL_SAND)?;
         }
     }
 
-    // ── Zone 2 — WATER: cliff, mid ledge, basin; stream + two-step fall. ──
-    for x in 26..=46 {
-        for y in 30..=32 {
-            set(x, y, stone)?; // high cliff
-        }
-    }
-    for x in 24..=28 {
-        for y in 52..=54 {
-            set(x, y, stone)?; // mid ledge: left waterfall (falls at x=25) lands here
-        }
-    }
-    for x in 26..=46 {
-        for y in 88..=90 {
-            set(x, y, stone)?; // basin floor
-        }
-    }
-    // Trees rising from the basin floor.
-    for y in 74..=87 {
-        set(29, y, stone)?;
-        set(43, y, stone)?;
-    }
-    for y in 72..=73 {
-        for x in 28..=30 {
-            set(x, y, stone)?;
-        }
-        for x in 42..=44 {
+    for x in 24..=46 {
+        for y in 90..=126 {
             set(x, y, stone)?;
         }
     }
-    // Water source on the cliff: pours off both edges, streams down.
-    for y in 20..=22 {
-        for x in 32..=42 {
+    for x in 25..=45 {
+        for y in 90..=98 {
+            set(x, y, MATERIAL_EMPTY)?;
+        }
+    }
+    for y in 4..=36 {
+        for x in 28..=42 {
             set(x, y, MATERIAL_WATER)?;
         }
     }
 
-    // ── Zone 3 — OIL: bowl; oil rains in and pools. ──
-    for x in 52..=66 {
-        for y in 60..=62 {
-            set(x, y, stone)?; // bowl floor
+    for x in 50..=68 {
+        for y in 90..=126 {
+            set(x, y, stone)?;
         }
     }
-    for y in 48..=60 {
-        for x in 52..=54 {
-            set(x, y, stone)?; // left wall
-        }
-        for x in 64..=66 {
-            set(x, y, stone)?; // right wall
+    for x in 51..=67 {
+        for y in 90..=98 {
+            set(x, y, MATERIAL_EMPTY)?;
         }
     }
-    for y in 24..=26 {
-        for x in 56..=62 {
+    for y in 4..=36 {
+        for x in 54..=64 {
             set(x, y, MATERIAL_OIL)?;
         }
     }
 
-    // ── Zone 4 — STEAM: geyser basin under a slab, rising through canopy. ──
+    for x in 72..=92 {
+        for y in 100..=126 {
+            set(x, y, stone)?;
+        }
+    }
     for x in 76..=88 {
-        for y in 112..=114 {
-            set(x, y, stone)?; // basin floor
-        }
-    }
-    for y in 100..=112 {
-        for x in 76..=78 {
-            set(x, y, stone)?; // left wall
-        }
-        for x in 86..=88 {
-            set(x, y, stone)?; // right wall
-        }
-    }
-    for x in 78..=86 {
-        for y in 96..=98 {
-            set(x, y, stone)?; // slab above the basin: steam flows around it
-        }
-    }
-    for y in 72..=74 {
-        for x in 74..=77 {
-            set(x, y, stone)?; // canopy left
-        }
-        for x in 87..=90 {
-            set(x, y, stone)?; // canopy right
-        }
-    }
-    for y in 106..=110 {
-        for x in 80..=84 {
+        for y in 105..=115 {
             set(x, y, MATERIAL_STEAM)?;
-            set_t(x, y, STEAM_STABLE_T)?; // G4-B: hot Steam stays Steam
+            simulation.world.write_temperature(q, x, y, 80.0)?;
         }
     }
 
-    // ── Zone 5 — SMOKE: pit with a canopy gap; smoke rises through. ──
+    for x in 96..=116 {
+        for y in 100..=126 {
+            set(x, y, stone)?;
+        }
+    }
     for x in 100..=112 {
-        for y in 118..=120 {
-            set(x, y, stone)?; // pit floor
-        }
-    }
-    for y in 88..=90 {
-        for x in 98..=103 {
-            set(x, y, stone)?; // canopy left
-        }
-        for x in 109..=114 {
-            set(x, y, stone)?; // canopy right
-        }
-    }
-    for y in 110..=114 {
-        for x in 104..=108 {
+        for y in 105..=115 {
             set(x, y, MATERIAL_SMOKE)?;
         }
     }
 
-    // ── Void zone (bottom right): funnel into an open boundary hole. ──
-    for x in 120..=124 {
-        for y in 118..=120 {
-            set(x, y, stone)?; // small platform
+    for y in 110..=126 {
+        for x in 120..=121 {
+            set(x, y, stone)?;
+        }
+        for x in 126..=127 {
+            set(x, y, stone)?;
         }
     }
-    for y in 124..=126 {
-        set(121, y, stone)?; // funnel walls guiding sand into the hole
-        set(123, y, stone)?;
+    for x in 122..=125 {
+        set(x, 127, MATERIAL_EMPTY)?;
     }
-    set(122, 127, MATERIAL_EMPTY)?; // open the boundary ring → Void exit
-    for y in 121..=123 {
-        set(122, y, MATERIAL_SAND)?; // sand stack drains into the hole
+    for y in 70..=95 {
+        for x in 122..=125 {
+            set(x, y, MATERIAL_SAND)?;
+        }
     }
 
     Ok(())
 }
 
-/// Stages the G3 laboratory density-validation scene on the 128×128 world.
-///
-/// Three large tanks, left→right matching the window title. No forest
-/// dividers, trees, ledges, or other G2 ornaments. Walls are Stone only.
-///   1. SAND + WATER — large sand block sitting on a deep water pool.
-///   2. WATER + OIL  — inverted layers (water above, oil below).
-///   3. STEAM + SMOKE — sealed chamber, inverted (smoke above, steam below).
+/// Stages the G3 laboratory tanks demo on the 128×128 world.
 fn stage_density_demo(simulation: &Simulation) -> Result<(), GpuError> {
+    let q = &simulation.context.queue;
+    let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
+    let stone = MATERIAL_STONE;
+
+    for dx in [42i64, 84] {
+        for y in 4..=126 {
+            for x in (dx - 1)..=(dx + 1) {
+                set(x, y, stone)?;
+            }
+        }
+    }
+
+    for x in 2..=40 {
+        for y in 124..=126 {
+            set(x, y, stone)?;
+        }
+    }
+    for x in 44..=82 {
+        for y in 124..=126 {
+            set(x, y, stone)?;
+        }
+    }
+    for x in 86..=126 {
+        for y in 124..=126 {
+            set(x, y, stone)?;
+        }
+    }
+
+    for y in 56..=123 {
+        for x in 5..=38 {
+            set(x, y, MATERIAL_WATER)?;
+        }
+    }
+    for y in 8..=48 {
+        for x in 8..=35 {
+            set(x, y, MATERIAL_SAND)?;
+        }
+    }
+
+    for y in 56..=123 {
+        for x in 47..=80 {
+            set(x, y, MATERIAL_OIL)?;
+        }
+    }
+    for y in 8..=48 {
+        for x in 50..=77 {
+            set(x, y, MATERIAL_WATER)?;
+        }
+    }
+
+    for y in 8..=56 {
+        for x in 89..=123 {
+            set(x, y, MATERIAL_SMOKE)?;
+        }
+    }
+    for y in 68..=120 {
+        for x in 92..=120 {
+            set(x, y, MATERIAL_STEAM)?;
+            simulation.world.write_temperature(q, x, y, 80.0)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Stages the 4-panel large G4 Thermal Observatory on the 320×192 world.
+///
+/// Layout (2×2 large chambers):
+///   Top-Left (x 1..157, y 1..93):   A. PHASE HEATING (Ice sequential melt → Water → Steam)
+///   Top-Right (x 162..318, y 1..93):  B. PHASE COOLING (Steam → Water condensation → Ice freezing)
+///   Bottom-Left (x 1..157, y 98..190): C. HEAT COMPARISON (Identical sealed Water vs Oil tubes)
+///   Bottom-Right (x 162..318, y 98..190): D. COMBUSTION (Wood strip ignition, spread, finite burn to EMPTY)
+fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
     let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
     let stone = MATERIAL_STONE;
 
-    // Full-height tanks: left / right / bottom walls, 2 cells thick.
-    // Tank 3 is sealed (top wall too) so gas cannot leave.
-    let tanks = [
-        (4i64, 39i64, false),  // SAND + WATER, open top
-        (46i64, 81i64, false), // WATER + OIL, open top
-        (88i64, 123i64, true), // STEAM + SMOKE, sealed
-    ];
-    let wall_top = 4i64;
-    let wall_bot = 125i64;
-    for &(x0, x1, sealed) in &tanks {
-        for y in wall_top..=wall_bot {
-            set(x0, y, stone)?;
-            set(x0 + 1, y, stone)?;
-            set(x1 - 1, y, stone)?;
-            set(x1, y, stone)?;
+    // ─── Central Vertical Divider with Void Chimney (x 158..161) ───
+    for y in 1..=190 {
+        set(157, y, stone)?;
+        set(158, y, stone)?;
+        set(159, y, MATERIAL_EMPTY)?; // chimney column → Void
+        set(160, y, MATERIAL_EMPTY)?;
+        set(161, y, stone)?;
+        set(162, y, stone)?;
+    }
+    set(159, 0, MATERIAL_EMPTY)?; // top chimney opening
+    set(160, 0, MATERIAL_EMPTY)?;
+
+    // ─── Central Horizontal Divider (y 94..97) ───
+    for x in 1..=318 {
+        set(x, 94, stone)?;
+        set(x, 95, stone)?;
+        set(x, 96, stone)?;
+        set(x, 97, stone)?;
+    }
+
+    // ─── A — PHASE HEATING (Top-Left: x 1..157, y 1..93) ───
+    // Hot Stone source at bottom-left (T=250). Stone conductor bar along floor.
+    // Three Ice masses at increasing distances. Steam rises to top vent.
+    for x in 3..=155 {
+        for y in 88..=93 {
+            set(x, y, stone)?;
         }
-        for x in x0..=x1 {
-            set(x, wall_bot - 1, stone)?;
-            set(x, wall_bot, stone)?;
-            if sealed {
-                set(x, wall_top, stone)?;
-                set(x, wall_top + 1, stone)?;
+    }
+    for x in 6..=24 {
+        for y in 76..=93 {
+            set(x, y, stone)?;
+            set_t(x, y, 250.0)?; // hot left span
+        }
+    }
+    // Conductor bed
+    for x in 25..=150 {
+        for y in 86..=88 {
+            set(x, y, stone)?;
+        }
+    }
+    // Three Ice blocks at increasing distance from heat source:
+    // Ice 1: close (melts first)
+    for y in 78..=85 {
+        for x in 32..=46 {
+            set(x, y, MATERIAL_ICE)?;
+            set_t(x, y, -30.0)?;
+        }
+    }
+    // Ice 2: mid distance
+    for y in 78..=85 {
+        for x in 75..=89 {
+            set(x, y, MATERIAL_ICE)?;
+            set_t(x, y, -30.0)?;
+        }
+    }
+    // Ice 3: far distance
+    for y in 78..=85 {
+        for x in 120..=134 {
+            set(x, y, MATERIAL_ICE)?;
+            set_t(x, y, -30.0)?;
+        }
+    }
+    // Top steam vent to Void
+    for x in 60..=100 {
+        set(x, 0, MATERIAL_EMPTY)?;
+    }
+
+    // ─── B — PHASE COOLING (Top-Right: x 162..318, y 1..93) ───
+    // Direct thermal contact: Cold ceiling (T=-40) + cold fins (T=-40) in upper Steam cavity (T=80)
+    // → Steam condenses to Water → Drips through center gap → Freeze basin bottom (T=-100) → Freezes to Ice.
+    // Initial Ice count = 0.
+    for x in 164..=316 {
+        for y in 88..=93 {
+            set(x, y, stone)?;
+        }
+    }
+    // Cold ceiling at top of panel
+    for x in 164..=316 {
+        for y in 1..=3 {
+            set(x, y, stone)?;
+            set_t(x, y, -40.0)?;
+        }
+    }
+    // Downward cold fins extending from ceiling into steam
+    let fin_ranges = [184..=186, 210..=212, 238..=240, 266..=268, 294..=296];
+    for fin in &fin_ranges {
+        for x in fin.clone() {
+            for y in 4..=26 {
+                set(x, y, stone)?;
+                set_t(x, y, -40.0)?;
             }
         }
     }
+    // Hot Steam mass (T=80) filling upper cavity between fins (direct 4-neighbor contact)
+    for y in 4..=26 {
+        for x in 166..=314 {
+            let in_fin = fin_ranges.iter().any(|r| r.contains(&x));
+            if !in_fin {
+                set(x, y, MATERIAL_STEAM)?;
+                set_t(x, y, 80.0)?;
+            }
+        }
+    }
+    // Mid condensation/guide shelves (T=-40) with center drip gap (x 201..279 open)
+    for y in 48..=50 {
+        for x in 164..=200 {
+            set(x, y, stone)?;
+            set_t(x, y, -40.0)?;
+        }
+        for x in 280..=316 {
+            set(x, y, stone)?;
+            set_t(x, y, -40.0)?;
+        }
+    }
+    // Bottom Freeze basin (T=-100, well below -20.0 freeze threshold)
+    for x in 190..=290 {
+        for y in 78..=85 {
+            set(x, y, stone)?;
+            set_t(x, y, -100.0)?;
+        }
+    }
+    for y in 64..=78 {
+        for x in 190..=194 {
+            set(x, y, stone)?;
+            set_t(x, y, -100.0)?;
+        }
+        for x in 286..=290 {
+            set(x, y, stone)?;
+            set_t(x, y, -100.0)?;
+        }
+    }
 
-    // ── Tank 1 — SAND + WATER ──
-    // Water: 20 rows × 24 cols, filling the lower half of the inner tank.
-    // Sand:  10 rows × 16 cols, a large block sitting on the water.
-    // Paused frame must read as Sand / Water, not a thin pour.
-    for y in 104..=123 {
-        for x in 10..=33 {
+    // ─── C — HEAT COMPARISON (Bottom-Left: x 1..157, y 98..190) ───
+    // Shared bottom hot Stone reservoir (T=50) under two identical sealed tubes (Water vs Oil).
+    for x in 15..=145 {
+        for y in 178..=186 {
+            set(x, y, stone)?;
+            set_t(x, y, 50.0)?; // bottom warm reservoir
+        }
+    }
+    // Tube 1 (WATER): Interior x 25..65, y 112..174
+    for y in 110..=176 {
+        for x in 23..=24 {
+            set(x, y, stone)?;
+        }
+        for x in 66..=67 {
+            set(x, y, stone)?;
+        }
+    }
+    for y in 110..=111 {
+        for x in 23..=67 {
+            set(x, y, stone)?;
+        } // top seal
+    }
+    for y in 112..=174 {
+        for x in 25..=65 {
             set(x, y, MATERIAL_WATER)?;
-        }
-    }
-    for y in 94..=103 {
-        for x in 14..=29 {
-            set(x, y, MATERIAL_SAND)?;
+            set_t(x, y, 0.0)?;
         }
     }
 
-    // ── Tank 2 — WATER + OIL (deliberately inverted) ──
-    // Oil below, water above; each layer 12 rows × 28 cols.
-    for y in 112..=123 {
-        for x in 50..=77 {
+    // Tube 2 (OIL): Interior x 90..130, y 112..174
+    for y in 110..=176 {
+        for x in 88..=89 {
+            set(x, y, stone)?;
+        }
+        for x in 131..=132 {
+            set(x, y, stone)?;
+        }
+    }
+    for y in 110..=111 {
+        for x in 88..=132 {
+            set(x, y, stone)?;
+        } // top seal
+    }
+    for y in 112..=174 {
+        for x in 90..=130 {
             set(x, y, MATERIAL_OIL)?;
-        }
-    }
-    for y in 100..=111 {
-        for x in 50..=77 {
-            set(x, y, MATERIAL_WATER)?;
+            set_t(x, y, 0.0)?;
         }
     }
 
-    // ── Tank 3 — STEAM + SMOKE (sealed, inverted) ──
-    // Smoke above, steam below; each layer 12 rows × 28 cols, mid-chamber
-    // so the swap has empty space above and below.
-    for y in 52..=63 {
-        for x in 92..=119 {
-            set(x, y, MATERIAL_SMOKE)?;
+    // ─── D — COMBUSTION (Bottom-Right: x 162..318, y 98..190) ───
+    // Hot Stone igniter on left (T=200). Large Wood strip (length 81, height 8).
+    for x in 164..=316 {
+        for y in 186..=190 {
+            set(x, y, stone)?;
         }
     }
-    for y in 64..=75 {
-        for x in 92..=119 {
-            set(x, y, MATERIAL_STEAM)?;
-            set_t(x, y, STEAM_STABLE_T)?; // G4-B: hot Steam stays Steam
+    // Hot Stone igniter
+    for y in 144..=155 {
+        for x in 192..=199 {
+            set(x, y, stone)?;
+            set_t(x, y, 200.0)?;
+        }
+    }
+    // Large Wood strip
+    for y in 146..=153 {
+        for x in 200..=280 {
+            set(x, y, MATERIAL_WOOD)?;
+            set_t(x, y, 0.0)?;
+        }
+    }
+    // Chimney vent opening to central chimney
+    for y in 100..=120 {
+        for x in 163..=166 {
+            set(x, y, MATERIAL_EMPTY)?;
         }
     }
 
@@ -534,8 +733,7 @@ fn stage_density_demo(simulation: &Simulation) -> Result<(), GpuError> {
 }
 
 /// Resets the demo world to its pristine boundary-ring state and re-stages
-/// the active demo scene, using only the validated edit hook (never touching
-/// the simulation internals). Current and Next stay consistent throughout.
+/// the active demo scene, using only the validated edit hook.
 fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let w = i64::from(simulation.world.config.width);
@@ -564,19 +762,28 @@ fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuEr
     match mode {
         DemoMode::Movement => stage_movement_demo(simulation),
         DemoMode::Density => stage_density_demo(simulation),
+        DemoMode::Thermal => stage_thermal_demo(simulation),
         DemoMode::None => Ok(()),
     }
 }
 
 /// Advances the demo simulation: pending reset/step first, then the
-/// fixed-rate play loop (15 TPS), decoupled from the render rate.
-fn step_demo(simulation: &mut Simulation, demo: &mut DemoState, mode: DemoMode) {
+/// fixed-rate play loop (mode TPS), decoupled from the render rate.
+fn step_demo(
+    simulation: &mut Simulation,
+    demo: &mut DemoState,
+    collector: &mut Option<ObservatoryCollector>,
+    mode: DemoMode,
+) {
     if demo.reset_pending {
         demo.reset_pending = false;
         if let Err(e) = reset_demo_world(simulation, mode) {
             eprintln!("[powdergame] demo reset error: {e}");
         } else {
             println!("[powdergame] demo: scene reset to initial state");
+        }
+        if let Some(col) = collector {
+            col.reset();
         }
         demo.ticks = 0;
         demo.last_tick = None;
@@ -594,18 +801,21 @@ fn step_demo(simulation: &mut Simulation, demo: &mut DemoState, mode: DemoMode) 
         }
     }
     if demo.playing {
+        let interval = mode.tick_interval();
         let now = Instant::now();
         let prev = demo.last_tick.unwrap_or(now);
         let mut acc = now.duration_since(prev);
-        while acc >= DEMO_TICK_INTERVAL {
+        while acc >= interval {
             match simulation.tick() {
                 Ok(()) => demo.ticks += 1,
                 Err(e) => eprintln!("[powdergame] demo tick error: {e}"),
             }
-            acc -= DEMO_TICK_INTERVAL;
+            acc -= interval;
         }
-        // Keep the remainder so the rate does not drift over time.
         demo.last_tick = Some(now - acc);
+    }
+    if let Some(col) = collector {
+        col.update(simulation, demo.ticks);
     }
 }
 
@@ -670,19 +880,34 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if let Some(simulation) = &mut self.simulation {
                     if let Some(demo) = &mut self.demo {
-                        step_demo(simulation, demo, self.demo_mode);
+                        step_demo(
+                            simulation,
+                            demo,
+                            &mut self.observatory_collector,
+                            self.demo_mode,
+                        );
                     } else if let Err(e) = simulation.tick() {
                         eprintln!("[powdergame] tick error: {e}");
                     }
                 }
                 if let Some(renderer) = &mut self.renderer {
-                    if let Err(e) = renderer.render() {
+                    let thermal_hud = if self.demo_mode == DemoMode::Thermal {
+                        self.observatory_collector.as_ref().map(|c| {
+                            (
+                                c.metrics(),
+                                self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
+                            )
+                        })
+                    } else {
+                        None
+                    };
+                    if let Err(e) = renderer.render(thermal_hud) {
                         eprintln!("[powdergame] render error: {e}");
-                        // Device-lost style errors abort the app.
                         event_loop.exit();
                         return;
                     }
                 }
+
                 if self.demo_mode != DemoMode::None {
                     if let Some(demo) = &self.demo {
                         window.set_title(&demo.title());
@@ -721,13 +946,14 @@ fn parse_smoke_frames() -> Option<u32> {
     frames
 }
 
-/// Parses the demo mode: `--movement-demo` / `--density-demo` (or their
-/// `POWDERGAME_*_DEMO=1` env equivalents).
+/// Parses the demo mode: `--movement-demo` / `--density-demo` /
+/// `--thermal-demo` (or their `POWDERGAME_*_DEMO=1` env equivalents).
 fn parse_demo_mode() -> DemoMode {
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--movement-demo" => return DemoMode::Movement,
             "--density-demo" => return DemoMode::Density,
+            "--thermal-demo" => return DemoMode::Thermal,
             _ => {}
         }
     }
@@ -737,12 +963,13 @@ fn parse_demo_mode() -> DemoMode {
     if std::env::var("POWDERGAME_DENSITY_DEMO").as_deref() == Ok("1") {
         return DemoMode::Density;
     }
+    if std::env::var("POWDERGAME_THERMAL_DEMO").as_deref() == Ok("1") {
+        return DemoMode::Thermal;
+    }
     DemoMode::None
 }
 
 fn main() {
-    // Respect RUST_LOG (e.g. `RUST_LOG=warn` silences wgpu's Naga spam);
-    // default to info when unset.
     let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .try_init();
 
@@ -759,6 +986,11 @@ fn main() {
         DemoMode::Density => println!(
             "[powdergame] density demo: 128×128 laboratory tanks \
              (SAND+WATER | WATER+OIL | STEAM+SMOKE), starts PAUSED \
+             (SPACE play | N step | R reset | ESC quit)"
+        ),
+        DemoMode::Thermal => println!(
+            "[powdergame] thermal demo: 320×192 thermal observatory \
+             (4 large panels + live diagnostic metrics), 60 TPS, starts PAUSED \
              (SPACE play | N step | R reset | ESC quit)"
         ),
         DemoMode::None => {}

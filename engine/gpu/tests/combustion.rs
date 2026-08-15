@@ -18,13 +18,20 @@
 //! inherits combustion identity/state into the new Smoke.
 
 use powdergame_core::{
+    combustion_flag_mask, decay_age, fuel_progress, with_decay_age, with_fuel_progress,
     WorldConfig, FLAG_COMBUSTING, FLAG_FLAME_EVENT, MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_SMOKE,
-    MATERIAL_STONE, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
+    MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::Simulation;
 
-/// A future-subsystem flag bit that combustion must never touch.
-const TEST_UNRELATED_FLAG: u32 = 1 << 10;
+/// A future-subsystem flag bit that combustion must never touch. Chosen
+/// OUTSIDE the combustion-owned bits (0..1 bools, 8..23 fuel progress) so
+/// it cannot collide with the fuel-progress field.
+const TEST_UNRELATED_FLAG: u32 = 1 << 28;
+
+/// Gameplay fuel life in active burn ticks (must match the core baseline).
+const COMBUSTION_WOOD_BURN_TICKS: u32 = 900;
+const COMBUSTION_OIL_BURN_TICKS: u32 = 600;
 
 fn make_sim(config: WorldConfig) -> Simulation {
     pollster::block_on(Simulation::new(config)).expect("DX12 + RTX 5090 simulation init")
@@ -88,6 +95,33 @@ fn seal_eight(sim: &Simulation, x: i64, y: i64) {
                 set(sim, x + dx, y + dy, MATERIAL_STONE);
             }
         }
+    }
+}
+
+/// Ticks `stride` ticks at a time and checks `pred` before each batch (and
+/// after the final one), up to `max_ticks` total. Returns the tick index at
+/// which the predicate first held (or `None`). GPU readbacks are cheap
+/// relative to long simulations, so polling every `stride` ticks is fine.
+fn tick_until(
+    sim: &mut Simulation,
+    max_ticks: u64,
+    stride: u64,
+    mut pred: impl FnMut(&Simulation) -> bool,
+) -> Option<u64> {
+    let mut t = 0u64;
+    while t < max_ticks {
+        if pred(sim) {
+            return Some(t);
+        }
+        for _ in 0..stride {
+            sim.tick().expect("tick");
+        }
+        t += stride;
+    }
+    if pred(sim) {
+        Some(t)
+    } else {
+        None
     }
 }
 
@@ -261,7 +295,9 @@ fn flame_event_emitted_on_ignition() {
 
 #[test]
 fn combustion_flag_bits_are_preserved() {
-    let unrelated = 1u32 << 8;
+    // Outside the combustion-owned bits (bool states 0..1 + fuel progress
+    // 8..23) so it cannot collide with the fuel-progress field.
+    let unrelated = 1u32 << 28;
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
     set_t(&sim, 3, 3, 80.0);
@@ -336,7 +372,16 @@ fn burning_matter_swap_carries_flags() {
         0,
         "COMBUSTING follows the Oil through the density swap"
     );
-    assert_eq!(flags(&sim, 3, 4), 0, "Smoke never inherits Oil's flags");
+    assert_eq!(
+        flags(&sim, 3, 4) & (FLAG_COMBUSTING | FLAG_FLAME_EVENT),
+        0,
+        "Smoke never inherits Oil's combustion flags"
+    );
+    assert_eq!(
+        decay_age(flags(&sim, 3, 4)),
+        1,
+        "Smoke has its own decay age 1"
+    );
 }
 
 #[test]
@@ -694,5 +739,800 @@ fn edit_replaces_material_and_clears_flags() {
         flags(&sim, 3, 3) & FLAG_COMBUSTING,
         0,
         "identity replacement clears Matter-owned combustion flags"
+    );
+}
+
+// ---------------------------------------------------------------------
+// Finite fuel lifecycle (G4-C hardening)
+// ---------------------------------------------------------------------
+
+#[test]
+fn wood_eventually_burns_to_empty() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 85.0); // >= sustain 55, keeps burning
+    set_flags(&sim, 3, 3, FLAG_COMBUSTING);
+    seal_eight(&sim, 3, 3); // fully enclosed: no move, no smoke
+
+    for _ in 0..=COMBUSTION_WOOD_BURN_TICKS {
+        sim.tick().expect("tick");
+    }
+
+    assert_eq!(
+        cell(&sim, 3, 3),
+        MATERIAL_EMPTY,
+        "Wood with finite fuel is consumed after its burn duration"
+    );
+    assert_eq!(count_material(&sim, MATERIAL_WOOD), 0);
+    assert_eq!(
+        flags(&sim, 3, 3),
+        0,
+        "consumed cell resets Matter-owned state"
+    );
+    assert_eq!(temp(&sim, 3, 3), TEMPERATURE_REFERENCE);
+}
+
+#[test]
+fn oil_eventually_burns_to_empty() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_OIL);
+    set_t(&sim, 3, 3, 80.0); // >= sustain 45
+    set_flags(&sim, 3, 3, FLAG_COMBUSTING);
+    seal_eight(&sim, 3, 3);
+
+    for _ in 0..=COMBUSTION_OIL_BURN_TICKS {
+        sim.tick().expect("tick");
+    }
+
+    assert_eq!(
+        cell(&sim, 3, 3),
+        MATERIAL_EMPTY,
+        "Oil with finite fuel is consumed after its burn duration"
+    );
+    assert_eq!(count_material(&sim, MATERIAL_OIL), 0);
+    assert_eq!(flags(&sim, 3, 3), 0);
+    assert_eq!(temp(&sim, 3, 3), TEMPERATURE_REFERENCE);
+}
+
+#[test]
+fn exact_duration_boundary_is_not_off_by_one() {
+    // progress 898 (one below the 899 boundary): still burning after 1 tick.
+    let mut before = eight_by_eight();
+    set(&before, 3, 3, MATERIAL_WOOD);
+    set_t(&before, 3, 3, 85.0);
+    set_flags(&before, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 898));
+    seal_eight(&before, 3, 3);
+    before.tick().expect("tick");
+    assert_eq!(
+        cell(&before, 3, 3),
+        MATERIAL_WOOD,
+        "still burns at progress 899"
+    );
+    assert_eq!(fuel_progress(flags(&before, 3, 3)), 899);
+
+    // progress 899: the next tick reaches the burn duration and consumes.
+    let mut exact = eight_by_eight();
+    set(&exact, 3, 3, MATERIAL_WOOD);
+    set_t(&exact, 3, 3, 85.0);
+    set_flags(&exact, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 899));
+    seal_eight(&exact, 3, 3);
+    exact.tick().expect("tick");
+    assert_eq!(
+        cell(&exact, 3, 3),
+        MATERIAL_EMPTY,
+        "reaching the burn duration consumes the fuel exactly on the boundary"
+    );
+    assert_eq!(flags(&exact, 3, 3), 0);
+}
+
+#[test]
+fn extinguished_wood_keeps_partial_fuel_progress() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 20.0); // below sustain 55 → extinguish
+    set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 200));
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick");
+
+    let f = flags(&sim, 3, 3);
+    assert_eq!(f & FLAG_COMBUSTING, 0, "extinguished");
+    assert_eq!(f & FLAG_FLAME_EVENT, 0);
+    assert_eq!(
+        fuel_progress(f),
+        200,
+        "extinguish preserves the consumed fuel amount"
+    );
+}
+
+#[test]
+fn reignited_wood_continues_from_partial_progress() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 20.0); // extinguish first
+    set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 200));
+    seal_eight(&sim, 3, 3);
+    sim.tick().expect("tick");
+    assert_eq!(fuel_progress(flags(&sim, 3, 3)), 200);
+    assert_eq!(flags(&sim, 3, 3) & FLAG_COMBUSTING, 0);
+
+    // Reheat past the ignition threshold: reignition continues from the
+    // remaining fuel (200 → 201), never restoring fuel.
+    set_t(&sim, 3, 3, 95.0);
+    sim.tick().expect("tick");
+
+    let f = flags(&sim, 3, 3);
+    assert_ne!(f & FLAG_COMBUSTING, 0, "reignited");
+    assert_eq!(
+        fuel_progress(f),
+        201,
+        "reignition continues from the partial progress"
+    );
+}
+
+#[test]
+fn burning_oil_carries_fuel_progress_when_moving() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 4, MATERIAL_OIL);
+    set_t(&sim, 3, 4, 80.0);
+    set_flags(&sim, 3, 4, with_fuel_progress(FLAG_COMBUSTING, 50));
+    set(&sim, 2, 4, MATERIAL_STONE);
+    set(&sim, 4, 4, MATERIAL_STONE);
+    set(&sim, 3, 3, MATERIAL_STONE);
+    set(&sim, 2, 5, MATERIAL_STONE);
+    set(&sim, 4, 5, MATERIAL_STONE);
+    set(&sim, 3, 6, MATERIAL_STONE);
+    // (3,5) stays EMPTY → Oil falls one cell.
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 5), MATERIAL_OIL, "Oil falls into EMPTY below");
+    let f = flags(&sim, 3, 5);
+    assert_ne!(f & FLAG_COMBUSTING, 0);
+    assert_eq!(
+        fuel_progress(f),
+        51,
+        "fuel progress travels with Matter and keeps counting while burning"
+    );
+}
+
+#[test]
+fn density_swap_carries_fuel_progress_with_identity() {
+    let mut sim = eight_by_eight();
+    // Burning Oil (rank 70) above Smoke (rank 30): local density swap.
+    set(&sim, 3, 4, MATERIAL_OIL);
+    set_t(&sim, 3, 4, 80.0);
+    set_flags(&sim, 3, 4, with_fuel_progress(FLAG_COMBUSTING, 50));
+    set(&sim, 3, 5, MATERIAL_SMOKE);
+    set_t(&sim, 3, 5, 0.0);
+    set(&sim, 3, 3, MATERIAL_STONE);
+    set(&sim, 2, 4, MATERIAL_STONE);
+    set(&sim, 4, 4, MATERIAL_STONE);
+    set(&sim, 2, 5, MATERIAL_STONE);
+    set(&sim, 4, 5, MATERIAL_STONE);
+    set(&sim, 3, 6, MATERIAL_STONE);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 5), MATERIAL_OIL, "Oil sank below Smoke");
+    let f = flags(&sim, 3, 5);
+    assert_ne!(f & FLAG_COMBUSTING, 0);
+    assert_eq!(
+        fuel_progress(f),
+        51,
+        "fuel progress follows the identity through the swap"
+    );
+    assert_eq!(
+        fuel_progress(flags(&sim, 3, 4)),
+        0,
+        "Smoke never inherits fuel progress"
+    );
+    assert_eq!(flags(&sim, 3, 4) & FLAG_COMBUSTING, 0);
+    assert_eq!(
+        decay_age(flags(&sim, 3, 4)),
+        1,
+        "Smoke has its own decay age 1"
+    );
+}
+
+#[test]
+fn void_exit_clears_fuel_progress() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 7, MATERIAL_EMPTY); // open the bottom boundary
+    set(&sim, 3, 7, MATERIAL_OIL);
+    set_t(&sim, 3, 7, 80.0);
+    set_flags(&sim, 3, 7, with_fuel_progress(FLAG_COMBUSTING, 50));
+    set(&sim, 3, 6, MATERIAL_STONE);
+    set(&sim, 2, 7, MATERIAL_STONE);
+    set(&sim, 4, 7, MATERIAL_STONE);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 7), MATERIAL_EMPTY, "Oil exits through Void");
+    assert_eq!(flags(&sim, 3, 7), 0, "Void exit clears fuel progress");
+    assert_eq!(temp(&sim, 3, 7), TEMPERATURE_REFERENCE);
+    assert_eq!(count_material(&sim, MATERIAL_OIL), 0);
+}
+
+#[test]
+fn edit_replacement_clears_fuel_progress() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 85.0);
+    set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 300));
+    seal_eight(&sim, 3, 3);
+
+    // Identity replacement resets the full Matter-owned flags word.
+    set(&sim, 3, 3, MATERIAL_STONE);
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_STONE);
+    assert_eq!(fuel_progress(flags(&sim, 3, 3)), 0);
+    assert_eq!(flags(&sim, 3, 3) & FLAG_COMBUSTING, 0);
+}
+
+#[test]
+fn nonflammable_stale_progress_is_removed() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_STONE);
+    set_t(&sim, 3, 3, 0.0);
+    // Even a deliberately stale fuel-progress field cannot survive on a
+    // non-combustible Matter.
+    set_flags(
+        &sim,
+        3,
+        3,
+        FLAG_COMBUSTING | FLAG_FLAME_EVENT | with_fuel_progress(0, 400),
+    );
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(
+        flags(&sim, 3, 3) & combustion_flag_mask(),
+        0,
+        "nonflammable Matter drops stale combustion state including progress"
+    );
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_STONE);
+}
+
+#[test]
+fn unrelated_flags_survive_progress_updates() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 85.0);
+    set_flags(
+        &sim,
+        3,
+        3,
+        with_fuel_progress(FLAG_COMBUSTING, 10) | TEST_UNRELATED_FLAG,
+    );
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick");
+
+    let f = flags(&sim, 3, 3);
+    assert_eq!(fuel_progress(f), 11, "progress advances normally");
+    assert_ne!(f & TEST_UNRELATED_FLAG, 0, "unrelated bit survives updates");
+    assert_ne!(f & FLAG_COMBUSTING, 0);
+}
+
+#[test]
+fn smoke_generation_stops_after_fuel_is_consumed() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 85.0);
+    set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 898));
+    set(&sim, 2, 3, MATERIAL_STONE);
+    set(&sim, 4, 3, MATERIAL_STONE);
+    set(&sim, 3, 4, MATERIAL_STONE);
+    // (3,2) stays EMPTY → Smoke spawns above on the still-burning tick.
+
+    sim.tick().expect("tick"); // progress 899: burns + spawns Smoke
+    assert_eq!(count_material(&sim, MATERIAL_SMOKE), 1);
+
+    sim.tick().expect("tick"); // progress 900: consumed → no new spawn
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY, "fuel consumed");
+    assert_eq!(
+        count_material(&sim, MATERIAL_SMOKE),
+        1,
+        "no new Smoke after the source is consumed"
+    );
+    assert_eq!(flags(&sim, 3, 3), 0);
+}
+
+#[test]
+fn fuel_consumption_does_not_delete_neighbor_matter() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 85.0);
+    set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 899));
+    seal_eight(&sim, 3, 3); // 8 Stone neighbors
+    assert_eq!(count_material(&sim, MATERIAL_STONE), 8);
+
+    sim.tick().expect("tick"); // consumption tick
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY);
+    assert_eq!(
+        count_material(&sim, MATERIAL_STONE),
+        8,
+        "consuming a fuel cell never deletes neighbor Matter"
+    );
+    assert_eq!(count_material(&sim, MATERIAL_WOOD), 0);
+}
+
+#[test]
+fn wood_ignition_front_propagates_then_leaves_empty_cells() {
+    // 16×16: a 7-cell Wood strip, hot Stone only at the left end. The
+    // ignition front travels along the strip; the earliest cells are
+    // consumed to EMPTY while later cells are still burning.
+    let mut sim = make_sim(WorldConfig::new(16, 16, 8).unwrap());
+    for x in 3..=9 {
+        set(&sim, x, 8, MATERIAL_WOOD);
+    }
+    for sx in 1..=2 {
+        for sy in 7..=9 {
+            set(&sim, sx, sy, MATERIAL_STONE);
+            set_t(&sim, sx, sy, 400.0);
+        }
+    }
+
+    // Phase 1: the front advances to the far end of the strip.
+    let front = tick_until(&mut sim, 2000, 25, |s| {
+        (3..=9).any(|x| cell(s, x, 8) == MATERIAL_WOOD && flags(s, x, 8) & FLAG_COMBUSTING != 0)
+            && cell(s, 9, 8) != MATERIAL_EMPTY
+    });
+    assert!(
+        front.is_some(),
+        "ignition front must propagate along the strip"
+    );
+
+    // Phase 2: with continued burning, the earliest cells are consumed.
+    let consumed = tick_until(&mut sim, 3000, 50, |s| {
+        cell(s, 3, 8) == MATERIAL_EMPTY && count_material(s, MATERIAL_WOOD) > 0
+    });
+    assert!(
+        consumed.is_some(),
+        "earliest Wood cells must eventually burn to EMPTY while the front continues"
+    );
+
+    // Invariants after the long run: finite temperatures, no stale
+    // combustion state on EMPTY.
+    let mats = sim
+        .world
+        .read_material_all(&sim.context.device, &sim.context.queue)
+        .expect("material readback");
+    let temps = sim
+        .world
+        .read_temperature_all(&sim.context.device, &sim.context.queue)
+        .expect("temperature readback");
+    let fls = sim
+        .world
+        .read_flags_all(&sim.context.device, &sim.context.queue)
+        .expect("flags readback");
+    for i in 0..mats.len() {
+        assert!(
+            temps[i].is_finite(),
+            "cell {i} temperature must stay finite"
+        );
+        if mats[i] == MATERIAL_EMPTY {
+            assert_eq!(fls[i], 0, "EMPTY cell {i} must not keep combustion state");
+            assert_eq!(temps[i], TEMPERATURE_REFERENCE);
+        }
+    }
+}
+
+#[test]
+fn wood_chain_crosses_chunk_boundary() {
+    // 128×16 (chunk 64): the 64-column chunk boundary sits between x=63 and
+    // x=64. A Wood chain spans it; hot Stone only on the left end. The
+    // ignition front must cross the boundary — chunks are never walls.
+    let mut sim = make_sim(WorldConfig::new(128, 16, 64).unwrap());
+    for x in 60..=66 {
+        set(&sim, x, 6, MATERIAL_WOOD);
+    }
+    for sx in 55..=59 {
+        for sy in 5..=7 {
+            set(&sim, sx, sy, MATERIAL_STONE);
+            set_t(&sim, sx, sy, 400.0);
+        }
+    }
+
+    let crossed = tick_until(&mut sim, 2500, 25, |s| {
+        (64..=66).any(|x| cell(s, x, 6) == MATERIAL_WOOD && flags(s, x, 6) & FLAG_COMBUSTING != 0)
+    });
+    assert!(
+        crossed.is_some(),
+        "ignition front must cross the x=63/64 chunk boundary"
+    );
+
+    // The chain keeps burning to the far side and the left end is consumed.
+    let consumed = tick_until(&mut sim, 3000, 50, |s| {
+        cell(s, 60, 6) == MATERIAL_EMPTY && (64..=66).any(|x| cell(s, x, 6) == MATERIAL_WOOD)
+    });
+    assert!(
+        consumed.is_some(),
+        "chain consumes fuel on both sides of the chunk boundary"
+    );
+}
+
+#[test]
+fn long_run_combustion_remains_finite() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 85.0);
+    set_flags(&sim, 3, 3, FLAG_COMBUSTING);
+    seal_eight(&sim, 3, 3);
+
+    for _ in 0..200 {
+        sim.tick().expect("tick");
+    }
+
+    let temps = sim
+        .world
+        .read_temperature_all(&sim.context.device, &sim.context.queue)
+        .expect("temperature readback");
+    for (i, t) in temps.iter().enumerate() {
+        assert!(t.is_finite(), "cell {i} temperature must stay finite");
+    }
+    let mats = sim
+        .world
+        .read_material_all(&sim.context.device, &sim.context.queue)
+        .expect("material readback");
+    let fls = sim
+        .world
+        .read_flags_all(&sim.context.device, &sim.context.queue)
+        .expect("flags readback");
+    for i in 0..mats.len() {
+        if mats[i] == MATERIAL_EMPTY {
+            assert_eq!(fls[i], 0, "EMPTY cell {i} must not keep combustion state");
+        }
+    }
+    // The enclosed Wood is still burning (200 < 900 ticks) with finite heat.
+    assert_ne!(flags(&sim, 3, 3) & FLAG_COMBUSTING, 0);
+    assert!(temp(&sim, 3, 3).is_finite());
+}
+
+// ---------------------------------------------------------------------
+// G4-D Smoke Finite Lifetime & Material-Owned Decay Tests
+// ---------------------------------------------------------------------
+
+#[test]
+fn fresh_smoke_does_not_disappear_immediately() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(
+        cell(&sim, 3, 3),
+        MATERIAL_SMOKE,
+        "smoke remains alive at tick 1"
+    );
+    assert_eq!(decay_age(flags(&sim, 3, 3)), 1, "age advances to 1");
+}
+
+#[test]
+fn smoke_survives_until_lifetime_minus_one() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 3, with_decay_age(0, 898));
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick"); // age becomes 899 < 900
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_SMOKE, "smoke survives age 899");
+    assert_eq!(decay_age(flags(&sim, 3, 3)), 899);
+}
+
+#[test]
+fn smoke_becomes_empty_at_exact_lifetime() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 3, with_decay_age(0, 899));
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick"); // age reaches 900 -> decay to EMPTY
+
+    assert_eq!(
+        cell(&sim, 3, 3),
+        MATERIAL_EMPTY,
+        "smoke decays to EMPTY at age 900"
+    );
+    assert_eq!(flags(&sim, 3, 3), 0, "EMPTY has flags == 0");
+    assert_eq!(temp(&sim, 3, 3), TEMPERATURE_REFERENCE);
+}
+
+#[test]
+fn moving_smoke_carries_age() {
+    // Smoke at (3, 5), rises to (3, 4) in movement pass, then age increments in decay pass.
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 5, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 5, with_decay_age(0, 100));
+    set(&sim, 2, 5, MATERIAL_STONE);
+    set(&sim, 4, 5, MATERIAL_STONE);
+    set(&sim, 3, 6, MATERIAL_STONE);
+    // (3, 4) is EMPTY above
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 5), MATERIAL_EMPTY, "smoke vacated (3,5)");
+    assert_eq!(cell(&sim, 3, 4), MATERIAL_SMOKE, "smoke rose to (3,4)");
+    assert_eq!(
+        decay_age(flags(&sim, 3, 4)),
+        101,
+        "age carried and incremented to 101"
+    );
+}
+
+#[test]
+fn density_gas_movement_does_not_reset_age() {
+    // Steam (rank 20) above Smoke (rank 30) -> Steam rises, Smoke sinks/swaps in gas density channel.
+    let mut sim = eight_by_eight();
+    for y in 2..=5 {
+        set(&sim, 2, y, MATERIAL_STONE);
+        set(&sim, 4, y, MATERIAL_STONE);
+    }
+    set(&sim, 3, 2, MATERIAL_STONE); // top
+    set(&sim, 3, 5, MATERIAL_STONE); // bottom
+    set(&sim, 3, 3, MATERIAL_STEAM);
+    set(&sim, 3, 4, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 4, with_decay_age(0, 250));
+
+    sim.tick().expect("tick");
+
+    // After tick, density/gas swap or rise occurs and Smoke keeps its age.
+    let smoke_pos = if cell(&sim, 3, 3) == MATERIAL_SMOKE {
+        (3, 3)
+    } else if cell(&sim, 3, 4) == MATERIAL_SMOKE {
+        (3, 4)
+    } else {
+        panic!("Smoke must still exist in chamber");
+    };
+    assert_eq!(
+        decay_age(flags(&sim, smoke_pos.0, smoke_pos.1)),
+        251,
+        "age preserved across gas interaction"
+    );
+}
+
+#[test]
+fn void_exit_clears_smoke_age() {
+    // Smoke moving through open boundary to Void:
+    let config = WorldConfig::new(8, 8, 8).unwrap();
+    let mut sim = make_sim(config);
+    // Open top boundary at (3, 0)
+    set(&sim, 3, 0, MATERIAL_EMPTY);
+    set(&sim, 3, 1, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 1, with_decay_age(0, 500));
+
+    sim.tick().expect("tick");
+
+    // Smoke rises out of domain to Void; (3,1) is EMPTY with flags 0
+    assert_eq!(cell(&sim, 3, 1), MATERIAL_EMPTY);
+    assert_eq!(flags(&sim, 3, 1), 0);
+}
+
+#[test]
+fn stale_smoke_age_cleared_on_non_smoke() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_STONE);
+    set_flags(&sim, 3, 3, with_decay_age(0, 777));
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_STONE);
+    assert_eq!(
+        decay_age(flags(&sim, 3, 3)),
+        0,
+        "non-decay matter cleans stale decay bits"
+    );
+}
+
+#[test]
+fn smoke_spawn_starts_with_zero_age() {
+    // Burning wood spawns fresh Smoke
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 95.0);
+    set_flags(&sim, 3, 3, FLAG_COMBUSTING);
+    set(&sim, 2, 3, MATERIAL_STONE);
+    set(&sim, 4, 3, MATERIAL_STONE);
+    set(&sim, 3, 4, MATERIAL_STONE);
+    // (3, 2) is EMPTY above
+
+    sim.tick().expect("tick"); // Wood burns and spawns Smoke at (3,2) in smoke_commit
+
+    assert_eq!(cell(&sim, 3, 2), MATERIAL_SMOKE, "smoke spawned");
+    assert_eq!(
+        decay_age(flags(&sim, 3, 2)),
+        0,
+        "newly spawned smoke has age 0"
+    );
+}
+
+#[test]
+fn combustion_can_spawn_smoke_that_later_dissipates() {
+    let mut sim = eight_by_eight();
+    // Fully seal 3x4 outer border around the 2 interior cells (3,3) and (3,2)
+    for y in 1..=4 {
+        set(&sim, 2, y, MATERIAL_STONE);
+        set(&sim, 4, y, MATERIAL_STONE);
+    }
+    set(&sim, 3, 1, MATERIAL_STONE);
+    set(&sim, 3, 4, MATERIAL_STONE);
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 95.0);
+    set_flags(&sim, 3, 3, FLAG_COMBUSTING);
+
+    sim.tick().expect("tick 1: smoke spawns at (3,2)");
+    assert_eq!(cell(&sim, 3, 2), MATERIAL_SMOKE);
+
+    // Put near expiration age on the spawned smoke
+    set_flags(&sim, 3, 2, with_decay_age(flags(&sim, 3, 2), 898));
+    // Extinguish the wood so no more smoke spawns
+    set_t(&sim, 3, 3, 0.0);
+    set_flags(&sim, 3, 3, 0);
+
+    sim.tick().expect("tick 2: age 899");
+    assert_eq!(cell(&sim, 3, 2), MATERIAL_SMOKE);
+
+    sim.tick().expect("tick 3: age 900 -> EMPTY");
+    assert_eq!(
+        cell(&sim, 3, 2),
+        MATERIAL_EMPTY,
+        "spawned smoke decayed to EMPTY"
+    );
+    assert_eq!(flags(&sim, 3, 2), 0);
+}
+
+#[test]
+fn sealed_chamber_smoke_eventually_decreases_after_fire_stops() {
+    let mut sim = eight_by_eight();
+    // Enclosed 2-cell chamber: (3,3) and (3,2)
+    for y in 1..=4 {
+        set(&sim, 2, y, MATERIAL_STONE);
+        set(&sim, 4, y, MATERIAL_STONE);
+    }
+    set(&sim, 3, 1, MATERIAL_STONE); // ceiling
+    set(&sim, 3, 4, MATERIAL_STONE); // floor
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    set(&sim, 3, 2, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 3, with_decay_age(0, 850));
+    set_flags(&sim, 3, 2, with_decay_age(0, 890));
+
+    assert_eq!(count_material(&sim, MATERIAL_SMOKE), 2);
+
+    // Run 15 ticks: (3,2) reaches 905 (>900) -> decays to EMPTY; (3,3) reaches 865 (<900) -> still alive
+    for _ in 0..15 {
+        sim.tick().expect("tick");
+    }
+
+    assert_eq!(
+        count_material(&sim, MATERIAL_SMOKE),
+        1,
+        "older smoke decayed, younger remains"
+    );
+
+    // Run 40 more ticks: (3,3) reaches 905 (>900) -> also decays to EMPTY
+    for _ in 0..40 {
+        sim.tick().expect("tick");
+    }
+
+    assert_eq!(
+        count_material(&sim, MATERIAL_SMOKE),
+        0,
+        "all smoke in sealed room decayed to EMPTY"
+    );
+}
+
+#[test]
+fn smoke_decay_does_not_delete_neighbor_matter() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 3, with_decay_age(0, 899));
+    seal_eight(&sim, 3, 3); // 8 Stone neighbors surrounding (3,3)
+    assert_eq!(count_material(&sim, MATERIAL_STONE), 8);
+
+    sim.tick().expect("decay tick");
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY);
+    assert_eq!(
+        count_material(&sim, MATERIAL_STONE),
+        8,
+        "8 stone neighbors untouched"
+    );
+}
+
+#[test]
+fn long_run_smoke_has_no_stale_flags_on_empty() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 3, with_decay_age(0, 800));
+    seal_eight(&sim, 3, 3);
+
+    for _ in 0..150 {
+        sim.tick().expect("tick");
+    }
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY);
+    let flags_all = sim
+        .world
+        .read_flags_all(&sim.context.device, &sim.context.queue)
+        .expect("readback");
+    for (i, &f) in flags_all.iter().enumerate() {
+        assert_eq!(f, 0, "cell {i} flags must be 0 after smoke decay");
+    }
+}
+
+#[test]
+fn smoke_age_crosses_chunk_boundary_with_identity() {
+    // 128x128 world, chunk size 64. Smoke at x=63, rising or moving to x=64.
+    let config = WorldConfig::new(128, 128, 64).unwrap();
+    let mut sim = make_sim(config);
+    // Seal below and sides, open above across chunk boundary
+    set(&sim, 63, 10, MATERIAL_SMOKE);
+    set_flags(&sim, 63, 10, with_decay_age(0, 300));
+    set(&sim, 63, 11, MATERIAL_STONE);
+    set(&sim, 62, 10, MATERIAL_STONE);
+    set(&sim, 64, 10, MATERIAL_STONE);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 63, 10), MATERIAL_EMPTY);
+    assert_eq!(cell(&sim, 63, 9), MATERIAL_SMOKE);
+    assert_eq!(
+        decay_age(flags(&sim, 63, 9)),
+        301,
+        "age preserved across movement near chunk boundary"
+    );
+}
+
+#[test]
+fn decayed_smoke_not_resurrected_by_subsequent_passes() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    set_flags(&sim, 3, 3, with_decay_age(0, 899));
+    seal_eight(&sim, 3, 3);
+
+    // On this tick: movement (blocked) -> thermal -> phase -> decay (transforms to EMPTY) -> combustion/smoke_commit
+    sim.tick().expect("decay tick");
+
+    assert_eq!(
+        cell(&sim, 3, 3),
+        MATERIAL_EMPTY,
+        "smoke decayed to EMPTY in decay pass"
+    );
+    assert_eq!(flags(&sim, 3, 3), 0);
+    assert_eq!(temp(&sim, 3, 3), TEMPERATURE_REFERENCE);
+
+    // Run several more ticks with no nearby burning source: remains EMPTY
+    for _ in 0..10 {
+        sim.tick().expect("subsequent tick");
+        assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY);
+        assert_eq!(flags(&sim, 3, 3), 0);
+    }
+}
+
+#[test]
+fn unrelated_reserved_flag_bits_survive_decay() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_SMOKE);
+    // Combine decay age with TEST_UNRELATED_FLAG (bit 28)
+    set_flags(&sim, 3, 3, with_decay_age(TEST_UNRELATED_FLAG, 100));
+    seal_eight(&sim, 3, 3);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_SMOKE);
+    let f = flags(&sim, 3, 3);
+    assert_eq!(decay_age(f), 101, "age incremented");
+    assert_ne!(
+        f & TEST_UNRELATED_FLAG,
+        0,
+        "reserved flag bit survives decay update"
     );
 }

@@ -9,8 +9,10 @@
 //     source's post-combustion temperature (new Smoke T = burning source T,
 //     a cheap finite thermal derivation). flags_next was already cleared
 //     for this EMPTY cell by the combustion pass (Smoke is not burning).
-//   otherwise: preserve material (the source stays Wood/Oil; phase result
-//     already settled into material_current).
+//   otherwise: preserve material (the phase result already settled into
+//     material_current), EXCEPT cells the combustion pass consumed this
+//     tick — consumed fuel wrote EMPTY to material_next[self], which must
+//     not be clobbered back to the pre-combustion material.
 //
 // The source's temperature_next was finalized by the combustion pass
 // before this pass runs (sequential dispatches), and no two destinations
@@ -47,6 +49,15 @@ fn smoke_commit_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         let source = my_claim >> 2u;
         material_next[c] = SMOKE_MATERIAL;
         temperature_next[c] = temperature_next[source];
+        return;
+    }
+
+    // Consumed fuel: the combustion pass already wrote EMPTY (and reset
+    // temperature/flags) into this cell's next slots this tick — never
+    // resurrect it. A phase result is never EMPTY for a Matter cell, so
+    // (material_current != EMPTY && material_next == EMPTY) uniquely
+    // identifies a fuel-consumed cell.
+    if (material_current[c] != EMPTY && material_next[c] == EMPTY) {
         return;
     }
 

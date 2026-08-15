@@ -13,14 +13,16 @@
 //! `thermal_conductivity` / `heat_capacity` (gameplay scalars, not SI).
 //! G4-B adds `phase_transitions` — the Material's own small ordered rule
 //! set for temperature-based 1:1 self transitions (Ice ↔ Water ↔ Steam).
-//! G4-C adds `combustion` — the Material's generic ignition/sustain/heat
-//! descriptor (Wood and Oil share one grammar, `REACTION_SPEC` §11).
+//! G4-C adds `combustion` — the Material's generic ignition/sustain/heat/
+//! fuel-life descriptor (Wood and Oil share one grammar, `REACTION_SPEC`
+//! §11; finite fuel = `burn_duration_ticks`).
 
 use crate::combustion::{
-    CombustionDescriptor, COMBUSTION_OIL_HEAT_PER_TICK, COMBUSTION_OIL_IGNITION,
-    COMBUSTION_OIL_SUSTAIN, COMBUSTION_WOOD_HEAT_PER_TICK, COMBUSTION_WOOD_IGNITION,
-    COMBUSTION_WOOD_SUSTAIN,
+    CombustionDescriptor, COMBUSTION_OIL_BURN_DURATION, COMBUSTION_OIL_HEAT_PER_TICK,
+    COMBUSTION_OIL_IGNITION, COMBUSTION_OIL_SUSTAIN, COMBUSTION_WOOD_BURN_DURATION,
+    COMBUSTION_WOOD_HEAT_PER_TICK, COMBUSTION_WOOD_IGNITION, COMBUSTION_WOOD_SUSTAIN,
 };
+use crate::decay::{DecayDescriptor, SMOKE_LIFETIME_TICKS};
 use crate::phase::{PhaseTransition, TemperatureCondition};
 
 /// Absence of Matter in a cell. `EMPTY` is not Matter (ADR-0001).
@@ -114,7 +116,7 @@ impl MovementClass {
 /// G2 adds `movement_class`; G3 adds `density_rank`; G4-A adds cheap
 /// thermal scalars; G4-B adds the Material's own `phase_transitions`
 /// (ordered First-Match, `REACTION_SPEC` §6); G4-C adds the generic
-/// `combustion` descriptor (Wood/Oil share one grammar).
+/// `combustion` descriptor (Wood/Oil share one grammar, finite fuel).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MaterialDescriptor {
     pub id: u32,
@@ -137,11 +139,17 @@ pub struct MaterialDescriptor {
     /// Oil, Smoke, Wood, Boundary). This is Material data — never per-cell
     /// state.
     pub phase_transitions: &'static [PhaseTransition],
-    /// Generic combustion properties (ignition/sustain/heat).
+    /// Generic combustion properties (ignition/sustain/heat + fuel life).
     ///
     /// `None` means this Matter never combusts. This is Material data —
-    /// the per-cell `flags` field stores only the combustion bits.
+    /// the per-cell `flags` field stores only the combustion bits (bool
+    /// state + u12 fuel progress).
     pub combustion: Option<CombustionDescriptor>,
+    /// Generic decay properties (finite lifetime + target material).
+    ///
+    /// `None` means this Matter never decays. This is Material data —
+    /// the per-cell `flags` field stores only the decay age bits (u12).
+    pub decay: Option<DecayDescriptor>,
 }
 
 /// The registered Matter catalog.
@@ -158,6 +166,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         heat_capacity: THERMAL_C_BOUNDARY,
         phase_transitions: &[],
         combustion: None,
+        decay: None,
     },
     MaterialDescriptor {
         id: MATERIAL_STONE,
@@ -168,6 +177,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         heat_capacity: THERMAL_C_STONE,
         phase_transitions: &[],
         combustion: None,
+        decay: None,
     },
     MaterialDescriptor {
         id: MATERIAL_SAND,
@@ -178,6 +188,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         heat_capacity: THERMAL_C_SAND,
         phase_transitions: &[],
         combustion: None,
+        decay: None,
     },
     MaterialDescriptor {
         id: MATERIAL_WATER,
@@ -199,6 +210,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             },
         ],
         combustion: None,
+        decay: None,
     },
     MaterialDescriptor {
         id: MATERIAL_OIL,
@@ -212,7 +224,9 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             ignition_threshold: COMBUSTION_OIL_IGNITION,
             sustain_threshold: COMBUSTION_OIL_SUSTAIN,
             heat_per_tick: COMBUSTION_OIL_HEAT_PER_TICK,
+            burn_duration_ticks: COMBUSTION_OIL_BURN_DURATION,
         }),
+        decay: None,
     },
     MaterialDescriptor {
         id: MATERIAL_STEAM,
@@ -227,6 +241,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             target_material: MATERIAL_WATER,
         }],
         combustion: None,
+        decay: None,
     },
     MaterialDescriptor {
         id: MATERIAL_SMOKE,
@@ -237,6 +252,10 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         heat_capacity: THERMAL_C_GAS,
         phase_transitions: &[],
         combustion: None,
+        decay: Some(DecayDescriptor {
+            lifetime_ticks: SMOKE_LIFETIME_TICKS,
+            target_material: MATERIAL_EMPTY,
+        }),
     },
     MaterialDescriptor {
         id: MATERIAL_ICE,
@@ -251,6 +270,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             target_material: MATERIAL_WATER,
         }],
         combustion: None,
+        decay: None,
     },
     MaterialDescriptor {
         id: MATERIAL_WOOD,
@@ -264,7 +284,9 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             ignition_threshold: COMBUSTION_WOOD_IGNITION,
             sustain_threshold: COMBUSTION_WOOD_SUSTAIN,
             heat_per_tick: COMBUSTION_WOOD_HEAT_PER_TICK,
+            burn_duration_ticks: COMBUSTION_WOOD_BURN_DURATION,
         }),
+        decay: None,
     },
 ];
 
@@ -531,6 +553,10 @@ mod tests {
         assert_eq!(combustion.ignition_threshold, COMBUSTION_WOOD_IGNITION);
         assert_eq!(combustion.sustain_threshold, COMBUSTION_WOOD_SUSTAIN);
         assert_eq!(combustion.heat_per_tick, COMBUSTION_WOOD_HEAT_PER_TICK);
+        assert_eq!(
+            combustion.burn_duration_ticks,
+            COMBUSTION_WOOD_BURN_DURATION
+        );
     }
 
     #[test]
@@ -540,6 +566,7 @@ mod tests {
         assert_eq!(combustion.ignition_threshold, COMBUSTION_OIL_IGNITION);
         assert_eq!(combustion.sustain_threshold, COMBUSTION_OIL_SUSTAIN);
         assert_eq!(combustion.heat_per_tick, COMBUSTION_OIL_HEAT_PER_TICK);
+        assert_eq!(combustion.burn_duration_ticks, COMBUSTION_OIL_BURN_DURATION);
     }
 
     #[test]

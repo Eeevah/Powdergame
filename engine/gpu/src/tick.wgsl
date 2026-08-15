@@ -30,5 +30,10 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     material_next[index] = material_current[index];
     // Diagnostic only: prove this dispatch actually executed on the GPU.
-    marker[0] = 1u;
+    // Written by a single invocation (global index 0) to avoid concurrent
+    // non-atomic writes to the same storage location. No atomic needed for
+    // a diagnostic marker.
+    if (index == 0u) {
+        marker[0] = 1u;
+    }
 }

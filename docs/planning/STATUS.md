@@ -60,7 +60,10 @@
 ### G0 Runtime Evidence (2026-08-16, local run)
 
 ```text
-Base commit:      6de27451a931cdc3c07cdea012163fb80eab87c6 (main @ start)
+Base commit:      6de27451a931cdc3c07cdea012163fb80eab87c6 (main @ G0 시작 시점)
+Implementation:   3f67cf0168f4be3735774b6261e592c499b4f5d8
+                  — 첫 G0 implementation baseline commit
+                  (feat: establish M0 G0 runtime baseline, branch feature/m0-g0-runtime)
 Working branch:   feature/m0-g0-runtime
 Tested platform:  Windows 11 Pro (hostname DK, build 26200), AMD64
 GPU (nvidia-smi): NVIDIA GeForce RTX 5090, driver 596.36, 32 GB VRAM
@@ -153,9 +156,14 @@ M0 `ACHIEVED`: **NO**
 ## Machine-generated Facts
 
 > 이 블록은 향후 script/CI/benchmark 도구가 갱신하도록 설계한다. 자동 생성 pipeline이 아직 없으므로 아래 값은 2026-08-16 로컬 검증에서 사람이 기록한 사실값이다. pipeline이 생기면 이 블록은 자동 갱신으로 전환한다.
+>
+> `base_commit_sha`는 G0 시작 시점의 main commit이다. 첫 G0 implementation baseline commit
+> (`3f67cf0168f4be3735774b6261e592c499b4f5d8`)은 이 블록이 아니라 Human-maintained
+> G0 Runtime Evidence 영역에 기록한다. 자동 pipeline이 없으므로 이 블록에
+> self-referential current commit SHA를 억지로 넣지 않는다.
 
 ```text
-commit_sha: 6de27451a931cdc3c07cdea012163fb80eab87c6 (base; local branch feature/m0-g0-runtime)
+base_commit_sha: 6de27451a931cdc3c07cdea012163fb80eab87c6
 build_id: local-cargo-2026-08-16
 platform: Windows
 primary_gpu: RTX 5090

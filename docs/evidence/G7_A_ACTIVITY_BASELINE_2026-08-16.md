@@ -163,3 +163,69 @@ Instrumentation overhead sanity: 진단 pass들은 매 tick 실행되지만 refe
 - `chunk_stable` 값과 분포를 사용자 관찰로 확보한 뒤 G7-B에서 sleep/wake cutoff와 wake reason 기반 correctness를 설계한다.
 
 G7 = IN_PROGRESS. G7-A = VALIDATION candidate. G7-B/C = PLANNED. G7 PASS/CLOSED 아님.
+## 11. G7-A observatory fixture hardening (2026-08-17, `fix: harden G7 activity observatory fixture`)
+
+Trigger: 사용자 장기 관찰(tick ~0/117/411/679/1515/3019)에서 HUD 누락, F fast-forward 미동작, detector가 frozen G4/G5가 실제로 수행하지 않는 work를 active로 보고하는 correctness mismatch, fixture 결함이 확인됨. authoritative contract: `docs/planning/G7_A_OBSERVATORY_HARDENING.md`.
+
+### 11.1 Detector correctness fixes (production physics untouched)
+
+- **Stale activity bits (bug)**: propose pass가 `mask | cell_activity[index]`로 OR-merge → 이전 tick의 MATTER/PRESSURE/REACTION bit가 frontier 소멸 후에도 생존, stable counter가 영구 reset될 수 있었음. 수정: `cell_activity[index] = mask | (cell_activity[index] & ACTIVITY_THERMAL)` — phase pass의 이번-tick THERMAL transition marker만 보존하고 나머지 bit는 매 tick overwrite. `cell_activity`는 history buffer가 아님.
+- **THERMAL = frozen G4 participation**: conductivity table을 read-only binding으로 추가 (phase table과 단일 `ActivityTables` storage buffer로 결합 — DX12 per-stage storage-buffer limit 8 준수). thermal edge는 양쪽 endpoint가 모두 Matter이고 `min(k_self, k_neighbor) > 0`일 때만 THERMAL work. EMPTY는 thermal medium이 아니고 Boundary Block은 K=0이므로, 이 둘을 건너는 온도차는 frontier가 아님. `THERMAL_ACTIVITY_EPS` 변경 0, thermal.wgsl 수정 0.
+- **PRESSURE = frozen G5 medium exchange**: self와 neighbor가 모두 pressure-medium(LIQUID/GAS)일 때만 비교. pressured medium이 Stone/EMPTY와 만나는 경계는 frontier 아님. `PRESSURE_ACTIVITY_EPS` 변경 0, pressure.wgsl 수정 0.
+
+### 11.2 New GPU regressions (activity 23 → 29 passed)
+
+| test | meaning |
+|---|---|
+| `hot_matter_next_to_empty_does_not_false_report_thermal` | G4: EMPTY는 thermal medium 아님 |
+| `temperature_difference_across_boundary_block_is_inactive` | Boundary Block K=0 → frontier 아님 |
+| `conductive_stone_gradient_reports_thermal_active` | Stone↔Stone 실제 전도 edge는 THERMAL |
+| `matter_frontier_clears_when_settled` | MATTER frontier 소멸 → bit clear + stable 재개 |
+| `pressure_frontier_clears_when_uniform` | 압력 확산 후 균일 → PRESSURE clear + stable 재개 |
+| `reaction_frontier_clears_when_extinguished` | sustain 이하 냉각 → REACTION clear + stable 재개 |
+| `uniform_pressurized_medium_sealed_by_stone_is_not_pressure_frontier` | 기존 잘못된 기대값 정정 (Stone 경계는 frontier 아님) |
+
+### 11.3 Demo fixture hardening
+
+- **Central isolation**: 중앙 십자벽을 Stone → **MATERIAL_BOUNDARY_BLOCK (K=0)**. 네 패널이 열적으로 분리됨 — 3000-tick 검증에서 A control chunk가 mask 0 유지 (cross-panel THERMAL contamination 0).
+- **Panel B (TRUE stable Steam control)**: Stone shell + Steam 모두 T=80, no EMPTY interface / no staged pressure / no staged reaction → 네 chunk가 mask 0, stable counter 단조 증가. Gas existence != Activity.
+- **Panel C (STABLE DURATION / WAKE CANDIDATE)**: Sand source를 upper-right C chunk(cx=1,cy=2)에만 배치; lower-right target chunk(cx=1,cy=3)는 먼저 stable → 생산 movement로 y=192 seam을 넘어 Sand 도착 → stable reset. wake-candidate 관측 (actual sleep/wake 없음).
+- **Panel A**: draining column을 sealed shaft+catch basin에 격리 — C 오염 방지.
+- **Sampled Wake Candidates**: 첫 diagnostic sample은 sentinel `ACTIVITY_NO_PREV_SAMPLE`(u32::MAX) baseline만 설정, 이후 0→nonzero sampled transition만 카운트. `wake_events` 과장 표현 제거.
+
+### 11.4 3000-tick actual-fixture validation (RTX 5090 / DX12, release)
+
+`cargo test --release -p powdergame-windows activity_demo_long_run_3000 -- --ignored --nocapture --test-threads=1` → PASS (4.62s).
+
+실제 `stage_activity_demo()` geometry를 3000+ production `Simulation::tick()`으로 실행:
+
+- Panel C: **pre-arrival stable = 1 → first MATTER arrival tick = 27 → reset_to_zero = true**
+- Panel B: 4 chunks, sampled late ticks(t=500/1000/3000) 전부 mask 0, stable ≥ 1000 (단조 증가)
+- Panel A: sealed control chunks mask 0 (cross-panel THERMAL contamination 0)
+- Panel D: 자연 진화 (강제 active 유지 없음)
+- device loss 0 / panic 0 / invalid state 0
+
+### 11.5 Validation
+
+```text
+cargo fmt --all -- --check              PASS
+cargo check --workspace --all-targets   PASS (warning 0)
+activity 29 passed | thermal 13 | pressure 8 | phase 16 | wgsl_parse 1 | parallel_integrity 12 | windows 7 (+1 ignored long-run)
+cargo test --release -p powdergame-windows activity_demo_long_run_3000 -- --ignored   PASS
+--activity-demo --smoke-frames 300      exit 0 (Activity HUD 렌더링 포함)
+```
+
+성능 benchmark 실행 안 함 (G8 공식 Gate). production physics diff 0. activity EPS 변경 0.
+
+### 11.6 Launch BAT (mandatory deliverable)
+
+`run_g7_activity_demo.bat` (repository root, committed):
+
+- `cd /d "%~dp0"` — BAT가 있는 worktree에서만 build/run
+- `set "RUST_LOG=warn"` — 노이즈 감소
+- incremental release build 후 로컬 `targetelease\powdergame-windows.exe --activity-demo` 직접 실행
+- build 실패 시 명확한 메시지 + `pause` + `exit /b 1`
+- controls 표시: `SPACE Play/Pause | F Fast x1/x4/x16 | N Step | R Reset | ESC Quit`
+- `cargo clean` 없음, 절대 경로 없음
+
+G7 = IN_PROGRESS. G7-A = VALIDATION candidate / AWAITING USER RE-VALIDATION. G7-B/C = PLANNED. G7 PASS/CLOSED 아님.

@@ -34,6 +34,19 @@
 // EMPTY cells never contribute activity. The epsilons are gameplay
 // measurement baselines (not sleep thresholds — G7-B decides those).
 //
+// THERMAL alignment to frozen G4: an edge participates in heat exchange
+// only when both endpoints are Matter and the effective conductivity
+// min(k_self, k_neighbor) > 0 (thermal.wgsl semantics). EMPTY is not a
+// thermal medium, and Boundary Block has conductivity 0 — a temperature
+// difference across either is NOT thermal work and must not keep a chunk
+// active. Combusting heat sources and phase candidates/transitions remain
+// THERMAL regardless of gradients.
+//
+// PRESSURE alignment to frozen G5: pressure propagates only between
+// pressure media (LIQUID/GAS). A pressured medium next to Stone/EMPTY has
+// no pressure work at that boundary (the non-medium neighbor is not part
+// of the exchange), so the comparison is medium-vs-medium only.
+//
 // Chunk seams: this pass reads 1-cell neighbors in world coordinates, so
 // a frontier on the far side of a chunk boundary is detected normally — a
 // chunk seam is not a detection wall. There is deliberately NO
@@ -72,6 +85,15 @@ struct PhaseDesc {
     above_blocked_pressure: f32,
 };
 
+// Combined read-only Material-property tables for the detector (one storage
+// binding keeps the pass within the DX12 per-stage storage-buffer limit):
+// the G4-B phase descriptors (shared with the phase pass) followed by the
+// G4-A conductivity table (shared with the thermal pass).
+struct ActivityTables {
+    phase: array<PhaseDesc, TABLE_LEN>,
+    conductivity: array<f32, TABLE_LEN>,
+};
+
 const EMPTY: u32 = 0u;
 const TABLE_LEN: u32 = 16u;
 const NO_PHASE_TARGET: u32 = 0xFFFFFFFFu;
@@ -98,7 +120,7 @@ const FLAG_DECAY_AGE_MASK: u32 = 0x0FFFu << FLAG_DECAY_AGE_SHIFT;
 // G4-B phase descriptor table (Material property, shared with the phase
 // pass — the activity detector reads it to flag cells whose own
 // Material + Temperature currently satisfy a phase rule).
-@group(0) @binding(8) var<storage, read> phase_table: array<PhaseDesc, TABLE_LEN>;
+@group(0) @binding(8) var<storage, read> tables: ActivityTables;
 
 // Movement candidate kind mirroring movement_propose: 0 = out of domain
 // (Void), 1 = EMPTY, 2 = static/blocked, 3 = movable Matter.
@@ -191,21 +213,41 @@ fn neighbor_pressure(x: i32, y: i32) -> f32 {
     return pressure_current[u32(y) * params.width + u32(x)];
 }
 
-// 4-neighbor field gradient exists for temperature / pressure.
-fn thermal_frontier(x: i32, y: i32, t: f32, flags: u32) -> bool {
+fn neighbor_material(x: i32, y: i32) -> u32 {
+    return material_current[u32(y) * params.width + u32(x)];
+}
+
+fn lookup_k(id: u32) -> f32 {
+    if (id == EMPTY || id >= TABLE_LEN) {
+        return 0.0;
+    }
+    return max(tables.conductivity[id], 0.0);
+}
+
+// 4-neighbor temperature gradient, aligned to the frozen G4 thermal
+// participation rule: an edge is THERMAL work only when BOTH endpoints are
+// Matter and the effective conductivity min(k_self, k_neighbor) > 0. EMPTY
+// and Boundary Block (K=0) never create a thermal frontier.
+fn thermal_edge(x: i32, y: i32, nx: i32, ny: i32, k_self: f32, t: f32) -> bool {
+    if (!in_domain(nx, ny)) {
+        return false;
+    }
+    let k_neighbor = lookup_k(neighbor_material(nx, ny));
+    if (k_self <= 0.0 || k_neighbor <= 0.0) {
+        return false;
+    }
+    return abs(t - neighbor_temperature(nx, ny)) > params.thermal_eps;
+}
+
+fn thermal_frontier(x: i32, y: i32, mat: u32, t: f32, flags: u32) -> bool {
     if ((flags & FLAG_COMBUSTING) != 0u) {
         return true; // active heat source
     }
-    if (in_domain(x - 1, y) && abs(t - neighbor_temperature(x - 1, y)) > params.thermal_eps) {
-        return true;
-    }
-    if (in_domain(x + 1, y) && abs(t - neighbor_temperature(x + 1, y)) > params.thermal_eps) {
-        return true;
-    }
-    if (in_domain(x, y - 1) && abs(t - neighbor_temperature(x, y - 1)) > params.thermal_eps) {
-        return true;
-    }
-    if (in_domain(x, y + 1) && abs(t - neighbor_temperature(x, y + 1)) > params.thermal_eps) {
+    let k_self = lookup_k(mat);
+    if (thermal_edge(x, y, x - 1, y, k_self, t)
+        || thermal_edge(x, y, x + 1, y, k_self, t)
+        || thermal_edge(x, y, x, y - 1, k_self, t)
+        || thermal_edge(x, y, x, y + 1, k_self, t)) {
         return true;
     }
     return false;
@@ -224,20 +266,31 @@ fn is_pressure_medium(mat: u32) -> bool {
     return cls == CLASS_LIQUID || cls == CLASS_GAS;
 }
 
+// G5 alignment: pressure propagates only between pressure media. A
+// medium-medium pressure difference is work; a medium next to a
+// non-medium (Stone/EMPTY) boundary is not a frontier.
+fn pressure_medium_neighbor(x: i32, y: i32) -> bool {
+    return in_domain(x, y) && is_pressure_medium(neighbor_material(x, y));
+}
+
 fn pressure_frontier(x: i32, y: i32, mat: u32, p: f32) -> bool {
     if (!is_pressure_medium(mat)) {
         return false;
     }
-    if (in_domain(x - 1, y) && abs(p - neighbor_pressure(x - 1, y)) > params.pressure_eps) {
+    if (pressure_medium_neighbor(x - 1, y)
+        && abs(p - neighbor_pressure(x - 1, y)) > params.pressure_eps) {
         return true;
     }
-    if (in_domain(x + 1, y) && abs(p - neighbor_pressure(x + 1, y)) > params.pressure_eps) {
+    if (pressure_medium_neighbor(x + 1, y)
+        && abs(p - neighbor_pressure(x + 1, y)) > params.pressure_eps) {
         return true;
     }
-    if (in_domain(x, y - 1) && abs(p - neighbor_pressure(x, y - 1)) > params.pressure_eps) {
+    if (pressure_medium_neighbor(x, y - 1)
+        && abs(p - neighbor_pressure(x, y - 1)) > params.pressure_eps) {
         return true;
     }
-    if (in_domain(x, y + 1) && abs(p - neighbor_pressure(x, y + 1)) > params.pressure_eps) {
+    if (pressure_medium_neighbor(x, y + 1)
+        && abs(p - neighbor_pressure(x, y + 1)) > params.pressure_eps) {
         return true;
     }
     return false;
@@ -253,7 +306,7 @@ fn phase_candidate(mat: u32, t: f32) -> bool {
     if (mat == EMPTY || mat >= TABLE_LEN) {
         return false;
     }
-    let desc = phase_table[mat];
+    let desc = tables.phase[mat];
     if (desc.below_target != NO_PHASE_TARGET && t < desc.below_threshold) {
         return true;
     }
@@ -286,7 +339,7 @@ fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
                 mask = mask | ACTIVITY_MATTER;
             }
         }
-        if (thermal_frontier(x, y, t, flags) || phase_candidate(mat, t)) {
+        if (thermal_frontier(x, y, mat, t, flags) || phase_candidate(mat, t)) {
             mask = mask | ACTIVITY_THERMAL;
         }
         if (pressure_frontier(x, y, mat, pressure_current[index])) {
@@ -297,10 +350,12 @@ fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
     }
 
-    // OR-merge: the phase pass self-marked this tick's transition in
-    // `cell_activity` (THERMAL); preserve it instead of clobbering. Stale
-    // bits cannot accumulate because the phase pass clears THERMAL for
-    // every cell at the start of each tick and this is the only other
-    // writer.
-    cell_activity[index] = mask | cell_activity[index];
+    // Preserve ONLY the current-tick phase-transition marker (THERMAL,
+    // cleared+re-set by the phase pass earlier in this tick) and overwrite
+    // every other bit from this tick's detector result. Any MATTER /
+    // PRESSURE / REACTION bit left over from a previous tick must not
+    // survive: a frontier that actually disappeared must clear, so the
+    // chunk can return to stable and its stable counter can resume.
+    let phase_marker = cell_activity[index] & ACTIVITY_THERMAL;
+    cell_activity[index] = mask | phase_marker;
 }

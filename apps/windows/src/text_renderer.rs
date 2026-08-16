@@ -2992,7 +2992,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             ("Reaction Active", metrics.reaction_active.to_string()),
             ("Fully Stable", metrics.fully_stable.to_string()),
             ("Max Stable Ticks", metrics.max_stable_ticks.to_string()),
-            ("Wake Events", metrics.wake_events.to_string()),
+            (
+                "Sampled Wake Candidates",
+                metrics.sampled_wake_candidates.to_string(),
+            ),
         ];
         for (label, value) in rows {
             self.batch
@@ -3025,6 +3028,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             note_y,
             13,
             "Existence != Activity: a settled bulk chunk has no frontier and its",
+            col_label,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 14.0,
+            note_y + 36.0,
+            13,
+            "Chunk may hold multiple bits; heatmap shows dominant priority",
             col_label,
         );
         self.batch.draw_text(
@@ -3106,7 +3117,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             24.0,
             bot_bar_y,
             15,
-            "SPACE Play / Pause   |   N Single Step (1 tick)   |   R Reset   |   ESC Quit",
+            "SPACE Play / Pause   |   F Fast x1/x4/x16   |   N Single Step (1 tick)   |   R Reset   |   ESC Quit",
             col_label,
         );
 

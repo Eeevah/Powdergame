@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16; G6-A TECHNICAL PASS / FROZEN, G6-B TECHNICAL PASS / FROZEN, G6-C1 COMPLETE / FROZEN, G6-C2 TECHNICAL PASS / FROZEN). G7 (Active/Sleep) IN_PROGRESS — G7-A (Chunk Activity Observatory / Measurement Baseline) VALIDATION candidate; G7-B/C PLANNED.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16; G6-A TECHNICAL PASS / FROZEN, G6-B TECHNICAL PASS / FROZEN, G6-C1 COMPLETE / FROZEN, G6-C2 TECHNICAL PASS / FROZEN). G7 (Active/Sleep) IN_PROGRESS — G7-A (Chunk Activity Observatory / Measurement Baseline) VALIDATION candidate / AWAITING USER RE-VALIDATION (observatory fixture hardening 완료); G7-B/C PLANNED.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: PASS / CLOSED (G6-A TECHNICAL PASS / FROZEN; G6-B TECHNICAL PASS / FROZEN; G6-C1 COMPLETE / FROZEN; G6-C2 TECHNICAL PASS / FROZEN; G6 User Validation APPROVED 2026-08-16). G7 — Active/Sleep: IN_PROGRESS (G7-A Chunk Activity Observatory / Measurement Baseline: VALIDATION candidate — measurement/visualization baseline만, 실제 sleep/work-skip 없음; G7-B/C PLANNED).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: PASS / CLOSED (G6-A TECHNICAL PASS / FROZEN; G6-B TECHNICAL PASS / FROZEN; G6-C1 COMPLETE / FROZEN; G6-C2 TECHNICAL PASS / FROZEN; G6 User Validation APPROVED 2026-08-16). G7 — Active/Sleep: IN_PROGRESS (G7-A Chunk Activity Observatory / Measurement Baseline: VALIDATION candidate / AWAITING USER RE-VALIDATION — fixture hardening 완료, measurement/visualization baseline만, 실제 sleep/work-skip 없음; G7-B/C PLANNED).**
 
 ### Current Summary
 
@@ -321,9 +321,28 @@ Static Analysis & Formatting:
 - **한계**: 실제 work skipping / sleep cutoff / active-list compaction / indirect dispatch 없음 — measurement baseline.
 - Evidence: `docs/evidence/G7_A_ACTIVITY_BASELINE_2026-08-16.md`
 
+### G7-A observatory fixture hardening (`fix: harden G7 activity observatory fixture`)
+
+이 라운드는 사용자 장기 관찰(tick ~0/117/411/679/1515/3019)에서 확인된 **HUD 누락 / fast-forward 회귀 / detector correctness mismatch / fixture 결함**을 수정한다. authoritative contract: `docs/planning/G7_A_OBSERVATORY_HARDENING.md` (historical observation은 그대로 보존).
+
+- **Activity HUD root cause/fix**: `Renderer::new()`의 `needs_text_hud`가 `PresentationPalette::Activity`를 포함하지 않아 Activity 모드에서 TextRenderer가 생성되지 않았음 → 포함. 이제 SIM TICK / DIAGNOSTIC SAMPLE / global(Matter·Thermal·Pressure·Reaction Active, Fully Stable, Max Stable Ticks, Sampled Wake Candidates) / panel M/T/P/R / heatmap legend / controls가 실제로 렌더링된다.
+- **Fast-forward 회귀 root cause/fix**: `request_fast_forward()`가 `ParallelIntegrity`만 허용 → `Activity`도 **F x1/x4/x16** 지원 (production `Simulation::tick()`을 순차 반복할 뿐, timestep/생략 없음). N은 항상 정확히 1 tick, R은 x1 reset. title/HUD/콘솔/BAT에 F 표기.
+- **Stale activity bit root cause/fix**: propose가 `mask | cell_activity[index]`로 OR-merge → 이전 tick의 MATTER/PRESSURE/REACTION bit가 생존 가능. 수정: `cell_activity[index] = mask | (cell_activity[index] & ACTIVITY_THERMAL)` — phase pass의 이번-tick THERMAL transition marker만 보존하고 나머지는 매 tick overwrite. regression: `matter_frontier_clears_when_settled` / `pressure_frontier_clears_when_uniform` / `reaction_frontier_clears_when_extinguished` PASS (frontier 소멸 → bit clear → stable counter 재개).
+- **THERMAL detector = frozen G4 정합**: conductivity table을 read-only binding으로 추가 (phase table과 단일 storage buffer로 결합 — DX12 per-stage storage-buffer limit 8 준수). thermal edge는 양쪽 모두 Matter이고 effective conductivity > 0일 때만 THERMAL work — **EMPTY와 Boundary Block(K=0)은 frontier가 아님**. regression: `hot_matter_next_to_empty_does_not_false_report_thermal` / `temperature_difference_across_boundary_block_is_inactive` / `conductive_stone_gradient_reports_thermal_active` / `cross_chunk_thermal_frontier_detected` PASS. `THERMAL_ACTIVITY_EPS` 변경 0, thermal.wgsl 수정 0.
+- **PRESSURE detector = frozen G5 정합**: pressure-medium(LIQUID/GAS)↔medium만 비교 — Stone/EMPTY 경계는 frontier 아님. regression: `uniform_pressurized_medium_sealed_by_stone_is_not_pressure_frontier` PASS (기존 `non_medium_cells_do_not_report_pressure_activity`의 잘못된 기대값 정정), `pressure_gradient_reports_pressure_active` / `cross_chunk_pressure_frontier_detected` 유지. `PRESSURE_ACTIVITY_EPS` 변경 0, pressure.wgsl 수정 0.
+- **Panel isolation**: 중앙 십자벽(x=127/128, y=127/128)을 Stone → **MATERIAL_BOUNDARY_BLOCK(K=0)** 으로 교체 — 네 실험이 thermal coupling되지 않음. G5/G6 fixture는 변경 없음. 3000-tick 검증에서 A control chunk mask 0 (cross-panel THERMAL contamination 0).
+- **Panel B = TRUE stable Steam control**: Stone shell + Steam 모두 T=80, EMPTY interface / 압력 / reaction 없음 → 4 chunk가 mask 0, stable counter 단조 증가 (t=500/1000/3000 전부 확인). **Gas existence != Activity** 증명.
+- **Panel C = STABLE DURATION / WAKE CANDIDATE**: Sand source를 upper-right C chunk(cx=1, cy=2)에만 배치, lower-right target chunk(cx=1, cy=3)는 먼저 stable → 생산 movement로 y=192 seam을 넘어 Sand 도착 → stable reset. G7-A에는 actual sleep/dedicated wake propagation이 없으므로 **wake-candidate 관측**으로 명명 (이전 "WAKE PROPAGATION" 표현 제거).
+- **Sampled Wake Candidates**: `wake_events` 과장 표현 제거. sentinel `ACTIVITY_NO_PREV_SAMPLE`(u32::MAX)로 **첫 sample은 baseline만 설정**하고 이후 0→nonzero sampled transition만 카운트. R reset도 sampling baseline을 sentinel로 reset.
+- **3000-tick actual-fixture test** (ignored, RTX 5090/DX12): `apps/windows/src/main.rs`의 실제 `stage_activity_demo()`를 3000+ production tick. 결과: **C pre-arrival stable=1 → first MATTER arrival tick=27 → reset_to_zero=true**; B 4 chunk late state 전부 mask 0 + stable ≥ 1000; A control chunk mask 0; device loss / panic 0.
+- **Automated tests**: activity **29 passed** (23 + 6 hardening). thermal 13 / pressure 8 / phase 16 / wgsl_parse 1 / parallel_integrity 12 / windows 7 (+1 ignored long-run) 전부 PASS. `--activity-demo --smoke-frames 300` exit 0.
+- **런처**: `run_g7_activity_demo.bat` (repository root, commit 대상) — `cd /d "%~dp0"` / `RUST_LOG=warn` / incremental release build / build 실패 시 메시지+`pause`+exit 1 / 로컬 `targetelease\powdergame-windows.exe --activity-demo` 직접 실행 / controls 표시. `cargo clean`·절대 경로·다른 checkout exe 금지 준수.
+- **Production physics freeze**: movement/density/thermal/phase/combustion/pressure/rupture/decay semantics diff 0. activity EPS 변경 0. 변경은 detector correctness + read-only table binding + demo staging/HUD/controls + tests + docs + BAT.
+- **한계**: 실제 work skipping / sleep cutoff / active-list compaction / indirect dispatch 없음 — measurement baseline. G7-A = **VALIDATION candidate / AWAITING USER RE-VALIDATION**.
+
 ### Next Action
 
-1. **G7-A — Chunk Activity Observatory**: **VALIDATION candidate** — 사용자가 `--activity-demo`를 직접 보고 A/B/C/D panel과 stable-duration 분포를 확인 (G7-A는 measurement baseline; G7 PASS/CLOSED 아님)
+1. **G7-A — Chunk Activity Observatory**: **VALIDATION candidate / AWAITING USER RE-VALIDATION** — 사용자가 hardening 후 `--activity-demo` (또는 `run_g7_activity_demo.bat`)를 직접 보고 A/B/C/D panel, HUD, Sampled Wake Candidates, stable-duration 분포를 재확인 (G7-A는 measurement baseline; G7 PASS/CLOSED 아님)
 2. **G7-B — Sleep/Wake correctness** (wake reason 기반, false-sleep 방지, stable-duration 관찰 결과를 바탕으로 cutoff 설계)
 3. **G7-C — active-list compaction / indirect dispatch** (성능 측정은 G8 공식 Gate에서)
 
@@ -339,7 +358,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6 PASS / CLOSED (G2/G3/G4/G5/G6 User Validation APPROVED 2026-08-16); G7 Active/Sleep **IN_PROGRESS** (G7-A VALIDATION candidate).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6 PASS / CLOSED (G2/G3/G4/G5/G6 User Validation APPROVED 2026-08-16); G7 Active/Sleep **IN_PROGRESS** (G7-A VALIDATION candidate / AWAITING USER RE-VALIDATION).
 
 M0 `ACHIEVED`: **NO**
 
@@ -357,5 +376,5 @@ chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
 tests: passed (136 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 15 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 7 windows observatory + 1 wgsl parse + 23 GPU activity = 328 total, ignored 2 performance benchmarks [coarse + controlled]; full-workspace re-collection은 다음 FULL CHECKPOINT에서)
 benchmarks: G6-C2 full-tick 2048x2048: median 0.8426 ms/tick (1186.8 TPS, RTX 5090/DX12). G2 controlled baseline: median ~0.146 ms/tick.
-m0_status: IN_PROGRESS (G0-G6 PASS/CLOSED User Validation APPROVED 2026-08-16; G7 IN_PROGRESS — G7-A VALIDATION candidate; G8/G9 pending)
+m0_status: IN_PROGRESS (G0-G6 PASS/CLOSED User Validation APPROVED 2026-08-16; G7 IN_PROGRESS — G7-A VALIDATION candidate / AWAITING USER RE-VALIDATION; G8/G9 pending)
 ```

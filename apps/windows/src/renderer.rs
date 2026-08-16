@@ -713,7 +713,9 @@ impl Renderer {
             .map(|s| {
                 matches!(
                     s.palette,
-                    PresentationPalette::ThermalLab | PresentationPalette::Integrity
+                    PresentationPalette::ThermalLab
+                        | PresentationPalette::Integrity
+                        | PresentationPalette::Activity
                 )
             })
             .unwrap_or(false);

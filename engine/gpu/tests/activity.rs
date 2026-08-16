@@ -16,8 +16,8 @@
 
 use powdergame_core::{
     WorldConfig, ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL,
-    MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
-    MATERIAL_WOOD,
+    FLAG_COMBUSTING, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND,
+    MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
 };
 use powdergame_gpu::Simulation;
 
@@ -550,11 +550,12 @@ fn cross_chunk_pressure_frontier_detected() {
 }
 
 #[test]
-fn non_medium_cells_do_not_report_pressure_activity() {
-    // G5 contract: only LIQUID/GAS are pressure media. A Stone-only chunk
-    // adjacent to pressured Water must NOT report PRESSURE activity (its
-    // cells are not media; their pressure field is zeroed each tick). The
-    // Water side still reports the frontier.
+fn uniform_pressurized_medium_sealed_by_stone_is_not_pressure_frontier() {
+    // G5 contract: pressure exchanges only between pressure media. A
+    // uniformly pressured Water body sealed by Stone has no medium-medium
+    // pressure delta, so the Stone boundary is NOT a pressure frontier (the
+    // old detector wrongly compared the medium against its non-medium
+    // neighbors' zeroed field). The Stone-only neighbor chunk is inactive.
     let mut sim = make_sim(WorldConfig::new(128, 128, 64).unwrap());
     fill_rect(&sim, 1, 1, 126, 126, MATERIAL_STONE);
     fill_rect(&sim, 62, 31, 63, 33, MATERIAL_WATER); // sealed, chunk 0 only
@@ -568,6 +569,155 @@ fn non_medium_cells_do_not_report_pressure_activity() {
     sim.tick().expect("tick 1");
 
     let acts = chunk_activity(&sim);
-    assert_ne!(acts[0] & ACTIVITY_PRESSURE, 0); // Water medium sees the field
-    assert_eq!(acts[1], 0); // Stone-only chunk: no pressure, no other frontier
+    // Uniformly pressured medium: no pressure work at the Stone boundary.
+    assert_eq!(acts[0] & ACTIVITY_PRESSURE, 0);
+    assert_eq!(acts[1], 0); // Stone-only chunk: nothing at all
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// G7-A hardening: detector alignment to frozen G4/G5 + stale-bit regressions
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn hot_matter_next_to_empty_does_not_false_report_thermal() {
+    // G4: EMPTY is not a thermal medium. A hot Stone cell surrounded only by
+    // EMPTY has no heat-exchange edge, so its temperature difference against
+    // the EMPTY reference is NOT thermal work.
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    set(&sim, 32, 32, MATERIAL_STONE);
+    set_t(&sim, 32, 32, 100.0);
+
+    sim.tick().expect("tick 1");
+
+    let mask = chunk_activity(&sim)[0];
+    assert_eq!(mask & ACTIVITY_THERMAL, 0);
+    assert_eq!(mask, 0);
+}
+
+#[test]
+fn temperature_difference_across_boundary_block_is_inactive() {
+    // Boundary Block has conductivity 0 (frozen G4): a temperature
+    // difference across it performs no heat exchange, so it is not a
+    // thermal frontier.
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    set(&sim, 30, 30, MATERIAL_STONE);
+    set_t(&sim, 30, 30, 100.0);
+    set(&sim, 31, 30, MATERIAL_BOUNDARY_BLOCK);
+    set_t(&sim, 31, 30, 0.0);
+
+    sim.tick().expect("tick 1");
+
+    let mask = chunk_activity(&sim)[0];
+    assert_eq!(mask & ACTIVITY_THERMAL, 0);
+    assert_eq!(mask, 0);
+}
+
+#[test]
+fn conductive_stone_gradient_reports_thermal_active() {
+    // A real conductive edge (Stone↔Stone, K=0.5 on both sides) with a
+    // temperature difference IS thermal work.
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    set_t(&sim, 30, 30, 100.0);
+
+    sim.tick().expect("tick 1");
+
+    assert_ne!(chunk_activity(&sim)[0] & ACTIVITY_THERMAL, 0);
+}
+
+#[test]
+fn matter_frontier_clears_when_settled() {
+    // Stale-bit regression: a real MATTER frontier that disappears (Sand
+    // column lands on the floor) must clear the MATTER bit and let the
+    // stable counter resume.
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 28, 53, 32, 55, MATERIAL_STONE); // landing floor
+    fill_rect(&sim, 30, 20, 30, 40, MATERIAL_SAND); // column in flight
+
+    sim.tick().expect("tick 1");
+    assert_ne!(chunk_activity(&sim)[0] & ACTIVITY_MATTER, 0);
+
+    let mut settled = false;
+    for _ in 0..200 {
+        sim.tick().expect("settle tick");
+        if chunk_activity(&sim)[0] & ACTIVITY_MATTER == 0 {
+            settled = true;
+            break;
+        }
+    }
+    assert!(settled, "sand column must settle and clear MATTER activity");
+    let stable_after_settle = chunk_stable(&sim)[0];
+    sim.tick().expect("tick after settle");
+    assert_eq!(chunk_activity(&sim)[0] & ACTIVITY_MATTER, 0);
+    assert!(chunk_stable(&sim)[0] > stable_after_settle);
+}
+
+#[test]
+fn pressure_frontier_clears_when_uniform() {
+    // Stale-bit regression: a staged pressure gradient diffuses to uniform
+    // inside the medium through normal G5 propagation; PRESSURE must clear
+    // and the stable counter resume.
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    fill_rect(&sim, 26, 26, 37, 37, MATERIAL_WATER); // sealed pocket
+    for y in 26..=37 {
+        for x in 26..=37 {
+            let p = if x <= 31 { 50.0 } else { 0.0 };
+            set_p(&sim, x, y, p);
+        }
+    }
+
+    sim.tick().expect("tick 1");
+    assert_ne!(chunk_activity(&sim)[0] & ACTIVITY_PRESSURE, 0);
+
+    let mut uniform = false;
+    for _ in 0..2000 {
+        sim.tick().expect("diffuse tick");
+        if chunk_activity(&sim)[0] & ACTIVITY_PRESSURE == 0 {
+            uniform = true;
+            break;
+        }
+    }
+    assert!(
+        uniform,
+        "pressure must diffuse to uniform and clear PRESSURE"
+    );
+    let stable_after = chunk_stable(&sim)[0];
+    sim.tick().expect("tick after uniform");
+    assert_eq!(chunk_activity(&sim)[0] & ACTIVITY_PRESSURE, 0);
+    assert!(chunk_stable(&sim)[0] > stable_after);
+}
+
+#[test]
+fn reaction_frontier_clears_when_extinguished() {
+    // Stale-bit regression: a real REACTION frontier that ends (burning
+    // Matter cooled below its sustain threshold extinguishes through normal
+    // combustion semantics) must clear the REACTION bit. With a uniform
+    // temperature field the chunk returns to stable and the counter resumes.
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    // Uniform cold field (no gradient anywhere).
+    fill_uniform_t(&sim, 45.0, 64, 64);
+    // Staged burning Wood already below its sustain threshold (55): the next
+    // combustion pass extinguishes it.
+    for y in 30..=31 {
+        for x in 30..=33 {
+            set(&sim, x, y, MATERIAL_WOOD);
+            set_t(&sim, x, y, 45.0);
+            sim.world
+                .write_flags(&sim.context.queue, x, y, FLAG_COMBUSTING)
+                .expect("flags edit");
+        }
+    }
+
+    sim.tick().expect("tick 1 (extinguish)");
+    let mask = chunk_activity(&sim)[0];
+    assert_eq!(mask & ACTIVITY_REACTION, 0);
+    // Uniform field + STATIC matter: no other frontier remains.
+    assert_eq!(mask, 0);
+    assert_eq!(chunk_stable(&sim)[0], 1);
+
+    sim.tick().expect("tick 2");
+    assert_eq!(chunk_activity(&sim)[0], 0);
+    assert_eq!(chunk_stable(&sim)[0], 2);
 }

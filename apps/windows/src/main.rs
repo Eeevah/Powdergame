@@ -121,7 +121,8 @@ struct DemoState {
     last_tick: Option<Instant>,
     step_pending: bool,
     reset_pending: bool,
-    /// G6-only fast-forward multiplier (1 / 4 / 16). N always steps exactly
+    /// Observatory fast-forward multiplier (1 / 4 / 16) for the G6
+    /// parallel-integrity and G7-A activity demos. N always steps exactly
     /// one tick; F cycles the play multiplier; R resets it to 1.
     fast: u32,
     /// Tick counter for the measured simulation-TPS estimate (reset when play
@@ -412,10 +413,14 @@ impl App {
     }
 
     fn request_fast_forward(&mut self, window: &Window) {
-        // G6 demo only: cycles 1x -> 4x -> 16x -> 1x. `Simulation::tick`
-        // semantics are unchanged — the multiplier just runs more sequential
-        // ticks per update opportunity. N always steps exactly one tick.
-        if self.demo_mode != DemoMode::ParallelIntegrity {
+        // G6/G7 observatory demos: cycles 1x -> 4x -> 16x -> 1x.
+        // `Simulation::tick` semantics are unchanged — the multiplier just
+        // runs more sequential ticks per update opportunity. N always steps
+        // exactly one tick.
+        if !matches!(
+            self.demo_mode,
+            DemoMode::ParallelIntegrity | DemoMode::Activity
+        ) {
             return;
         }
         if let Some(demo) = &mut self.demo {
@@ -1286,21 +1291,31 @@ fn stage_parallel_integrity_demo(simulation: &Simulation) -> Result<(), GpuError
 }
 
 /// G7-A activity observatory: 256×256 (4×4 chunks), 2×2 panel layout with
-/// stone dividers at x 127..128 / y 127..128.
+/// Boundary-Block dividers at x 127..128 / y 127..128. Boundary Block has
+/// conductivity 0, so the four experiments are thermally isolated — heat
+/// cannot cross a zero-conductivity edge, and the corrected detector never
+/// reports a THERMAL frontier across it.
 ///
 ///   [A] STABLE WATER BULK     — sealed tank (no EMPTY interface → no
-///       movement frontier) beside a draining water column (active).
-///   [B] STABLE STEAM / GAS     — sealed Steam chamber at T=80 in cold
-///       Stone: no movement frontier; a real thermal boundary stays active
-///       until the world equilibrates.
-///   [C] WAKE PROPAGATION       — stable Stone plateau left, falling Sand
-///       column right: the stable chunks never wake from adjacency, and
-///       the falling column's chunks reset their stable counters.
+///       movement frontier) beside a draining Water column in a sealed
+///       shaft: MATTER frontier while falling/settling, fully contained in
+///       chunk (1,1) so it can never contaminate panel C below.
+///   [B] STABLE STEAM / GAS     — TRUE stable control: sealed Stone shell
+///       AND Steam both at T=80 — no initial interface gradient, no EMPTY
+///       interface, no staged pressure/reaction, Steam on the stable side
+///       of its 40 condense threshold. Gas existence != Activity.
+///   [C] STABLE DURATION / WAKE CANDIDATE — Sand source entirely in the
+///       upper-right C chunk (cx=1, cy=2); the lower-right C chunk (cx=1,
+///       cy=3) is stable first, then the real Sand frontier crosses the
+///       y=192 seam through ordinary movement and resets its stable
+///       counter. This is a wake-candidate observation — G7-A has no
+///       sleeping chunk and no dedicated wake propagation (G7-B).
 ///   [D] SLOW ACTIVE WORLD      — Wood strip ignited by a hot Stone end
 ///       (reaction + heat front) + a boiling Water pot (pressure + steam).
 ///
-/// Staging uses only the validated edit hook (material + temperature);
-/// everything after the first tick is the production GPU simulation.
+/// Staging uses only the validated edit hook (material + temperature +
+/// flags); everything after the first tick is the production GPU
+/// simulation.
 fn stage_activity_demo(simulation: &Simulation) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
@@ -1323,14 +1338,17 @@ fn stage_activity_demo(simulation: &Simulation) -> Result<(), GpuError> {
         Ok(())
     };
 
-    // Central cross dividers (same as G5/G6 labs).
+    // Central cross dividers: MATERIAL_BOUNDARY_BLOCK (K=0), so the four
+    // panels are thermally isolated — heat cannot cross a zero-conductivity
+    // edge, and the corrected detector never reports THERMAL across it.
+    // (G5/G6 fixtures keep their Stone crosses.)
     for y in 1..=254 {
-        set(127, y, stone)?;
-        set(128, y, stone)?;
+        set(127, y, MATERIAL_BOUNDARY_BLOCK)?;
+        set(128, y, MATERIAL_BOUNDARY_BLOCK)?;
     }
     for x in 1..=254 {
-        set(x, 127, stone)?;
-        set(x, 128, stone)?;
+        set(x, 127, MATERIAL_BOUNDARY_BLOCK)?;
+        set(x, 128, MATERIAL_BOUNDARY_BLOCK)?;
     }
 
     // [A] STABLE WATER BULK (top-left: x 1..126, y 1..126).
@@ -1338,21 +1356,32 @@ fn stage_activity_demo(simulation: &Simulation) -> Result<(), GpuError> {
     // bulk chunks report no movement frontier (existence != activity).
     fill(30, 40, 91, 105, stone)?; // tank shell
     fill(32, 42, 89, 103, MATERIAL_WATER)?;
-    // Draining column beside the tank (real movement frontier while falling).
-    fill(96, 121, 107, 123, stone)?; // landing floor
-    fill(100, 44, 103, 80, MATERIAL_WATER)?;
+    // Draining column in a SEALED stone shaft: it falls and settles in the
+    // sealed basin — a genuine MATTER frontier while falling, contained
+    // entirely in chunk (1,1) so it can never contaminate panel C below.
+    fill(94, 44, 95, 121, stone)?; // shaft left wall
+    fill(108, 44, 109, 121, stone)?; // shaft right wall
+    fill(94, 119, 109, 121, stone)?; // sealed basin floor
+    fill(100, 70, 103, 80, MATERIAL_WATER)?; // column inside the shaft
 
     // [B] STABLE STEAM / GAS BULK (top-right: x 129..254, y 1..126).
-    // Sealed chamber, Steam at T=80 (above the 40 condense threshold).
+    // TRUE stable control: Stone shell AND Steam both at T=80 — no initial
+    // interface gradient, no EMPTY interface, no staged pressure/reaction,
+    // Steam on the stable side of its 40 condense threshold. Large Steam
+    // existence alone must never be activity.
     fill(140, 40, 231, 92, stone)?; // chamber shell
     fill(143, 43, 228, 88, MATERIAL_STEAM)?;
-    fill_t(143, 43, 228, 88, 80.0)?;
+    fill_t(140, 40, 231, 92, 80.0)?; // shell + steam uniform at 80
 
-    // [C] WAKE PROPAGATION (bottom-left: x 1..126, y 129..254).
-    // Stable Stone plateau (left) + falling Sand column (right).
-    fill(5, 150, 60, 200, stone)?; // stable plateau
-    fill(70, 251, 120, 253, stone)?; // sand landing floor
-    fill(80, 140, 86, 235, MATERIAL_SAND)?; // tall falling column
+    // [C] STABLE DURATION / WAKE CANDIDATE (bottom-left: x 1..126, y 129..254).
+    // Sand source sits ENTIRELY in the upper-right C chunk (cx=1, cy=2:
+    // x 64..127, y 128..191) at tick 0; the lower-right C chunk (cx=1,
+    // cy=3: x 64..127, y 192..255) starts empty except a distant landing
+    // floor, accumulates stable ticks first, then the real Sand frontier
+    // crosses the y=192 chunk seam through ordinary movement and resets its
+    // stable counter. No timer/script — production movement only.
+    fill(96, 245, 110, 247, stone)?; // distant landing floor (target chunk)
+    fill(100, 150, 106, 165, MATERIAL_SAND)?; // source in upper-right chunk only
 
     // [D] SLOW ACTIVE WORLD (bottom-right: x 129..254, y 129..254).
     // Wood strip ignited at one end by a hot Stone reservoir.
@@ -1689,8 +1718,8 @@ fn main() {
         ),
         DemoMode::Activity => println!(
             "[powdergame] activity demo: 256x256 G7 active/sleep observatory, 60 TPS. \
-             A stable water bulk | B sealed steam bulk | C wake propagation | D slow active. \
-             Starts PAUSED (SPACE play | N step | R reset | ESC quit)"
+             A stable water bulk | B true stable steam bulk | C stable-duration/wake-candidate | D slow active. \
+             Starts PAUSED (SPACE play | F fast x1/x4/x16 | N step | R reset | ESC quit)"
         ),
         DemoMode::ParallelIntegrity => println!(
             "[powdergame] parallel integrity demo: 256x256 2x2 contention lab, 60 TPS. \
@@ -1703,4 +1732,120 @@ fn main() {
     let mut app = App::new(smoke_frames, demo_mode);
     event_loop.run_app(&mut app).expect("event loop failed");
     println!("[powdergame] exited cleanly");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stage_activity_demo;
+    use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
+    use powdergame_gpu::Simulation;
+
+    /// G7-A actual-fixture long-run correctness validation (RTX 5090 / DX12).
+    /// Uses the real `stage_activity_demo` geometry with 3000+ production
+    /// `Simulation::tick()` calls. This is correctness evidence — NOT a
+    /// performance benchmark (see G8).
+    #[test]
+    #[ignore = "RTX 5090 / DX12 3000-tick G7-A fixture validation"]
+    fn activity_demo_long_run_3000_ticks() {
+        let context =
+            pollster::block_on(powdergame_gpu::GpuContext::new()).expect("DX12 GPU context");
+        let mut sim = Simulation::with_context(
+            context,
+            WorldConfig::new(256, 256, 64).expect("world config"),
+        )
+        .expect("simulation init");
+        stage_activity_demo(&sim).expect("stage activity demo");
+
+        let cidx = |cx: u32, cy: u32| -> usize { (cy * 4 + cx) as usize };
+        // Panel B (top-right quadrant): all four chunks.
+        let b = [cidx(2, 0), cidx(3, 0), cidx(2, 1), cidx(3, 1)];
+        // Panel A sealed-control chunks (no frontier expected; the draining
+        // shaft is contained in chunk (1,1)).
+        let a_control = [cidx(0, 0), cidx(1, 0), cidx(0, 1)];
+        // Panel C target lower-right chunk (stable first, then Sand arrives).
+        let c_target = cidx(1, 3);
+
+        let acts = |s: &Simulation| -> Vec<u32> {
+            s.world
+                .read_chunk_activity_all(&s.context.device, &s.context.queue)
+                .expect("chunk activity readback")
+        };
+        let stables = |s: &Simulation| -> Vec<u32> {
+            s.world
+                .read_chunk_stable_all(&s.context.device, &s.context.queue)
+                .expect("chunk stable readback")
+        };
+
+        let mut c_pre_arrival: u32 = 0;
+        let mut c_arrival: Option<u64> = None;
+        let mut c_arrival_stable_zero = false;
+        let mut b_clean_at: Vec<u64> = Vec::new();
+
+        for t in 1..=3000u64 {
+            sim.tick().expect("production tick");
+            let sample = t <= 200 || t % 50 == 0 || t >= 2900;
+            if !sample {
+                continue;
+            }
+            let a = acts(&sim);
+            let s = stables(&sim);
+
+            // C: capture the target chunk's stable ticks before the Sand
+            // frontier arrives (first clean sample of the stable chunk).
+            if c_arrival.is_none() && a[c_target] & ACTIVITY_MATTER == 0 && c_pre_arrival == 0 {
+                c_pre_arrival = s[c_target];
+            }
+            // C: first MATTER arrival resets the target's stable counter.
+            if c_arrival.is_none() && a[c_target] & ACTIVITY_MATTER != 0 {
+                c_arrival = Some(t);
+                c_arrival_stable_zero = s[c_target] == 0;
+            }
+            // B: fully stable on every sampled late tick.
+            if t % 50 == 0 && b.iter().all(|&i| a[i] == 0) {
+                b_clean_at.push(t);
+            }
+        }
+
+        // B: exact masks and monotonic stable counters at the late state.
+        let a = acts(&sim);
+        let s = stables(&sim);
+        for &i in &b {
+            assert_eq!(
+                a[i], 0,
+                "B chunk {i} must be fully stable at t=3000 (mask {:#x})",
+                a[i]
+            );
+            let b_stable = s[i];
+            assert!(
+                b_stable >= 1000,
+                "B chunk {i} stable ticks {b_stable} must be monotonic across the long run"
+            );
+        }
+        assert!(
+            b_clean_at.len() >= 3,
+            "B must be fully stable at multiple late samples (got {b_clean_at:?})"
+        );
+        // A: no cross-panel THERMAL contamination — sealed controls stay clean.
+        for &i in &a_control {
+            assert_eq!(
+                a[i], 0,
+                "A control chunk {i} must have no frontier at t=3000 (mask {:#x})",
+                a[i]
+            );
+        }
+        // C: target was stable first, then a real Sand frontier arrived and
+        // reset the stable counter to 0.
+        assert!(
+            c_pre_arrival > 0,
+            "C target chunk must accumulate stable ticks before Sand arrival"
+        );
+        let arrival = c_arrival.expect("C target chunk must receive MATTER activity");
+        assert!(
+            c_arrival_stable_zero,
+            "C target stable counter must reset to 0 on arrival"
+        );
+        println!(
+            "[powdergame][G7-A] long-run: C pre-arrival stable={c_pre_arrival}              first MATTER arrival tick={arrival} reset_to_zero={c_arrival_stable_zero}"
+        );
+    }
 }

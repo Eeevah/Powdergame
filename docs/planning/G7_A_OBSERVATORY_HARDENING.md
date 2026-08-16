@@ -1,6 +1,7 @@
 # G7-A — Activity Observatory Hardening Contract
 
-Status: **HARDENING REQUIRED / IN_PROGRESS**  
+Status: **HARDENING IMPLEMENTED — AWAITING USER RE-VALIDATION** (implemented as `fix: harden G7 activity observatory fixture`)
+
 Scope: **G7-A measurement + user-observation fixture only**  
 Starting implementation baseline: `ebebfde45bcec9c7e3170c5c60c6c5e8825137f1`  
 G7-B actual sleep/work skipping: **NOT STARTED / OUT OF SCOPE**

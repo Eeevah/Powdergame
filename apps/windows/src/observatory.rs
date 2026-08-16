@@ -947,7 +947,7 @@ impl ObservatoryCollector {
         let staging_chunk_stable = mk_chunk_staging("observatory/activity/staging/chunk-stable");
 
         let mut activity_prev_masks = Vec::with_capacity(n_chunks as usize);
-        activity_prev_masks.resize(n_chunks as usize, 0);
+        activity_prev_masks.resize(n_chunks as usize, ACTIVITY_NO_PREV_SAMPLE);
 
         Self {
             staging_material,
@@ -989,7 +989,7 @@ impl ObservatoryCollector {
         self.integrity_metrics = IntegrityMetrics::default();
         self.activity_metrics = ActivityMetrics::default();
         for m in &mut self.activity_prev_masks {
-            *m = 0;
+            *m = ACTIVITY_NO_PREV_SAMPLE;
         }
         self.initial_wood_set = false;
         self.initial_a_ice = 0;
@@ -1511,13 +1511,20 @@ pub struct ActivityPanelMetrics {
     pub max_stable_ticks: u32,
 }
 
+/// Sentinel marking "no previous sample yet" in the per-chunk previous-mask
+/// baseline: the first diagnostic sample only ESTABLISHES the baseline and
+/// must never be counted as a stable→active transition.
+pub const ACTIVITY_NO_PREV_SAMPLE: u32 = u32::MAX;
+
 /// G7-A global chunk-activity observation metrics, computed from real GPU
 /// readback of `chunk_activity` / `chunk_stable_ticks` (never hardcoded).
 ///
 /// - `fully_stable`: chunks whose mask is 0 this sample (no frontier).
 /// - `max_stable_ticks`: longest consecutive zero-activity run observed.
-/// - `wake_events`: chunks that transitioned stable→active between samples
-///   (the G7-A wake-detection observation; actual sleeping is G7-B).
+/// - `sampled_wake_candidates`: chunks that transitioned stable→active
+///   between diagnostic samples (derived from samples only — NOT an
+///   exhaustive event stream and NOT actual G7-B wake execution). The first
+///   sample only establishes the baseline and never increments this count.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ActivityMetrics {
     pub sample_tick: u64,
@@ -1528,7 +1535,7 @@ pub struct ActivityMetrics {
     pub reaction_active: u32,
     pub fully_stable: u32,
     pub max_stable_ticks: u32,
-    pub wake_events: u32,
+    pub sampled_wake_candidates: u32,
     pub panels: [ActivityPanelMetrics; 4],
 }
 
@@ -1536,7 +1543,7 @@ pub struct ActivityMetrics {
 pub const ACTIVITY_PANEL_NAMES: [&str; 4] = [
     "A STABLE WATER BULK",
     "B STABLE STEAM / GAS BULK",
-    "C WAKE PROPAGATION",
+    "C STABLE DURATION / WAKE CANDIDATE",
     "D SLOW ACTIVE WORLD",
 ];
 
@@ -1609,9 +1616,11 @@ pub fn evaluate_activity_state(
             metrics.max_stable_ticks = metrics.max_stable_ticks.max(stable);
 
             // Stable → active between samples = a wake candidate observation.
+            // The FIRST sample (sentinel prev) only establishes the baseline;
+            // only a later sampled 0 → nonzero transition counts.
             if let Some(prev) = prev_masks.get_mut(idx) {
-                if *prev == 0 && mask != 0 {
-                    metrics.wake_events += 1;
+                if *prev != ACTIVITY_NO_PREV_SAMPLE && *prev == 0 && mask != 0 {
+                    metrics.sampled_wake_candidates += 1;
                 }
                 *prev = mask;
             }

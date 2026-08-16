@@ -527,7 +527,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::Read), // class table
                         buffer_entry(6, &BindingKind::Read), // density table
                         buffer_entry(7, &BindingKind::ReadWrite), // cell_activity
-                        buffer_entry(8, &BindingKind::Read), // phase table
+                        buffer_entry(8, &BindingKind::Read), // phase + conductivity tables
                     ],
                 });
         let activity_reduce_layout =
@@ -816,6 +816,24 @@ impl Simulation {
             mapped_at_creation: false,
         });
         context.queue.write_buffer(&phase_table_buf, 0, &phase_data);
+
+        // G7-A combined detector tables: the phase descriptors (512 B)
+        // followed by the conductivity table (64 B) in ONE storage buffer,
+        // so the activity propose pass stays within the DX12 per-stage
+        // storage-buffer limit (8). Both halves are the same read-only
+        // Material-property tables the physics passes already use.
+        let activity_tables_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g7a/activity/tables"),
+            size: PHASE_TABLE_SIZE + TABLE_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context
+            .queue
+            .write_buffer(&activity_tables_buf, 0, &phase_data);
+        context
+            .queue
+            .write_buffer(&activity_tables_buf, PHASE_TABLE_SIZE, &conductivity_data);
 
         // G4-D decay descriptor table (16 × 8 bytes; Material data,
         // not per-cell state). Generic: Smoke/transient matter share one grammar.
@@ -1399,7 +1417,7 @@ impl Simulation {
                         },
                         wgpu::BindGroupEntry {
                             binding: 8,
-                            resource: phase_table_buf.as_entire_binding(),
+                            resource: activity_tables_buf.as_entire_binding(),
                         },
                     ],
                 });

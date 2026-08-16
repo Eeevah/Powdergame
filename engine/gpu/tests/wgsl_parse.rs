@@ -31,10 +31,7 @@ fn all_production_wgsl_parses_without_a_gpu() {
         ),
         ("decay.wgsl", include_str!("../src/decay.wgsl")),
         ("combustion.wgsl", include_str!("../src/combustion.wgsl")),
-        (
-            "smoke_claim.wgsl",
-            include_str!("../src/smoke_claim.wgsl"),
-        ),
+        ("smoke_claim.wgsl", include_str!("../src/smoke_claim.wgsl")),
         (
             "smoke_commit.wgsl",
             include_str!("../src/smoke_commit.wgsl"),

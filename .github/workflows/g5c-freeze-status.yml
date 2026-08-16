@@ -1,0 +1,37 @@
+name: G5-C Freeze Status
+
+on:
+  push:
+    branches:
+      - feature/m0-g5-rupture-vent
+
+permissions:
+  contents: write
+
+jobs:
+  freeze-status:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch status
+        run: python tools/g5c_freeze_status.py
+      - name: Validate
+        shell: bash
+        run: |
+          git diff --check
+          grep -q 'G5-A/B/C technical chain is frozen' docs/planning/STATUS.md
+          grep -q '143 passed, 0 failed, 1 ignored' docs/planning/STATUS.md
+      - name: Commit docs and remove helpers
+        shell: bash
+        run: |
+          git rm tools/g5c_freeze_status.py .github/workflows/g5c-freeze-status.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/planning/STATUS.md
+          git commit -m "docs: freeze G5 pressure-chain technical evidence"
+          git push origin HEAD:feature/m0-g5-rupture-vent
+
+# registered-trigger

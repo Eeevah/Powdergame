@@ -15,7 +15,8 @@
 //   chunk_state[chunk] = CHUNK_STATE_SLEEPING (1)
 //   chunk_wake_reason[chunk] = WAKE_REASON_NONE (0)
 //
-// Also clears chunk_edit_wake[chunk] = 0 after evaluation.
+// During wake dispatch, chunk_edit_wake is an immutable snapshot (read-only).
+// The edit wake buffer is cleared after the wake pass completes by the command encoder.
 
 struct Params {
     chunks_x: u32,
@@ -37,7 +38,7 @@ const WAKE_REASON_ALWAYS_ACTIVE: u32 = 16u;      // 1 << 4
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> chunk_activity: array<u32>;
 @group(0) @binding(2) var<storage, read> chunk_stable_ticks: array<u32>;
-@group(0) @binding(3) var<storage, read_write> chunk_edit_wake: array<u32>;
+@group(0) @binding(3) var<storage, read> chunk_edit_wake: array<u32>;
 @group(0) @binding(4) var<storage, read_write> chunk_state: array<u32>;
 @group(0) @binding(5) var<storage, read_write> chunk_wake_reason: array<u32>;
 
@@ -54,7 +55,6 @@ fn wake_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (params.sleep_enabled == 0u) {
         chunk_state[chunk_idx] = CHUNK_STATE_RUNNABLE;
         chunk_wake_reason[chunk_idx] = WAKE_REASON_ALWAYS_ACTIVE;
-        chunk_edit_wake[chunk_idx] = 0u;
         return;
     }
 
@@ -110,6 +110,4 @@ fn wake_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         chunk_state[chunk_idx] = CHUNK_STATE_SLEEPING;
         chunk_wake_reason[chunk_idx] = WAKE_REASON_NONE;
     }
-
-    chunk_edit_wake[chunk_idx] = 0u;
 }

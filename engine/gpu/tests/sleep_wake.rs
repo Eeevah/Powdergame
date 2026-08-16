@@ -10,7 +10,8 @@
 //! 7. Sleep ON (Sparse Work) and Sleep OFF (Always Active reference) produce semantically equivalent results.
 
 use powdergame_core::{
-    WorldConfig, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING, FLAG_COMBUSTING, MATERIAL_EMPTY,
+    fuel_progress, with_fuel_progress, WorldConfig, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING,
+    COMBUSTION_WOOD_BURN_DURATION, COMBUSTION_WOOD_IGNITION, FLAG_COMBUSTING, MATERIAL_EMPTY,
     MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
     MATERIAL_WOOD, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE, WAKE_REASON_SELF_ACTIVITY,
     WAKE_REASON_USER_EDIT,
@@ -95,6 +96,12 @@ fn read_flags_vec(sim: &Simulation) -> Vec<u32> {
     sim.world
         .read_flags_all(&sim.context.device, &sim.context.queue)
         .expect("read all flags")
+}
+
+fn read_edit_wakes(sim: &Simulation) -> Vec<u32> {
+    sim.world
+        .read_chunk_edit_wake_all(&sim.context.device, &sim.context.queue)
+        .expect("read all edit wakes")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -249,7 +256,10 @@ fn test_scenario_d_cross_chunk_thermal_conduction_wake() {
     sim.tick().expect("tick");
 
     let states = read_states(&sim);
-    assert_eq!(states[0], CHUNK_STATE_RUNNABLE, "hot chunk must be runnable");
+    assert_eq!(
+        states[0], CHUNK_STATE_RUNNABLE,
+        "hot chunk must be runnable"
+    );
     assert_eq!(
         states[1], CHUNK_STATE_RUNNABLE,
         "adjacent cold chunk must wake via halo"
@@ -296,7 +306,10 @@ fn test_scenario_e_cross_chunk_pressure_wake() {
     sim.tick().expect("tick");
 
     let states = read_states(&sim);
-    assert_eq!(states[0], CHUNK_STATE_RUNNABLE, "chunk (0,0) with pressure must wake");
+    assert_eq!(
+        states[0], CHUNK_STATE_RUNNABLE,
+        "chunk (0,0) with pressure must wake"
+    );
     assert_eq!(
         states[1], CHUNK_STATE_RUNNABLE,
         "neighbor chunk (1,0) must wake via halo"
@@ -643,4 +656,399 @@ fn test_scenario_k_mixed_long_run_equivalence() {
             "pressure mismatch at cell {i}: sleep={p_s}, nosleep={p_ns}"
         );
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.1: Extinguished Wood Exact Fuel Progress Sleep Freeze
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_extinguished_wood_fuel_progress_survives_sleep_exact() {
+    let mut sim = make_sim(WorldConfig::new(64, 64, 32).unwrap());
+    sim.set_sleep_threshold(2);
+
+    // Enclose world with stone to keep it completely stable
+    fill_box(&sim, 0, 0, 63, 63, MATERIAL_STONE);
+    fill_box_temp(&sim, 0, 0, 63, 63, 20.0);
+
+    // Interior Wood cell at (16, 16) with fuel progress = 100, COMBUSTING = OFF
+    let target_flags = with_fuel_progress(0, 100);
+    set_mat(&sim, 16, 16, MATERIAL_WOOD);
+    set_temp(&sim, 16, 16, 20.0);
+    set_flag(&sim, 16, 16, target_flags);
+
+    let w = 64;
+    let target_idx = 16 * w + 16;
+
+    // Run production ticks until sleeping
+    let mut reached_sleep = false;
+    for tick in 1..=20 {
+        sim.tick().expect("production tick");
+
+        let mats = read_mats(&sim);
+        let flags_vec = read_flags_vec(&sim);
+        let states = read_states(&sim);
+
+        assert_eq!(
+            mats[target_idx], MATERIAL_WOOD,
+            "target cell must remain WOOD at tick {tick}"
+        );
+        let current_p = fuel_progress(flags_vec[target_idx]);
+        assert_eq!(
+            current_p, 100,
+            "fuel progress must be preserved exact=100 at tick {tick}, got {current_p}"
+        );
+
+        // Chunk containing (16, 16) is chunk index 0 (cx=0, cy=0 in 64x64/32)
+        if states[0] == CHUNK_STATE_SLEEPING {
+            assert_eq!(
+                flags_vec[target_idx], target_flags,
+                "full flags must match target_flags exact on sleep transition"
+            );
+            reached_sleep = true;
+            break;
+        }
+    }
+
+    assert!(reached_sleep, "chunk 0 must enter CHUNK_STATE_SLEEPING");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.2: Scenario K Combustion Lifecycle Equivalence
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_scenario_k_combustion_lifecycle_equivalence() {
+    let config = WorldConfig::new(64, 64, 32).unwrap();
+    let mut sim_sleep = make_sim(config);
+    let mut sim_ref = make_sim(config);
+
+    sim_sleep.set_sleep_enabled(true);
+    sim_sleep.set_sleep_threshold(2);
+    sim_ref.set_sleep_enabled(false);
+
+    let setup = |sim: &Simulation| {
+        // Enclose in stone
+        fill_box(sim, 0, 0, 63, 63, MATERIAL_STONE);
+        fill_box_temp(sim, 0, 0, 63, 63, 20.0);
+
+        // Target Wood at (16, 16) with initial progress = 100, COMBUSTING = OFF
+        let target_flags = with_fuel_progress(0, 100);
+        set_mat(sim, 16, 16, MATERIAL_WOOD);
+        set_temp(sim, 16, 16, 20.0);
+        set_flag(sim, 16, 16, target_flags);
+
+        // Smoke spawn blockers around (16, 16)
+        for (dx, dy) in [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0), (0, 1)] {
+            set_mat(sim, 16 + dx, 16 + dy, MATERIAL_STONE);
+            set_temp(sim, 16 + dx, 16 + dy, 20.0);
+        }
+    };
+
+    setup(&sim_sleep);
+    setup(&sim_ref);
+
+    let w = 64;
+    let target_idx = 16 * w + 16;
+
+    // Run until sleep
+    let mut slept = false;
+    for _ in 0..10 {
+        sim_sleep.tick().expect("sleep sim tick");
+        sim_ref.tick().expect("ref sim tick");
+
+        let states_sleep = read_states(&sim_sleep);
+        if states_sleep[0] == CHUNK_STATE_SLEEPING {
+            slept = true;
+            break;
+        }
+    }
+    assert!(slept, "sim_sleep chunk 0 must have entered sleep");
+
+    let flags_s = read_flags_vec(&sim_sleep)[target_idx];
+    let flags_r = read_flags_vec(&sim_ref)[target_idx];
+    assert_eq!(
+        fuel_progress(flags_s),
+        100,
+        "sleep sim fuel progress must be 100"
+    );
+    assert_eq!(
+        fuel_progress(flags_r),
+        100,
+        "ref sim fuel progress must be 100"
+    );
+    assert_eq!(read_mats(&sim_sleep)[target_idx], MATERIAL_WOOD);
+    assert_eq!(read_mats(&sim_ref)[target_idx], MATERIAL_WOOD);
+
+    // Re-ignite both at the same tick boundary
+    let ignition_t = COMBUSTION_WOOD_IGNITION + 10.0;
+    set_temp(&sim_sleep, 16, 16, ignition_t);
+    set_temp(&sim_ref, 16, 16, ignition_t);
+    for (dx, dy) in [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0), (0, 1)] {
+        set_temp(&sim_sleep, 16 + dx, 16 + dy, ignition_t);
+        set_temp(&sim_ref, 16 + dx, 16 + dy, ignition_t);
+    }
+
+    let remaining = (COMBUSTION_WOOD_BURN_DURATION - 100) as usize;
+
+    // Active burn ticks
+    for burn_step in 1..remaining {
+        sim_sleep.tick().expect("burn tick sleep");
+        sim_ref.tick().expect("burn tick ref");
+
+        let m_s = read_mats(&sim_sleep)[target_idx];
+        let m_r = read_mats(&sim_ref)[target_idx];
+        let f_s = read_flags_vec(&sim_sleep)[target_idx];
+        let f_r = read_flags_vec(&sim_ref)[target_idx];
+
+        assert_eq!(
+            m_s, MATERIAL_WOOD,
+            "sleep target must still be WOOD at burn step {burn_step}"
+        );
+        assert_eq!(
+            m_r, MATERIAL_WOOD,
+            "ref target must still be WOOD at burn step {burn_step}"
+        );
+        assert_eq!(f_s, f_r, "flags mismatch at burn step {burn_step}");
+        assert_eq!(
+            fuel_progress(f_s),
+            (100 + burn_step) as u32,
+            "fuel progress mismatch at step {burn_step}"
+        );
+    }
+
+    // Final remaining-th tick consumes the last fuel
+    sim_sleep.tick().expect("final burn tick sleep");
+    sim_ref.tick().expect("final burn tick ref");
+
+    let final_m_s = read_mats(&sim_sleep)[target_idx];
+    let final_m_r = read_mats(&sim_ref)[target_idx];
+    let final_f_s = read_flags_vec(&sim_sleep)[target_idx];
+    let final_f_r = read_flags_vec(&sim_ref)[target_idx];
+
+    assert_eq!(
+        final_m_s, MATERIAL_EMPTY,
+        "sleep target must become EMPTY on final burn tick"
+    );
+    assert_eq!(
+        final_m_r, MATERIAL_EMPTY,
+        "ref target must become EMPTY on final burn tick"
+    );
+    assert_eq!(
+        final_f_s, 0,
+        "sleep target flags must be 0 after burning to empty"
+    );
+    assert_eq!(
+        final_f_r, 0,
+        "ref target flags must be 0 after burning to empty"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.3: Edge Edit Immutable Snapshot
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_edit_wake_edge_snapshot_wakes_expected_halo() {
+    let mut sim = make_sim(WorldConfig::new(96, 96, 32).unwrap());
+    sim.set_sleep_threshold(2);
+
+    // Fill completely with stone at 20.0
+    fill_box(&sim, 0, 0, 95, 95, MATERIAL_STONE);
+    fill_box_temp(&sim, 0, 0, 95, 95, 20.0);
+
+    // Tick until all 9 chunks are sleeping
+    for _ in 0..10 {
+        sim.tick().expect("settling tick");
+    }
+    let states_before = read_states(&sim);
+    assert_eq!(states_before.len(), 9);
+    assert!(
+        states_before.iter().all(|&s| s == CHUNK_STATE_SLEEPING),
+        "all 9 chunks must be sleeping before edit"
+    );
+
+    // Edit (31, 48) - in chunk 3 = (cx=0, cy=1), adjacent to vertical seam at x=32
+    set_mat(&sim, 31, 48, MATERIAL_STONE);
+
+    // Execute exactly 1 tick
+    sim.tick().expect("edit wake tick");
+
+    let states_after = read_states(&sim);
+    let reasons = read_reasons(&sim);
+
+    // Expected RUNNABLE: 0, 1, 3, 4, 6, 7
+    let expected_runnable = [0, 1, 3, 4, 6, 7];
+    for &idx in &expected_runnable {
+        assert_eq!(
+            states_after[idx], CHUNK_STATE_RUNNABLE,
+            "chunk {idx} expected RUNNABLE"
+        );
+    }
+
+    // Expected SLEEPING: 2, 5, 8
+    let expected_sleeping = [2, 5, 8];
+    for &idx in &expected_sleeping {
+        assert_eq!(
+            states_after[idx], CHUNK_STATE_SLEEPING,
+            "chunk {idx} expected SLEEPING"
+        );
+    }
+
+    // Chunk 3 was edited -> WAKE_REASON_USER_EDIT bit must be set
+    assert!(
+        (reasons[3] & WAKE_REASON_USER_EDIT) != 0,
+        "chunk 3 must have USER_EDIT wake reason"
+    );
+
+    // Neighbor chunks 0, 1, 4, 6, 7 must have NEIGHBOR_HALO
+    for &idx in &[0, 1, 4, 6, 7] {
+        assert!(
+            (reasons[idx] & WAKE_REASON_NEIGHBOR_HALO) != 0,
+            "chunk {idx} must have NEIGHBOR_HALO wake reason"
+        );
+    }
+
+    // After tick, chunk_edit_wake must be completely consumed (all 0)
+    let edit_wakes = read_edit_wakes(&sim);
+    assert!(
+        edit_wakes.iter().all(|&w| w == 0),
+        "all chunk_edit_wake flags must be cleared after tick"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.4: Diagonal Corner Edit Immutable Snapshot
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_edit_wake_diagonal_corner_snapshot_wakes_expected_halo() {
+    let mut sim = make_sim(WorldConfig::new(96, 96, 32).unwrap());
+    sim.set_sleep_threshold(2);
+
+    fill_box(&sim, 0, 0, 95, 95, MATERIAL_STONE);
+    fill_box_temp(&sim, 0, 0, 95, 95, 20.0);
+
+    for _ in 0..10 {
+        sim.tick().expect("settling tick");
+    }
+    let states_before = read_states(&sim);
+    assert!(states_before.iter().all(|&s| s == CHUNK_STATE_SLEEPING));
+
+    // Edit (31, 31) - corner cell of chunk 0 = (0,0), diagonally adjacent to chunk 4 = (1,1)
+    set_mat(&sim, 31, 31, MATERIAL_STONE);
+
+    sim.tick().expect("diagonal edit wake tick");
+
+    let states_after = read_states(&sim);
+    let reasons = read_reasons(&sim);
+
+    // Expected RUNNABLE: 0, 1, 3, 4
+    for &idx in &[0, 1, 3, 4] {
+        assert_eq!(
+            states_after[idx], CHUNK_STATE_RUNNABLE,
+            "chunk {idx} expected RUNNABLE"
+        );
+    }
+
+    // Expected SLEEPING: 2, 5, 6, 7, 8
+    for &idx in &[2, 5, 6, 7, 8] {
+        assert_eq!(
+            states_after[idx], CHUNK_STATE_SLEEPING,
+            "chunk {idx} expected SLEEPING"
+        );
+    }
+
+    // Diagonal chunk 4 must have NEIGHBOR_HALO
+    assert!(
+        (reasons[4] & WAKE_REASON_NEIGHBOR_HALO) != 0,
+        "diagonal chunk 4 must wake with NEIGHBOR_HALO"
+    );
+
+    let edit_wakes = read_edit_wakes(&sim);
+    assert!(
+        edit_wakes.iter().all(|&w| w == 0),
+        "all chunk_edit_wake flags must be cleared after tick"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.5: Structural Race Regression Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_structural_wake_shader_and_simulation_race_contracts() {
+    let wake_wgsl = include_str!("../src/activity_wake.wgsl");
+
+    // 1. chunk_edit_wake is read-only in shader
+    assert!(
+        wake_wgsl.contains("@group(0) @binding(3) var<storage, read> chunk_edit_wake: array<u32>;"),
+        "activity_wake.wgsl must bind chunk_edit_wake as read-only"
+    );
+
+    // 2. shader contains zero writes to chunk_edit_wake
+    assert!(
+        !wake_wgsl.contains("chunk_edit_wake[chunk_idx] =")
+            && !wake_wgsl.contains("chunk_edit_wake[n_idx] ="),
+        "activity_wake.wgsl must not contain writes to chunk_edit_wake"
+    );
+
+    let sim_rs = include_str!("../src/simulation.rs");
+
+    // 3. simulation.rs layout binds chunk_edit_wake as Read
+    assert!(
+        sim_rs.contains(
+            "buffer_entry(3, &BindingKind::Read), // chunk_edit_wake immutable wake snapshot"
+        ),
+        "simulation.rs must bind chunk_edit_wake with BindingKind::Read"
+    );
+
+    // 4. tick() ordering: wake pass < clear_buffer < propose pass
+    let wake_pos = sim_rs
+        .find("powdergame-g7b-activity-wake-pass")
+        .expect("wake pass marker");
+    let clear_pos = sim_rs
+        .find("encoder.clear_buffer(&self.world.chunk_edit_wake, 0, None)")
+        .expect("clear_buffer call");
+    let propose_pos = sim_rs
+        .find("powdergame-g3-propose-pass")
+        .expect("propose pass marker");
+
+    assert!(
+        wake_pos < clear_pos,
+        "wake pass must precede clear_buffer in simulation.rs"
+    );
+    assert!(
+        clear_pos < propose_pos,
+        "clear_buffer must precede propose pass in simulation.rs"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.6: Decay Sleep Freeze Structural Regression Test
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_structural_decay_sleeping_guard_flags_freeze() {
+    let decay_wgsl = include_str!("../src/decay.wgsl");
+    let norm_decay = decay_wgsl.replace("\r\n", "\n");
+
+    // Check sleeping guard exists and carries flags exact
+    assert!(
+        norm_decay.contains("flags_next[index] = flags;\n            return;"),
+        "decay.wgsl sleeping guard must carry flags exact"
+    );
+
+    // Ensure ~FLAG_DECAY_AGE_MASK is not inside sleeping guard
+    let sleep_idx = norm_decay
+        .find("if (params.sleep_enabled != 0u)")
+        .expect("sleep guard");
+    let return_idx = norm_decay[sleep_idx..]
+        .find("return;")
+        .expect("return in sleep guard");
+    let sleep_block = &norm_decay[sleep_idx..sleep_idx + return_idx];
+    assert!(
+        !sleep_block.contains("~FLAG_DECAY_AGE_MASK"),
+        "decay.wgsl sleeping guard must not clear decay age mask"
+    );
 }

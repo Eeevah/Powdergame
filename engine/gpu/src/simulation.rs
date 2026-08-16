@@ -308,12 +308,13 @@ impl Simulation {
                     label: Some("powdergame-g7a-activity-reduce"),
                     source: wgpu::ShaderSource::Wgsl(include_str!("activity_reduce.wgsl").into()),
                 });
-        let shader_activity_wake = context
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("powdergame-g7b-activity-wake"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("activity_wake.wgsl").into()),
-            });
+        let shader_activity_wake =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g7b-activity-wake"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("activity_wake.wgsl").into()),
+                });
 
         // Bind group layouts.
         let propose_layout =
@@ -389,7 +390,7 @@ impl Simulation {
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
                         buffer_entry(5, &BindingKind::ReadWrite), // expansion proposal
                         buffer_entry(6, &BindingKind::ReadWrite), // cell_activity (G7-A transition marker)
-                        buffer_entry(7, &BindingKind::Read), // chunk_state
+                        buffer_entry(7, &BindingKind::Read),      // chunk_state
                     ],
                 });
         let expansion_claim_layout =
@@ -580,7 +581,7 @@ impl Simulation {
                         uniform_entry(0, WAKE_PARAMS_SIZE),
                         buffer_entry(1, &BindingKind::Read), // chunk_activity
                         buffer_entry(2, &BindingKind::Read), // chunk_stable_ticks
-                        buffer_entry(3, &BindingKind::ReadWrite), // chunk_edit_wake
+                        buffer_entry(3, &BindingKind::Read), // chunk_edit_wake immutable wake snapshot
                         buffer_entry(4, &BindingKind::ReadWrite), // chunk_state
                         buffer_entry(5, &BindingKind::ReadWrite), // chunk_wake_reason
                     ],
@@ -751,7 +752,8 @@ impl Simulation {
         params_data[16..20].copy_from_slice(&world.config.chunk_size.to_ne_bytes());
         params_data[20..24].copy_from_slice(&chunks_x_u32.to_ne_bytes());
         params_data[24..28].copy_from_slice(&chunks_y_u32.to_ne_bytes());
-        params_data[28..32].copy_from_slice(&(if sleep_enabled { 1u32 } else { 0u32 }).to_ne_bytes());
+        params_data[28..32]
+            .copy_from_slice(&(if sleep_enabled { 1u32 } else { 0u32 }).to_ne_bytes());
         context.queue.write_buffer(&params, 0, &params_data);
 
         let mut wake_data = [0u8; WAKE_PARAMS_SIZE as usize];
@@ -1686,14 +1688,18 @@ impl Simulation {
         params_data[20..24].copy_from_slice(&chunks_x_u32.to_ne_bytes());
         params_data[24..28].copy_from_slice(&chunks_y_u32.to_ne_bytes());
         params_data[28..32].copy_from_slice(&sleep_enabled_u32.to_ne_bytes());
-        self.context.queue.write_buffer(&self.params, 0, &params_data);
+        self.context
+            .queue
+            .write_buffer(&self.params, 0, &params_data);
 
         let mut wake_data = [0u8; WAKE_PARAMS_SIZE as usize];
         wake_data[..4].copy_from_slice(&chunks_x_u32.to_ne_bytes());
         wake_data[4..8].copy_from_slice(&chunks_y_u32.to_ne_bytes());
         wake_data[8..12].copy_from_slice(&sleep_enabled_u32.to_ne_bytes());
         wake_data[12..16].copy_from_slice(&self.sleep_threshold.to_ne_bytes());
-        self.context.queue.write_buffer(&self.wake_params, 0, &wake_data);
+        self.context
+            .queue
+            .write_buffer(&self.wake_params, 0, &wake_data);
     }
 
     /// Submits one tick on the GPU (no CPU full-world copy):
@@ -1754,6 +1760,11 @@ impl Simulation {
             let a_chunks_y = chunks_y(self.world.config.height, self.world.config.chunk_size);
             pass.dispatch_workgroups(a_chunks_x, a_chunks_y, 1);
         }
+
+        // G7-B two-phase edit wake semantics:
+        // every chunk observes the same immutable edit snapshot during the wake
+        // dispatch; only after that pass ends do we consume the one-tick triggers.
+        encoder.clear_buffer(&self.world.chunk_edit_wake, 0, None);
 
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {

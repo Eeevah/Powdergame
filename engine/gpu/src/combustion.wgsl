@@ -176,7 +176,7 @@ fn combustion_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         if (chunk_state[cy * params.chunks_x + cx] != 0u) {
             material_next[index] = mat;
             temperature_next[index] = sanitize(temperature_current[index]);
-            flags_next[index] = flags & ~COMBUSTION_MASK;
+            flags_next[index] = flags;
             proposal[index] = NO_SPAWN;
             return;
         }

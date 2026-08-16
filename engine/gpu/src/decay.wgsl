@@ -77,7 +77,7 @@ fn decay_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         if (chunk_state[cy * params.chunks_x + cx] != 0u) {
             material_next[index] = mat;
             temperature_next[index] = temp;
-            flags_next[index] = flags & ~FLAG_DECAY_AGE_MASK;
+            flags_next[index] = flags;
             return;
         }
     }

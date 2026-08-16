@@ -21,6 +21,9 @@ jobs:
       - name: Apply G5-B implementation
         run: python tools/g5b_apply.py
 
+      - name: Correct WGSL reserved identifier
+        run: python tools/g5b_fix_reserved.py
+
       - name: Format Rust
         run: cargo fmt --all
 
@@ -39,7 +42,7 @@ jobs:
 
       - name: Remove temporary validation helpers
         shell: bash
-        run: git rm tools/g5b_apply.py .github/workflows/g5b-apply-and-validate.yml
+        run: git rm tools/g5b_apply.py tools/g5b_fix_reserved.py .github/workflows/g5b-apply-and-validate.yml
 
       - name: Commit validated G5-B implementation
         shell: bash

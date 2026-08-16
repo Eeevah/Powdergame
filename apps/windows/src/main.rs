@@ -348,7 +348,9 @@ impl App {
 /// This fixture does not inject Pressure and does not open any vent. Both
 /// boilers start with the same dense Water charge at T=58, just below the
 /// Water→Steam threshold. A real hot-Stone floor conducts heat into the
-/// Water. The left boiler has a one-cell Wood relief plug; the right uses
+/// Water. An identical upper Stone heater plate is placed five Water rows
+/// below each roof so the visible event occurs promptly without injecting
+/// Pressure. The left boiler has a one-cell Wood relief plug; the right uses
 /// Stone at the corresponding location as an unbreakable control.
 ///
 /// Expected emergent chain on the left:
@@ -402,6 +404,17 @@ fn stage_pressure_demo(simulation: &Simulation) -> Result<(), GpuError> {
                 set(x, y, MATERIAL_WATER)?;
                 set_t(x, y, 58.0)?;
             }
+        }
+
+        // Identical upper Stone heater plate in both boilers. It remains five
+        // Water rows below the roof plug, so the plug is never directly heated
+        // or scripted. Nearby Water crosses the boil threshold quickly through
+        // ordinary thermal conduction, making the pressure-chain readable in
+        // a short user-validation run without changing frozen G5 physics.
+        let heater_y = roof_y + 6;
+        for x in (plug_l - 2)..=(plug_r + 2) {
+            set(x, heater_y, MATERIAL_STONE)?;
+            set_t(x, heater_y, 110.0)?;
         }
 
         // Chimney rails above the plug make the vent plume easy to read while

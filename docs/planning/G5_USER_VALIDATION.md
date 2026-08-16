@@ -33,6 +33,7 @@ A 128×128 twin-boiler scene uses the same production simulation path for both c
 
 - Dense Water charge starts at `T = 58.0`, below Water→Steam threshold.
 - Hot Stone floor is staged at `T = 150.0` and heats Water through normal thermal conduction.
+- An identical upper Stone heater plate at `T = 110.0` sits five Water rows below each roof plug. It accelerates observation timing through normal conduction; it does not write Pressure or touch the plug directly.
 - Roof is Stone except for a one-cell-thick, 9-cell-wide Wood relief plug.
 - No Pressure is staged by the demo.
 - No vent is pre-opened.
@@ -55,7 +56,7 @@ Hot Stone conducts heat
 
 ### Right boiler — sealed control
 
-The right chamber has the same water charge, temperature and hot floor, but the corresponding roof plug is Stone. Stone is intentionally unbreakable in the M0 G5 contract.
+The right chamber has the same water charge, temperature, hot floor and upper heater plate, but the corresponding roof plug is Stone. Stone is intentionally unbreakable in the M0 G5 contract.
 
 Expected result: it remains sealed while the left Wood relief boiler opens and vents.
 

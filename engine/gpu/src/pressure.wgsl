@@ -45,8 +45,8 @@ fn is_pressure_medium(material: u32) -> bool {
     if (material == EMPTY || material >= TABLE_LEN) {
         return false;
     }
-    let class = movement_class_table[material];
-    return class == CLASS_LIQUID || class == CLASS_GAS;
+    let movement_class = movement_class_table[material];
+    return movement_class == CLASS_LIQUID || movement_class == CLASS_GAS;
 }
 
 fn accumulate(self_p: f32, nx: i32, ny: i32) -> f32 {

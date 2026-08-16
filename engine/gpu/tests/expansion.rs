@@ -135,8 +135,8 @@ fn competing_expansions_have_one_winner_and_loser_becomes_pressure() {
         set_mat(&sim, x, y, MATERIAL_STONE);
     }
     set_mat(&sim, 4, 3, MATERIAL_EMPTY);
-    set_mat(&sim, 3, 4, MATERIAL_WATER); // lower row-major source index wins
-    set_mat(&sim, 5, 4, MATERIAL_WATER);
+    set_mat(&sim, 3, 4, MATERIAL_WATER); // contender A
+    set_mat(&sim, 5, 4, MATERIAL_WATER); // contender B
     set_t(&sim, 3, 4, 1000.0);
     set_t(&sim, 5, 4, 1000.0);
 

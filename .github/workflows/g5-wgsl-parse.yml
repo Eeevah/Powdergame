@@ -1,0 +1,18 @@
+name: G5 WGSL Parse Regression
+
+on:
+  push:
+    branches:
+      - feature/m0-g5-pressure-field
+
+jobs:
+  parse-and-compile:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Parse all production WGSL without GPU
+        run: cargo test -p powdergame-gpu --test wgsl_parse -- --nocapture
+      - name: Compile workspace all targets
+        run: cargo check --workspace --all-targets

@@ -20,6 +20,10 @@ fn eight_by_eight() -> Simulation {
     make_sim(WorldConfig::new(8, 8, 8).unwrap())
 }
 
+fn two_hundred_fifty_six() -> Simulation {
+    make_sim(WorldConfig::new(256, 256, 64).unwrap())
+}
+
 fn set(sim: &Simulation, x: i64, y: i64, material: u32) {
     sim.world
         .write_material(&sim.context.queue, x, y, material)
@@ -50,12 +54,18 @@ fn pressure(sim: &Simulation, x: i64, y: i64) -> f32 {
         .expect("pressure readback")
 }
 
+fn temp(sim: &Simulation, x: i64, y: i64) -> f32 {
+    sim.world
+        .read_temperature_cell(&sim.context.device, &sim.context.queue, x, y)
+        .expect("temperature readback")
+}
+
 fn block_water_motion_except_top_wall(sim: &Simulation, wall_material: u32) {
     // Water at (3,3). Liquid candidates down/down-diagonal/lateral are Stone;
     // the top cell (3,2) is the structural wall stressed by Pressure.
     set(sim, 3, 2, wall_material);
     for (x, y) in [(2, 3), (4, 3), (2, 4), (3, 4), (4, 4)] {
-        set(&sim, x, y, MATERIAL_STONE);
+        set(sim, x, y, MATERIAL_STONE);
     }
     set(sim, 3, 3, MATERIAL_WATER);
 }
@@ -173,5 +183,359 @@ fn blocked_boiling_ruptures_weak_wall_then_vents_on_following_tick() {
         pressure(&sim, 3, 3),
         PRESSURE_REFERENCE,
         "vacated spatial pressure released"
+    );
+}
+
+/// Unified staging configuration for boiler stress experiment chambers.
+struct BoilerStagingConfig {
+    x0: i64,
+    x1: i64,
+    roof_y: i64,
+    bottom_y: i64,
+    floor_heater_rows: i64,
+    floor_heater_temp: f32,
+    upper_heater_temp: f32,
+    water_temp: f32,
+    roof_relief: Option<(i64, i64)>, // (plug_left, plug_right)
+    side_seam: Option<(i64, i64)>,   // (seam_top, seam_bottom) on right wall x1
+    chimney_rails: bool,
+    exhaust_duct: bool,
+}
+
+fn stage_test_boiler(sim: &Simulation, cfg: &BoilerStagingConfig, stone: u32) {
+    // 1. Left Wall (Stone)
+    for y in cfg.roof_y..=cfg.bottom_y {
+        set(sim, cfg.x0, y, stone);
+    }
+
+    // 2. Right Wall (Stone or Weak Seam)
+    for y in cfg.roof_y..=(cfg.bottom_y - cfg.floor_heater_rows) {
+        if let Some((s_top, s_bot)) = cfg.side_seam {
+            if y >= s_top && y <= s_bot {
+                set(sim, cfg.x1, y, MATERIAL_WOOD);
+                set_t(sim, cfg.x1, y, 20.0);
+                continue;
+            }
+        }
+        set(sim, cfg.x1, y, stone);
+    }
+
+    // 3. Floor Heaters
+    for y in (cfg.bottom_y - cfg.floor_heater_rows + 1)..=cfg.bottom_y {
+        for x in cfg.x0..=cfg.x1 {
+            set(sim, x, y, stone);
+            set_t(sim, x, y, cfg.floor_heater_temp);
+        }
+    }
+
+    // 4. Roof (Stone or Roof Relief Plug)
+    for x in (cfg.x0 + 1)..cfg.x1 {
+        let is_plug = if let Some((p_l, p_r)) = cfg.roof_relief {
+            x >= p_l && x <= p_r
+        } else {
+            false
+        };
+        let mat = if is_plug { MATERIAL_WOOD } else { stone };
+        set(sim, x, cfg.roof_y, mat);
+        set_t(sim, x, cfg.roof_y, 20.0);
+    }
+
+    // 5. Interior Water Fill
+    for y in (cfg.roof_y + 1)..(cfg.bottom_y - cfg.floor_heater_rows + 1) {
+        for x in (cfg.x0 + 1)..cfg.x1 {
+            set(sim, x, y, MATERIAL_WATER);
+            set_t(sim, x, y, cfg.water_temp);
+        }
+    }
+
+    // 6. Upper Heater Plate (centered in chamber, 6 cells below roof)
+    let center_x = (cfg.x0 + cfg.x1) / 2;
+    let heater_y = cfg.roof_y + 6;
+    for x in (center_x - 6)..=(center_x + 6) {
+        set(sim, x, heater_y, stone);
+        set_t(sim, x, heater_y, cfg.upper_heater_temp);
+    }
+
+    // 7. Optional Top Chimney Rails
+    if cfg.chimney_rails {
+        let chimney_top = if cfg.roof_y < 100 { 8i64 } else { 130i64 };
+        for y in chimney_top..cfg.roof_y {
+            set(sim, center_x - 6, y, stone);
+            set(sim, center_x + 6, y, stone);
+        }
+    }
+
+    // 8. Optional Side Exhaust Duct
+    if cfg.exhaust_duct {
+        if let Some((s_top, s_bot)) = cfg.side_seam {
+            for y in (s_top - 4)..=(s_bot + 4) {
+                for x in (cfg.x1 + 1)..=(cfg.x1 + 10) {
+                    if y == s_top - 4 || y == s_bot + 4 {
+                        set(sim, x, y, stone);
+                    } else {
+                        set(sim, x, y, MATERIAL_EMPTY);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn stage_test_2x2_world(sim: &Simulation) {
+    let stone = MATERIAL_STONE;
+
+    // Central dividers
+    for y in 4..=250 {
+        set(sim, 126, y, stone);
+        set(sim, 127, y, stone);
+        set(sim, 128, y, stone);
+        set(sim, 129, y, stone);
+    }
+    for x in 4..=251 {
+        for y in 118..=124 {
+            set(sim, x, y, stone);
+        }
+    }
+    // Panel A: Top-Left (Standard Wood Relief)
+    stage_test_boiler(
+        sim,
+        &BoilerStagingConfig {
+            x0: 14,
+            x1: 114,
+            roof_y: 44,
+            bottom_y: 108,
+            floor_heater_rows: 1,
+            floor_heater_temp: 150.0,
+            upper_heater_temp: 110.0,
+            water_temp: 58.0,
+            roof_relief: Some((60, 68)),
+            side_seam: None,
+            chimney_rails: true,
+            exhaust_duct: false,
+        },
+        stone,
+    );
+
+    // Panel B: Top-Right (Standard Stone Sealed Control)
+    stage_test_boiler(
+        sim,
+        &BoilerStagingConfig {
+            x0: 142,
+            x1: 242,
+            roof_y: 44,
+            bottom_y: 108,
+            floor_heater_rows: 1,
+            floor_heater_temp: 150.0,
+            upper_heater_temp: 110.0,
+            water_temp: 58.0,
+            roof_relief: None,
+            side_seam: None,
+            chimney_rails: true,
+            exhaust_duct: false,
+        },
+        stone,
+    );
+
+    // Panel C: Bottom-Left (Extreme Wood Relief Overdrive)
+    stage_test_boiler(
+        sim,
+        &BoilerStagingConfig {
+            x0: 14,
+            x1: 114,
+            roof_y: 170,
+            bottom_y: 236,
+            floor_heater_rows: 3,
+            floor_heater_temp: 220.0,
+            upper_heater_temp: 130.0,
+            water_temp: 58.0,
+            roof_relief: Some((60, 68)),
+            side_seam: None,
+            chimney_rails: true,
+            exhaust_duct: false,
+        },
+        stone,
+    );
+
+    // Panel D: Bottom-Right (Stone Sealed Extreme -> Delayed Pressure Breach)
+    stage_test_boiler(
+        sim,
+        &BoilerStagingConfig {
+            x0: 142,
+            x1: 242,
+            roof_y: 170,
+            bottom_y: 236,
+            floor_heater_rows: 3,
+            floor_heater_temp: 220.0,
+            upper_heater_temp: 130.0,
+            water_temp: 58.0,
+            roof_relief: None,
+            side_seam: Some((214, 222)),
+            chimney_rails: false,
+            exhaust_duct: true,
+        },
+        stone,
+    );
+}
+
+#[test]
+fn test_c_d_initial_thermal_matter_symmetry() {
+    let sim = two_hundred_fifty_six();
+    stage_test_2x2_world(&sim);
+
+    // Verify that inside the chamber bounds (width 100, height 66),
+    // Panel C (14..114, 170..236) and Panel D (142..242, 170..236)
+    // have 100% identical material and initial temperature for every internal cell.
+    for dy in 1..66 {
+        for dx in 1..100 {
+            let c_x = 14 + dx;
+            let d_x = 142 + dx;
+            let y = 170 + dy;
+
+            let c_mat = cell(&sim, c_x, y);
+            let d_mat = cell(&sim, d_x, y);
+            assert_eq!(
+                c_mat, d_mat,
+                "Internal chamber material mismatch at relative ({dx}, {dy}): C({c_x},{y})={c_mat} vs D({d_x},{y})={d_mat}"
+            );
+
+            let c_temp = temp(&sim, c_x, y);
+            let d_temp = temp(&sim, d_x, y);
+            assert!(
+                (c_temp - d_temp).abs() < 1e-4,
+                "Internal chamber temperature mismatch at relative ({dx}, {dy}): C={c_temp:.2} vs D={d_temp:.2}"
+            );
+        }
+    }
+}
+
+#[test]
+fn two_by_two_multi_boiler_stress_lab_relative_ordering_contract() {
+    let mut sim = two_hundred_fifty_six();
+    stage_test_2x2_world(&sim);
+
+    let mut first_relief_a: Option<u64> = None;
+    let mut first_relief_c: Option<u64> = None;
+    let mut first_breach_d: Option<u64> = None;
+    let mut first_vent_d: Option<u64> = None;
+    let mut breach_d_pressure: f32 = 0.0;
+    let mut breach_d_cell: (u32, u32) = (0, 0);
+
+    // Run simulation for 300 ticks
+    for tick in 1..=300 {
+        sim.tick().expect("multi boiler lab tick");
+
+        // Panel A: Wood plug at y=44, x=60..68 (9 cells)
+        let mut a_wood = 0;
+        for x in 60..=68 {
+            if cell(&sim, x, 44) == MATERIAL_WOOD {
+                a_wood += 1;
+            }
+        }
+        if first_relief_a.is_none() && a_wood < 9 {
+            first_relief_a = Some(tick);
+            println!("[TEST] Panel A first relief at tick {tick} (wood remaining: {a_wood}/9)");
+        }
+
+        // Panel C: Wood plug at y=170, x=60..68 (9 cells)
+        let mut c_wood = 0;
+        for x in 60..=68 {
+            if cell(&sim, x, 170) == MATERIAL_WOOD {
+                c_wood += 1;
+            }
+        }
+        if first_relief_c.is_none() && c_wood < 9 {
+            first_relief_c = Some(tick);
+            println!("[TEST] Panel C first relief at tick {tick} (wood remaining: {c_wood}/9)");
+        }
+
+        // Panel D: Weak seam at x=242, y=214..222 (9 cells)
+        let mut d_wood = 0;
+        for y in 214..=222 {
+            if cell(&sim, 242, y) == MATERIAL_WOOD {
+                d_wood += 1;
+            } else if first_breach_d.is_none() {
+                // Record breach cell and local neighbor pressure
+                breach_d_cell = (242, y as u32);
+                breach_d_pressure = pressure(&sim, 241, y);
+            }
+        }
+        if first_breach_d.is_none() && d_wood < 9 {
+            first_breach_d = Some(tick);
+            println!(
+                "[TEST] Panel D first breach at tick {tick} (wood remaining: {d_wood}/9, cell: {:?}, local p: {:.1})",
+                breach_d_cell, breach_d_pressure
+            );
+        }
+
+        // Panel D Exterior Duct Venting (x=243..=254, y=210..=226)
+        let mut ext_steam = 0u32;
+        for y in 210..=226 {
+            for x in 243..=254 {
+                if cell(&sim, x, y) == MATERIAL_STEAM {
+                    ext_steam += 1;
+                }
+            }
+        }
+        if first_vent_d.is_none() && ext_steam > 0 {
+            first_vent_d = Some(tick);
+            println!("[TEST] Panel D first exterior vent at tick {tick} (exterior steam: {ext_steam} cells)");
+        }
+    }
+
+    // 1. Panel A (Top-Left Standard Relief): Wood relief plug must open
+    assert!(first_relief_a.is_some(), "Panel A relief plug must open");
+
+    // 2. Panel B (Top-Right Stone Control): Stone roof must remain unbroken
+    for x in 143..=241 {
+        assert_eq!(
+            cell(&sim, x, 44),
+            MATERIAL_STONE,
+            "Panel B roof must remain 100% stone"
+        );
+    }
+
+    // 3. Panel C (Bottom-Left Extreme Relief): Wood relief plug must open
+    assert!(
+        first_relief_c.is_some(),
+        "Panel C extreme relief plug must open"
+    );
+
+    // 4. Panel D (Bottom-Right Extreme Breach): Weak seam must breach
+    assert!(
+        first_breach_d.is_some(),
+        "Panel D weak seam must breach under accumulated overpressure"
+    );
+
+    let t_a = first_relief_a.unwrap();
+    let t_c = first_relief_c.unwrap();
+    let t_d = first_breach_d.unwrap();
+
+    println!("[TEST] Summary: t_A = {t_a}, t_C = {t_c}, t_D = {t_d}");
+
+    // Contract 1: C (Extreme Overdrive Relief) opens earlier or equal to A (Standard Relief)
+    assert!(
+        t_c <= t_a,
+        "Extreme relief (tick {t_c}) must be earlier or equal to standard relief (tick {t_a})"
+    );
+
+    // Contract 2: D (Delayed Pressure Breach) delay separation contract
+    // This is a demo readability / experiment-separation contract, not a simulation physics constant.
+    const MIN_MEANINGFUL_DELAY: u64 = 60;
+    assert!(
+        t_d >= t_c + MIN_MEANINGFUL_DELAY,
+        "Panel D delayed breach (tick {t_d}) must occur after fast relief (tick {t_c}) by at least {MIN_MEANINGFUL_DELAY} ticks"
+    );
+
+    // Contract 3: D breach occurred due to local pressure exceeding Wood threshold (80.0)
+    assert!(
+        breach_d_pressure >= 80.0,
+        "Panel D breach-time local neighbor pressure ({breach_d_pressure:.1}) must reach or exceed Wood rupture threshold (80.0)"
+    );
+
+    // Contract 4: Steam venting into exterior exhaust duct must occur upon or after breach
+    assert!(
+        first_vent_d.is_some() && first_vent_d.unwrap() >= t_d,
+        "Panel D exterior venting (tick {:?}) must occur upon or after breach (tick {t_d})",
+        first_vent_d
     );
 }

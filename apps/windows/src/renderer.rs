@@ -670,12 +670,18 @@ impl Renderer {
                 .write_buffer(&wv.metrics_buf, 0, &metrics.to_bytes());
         }
     }
+}
 
-    /// Acquires a frame, draws it (world view and optional text layer), and presents it.
-    pub fn render(
-        &mut self,
-        thermal_hud: Option<(&crate::observatory::ObservatoryMetrics, u64)>,
-    ) -> Result<(), GpuError> {
+/// Live HUD overlay data dispatched to the vector text renderer.
+pub enum HudData<'a> {
+    Thermal(&'a crate::observatory::ObservatoryMetrics, u64),
+    Pressure(&'a crate::observatory::PressureObservatoryMetrics, u64),
+}
+
+impl Renderer {
+    /// Acquires the next surface frame, draws the world view (or clear) + text HUD,
+    /// and presents.
+    pub fn render(&mut self, hud_data: Option<HudData<'_>>) -> Result<(), GpuError> {
         let frame = self
             .surface
             .get_current_texture()
@@ -710,16 +716,31 @@ impl Renderer {
                 render_pass.set_bind_group(0, &wv.bind_group, &[]);
                 render_pass.draw(0..3, 0..1);
             }
-            if let (Some(tr), Some((metrics, sim_ticks))) = (&mut self.text_renderer, thermal_hud) {
-                tr.render_thermal_hud(
-                    &self.device,
-                    &self.queue,
-                    &mut render_pass,
-                    self.config.width,
-                    self.config.height,
-                    metrics,
-                    sim_ticks,
-                );
+            if let (Some(tr), Some(hud)) = (&mut self.text_renderer, hud_data) {
+                match hud {
+                    HudData::Thermal(metrics, sim_ticks) => {
+                        tr.render_thermal_hud(
+                            &self.device,
+                            &self.queue,
+                            &mut render_pass,
+                            self.config.width,
+                            self.config.height,
+                            metrics,
+                            sim_ticks,
+                        );
+                    }
+                    HudData::Pressure(metrics, sim_ticks) => {
+                        tr.render_pressure_hud(
+                            &self.device,
+                            &self.queue,
+                            &mut render_pass,
+                            self.config.width,
+                            self.config.height,
+                            metrics,
+                            sim_ticks,
+                        );
+                    }
+                }
             }
             drop(render_pass);
         }

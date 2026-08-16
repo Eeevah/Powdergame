@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion & finite fuel TECHNICAL PASS, Smoke decay lifecycle G4 integration hardening TECHNICAL PASS, G4 Large 4-Panel Thermal Observatory `--thermal-demo` User Validation APPROVED on 2026-08-16). G5 (Pressure Chain) TECHNICAL CHAIN FROZEN — G5-A Pressure Field TECHNICAL PASS / FROZEN, G5-B Expansion / Confinement → Pressure TECHNICAL PASS / FROZEN, G5-C Rupture / Opening / Vent TECHNICAL PASS / FROZEN; final visible boiler-chain User Validation pending.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16). Next Gate: G6 — Parallel Integrity.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion TECHNICAL PASS, Smoke decay G4 integration hardening TECHNICAL PASS, G4 4-Panel Thermal Observatory `--thermal-demo` (320×192) User Validation APPROVED on 2026-08-16). G5 — Pressure Chain: TECHNICAL CHAIN FROZEN (G5-A Pressure Field TECHNICAL PASS / FROZEN; G5-B Expansion / Confinement → Pressure TECHNICAL PASS / FROZEN; G5-C Rupture / Opening / Vent TECHNICAL PASS / FROZEN); visible boiler-chain User Validation pending before G5 PASS / CLOSED.**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (G5-A Pressure Field TECHNICAL PASS / FROZEN; G5-B Expansion / Confinement → Pressure TECHNICAL PASS / FROZEN; G5-C Rupture / Opening / Vent TECHNICAL PASS / FROZEN; 2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). Next Gate: G6 — Parallel Integrity.**
 
 ### Current Summary
 
@@ -44,11 +44,7 @@
 - approximate, non-bit-exact determinism
 - M0 Evidence Gates G0~G9
 
-2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**, **G4 (Thermal / Phase / Combustion)**가 구현·검증·사용자 검증 승인 완료되어 **PASS / CLOSED** 되었다.
-
-G4는 **G4-A (Thermal Baseline)**, **G4-B (Phase Transition)**, **G4-C (Combustion & Finite Fuel)**, 그리고 **Smoke Decay Lifecycle (G4 Integration Hardening)**를 포함하며, 4-Panel Large Thermal Observatory (`--thermal-demo`, 320×192) 및 고해상도 Screen-Space 진단 HUD를 통한 장기 관측(~9104 ticks)에서 물리 보존 법칙과 라이프사이클이 모두 입증되어 사용자의 공식 승인을 받았다.
-
-현재 **G5 — Pressure Chain**은 기술 체인 구현이 완료되었다. G5-A scalar Pressure propagation, G5-B Phase expansion / confinement → Pressure generation, G5-C Pressure stress → rupture → opening → venting이 모두 RTX 5090 / DX12 실기 검증으로 **TECHNICAL PASS / FROZEN**이다. 남은 G5 gate는 특별 explosion 코드 없이 `가열 → Steam → confinement Pressure → weak Wood rupture → opening → ordinary GAS vent`가 화면에서 하나의 자연스러운 사건으로 읽히는지 확인하는 **visible boiler-chain User Validation**이다.
+2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**, **G4 (Thermal / Phase / Combustion)**, **G5 (Pressure Chain)**가 구현·검증·사용자 검증 승인 완료되어 **PASS / CLOSED** 되었다.
 
 ---
 
@@ -134,7 +130,7 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 - Phase-transformed Matter adopts new movement behavior on the very next tick.
 
 #### G4-C Combustion & Finite Fuel (TECHNICAL PASS)
-- Generic combustion descriptor: `Wood (ignite 90.0, sustain 55.0, heat +4.0, burn_duration 900)` / `Oil (ignite 75.0, sustain 45.0, heat +5.0, burn_duration 600)`.
+- Generic combustion descriptor: `Wood (ignite T=90.0, sustain T=55.0, heat +4.0, burn_duration 900)` / `Oil (ignite T=75.0, sustain T=45.0, heat +5.0, burn_duration 600)`.
 - Fire is not Matter: Flame is burning Matter + `FLAG_COMBUSTING` + `FLAG_FLAME_EVENT` + heat.
 - Finite fuel lifecycle: `FLAG_FUEL_PROGRESS` increments during active burning; when reaching `burn_duration`, cell self-writes to `EMPTY` (T=0.0, flags=0).
 - Burning source requests at most 1 Smoke spawn into an adjacent EMPTY cell per tick.
@@ -154,147 +150,158 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 
 ### G4 Large 4-Panel Thermal Observatory — User Validation Evidence (~9104 Ticks, APPROVED 2026-08-16)
 
-실제 사용자 관찰(~9104 ticks 직접 관측 및 승인)에서 확인된 정밀 물리 검증 증거:
-
-#### A. PHASE HEATING (Top-Left: x 1..157, y 1..93)
-- **초기 상태**: `ICE 360`, `WATER 0`, `STEAM 0`
-- **장기 관측 데이터**:
-  - `tick ~1516`: `ICE 315` / `WATER 41` / `STEAM 4`
-  - `tick ~2490`: `ICE 258` / `WATER 97` / `STEAM 5`
-  - `tick ~9104`: `ICE 246` / `WATER 106` / `STEAM 8`
-  - `First Melt = 360`, `First Steam = 1080`
-- **핵심 물리 증거**:
-  - `Ice + Water + Steam = 360` (전체 관측 구간에서 오차 0으로 완벽 보존).
-  - 열원 전도에 의해 `Ice -> Water -> Steam` 상전이 체인이 순차적으로 발생하며, 1:1 변환에서 Matter count가 완벽히 보존됨.
-
-#### B. PHASE COOLING (Top-Right: x 162..318, y 1..93)
-- **초기 상태**: `STEAM 3082`, `WATER 0`, `ICE 0` (Initial Ice = 0)
-- **장기 관측 데이터**:
-  - `tick ~158`: `STEAM 2007` / `WATER 1072` / `ICE 3`
-  - `tick ~834`: `STEAM 50` / `WATER 2980` / `ICE 52`
-  - `tick ~1516`: `STEAM 6` / `WATER 3053` / `ICE 23`
-  - `tick ~2490`: `STEAM 1` / `WATER 3081` / `ICE 0`
-  - `tick ~3327`: `STEAM 185` / `WATER 2897` / `ICE 0`
-  - `tick ~6426`: `STEAM 1180` / `WATER 1902` / `ICE 0`
-  - `tick ~9104`: `STEAM 1778` / `WATER 1304` / `ICE 0`
-  - `First Condense = 20`, `First Freeze = 130`
-- **핵심 물리 증거**:
-  - `Steam + Water + Ice = 3082` (전체 관측 시점에서 정확히 일치 보존).
-  - 초기 냉각 단계: 고온 Steam이 천장/냉각핀(T=-40.0)에 접촉해 Water로 응축 → 중앙 틈새로 낙하 → -100.0 수조에서 Ice로 결빙되는 역방향 체인(`Steam -> Water -> Ice`) 확인.
-  - 중장기 재평형 현상 (Emergent Behavior): 냉각 석재 수조/핀이 무한 냉각기가 아닌 유한 열용량 매체(finite thermal reservoir)이므로, 대량의 Steam 열을 흡수하며 서서히 온도가 상승함에 따라 수조의 Ice가 녹고 일부 Water가 다시 증발함. 이는 시뮬레이션 물리 장치 간의 자연스러운 열적 재평형(thermal re-equilibration) 결과임 (현실 이상 열역학 증명으로 과장하지 않음).
-
-#### C. HEAT COMPARISON (Bottom-Left: x 1..157, y 98..190)
-- **관측 조건**: 동일 형상의 밀봉 석재 튜브 내 Water (`k=1.0`) vs Oil (`k=0.2`)의 열침투 깊이 비교 (바닥 공통 열원 T=50.0).
-- **장기 관측 데이터**:
-  - `tick ~6420`:
-    - Water: `Mid T ≈ 2.9`, `High T ≈ 0.8`
-    - Oil: `Mid T ≈ 0.1`, `High T ≈ 0.0`
-  - `tick ~9100`:
-    - Water: `Mid T ≈ 4.1`, `High T ≈ 1.7`
-    - Oil: `Mid T ≈ 0.4`, `High T ≈ 0.0`
-- **핵심 물리 증거**:
-  - 열전도율 차이(Water 1.0 vs Oil 0.2)에 의한 공간적 열침투 속도 격차가 Mid T / High T 밴드에서 명확하게 입증됨.
-
-#### D. COMBUSTION / FINITE FUEL (Bottom-Right: x 162..318, y 98..190)
-- **초기 상태**: `Wood Start = 648`
-- **장기 관측 데이터**:
-  - `First Ignite = 160`, `First Empty = 1060`
-  - `tick ~1516`: `Wood Left 583`
-  - `tick ~2490`: `Wood Left 431`
-  - `tick ~3327`: `Wood Left 290`
-  - `tick ~4552`: `Wood Left 50`
-  - `tick ~6426`: `Wood Left 0`, `Burning 0`
-- **핵심 물리 증거**:
-  - 열전도 점화 -> 공간적 연소 전선 전파 -> 유한 연료 소비(900 ticks) -> Wood가 EMPTY로 완전 소모되는 전 과정이 장기 실행에서 완벽히 완주됨.
-
-#### E. SMOKE LIFETIME & DISSIPATION LIFECYCLE
-- **장기 관측 데이터**:
-  - `tick 0`: `Smoke 0`
-  - `tick ~834`: `Smoke 1394`
-  - `tick ~1516`: `Smoke 2665`
-  - `tick ~2490`: `Smoke 3207`
-  - `tick ~3327`: `Smoke 3403` (최대 누적 피크)
-  - `tick ~4552`: `Smoke 2857` (연료 소모에 따라 생성 감소)
-  - `tick ~6426`: `Smoke 0` (연료 소모 종료 후 900 ticks 수명 경과로 100% 완전 자연 소멸)
-- **핵심 물리 증거**:
-  - `생성(spawn) -> 상승 집적(accumulation) -> 연료 소진 -> 자연 소멸(decay) -> 완전 소진(EMPTY)`의 연기 라이프사이클이 장기 실행에서 확인됨.
+4-Panel Large Thermal Observatory (`--thermal-demo`, 320×192) 및 고해상도 Screen-Space 진단 HUD를 통한 장기 관측(~9104 ticks)에서 물리 보존 법칙과 라이프사이클이 모두 입증되어 사용자의 공식 승인을 받았다.
 
 ---
 
-### G5 Pressure Chain Technical Evidence — RTX 5090 / DX12 (2026-08-16)
+### G5 Pressure Chain Evidence — RTX 5090 / DX12 (PASS / CLOSED, User Validation APPROVED 2026-08-16)
 
-#### G5-A Pressure Field — TECHNICAL PASS / FROZEN
-- Scalar spatial `f32` Pressure Field; Liquid/Gas are pressure media, EMPTY/Static/Powder are not.
-- 4-neighbor local propagation; no arbitrary time decay; chunk-boundary propagation verified.
-- Frozen regression suite after G5-C: **8 passed, 0 failed**.
+#### G5 Technical Chain Sub-Gates
+* **G5-A Pressure Field**: `TECHNICAL PASS / FROZEN` (Scalar spatial `f32` Pressure Field; Liquid/Gas are media; 4-neighbor propagation; no arbitrary decay).
+* **G5-B Expansion / Confinement**: `TECHNICAL PASS / FROZEN` (Boiling uses Matter yield=2; blocked expansion becomes confinement Pressure `100.0`).
+* **G5-C Rupture / Opening / Vent**: `TECHNICAL PASS / FROZEN` (Wood rupture threshold `80.0`; Stone/Boundary unbreakable; spatial pressure cleared on vent).
 
-#### G5-B Expansion / Confinement → Pressure — TECHNICAL PASS / FROZEN
-- Water boiling uses Matter yield=2: open space spawns a second Steam; blocked/ownership-lost expansion becomes confinement Pressure (`100.0`).
-- Deterministic ownership and 64-cell chunk-boundary expansion verified.
-- Frozen regression suite after G5-C: **5 passed, 0 failed**.
-
-#### G5-C Pressure Stress → Rupture → Opening → Vent — TECHNICAL PASS / FROZEN
 ```text
 Tested implementation SHA: 5187d9980f9067cced1edb0b6a8f79ab56147a0c
-Validation worktree: C:\Users\mdkap\source\repos\Powdergame-g5c-validation
+Validation worktree: C:\Users\mdkap\source\repos\Powdergame-g5-user-validation
 Adapter: NVIDIA GeForce RTX 5090
 Vendor: 0x10DE
 Backend: wgpu::Backend::Dx12
 WGSL parse: 1 passed, 0 failed (rupture.wgsl included)
-G5-C rupture: 5 passed, 0 failed
+G5-C rupture & stress lab tests: 7 passed, 0 failed
 G5-B expansion regression: 5 passed, 0 failed
 G5-A pressure regression: 8 passed, 0 failed
 G4-B phase regression: 16 passed, 0 failed
-Full GPU integration: 143 passed, 0 failed, 1 ignored (controlled_reference_world_perf)
+Full GPU integration: 145 passed, 0 failed, 1 ignored (controlled_reference_world_perf)
 Core: 130 passed, 0 failed
+Windows observatory: 4 passed, 0 failed
 Workspace all-target check: 0 errors, 0 warnings
+Static Analysis (clippy): 0 warnings (-D warnings)
+Formatting (cargo fmt): clean
 Git diff check: clean
-Validation worktree: clean
 Original user MATERIAL_CANDIDATES.md: preserved untouched
 ```
 
-G5-C structural baseline: Wood rupture threshold `80.0`; Stone/Boundary are unbreakable M0 reference walls. A fully blocked Water→Steam expansion generates `100.0` Pressure. The causal-chain test verified: Tick 1 `boil → blocked expansion → Pressure → Wood rupture → EMPTY opening`, Tick 2 ordinary GAS movement vents Steam through that opening and vacated spatial Pressure returns to reference. No boiler-specific/radial explosion code is used.
+#### G5 Production Simulation Invariant
+G5의 모든 물리적 인과 사슬은 특별 explosion 코드 없이 오직 실제 GPU 프로덕션 시뮬레이션 파이프라인(`Phase → Pressure → Rupture → Movement`)에서 발생한다:
+- Scripted timer rupture 없음
+- Pre-staged Pressure 없음
+- Pre-staged Steam 없음
+- Radial explosion solver 없음
+- Fake vent animation 없음
+- Minimum Sufficient Physics 원칙으로 성립.
 
-**Gate state:** G5-A/B/C technical chain is frozen. **G5 itself is not PASS / CLOSED yet**; final visible boiler-chain User Validation is required. Detailed G5-C evidence: `docs/planning/G5_C_RUPTURE_VENT.md`.
+---
+
+### G5 2×2 Multi-Boiler Stress Lab — Architecture & Final Evidence
+
+```text
+┌─────────────────────────────────────────┬─────────────────────────────────────────┐
+│ [A] TOP-LEFT: WOOD RELIEF (CANONICAL)   │ [B] TOP-RIGHT: STONE SEALED (CONTROL)   │
+│ • 1x Floor Heater (T=150)               │ • 1x Floor Heater (T=150)               │
+│ • 1x Upper Heater (T=110)               │ • 1x Upper Heater (T=110)               │
+│ • 9-cell Wood Roof Relief Plug (x=60..68│ • 100% Unbreakable Stone Roof           │
+├─────────────────────────────────────────┼─────────────────────────────────────────┤
+│ [C] BOT-LEFT: WOOD RELIEF (EXTREME)     │ [D] BOT-RIGHT: DELAYED PRESSURE BREACH  │
+│ • 3x Floor Heaters (T=220 Overdrive)    │ • 3x Floor Heaters (T=220 Overdrive)    │
+│ • 1x Upper Heater (T=130, y=176)        │ • 1x Upper Heater (T=130, y=176)        │
+│ • 9-cell Wood Roof Relief Plug (x=60..68│ • Solid Stone Roof + 9-cell Wood        │
+│                                         │   Distant Side Seam (y=214..=222, x=242)│
+└─────────────────────────────────────────┴─────────────────────────────────────────┘
+```
+
+#### 1. Interactive User Observation — FINAL (2026-08-16)
+
+사용자가 직접 2×2 Stress Lab을 관찰하고 최종 승인한 런타임 실측 증거:
+
+* **[A] WOOD RELIEF — CANONICAL**:
+  - Peak Pressure: `650.0`
+  - First Relief: `Tick 40`
+  - Relief Plug Wood: `6/9` cells remaining after opening
+  - Sustained Steam vent observed
+  - Final state: `RELIEF ACTIVE / VENTING`
+  - **판정**: canonical Heat → Steam → confinement → Wood relief rupture → opening → vent chain PASS.
+
+* **[B] STONE SEALED — CONTROL**:
+  - Peak Pressure: `650.0`
+  - Rupture Event: `NONE`
+  - Chamber Integrity: `100% SEALED`
+  - Long-run sealed state maintained indefinitely
+  - **판정**: 동일 canonical heating 조건에서 Stone control이 rupture하지 않음을 직접 확인.
+
+* **[C] WOOD RELIEF — EXTREME**:
+  - Initial Staging: Panel D와 100% 동일한 초기 Matter / Temperature (Water T=58.0, 3x Floor Heaters T=220, Upper Heater T=130).
+  - Peak Pressure: `1314.4`
+  - First Relief: `Tick 35`
+  - Sustained high-output upward vent plume observed
+  - A보다 relief가 더 빠름 (`35 < 40`) 및 Peak Pressure가 더 높음 (`1314.4 > 650.0`).
+  - **판정**: extreme heating에서도 relief path가 조기 pressure release를 제공함.
+
+* **[D] DELAYED PRESSURE BREACH**:
+  - Initial Staging: Panel C와 100% 동일한 초기 Matter / Temperature (유일한 차이는 구조적 relief path 배치).
+  - Peak Pressure: `1307.7`
+  - First Breach: `Tick 135`
+  - Weak Seam Wood: `8/9` cells remaining after first rupture
+  - Duct Steam Vent: `Tick 170`
+  - Final state: `SIDE WALL BREACH -> VENTING`
+  - Relative observation: C First Relief = `35`, D First Breach = `135` $\to$ Difference = `100 simulation ticks` (60 TPS 기준 약 1.67초).
+  - D는 C보다 충분히 오래 confinement를 유지한 뒤 pressure가 far-side seam까지 자연 전파되어 rupture했고, 그 이후 실제 opening을 통해 Steam이 duct로 vent함.
+  - **판정**: delayed pressure propagation → structural stress → rupture → opening → vent PASS.
+
+#### 2. Automated Contract Fixture Evidence (`two_by_two_multi_boiler_stress_lab_relative_ordering_contract`)
+
+소형 결정론적 GPU 회귀 테스트 픽스처에서의 검증 수치:
+- `first_relief(C) = Tick 33` <= `first_relief(A) = Tick 36`
+- `rupture(B) == NONE` (100% unbreakable sealed)
+- `first_breach(D) = Tick 133` (Separation: `133 - 33 = 100 ticks >= MIN_MEANINGFUL_DELAY (60)`)
+- `breach_local_pressure(D) = 80.8 >= 80.0` (Wood rupture threshold 도달)
+- `first_vent(D) = Tick 170 > Tick 133` (파열구 개방 후 증기가 배기 덕트로 진입)
+- `test_c_d_initial_thermal_matter_symmetry`: $t=0$ 시점 Panel C와 Panel D 챔버 내부의 모든 셀에 대해 Material 및 Temperature 100% 동일성 검증 (`PASS`).
 
 ---
 
 ### Known Artifacts & Deferred Items
 
 1. **GAS Triangular / Wedge Plume Artifact (Deferred)**:
-   - "Large GAS masses can form visibly geometric triangular/wedge plumes under the current deterministic local gas stencil. Do not patch with ad-hoc RNG/jitter during G4. Re-evaluate gas spreading after G5 Pressure and later gas-flow polish."
-   - 결정론적 1-cell 국소 스텐실에 의한 거시적 형상이며, 물질 보존이나 물리 결함이 아님. G4 단계에서 인위적 RNG/jitter/fake diffusion을 적용하지 않고 G5 압력 체인 연동 후 종합 검토.
-2. **Generic Decay Scope (Deferred Expansion)**:
-   - 현재 generic `DecayDescriptor { lifetime_ticks, target_material }`는 `SMOKE -> EMPTY` (material=EMPTY, temp=0.0, flags=0) 케이스로 검증됨.
-   - Non-EMPTY 감쇄 대상(예: 잔해, 재/소트 생성 등)의 온도/플래그 전이 규칙은 추후 확장 항목으로 분류.
-3. **Modern Presentation FX Layer (Deferred)**:
-   - 연속 유체 연기, 스크린 스페이스 불꽃, 열기 왜곡(heat haze/refraction), 블룸(bloom/glow), 매끄러운 파티클 트레일 등은 시뮬레이션 진실(cell truth)과 분리된 최종 프레젠테이션 계층으로 추후 구현 (remote docs commits 원칙 보존: Cell simulation != cell-bound presentation).
-4. **Ash / Soot (Deferred)**:
+   - "Large GAS masses can still expose geometric triangle / wedge / column patterns from the current deterministic local GAS stencil. G5 Pressure does not introduce a full gas velocity / turbulence solver. Do not reopen frozen G5 physics with ad-hoc RNG, fake diffusion, or presentation hacks. Revisit during later gas-flow / presentation polish."
+   - 이 artifact는 G5 blocker가 아니며, 물리 보존 및 인과율이 완전히 증명되었으므로 후속 프레젠테이션/가스 흐름 폴리시 단계로 분류.
+2. **Column-Like Vent Shape & Corner Accumulation (Deferred)**:
+   - 좁은 굴뚝 및 밀폐 챔버 모서리에서 증기가 상승하여 집적될 때 국소 충돌 순서에 따른 칼럼 형상 발생. Deterministic local stencil의 자연스러운 거시적 결과로 분류.
+3. **Generic Decay Scope (Deferred Expansion)**:
+   - 현재 generic `DecayDescriptor { lifetime_ticks, target_material }`는 `SMOKE -> EMPTY` 케이스로 완결 검증됨.
+4. **Modern Presentation FX Layer (Deferred)**:
+   - 연속 유체 렌더링, 스크린 스페이스 파티클 블룸, 열기 왜곡(heat haze), 매끄러운 연기 트레일 등은 시뮬레이션 진실(cell truth)과 분리된 최종 프레젠테이션 계층으로 추후 구현 (ADR: Cell simulation != cell-bound presentation).
+5. **Ash / Soot (Deferred)**:
    - 연소 잔여물 매커니즘은 후속 마일스톤으로 보류.
 
 ---
 
-### G0/G1/G2/G3/G4 Automated Test Evidence Summary
+### Automated Test Evidence Summary (Total 279 Tests)
 
 ```text
-cargo test --workspace 전체 PASS (242 passed, 0 failed, 1 ignored controlled benchmark)
-  - Core unit tests: 115 passed
+cargo test --workspace -- --test-threads=1 전체 PASS (279 passed, 0 failed, 1 ignored controlled benchmark)
+  - Core unit tests: 130 passed
   - GPU combustion & decay tests: 56 passed
   - GPU density displacement tests: 15 passed
-  - GPU phase transition tests: 16 passed
-  - GPU thermal conduction tests: 13 passed
-  - GPU local movement tests: 16 passed (1 perf benchmark ignored)
-  - GPU world integrity tests: 7 passed
+  - GPU expansion tests: 5 passed
   - GPU headless smoke test: 1 passed
-  - Windows observatory unit tests: 3 passed
+  - GPU local movement tests: 16 passed (1 perf benchmark ignored)
+  - GPU phase transition tests: 16 passed
+  - GPU scalar pressure tests: 8 passed
+  - GPU rupture & 2x2 multi-boiler stress lab tests: 7 passed
+  - GPU thermal conduction tests: 13 passed
+  - GPU world integrity tests: 7 passed
+  - Windows observatory & pressure lab unit tests: 4 passed
+  - WGSL syntax parse tests: 1 passed
 
 Runtime Smoke Test Suite (RTX 5090 / DX12):
   - cargo run -p powdergame-windows -- --smoke-frames 60: PASS
   - cargo run -p powdergame-windows -- --movement-demo --smoke-frames 120: PASS
   - cargo run -p powdergame-windows -- --density-demo --smoke-frames 180: PASS
   - cargo run -p powdergame-windows -- --thermal-demo --smoke-frames 360: PASS
-  - cargo run -p powdergame-windows -- --thermal-demo --smoke-frames 1200: PASS
-  - cargo run -p powdergame-windows -- --thermal-demo --smoke-frames 3000: PASS (device lost 0, clean exit)
+  - cargo run -p powdergame-windows -- --thermal-demo --smoke-frames 3000: PASS
+  - cargo run -p powdergame-windows -- --pressure-demo --smoke-frames 200: PASS
+  - cargo run -p powdergame-windows -- --pressure-demo --smoke-frames 500: PASS (device lost 0, clean exit)
 
 Static Analysis & Formatting:
   - cargo fmt --all -- --check: PASS
@@ -314,9 +321,8 @@ Static Analysis & Formatting:
 
 ### Next Action
 
-1. G0 (Runtime), G1 (World Integrity), G2 (Local Movement), G3 (Density / Displacement), **G4 (Thermal / Phase / Combustion)**: **ALL PASS / CLOSED** (2026-08-16).
-2. **G5 — Pressure Chain technical chain: G5-A / G5-B / G5-C ALL TECHNICAL PASS / FROZEN** on RTX 5090 / DX12. Next: visible boiler-chain User Validation; do not mark G5 PASS / CLOSED before user approval.
-3. After G5 User Validation APPROVED, advance to G6. M0 First World remains `IN_PROGRESS` until G5~G9 and final M0 approval are complete.
+1. **G0 / G1 / G2 / G3 / G4 / G5**: **ALL PASS / CLOSED** (G2/G3/G4/G5 User Validation ALL APPROVED).
+2. **Next Gate: G6 — Parallel Integrity** (Active chunk tracking, boundary synchronization, thread safety under full GPU load).
 
 ---
 
@@ -330,7 +336,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4 PASS / CLOSED (G2/G3/G4 User Validation APPROVED); G5-A/G5-B/G5-C TECHNICAL PASS / FROZEN, G5 visible boiler-chain User Validation + G6~G9 + final M0 approval remaining
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5 PASS / CLOSED (G2/G3/G4/G5 User Validation APPROVED); Next: G6 — Parallel Integrity.
 
 M0 `ACHIEVED`: **NO**
 
@@ -346,7 +352,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (115 core + 56 GPU combustion/decay + 15 GPU density + 16 GPU phase + 1 GPU headless smoke + 16 GPU movement + 13 GPU thermal + 7 GPU world integrity + 3 windows observatory = 242 total, ignored 1 controlled benchmark)
-benchmarks: G2 controlled reference-world baseline: median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12). G3/G4: correctness-first.
-m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED, G3 PASS/CLOSED, G4 PASS/CLOSED incl. User Validation APPROVED 2026-08-16; G5-A/B/C TECHNICAL PASS/FROZEN on RTX 5090/DX12; G5 visible User Validation pending; G6-G9 pending)
+tests: passed (130 core + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 16 GPU movement + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 4 windows observatory + 1 wgsl parse = 279 total, ignored 1 controlled benchmark)
+benchmarks: G2 controlled reference-world baseline: median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12). G3/G4/G5: correctness-first.
+m0_status: IN_PROGRESS (G0 complete, G1 complete, G2 PASS/CLOSED, G3 PASS/CLOSED, G4 PASS/CLOSED, G5 PASS/CLOSED User Validation APPROVED 2026-08-16; G6-G9 pending)
 ```

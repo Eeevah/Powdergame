@@ -71,7 +71,7 @@ const DENSITY_DEMO_TITLE: &str =
 const THERMAL_DEMO_TITLE: &str =
     "Powdergame G4 Thermal Observatory | 4 Large Panels + Live Metrics";
 const PRESSURE_DEMO_TITLE: &str =
-    "Powdergame G5 Pressure Chain | WOOD RELIEF vs STONE SEALED | Heat → Steam → Pressure → Rupture → Vent";
+    "Powdergame G5 Pressure Multi-Boiler Lab | 2x2 Standard vs Extreme Overdrive | Heat → Steam → Confinement → Rupture → Vent";
 
 /// Which demo fixture (if any) the app presents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,13 +172,14 @@ impl App {
             DemoMode::Pressure => PRESSURE_DEMO_TITLE,
             DemoMode::None => "Powdergame — G0 Runtime",
         };
-        // The thermal observatory uses a larger 320×192 world, so it gets a
-        // 1600×900 window; the G2/G3 fixtures keep 1280×720.
-        let (window_w, window_h) = if self.demo_mode == DemoMode::Thermal {
-            (1600.0, 900.0)
-        } else {
-            (1280.0, 720.0)
-        };
+        // The thermal and pressure observatories use a larger world (320×192 / 256×256),
+        // so they get a 1600×900 window; the G2/G3 fixtures keep 1280×720.
+        let (window_w, window_h) =
+            if self.demo_mode == DemoMode::Thermal || self.demo_mode == DemoMode::Pressure {
+                (1600.0, 900.0)
+            } else {
+                (1280.0, 720.0)
+            };
         let window = Arc::new(
             event_loop
                 .create_window(
@@ -204,14 +205,14 @@ impl App {
 
         // Headless simulation. Demo modes use a small staged world through
         // the validated edit hook (128×128 for the G2/G3 fixtures, 320×192
-        // for the G4 thermal observatory); production stays
+        // for the G4 thermal observatory, 256×256 for the G5 pressure lab); production stays
         // GPU-authoritative.
         let config = if self.demo_mode == DemoMode::None {
             WorldConfig::reference()
         } else {
             let (w, h) = match self.demo_mode {
                 DemoMode::Thermal => (320, 192),
-                DemoMode::Pressure => (128, 128),
+                DemoMode::Pressure => (256, 256),
                 _ => (128, 128),
             };
             WorldConfig::new(w, h, 64).expect("demo world config")
@@ -221,11 +222,12 @@ impl App {
         println!("[powdergame] {}", simulation.world.allocation);
         println!("[powdergame] allocation: success");
 
-        let observatory_collector = if self.demo_mode == DemoMode::Thermal {
-            Some(ObservatoryCollector::new(&simulation))
-        } else {
-            None
-        };
+        let observatory_collector =
+            if self.demo_mode == DemoMode::Thermal || self.demo_mode == DemoMode::Pressure {
+                Some(ObservatoryCollector::new(&simulation))
+            } else {
+                None
+            };
 
         match self.demo_mode {
             DemoMode::None => {
@@ -250,7 +252,7 @@ impl App {
             }
             DemoMode::Pressure => {
                 stage_pressure_demo(&simulation)?;
-                println!("[powdergame] pressure demo: twin boilers staged (Wood relief vs Stone control)");
+                println!("[powdergame] pressure demo: 2x2 multi-boiler lab staged (Standard vs Extreme Overdrive)");
             }
         }
 
@@ -343,100 +345,211 @@ impl App {
     }
 }
 
-/// Stages the G5 twin-boiler user-validation scene on the 128×128 demo world.
-///
-/// This fixture does not inject Pressure and does not open any vent. Both
-/// boilers start with the same dense Water charge at T=58, just below the
-/// Water→Steam threshold. A real hot-Stone floor conducts heat into the
-/// Water. An identical upper Stone heater plate is placed five Water rows
-/// below each roof so the visible event occurs promptly without injecting
-/// Pressure. The left boiler has a one-cell Wood relief plug; the right uses
-/// Stone at the corresponding location as an unbreakable control.
-///
-/// Expected emergent chain on the left:
-/// thermal conduction → Water boils → yield=2 expansion is blocked by dense
-/// Matter → confinement Pressure accumulates/propagates → Wood threshold 80
-/// is exceeded → Wood self-writes EMPTY → ordinary GAS movement vents Steam.
-/// The right-hand Stone control should remain sealed under the same rules.
-fn stage_pressure_demo(simulation: &Simulation) -> Result<(), GpuError> {
+/// Unified staging configuration for boiler stress experiment chambers.
+pub struct BoilerStagingConfig {
+    pub x0: i64,
+    pub x1: i64,
+    pub roof_y: i64,
+    pub bottom_y: i64,
+    pub floor_heater_rows: i64,
+    pub floor_heater_temp: f32,
+    pub upper_heater_temp: f32,
+    pub water_temp: f32,
+    pub roof_relief: Option<(i64, i64)>, // (plug_left, plug_right)
+    pub side_seam: Option<(i64, i64)>,   // (seam_top, seam_bottom) on right wall x1
+    pub chimney_rails: bool,
+    pub exhaust_duct: bool,
+}
+
+fn stage_boiler(
+    simulation: &Simulation,
+    cfg: &BoilerStagingConfig,
+    stone: u32,
+) -> Result<(), GpuError> {
     let q = &simulation.context.queue;
     let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
     let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
 
-    // Central divider / visual baseline.
-    for y in 8..=119 {
-        set(63, y, MATERIAL_STONE)?;
+    // 1. Left Wall (Stone)
+    for y in cfg.roof_y..=cfg.bottom_y {
+        set(cfg.x0, y, stone)?;
     }
 
-    // Build one boiler. Geometry is identical except for the center roof plug.
-    let build_boiler = |x0: i64, x1: i64, plug_material: u32| -> Result<(), GpuError> {
-        let roof_y = 44i64;
-        let bottom_y = 108i64;
-        let plug_l = (x0 + x1) / 2 - 4;
-        let plug_r = (x0 + x1) / 2 + 4;
-
-        // Side walls and base shell.
-        for y in roof_y..=bottom_y {
-            set(x0, y, MATERIAL_STONE)?;
-            set(x1, y, MATERIAL_STONE)?;
-        }
-        for x in x0..=x1 {
-            set(x, bottom_y, MATERIAL_STONE)?;
-            set_t(x, bottom_y, 150.0)?;
-        }
-
-        // One-cell roof. Only the 9-cell center plug differs between boilers.
-        for x in (x0 + 1)..x1 {
-            let mat = if x >= plug_l && x <= plug_r {
-                plug_material
-            } else {
-                MATERIAL_STONE
-            };
-            set(x, roof_y, mat)?;
-            set_t(x, roof_y, 20.0)?;
-        }
-
-        // Dense water charge. No EMPTY neighbor is available inside the shell,
-        // so boiling yield requests must either win a newly opened plug or
-        // become confinement Pressure.
-        for y in (roof_y + 1)..bottom_y {
-            for x in (x0 + 1)..x1 {
-                set(x, y, MATERIAL_WATER)?;
-                set_t(x, y, 58.0)?;
+    // 2. Right Wall (Stone or Weak Seam)
+    for y in cfg.roof_y..=(cfg.bottom_y - cfg.floor_heater_rows) {
+        if let Some((s_top, s_bot)) = cfg.side_seam {
+            if y >= s_top && y <= s_bot {
+                set(cfg.x1, y, MATERIAL_WOOD)?;
+                set_t(cfg.x1, y, 20.0)?;
+                continue;
             }
         }
-
-        // Identical upper Stone heater plate in both boilers. It remains five
-        // Water rows below the roof plug, so the plug is never directly heated
-        // or scripted. Nearby Water crosses the boil threshold quickly through
-        // ordinary thermal conduction, making the pressure-chain readable in
-        // a short user-validation run without changing frozen G5 physics.
-        let heater_y = roof_y + 6;
-        for x in (plug_l - 2)..=(plug_r + 2) {
-            set(x, heater_y, MATERIAL_STONE)?;
-            set_t(x, heater_y, 110.0)?;
-        }
-
-        // Chimney rails above the plug make the vent plume easy to read while
-        // leaving the center fully EMPTY. They are presentation geometry only.
-        for y in 8..roof_y {
-            set(plug_l - 2, y, MATERIAL_STONE)?;
-            set(plug_r + 2, y, MATERIAL_STONE)?;
-        }
-        Ok(())
-    };
-
-    // LEFT: weak Wood relief plug. RIGHT: Stone control.
-    build_boiler(8, 57, MATERIAL_WOOD)?;
-    build_boiler(70, 119, MATERIAL_STONE)?;
-
-    // Two small pedestal marks distinguish the chambers even without text.
-    for x in 24..=41 {
-        set(x, 116, MATERIAL_WOOD)?;
+        set(cfg.x1, y, stone)?;
     }
-    for x in 86..=103 {
-        set(x, 116, MATERIAL_STONE)?;
+
+    // 3. Floor Heaters
+    for y in (cfg.bottom_y - cfg.floor_heater_rows + 1)..=cfg.bottom_y {
+        for x in cfg.x0..=cfg.x1 {
+            set(x, y, stone)?;
+            set_t(x, y, cfg.floor_heater_temp)?;
+        }
     }
+
+    // 4. Roof (Stone or Roof Relief Plug)
+    for x in (cfg.x0 + 1)..cfg.x1 {
+        let is_plug = if let Some((p_l, p_r)) = cfg.roof_relief {
+            x >= p_l && x <= p_r
+        } else {
+            false
+        };
+        let mat = if is_plug { MATERIAL_WOOD } else { stone };
+        set(x, cfg.roof_y, mat)?;
+        set_t(x, cfg.roof_y, 20.0)?;
+    }
+
+    // 5. Interior Water Fill
+    for y in (cfg.roof_y + 1)..(cfg.bottom_y - cfg.floor_heater_rows + 1) {
+        for x in (cfg.x0 + 1)..cfg.x1 {
+            set(x, y, MATERIAL_WATER)?;
+            set_t(x, y, cfg.water_temp)?;
+        }
+    }
+
+    // 6. Upper Heater Plate (centered in chamber, 6 cells below roof)
+    let center_x = (cfg.x0 + cfg.x1) / 2;
+    let heater_y = cfg.roof_y + 6;
+    for x in (center_x - 6)..=(center_x + 6) {
+        set(x, heater_y, stone)?;
+        set_t(x, heater_y, cfg.upper_heater_temp)?;
+    }
+
+    // 7. Optional Top Chimney Rails
+    if cfg.chimney_rails {
+        let chimney_top = if cfg.roof_y < 100 { 8i64 } else { 130i64 };
+        for y in chimney_top..cfg.roof_y {
+            set(center_x - 6, y, stone)?;
+            set(center_x + 6, y, stone)?;
+        }
+    }
+
+    // 8. Optional Side Exhaust Duct
+    if cfg.exhaust_duct {
+        if let Some((s_top, s_bot)) = cfg.side_seam {
+            for y in (s_top - 4)..=(s_bot + 4) {
+                for x in (cfg.x1 + 1)..=(cfg.x1 + 10) {
+                    if y == s_top - 4 || y == s_bot + 4 {
+                        set(x, y, stone)?;
+                    } else {
+                        set(x, y, MATERIAL_EMPTY)?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Stages the G5 2x2 Multi-Boiler Pressure Lab on the 256x256 demo world.
+fn stage_pressure_demo(simulation: &Simulation) -> Result<(), GpuError> {
+    let q = &simulation.context.queue;
+    let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
+    let stone = MATERIAL_STONE;
+
+    // ─── Central Vertical Divider (x 126..129) ───
+    for y in 4..=250 {
+        set(126, y, stone)?;
+        set(127, y, stone)?;
+        set(128, y, stone)?;
+        set(129, y, stone)?;
+    }
+
+    // ─── Central Horizontal Divider (y 118..124) ───
+    for x in 4..=251 {
+        for y in 118..=124 {
+            set(x, y, stone)?;
+        }
+    }
+
+    // ─── TOP-LEFT (Panel A: WOOD RELIEF CANONICAL STANDARD) ───
+    stage_boiler(
+        simulation,
+        &BoilerStagingConfig {
+            x0: 14,
+            x1: 114,
+            roof_y: 44,
+            bottom_y: 108,
+            floor_heater_rows: 1,
+            floor_heater_temp: 150.0,
+            upper_heater_temp: 110.0,
+            water_temp: 58.0,
+            roof_relief: Some((60, 68)),
+            side_seam: None,
+            chimney_rails: true,
+            exhaust_duct: false,
+        },
+        stone,
+    )?;
+
+    // ─── TOP-RIGHT (Panel B: STONE SEALED STANDARD CONTROL) ───
+    stage_boiler(
+        simulation,
+        &BoilerStagingConfig {
+            x0: 142,
+            x1: 242,
+            roof_y: 44,
+            bottom_y: 108,
+            floor_heater_rows: 1,
+            floor_heater_temp: 150.0,
+            upper_heater_temp: 110.0,
+            water_temp: 58.0,
+            roof_relief: None,
+            side_seam: None,
+            chimney_rails: true,
+            exhaust_duct: false,
+        },
+        stone,
+    )?;
+
+    // ─── BOTTOM-LEFT (Panel C: WOOD RELIEF EXTREME OVERDRIVE) ───
+    stage_boiler(
+        simulation,
+        &BoilerStagingConfig {
+            x0: 14,
+            x1: 114,
+            roof_y: 170,
+            bottom_y: 236,
+            floor_heater_rows: 3,
+            floor_heater_temp: 220.0,
+            upper_heater_temp: 130.0,
+            water_temp: 58.0,
+            roof_relief: Some((60, 68)),
+            side_seam: None,
+            chimney_rails: true,
+            exhaust_duct: false,
+        },
+        stone,
+    )?;
+
+    // ─── BOTTOM-RIGHT (Panel D: STONE SEALED EXTREME -> DELAYED PRESSURE BREACH) ───
+    stage_boiler(
+        simulation,
+        &BoilerStagingConfig {
+            x0: 142,
+            x1: 242,
+            roof_y: 170,
+            bottom_y: 236,
+            floor_heater_rows: 3,
+            floor_heater_temp: 220.0,
+            upper_heater_temp: 130.0,
+            water_temp: 58.0,
+            roof_relief: None,
+            side_seam: Some((214, 222)),
+            chimney_rails: false,
+            exhaust_duct: true,
+        },
+        stone,
+    )?;
 
     Ok(())
 }
@@ -1004,17 +1117,22 @@ impl ApplicationHandler for App {
                     }
                 }
                 if let Some(renderer) = &mut self.renderer {
-                    let thermal_hud = if self.demo_mode == DemoMode::Thermal {
-                        self.observatory_collector.as_ref().map(|c| {
-                            (
+                    let hud_data = match self.demo_mode {
+                        DemoMode::Thermal => self.observatory_collector.as_ref().map(|c| {
+                            renderer::HudData::Thermal(
                                 c.metrics(),
                                 self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
                             )
-                        })
-                    } else {
-                        None
+                        }),
+                        DemoMode::Pressure => self.observatory_collector.as_ref().map(|c| {
+                            renderer::HudData::Pressure(
+                                c.pressure_metrics(),
+                                self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
+                            )
+                        }),
+                        _ => None,
                     };
-                    if let Err(e) = renderer.render(thermal_hud) {
+                    if let Err(e) = renderer.render(hud_data) {
                         eprintln!("[powdergame] render error: {e}");
                         event_loop.exit();
                         return;

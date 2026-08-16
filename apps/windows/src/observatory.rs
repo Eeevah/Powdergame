@@ -113,6 +113,78 @@ pub struct ObservatoryMetrics {
     pub current_tick: u64,
 }
 
+/// Live diagnostic metrics for the G5 Pressure Multi-Boiler Stress Lab (2×2 layout).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PressureObservatoryMetrics {
+    // Top-Left: WOOD RELIEF (CANONICAL STANDARD)
+    pub tl_peak_pressure: f32,
+    pub tl_current_pressure: f32,
+    pub tl_relief_tick: Option<u64>,
+    pub tl_wood_remaining: u32,
+    pub tl_steam_count: u32,
+
+    // Top-Right: STONE SEALED (CANONICAL STANDARD CONTROL)
+    pub tr_peak_pressure: f32,
+    pub tr_current_pressure: f32,
+    pub tr_is_sealed: bool,
+    pub tr_steam_count: u32,
+
+    // Bottom-Left: WOOD RELIEF (EXTREME OVERDRIVE)
+    pub bl_peak_pressure: f32,
+    pub bl_current_pressure: f32,
+    pub bl_relief_tick: Option<u64>,
+    pub bl_wood_remaining: u32,
+    pub bl_steam_count: u32,
+
+    // Bottom-Right: STONE SEALED (DELAYED PRESSURE BREACH)
+    pub br_peak_pressure: f32,
+    pub br_current_pressure: f32,
+    pub br_rupture_tick: Option<u64>,
+    pub br_weak_seam_remaining: u32,
+    pub br_breach_cell: Option<(u32, u32)>,
+    pub br_breach_local_pressure: f32,
+    pub br_exterior_steam_count: u32,
+    pub br_first_vent_tick: Option<u64>,
+    pub br_steam_count: u32,
+
+    pub current_tick: u64,
+}
+
+impl Default for PressureObservatoryMetrics {
+    fn default() -> Self {
+        Self {
+            tl_peak_pressure: 0.0,
+            tl_current_pressure: 0.0,
+            tl_relief_tick: None,
+            tl_wood_remaining: 9,
+            tl_steam_count: 0,
+
+            tr_peak_pressure: 0.0,
+            tr_current_pressure: 0.0,
+            tr_is_sealed: true,
+            tr_steam_count: 0,
+
+            bl_peak_pressure: 0.0,
+            bl_current_pressure: 0.0,
+            bl_relief_tick: None,
+            bl_wood_remaining: 9,
+            bl_steam_count: 0,
+
+            br_peak_pressure: 0.0,
+            br_current_pressure: 0.0,
+            br_rupture_tick: None,
+            br_weak_seam_remaining: 9,
+            br_breach_cell: None,
+            br_breach_local_pressure: 0.0,
+            br_exterior_steam_count: 0,
+            br_first_vent_tick: None,
+            br_steam_count: 0,
+
+            current_tick: 0,
+        }
+    }
+}
+
 impl Default for ObservatoryMetrics {
     fn default() -> Self {
         Self {
@@ -555,15 +627,175 @@ pub fn evaluate_observatory_state(
     }
 }
 
+/// Pure CPU analysis of dense world buffers for the 2×2 G5 Pressure Multi-Boiler Stress Lab.
+pub fn evaluate_pressure_observatory_state(
+    materials: &[u32],
+    _temperatures: &[f32],
+    pressures: &[f32],
+    width: u32,
+    height: u32,
+    tick: u64,
+    metrics: &mut PressureObservatoryMetrics,
+) {
+    metrics.current_tick = tick;
+
+    let mut tl_wood = 0u32;
+    let mut tl_steam = 0u32;
+    let mut tl_max_p = 0.0f32;
+
+    let mut tr_steam = 0u32;
+    let mut tr_max_p = 0.0f32;
+
+    let mut bl_wood = 0u32;
+    let mut bl_steam = 0u32;
+    let mut bl_max_p = 0.0f32;
+
+    let mut br_seam_wood = 0u32;
+    let mut br_steam = 0u32;
+    let mut br_max_p = 0.0f32;
+
+    for y in 0..height {
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            if idx >= materials.len() {
+                continue;
+            }
+            let mat = materials[idx];
+            let p = if idx < pressures.len() {
+                pressures[idx]
+            } else {
+                0.0
+            };
+
+            // Panel A: Top-Left (x 14..114, y 8..114)
+            if (14..=114).contains(&x) && (8..=114).contains(&y) {
+                if (45..=107).contains(&y) && p > tl_max_p {
+                    tl_max_p = p;
+                }
+                if (60..=68).contains(&x) && y == 44 && mat == MATERIAL_WOOD {
+                    tl_wood += 1;
+                }
+                if mat == MATERIAL_STEAM {
+                    tl_steam += 1;
+                }
+            }
+
+            // Panel B: Top-Right (x 142..242, y 8..114)
+            if (142..=242).contains(&x) && (8..=114).contains(&y) {
+                if (45..=107).contains(&y) && p > tr_max_p {
+                    tr_max_p = p;
+                }
+                if mat == MATERIAL_STEAM {
+                    tr_steam += 1;
+                }
+            }
+
+            // Panel C: Bottom-Left (x 14..114, y 130..244)
+            if (14..=114).contains(&x) && (130..=244).contains(&y) {
+                if (171..=233).contains(&y) && p > bl_max_p {
+                    bl_max_p = p;
+                }
+                if (60..=68).contains(&x) && y == 170 && mat == MATERIAL_WOOD {
+                    bl_wood += 1;
+                }
+                if mat == MATERIAL_STEAM {
+                    bl_steam += 1;
+                }
+            }
+
+            // Panel D: Bottom-Right (x 142..254, y 130..244)
+            if (142..=254).contains(&x) && (130..=244).contains(&y) {
+                if (171..=233).contains(&y) && p > br_max_p {
+                    br_max_p = p;
+                }
+                if x == 242 && (214..=222).contains(&y) && mat == MATERIAL_WOOD {
+                    br_seam_wood += 1;
+                }
+                if mat == MATERIAL_STEAM {
+                    br_steam += 1;
+                }
+            }
+        }
+    }
+
+    if tl_max_p > metrics.tl_peak_pressure {
+        metrics.tl_peak_pressure = tl_max_p;
+    }
+    metrics.tl_current_pressure = tl_max_p;
+    metrics.tl_wood_remaining = tl_wood;
+    metrics.tl_steam_count = tl_steam;
+    if metrics.tl_relief_tick.is_none() && tl_wood < 9 && tick > 0 {
+        metrics.tl_relief_tick = Some(tick);
+    }
+
+    if tr_max_p > metrics.tr_peak_pressure {
+        metrics.tr_peak_pressure = tr_max_p;
+    }
+    metrics.tr_current_pressure = tr_max_p;
+    metrics.tr_steam_count = tr_steam;
+
+    if bl_max_p > metrics.bl_peak_pressure {
+        metrics.bl_peak_pressure = bl_max_p;
+    }
+    metrics.bl_current_pressure = bl_max_p;
+    metrics.bl_wood_remaining = bl_wood;
+    metrics.bl_steam_count = bl_steam;
+    if metrics.bl_relief_tick.is_none() && bl_wood < 9 && tick > 0 {
+        metrics.bl_relief_tick = Some(tick);
+    }
+
+    if br_max_p > metrics.br_peak_pressure {
+        metrics.br_peak_pressure = br_max_p;
+    }
+    metrics.br_current_pressure = br_max_p;
+    metrics.br_weak_seam_remaining = br_seam_wood;
+    metrics.br_steam_count = br_steam;
+
+    // Scan exterior duct for vented steam
+    let mut exterior_steam = 0u32;
+    for y in 210..=226 {
+        for x in 243..=254 {
+            let idx = (y * width + x) as usize;
+            if idx < materials.len() && materials[idx] == MATERIAL_STEAM {
+                exterior_steam += 1;
+            }
+        }
+    }
+    metrics.br_exterior_steam_count = exterior_steam;
+
+    if metrics.br_rupture_tick.is_none() && br_seam_wood < 9 && tick > 0 {
+        metrics.br_rupture_tick = Some(tick);
+
+        // Find the breach coordinate and local neighbor pressure
+        for y in 214..=222 {
+            let idx = (y * width + 242) as usize;
+            if idx < materials.len() && materials[idx] != MATERIAL_WOOD {
+                metrics.br_breach_cell = Some((242, y));
+                let left_idx = (y * width + 241) as usize;
+                if left_idx < pressures.len() {
+                    metrics.br_breach_local_pressure = pressures[left_idx];
+                }
+                break;
+            }
+        }
+    }
+
+    if metrics.br_first_vent_tick.is_none() && exterior_steam > 0 && tick > 0 {
+        metrics.br_first_vent_tick = Some(tick);
+    }
+}
+
 /// Asynchronous GPU diagnostic readback collector.
 pub struct ObservatoryCollector {
     staging_material: wgpu::Buffer,
     staging_temperature: wgpu::Buffer,
     staging_flags: wgpu::Buffer,
+    staging_pressure: wgpu::Buffer,
     pending: bool,
     pending_tick: u64,
     receiver: Option<std::sync::mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>>,
     metrics: ObservatoryMetrics,
+    pressure_metrics: PressureObservatoryMetrics,
     initial_wood_set: bool,
     initial_a_ice: u32,
     initial_b_steam: u32,
@@ -595,15 +827,23 @@ impl ObservatoryCollector {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
+        let staging_pressure = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("observatory/staging/pressure"),
+            size: cell_bytes,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
 
         Self {
             staging_material,
             staging_temperature,
             staging_flags,
+            staging_pressure,
             pending: false,
             pending_tick: 0,
             receiver: None,
             metrics: ObservatoryMetrics::default(),
+            pressure_metrics: PressureObservatoryMetrics::default(),
             initial_wood_set: false,
             initial_a_ice: 0,
             initial_b_steam: 0,
@@ -615,6 +855,7 @@ impl ObservatoryCollector {
     /// Resets all metrics and latches (invoked on 'R' key).
     pub fn reset(&mut self) {
         self.metrics = ObservatoryMetrics::default();
+        self.pressure_metrics = PressureObservatoryMetrics::default();
         self.initial_wood_set = false;
         self.initial_a_ice = 0;
         self.initial_b_steam = 0;
@@ -624,6 +865,7 @@ impl ObservatoryCollector {
             self.staging_material.unmap();
             self.staging_temperature.unmap();
             self.staging_flags.unmap();
+            self.staging_pressure.unmap();
             self.pending = false;
             self.receiver = None;
         }
@@ -632,6 +874,11 @@ impl ObservatoryCollector {
     /// Current live metrics snapshot.
     pub fn metrics(&self) -> &ObservatoryMetrics {
         &self.metrics
+    }
+
+    /// Current live pressure demo metrics snapshot.
+    pub fn pressure_metrics(&self) -> &PressureObservatoryMetrics {
+        &self.pressure_metrics
     }
 
     /// Non-blocking update: checks pending map callbacks and requests next readback if due.
@@ -668,6 +915,7 @@ impl ObservatoryCollector {
                 let mat_slice = self.staging_material.slice(..).get_mapped_range();
                 let temp_slice = self.staging_temperature.slice(..).get_mapped_range();
                 let flag_slice = self.staging_flags.slice(..).get_mapped_range();
+                let press_slice = self.staging_pressure.slice(..).get_mapped_range();
 
                 let width = simulation.world.config.width;
                 let height = simulation.world.config.height;
@@ -676,6 +924,7 @@ impl ObservatoryCollector {
                 let materials = bytemuck_u32_slice(&mat_slice, cell_count);
                 let temperatures = bytemuck_f32_slice(&temp_slice, cell_count);
                 let flags = bytemuck_u32_slice(&flag_slice, cell_count);
+                let pressures = bytemuck_f32_slice(&press_slice, cell_count);
 
                 evaluate_observatory_state(
                     materials,
@@ -690,13 +939,25 @@ impl ObservatoryCollector {
                     &mut self.initial_wood_set,
                 );
 
+                evaluate_pressure_observatory_state(
+                    materials,
+                    temperatures,
+                    pressures,
+                    width,
+                    height,
+                    self.pending_tick,
+                    &mut self.pressure_metrics,
+                );
+
                 drop(mat_slice);
                 drop(temp_slice);
                 drop(flag_slice);
+                drop(press_slice);
 
                 self.staging_material.unmap();
                 self.staging_temperature.unmap();
                 self.staging_flags.unmap();
+                self.staging_pressure.unmap();
 
                 self.pending = false;
                 self.receiver = None;
@@ -704,8 +965,8 @@ impl ObservatoryCollector {
         }
 
         // 2. If idle, check if we should request a new diagnostic readback
-        // Request every ~10 ticks (or immediately at tick 0/1)
-        if !self.pending && (current_tick == 0 || current_tick >= self.last_request_tick + 10) {
+        // Request every ~5 ticks (or immediately at tick 0/1)
+        if !self.pending && (current_tick == 0 || current_tick >= self.last_request_tick + 5) {
             self.request_readback(simulation, current_tick);
         }
     }
@@ -739,14 +1000,22 @@ impl ObservatoryCollector {
             0,
             self.cell_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &simulation.world.pressure_current,
+            0,
+            &self.staging_pressure,
+            0,
+            self.cell_bytes,
+        );
 
         queue.submit([encoder.finish()]);
 
         let (tx, rx) = std::sync::mpsc::channel();
         let tx_temp = tx.clone();
         let tx_flag = tx.clone();
+        let tx_press = tx.clone();
 
-        // Async mapping on all 3 buffers
+        // Async mapping on all 4 buffers
         self.staging_material
             .slice(..)
             .map_async(wgpu::MapMode::Read, move |res| {
@@ -761,6 +1030,11 @@ impl ObservatoryCollector {
             .slice(..)
             .map_async(wgpu::MapMode::Read, move |res| {
                 let _ = tx_flag.send(res);
+            });
+        self.staging_pressure
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |res| {
+                let _ = tx_press.send(res);
             });
 
         self.pending = true;
@@ -1003,5 +1277,122 @@ mod tests {
             &mut initial_wood_set,
         );
         assert_eq!(metrics.c_w_mid_reach, Some(25));
+    }
+
+    #[test]
+    fn test_pressure_observatory_evaluation() {
+        let width = 256u32;
+        let height = 256u32;
+        let cell_count = (width * height) as usize;
+
+        let mut materials = vec![MATERIAL_EMPTY; cell_count];
+        let temperatures = vec![58.0f32; cell_count];
+        let mut pressures = vec![0.0f32; cell_count];
+
+        // Panel A (Top-Left): Place Wood plug (9 cells at y=44, x=60..68) and high pressure
+        for x in 60..=68 {
+            let idx = (44 * width + x) as usize;
+            materials[idx] = MATERIAL_WOOD;
+        }
+        for x in 30..=40 {
+            for y in 50..=60 {
+                let idx = (y * width + x) as usize;
+                materials[idx] = MATERIAL_WATER;
+                pressures[idx] = 85.0;
+            }
+        }
+
+        // Panel C (Bottom-Left): 9 Wood cells, 120.0 pressure
+        for x in 60..=68 {
+            let idx = (170 * width + x) as usize;
+            materials[idx] = MATERIAL_WOOD;
+        }
+        for x in 30..=40 {
+            for y in 180..=190 {
+                let idx = (y * width + x) as usize;
+                materials[idx] = MATERIAL_WATER;
+                pressures[idx] = 120.0;
+            }
+        }
+
+        // Panel D (Bottom-Right): 9 Wood cells in weak seam, 250.0 pressure
+        for y in 214..=222 {
+            let idx = (y * width + 242) as usize;
+            materials[idx] = MATERIAL_WOOD;
+        }
+        for x in 160..=180 {
+            for y in 180..=200 {
+                let idx = (y * width + x) as usize;
+                materials[idx] = MATERIAL_WATER;
+                pressures[idx] = 250.0;
+            }
+        }
+
+        let mut metrics = PressureObservatoryMetrics::default();
+
+        evaluate_pressure_observatory_state(
+            &materials,
+            &temperatures,
+            &pressures,
+            width,
+            height,
+            0,
+            &mut metrics,
+        );
+
+        assert_eq!(metrics.tl_wood_remaining, 9);
+        assert_eq!(metrics.tl_peak_pressure, 85.0);
+        assert_eq!(metrics.tl_relief_tick, None);
+
+        assert_eq!(metrics.bl_wood_remaining, 9);
+        assert_eq!(metrics.bl_peak_pressure, 120.0);
+        assert_eq!(metrics.bl_relief_tick, None);
+
+        assert_eq!(metrics.br_weak_seam_remaining, 9);
+        assert_eq!(metrics.br_peak_pressure, 250.0);
+        assert_eq!(metrics.br_rupture_tick, None);
+        assert_eq!(metrics.br_first_vent_tick, None);
+
+        // Tick 40: Bottom-Left relief opens (wood -> empty)
+        for x in 60..=68 {
+            let idx = (170 * width + x) as usize;
+            materials[idx] = MATERIAL_EMPTY;
+        }
+        evaluate_pressure_observatory_state(
+            &materials,
+            &temperatures,
+            &pressures,
+            width,
+            height,
+            40,
+            &mut metrics,
+        );
+        assert_eq!(metrics.bl_wood_remaining, 0);
+        assert_eq!(metrics.bl_relief_tick, Some(40));
+
+        // Tick 80: Bottom-Right seam ruptures (wood -> empty at y=222) and steam vents
+        let breach_idx = (222 * width + 242) as usize;
+        materials[breach_idx] = MATERIAL_EMPTY;
+        let p_left_idx = (222 * width + 241) as usize;
+        pressures[p_left_idx] = 84.5;
+        // Exterior duct steam
+        let ext_idx = (220 * width + 245) as usize;
+        materials[ext_idx] = MATERIAL_STEAM;
+
+        evaluate_pressure_observatory_state(
+            &materials,
+            &temperatures,
+            &pressures,
+            width,
+            height,
+            80,
+            &mut metrics,
+        );
+        assert_eq!(metrics.br_weak_seam_remaining, 8);
+        assert_eq!(metrics.br_rupture_tick, Some(80));
+        assert_eq!(metrics.br_breach_cell, Some((242, 222)));
+        assert_eq!(metrics.br_breach_local_pressure, 84.5);
+        assert_eq!(metrics.br_first_vent_tick, Some(80));
+        assert_eq!(metrics.br_exterior_steam_count, 1);
     }
 }

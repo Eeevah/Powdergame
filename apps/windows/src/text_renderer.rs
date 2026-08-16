@@ -10,7 +10,7 @@ use bytemuck::{Pod, Zeroable};
 use fontdue::{Font, FontSettings};
 use powdergame_gpu::GpuError;
 
-use crate::observatory::ObservatoryMetrics;
+use crate::observatory::{ObservatoryMetrics, PressureObservatoryMetrics};
 
 /// Single vertex for the text / UI quad batcher.
 #[repr(C)]
@@ -1193,6 +1193,689 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
 
         // Reallocate vertex/index buffers if needed
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// Renders the diagnostic HUD overlay for the G5 2x2 Multi-Boiler Pressure Lab.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_pressure_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        metrics: &PressureObservatoryMetrics,
+        sim_ticks: u64,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+
+        self.batch.clear();
+        let white_uv = self.atlas.solid_white_uv;
+
+        // Color palette
+        let col_title = [0.95, 0.96, 0.98, 1.0];
+        let col_header = [0.85, 0.90, 0.96, 1.0];
+        let col_label = [0.65, 0.70, 0.78, 1.0];
+        let col_val_white = [0.98, 0.98, 0.98, 1.0];
+        let col_relief_green = [0.35, 0.95, 0.60, 1.0];
+        let col_warn_orange = [1.0, 0.65, 0.20, 1.0];
+        let col_breach_red = [1.0, 0.35, 0.30, 1.0];
+        let col_stone_cyan = [0.45, 0.85, 1.0, 1.0];
+        let col_dim = [0.45, 0.48, 0.56, 1.0];
+
+        let col_card_bg = [0.07, 0.09, 0.13, 0.90];
+        let col_card_border = [0.18, 0.22, 0.30, 1.0];
+        let col_card_divider = [0.14, 0.17, 0.24, 1.0];
+
+        // 1. Top Global Banner
+        self.batch.draw_text(
+            &self.atlas,
+            24.0,
+            16.0,
+            24,
+            "G5 PRESSURE CHAIN | 2x2 MULTI-BOILER STRESS LAB",
+            col_title,
+        );
+
+        let sim_text = format!("SIM TICK: {:>6}", sim_ticks);
+        let sample_text = format!("DIAGNOSTIC SAMPLE: {:>6}", metrics.current_tick);
+        let full_tick_str = format!("{}   |   {}", sim_text, sample_text);
+        self.batch
+            .draw_text_right(&self.atlas, sw - 24.0, 22.0, 15, &full_tick_str, col_header);
+
+        // Sidebar dimensions
+        let sidebar_w = 340.0f32;
+        let card_w = sidebar_w - 20.0;
+        let left_x = 20.0;
+        let right_x = sw - sidebar_w + 10.0;
+
+        let card_top_y = 65.0;
+        let card_h = 350.0;
+        let card_bot_y = card_top_y + card_h + 20.0;
+
+        let opt_tick = |v: Option<u64>| match v {
+            Some(t) => format!("Tick {t:>5}"),
+            None => "  PENDING".to_string(),
+        };
+
+        // 2. Panel A Card (Top-Left: WOOD RELIEF CANONICAL STANDARD)
+        self.batch
+            .draw_rect(left_x, card_top_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            left_x,
+            card_top_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+
+        let mut y = card_top_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            18,
+            "[A] WOOD RELIEF (CANONICAL)",
+            col_header,
+        );
+        y += 24.0;
+        self.batch.draw_rect(
+            left_x + 16.0,
+            y,
+            card_w - 32.0,
+            1.0,
+            col_card_divider,
+            white_uv,
+        );
+        y += 12.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            13,
+            "Heaters: Floor T=150 + Upper T=110",
+            col_dim,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Peak Pressure:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{:.1}", metrics.tl_peak_pressure),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "First Relief:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &opt_tick(metrics.tl_relief_tick),
+            if metrics.tl_relief_tick.is_some() {
+                col_relief_green
+            } else {
+                col_dim
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Relief Plug Wood:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}/9 cells", metrics.tl_wood_remaining),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch
+            .draw_text(&self.atlas, left_x + 16.0, y, 15, "Steam Cells:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.tl_steam_count),
+            col_stone_cyan,
+        );
+        y += 26.0;
+
+        let status_a = if metrics.tl_relief_tick.is_some() {
+            "[RELIEF ACTIVE / VENTING]"
+        } else if metrics.tl_steam_count > 0 {
+            "[PRESSURE BUILDING]"
+        } else {
+            "[HEATING WATER]"
+        };
+        self.batch
+            .draw_text(&self.atlas, left_x + 16.0, y, 15, "State:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            status_a,
+            if metrics.tl_relief_tick.is_some() {
+                col_relief_green
+            } else {
+                col_warn_orange
+            },
+        );
+
+        // 3. Panel B Card (Top-Right: STONE SEALED STANDARD CONTROL)
+        self.batch
+            .draw_rect(right_x, card_top_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            right_x,
+            card_top_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+
+        let mut y = card_top_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            18,
+            "[B] STONE SEALED (CONTROL)",
+            col_header,
+        );
+        y += 24.0;
+        self.batch.draw_rect(
+            right_x + 16.0,
+            y,
+            card_w - 32.0,
+            1.0,
+            col_card_divider,
+            white_uv,
+        );
+        y += 12.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            13,
+            "Heaters: Floor T=150 + Upper T=110",
+            col_dim,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Peak Pressure:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{:.1}", metrics.tr_peak_pressure),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Rupture Event:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            "NONE (UNBREAKABLE)",
+            col_stone_cyan,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Chamber Integrity:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            "100% SEALED",
+            col_stone_cyan,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Steam Cells:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.tr_steam_count),
+            col_stone_cyan,
+        );
+        y += 26.0;
+
+        self.batch
+            .draw_text(&self.atlas, right_x + 16.0, y, 15, "State:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            "[PERMANENT CONFINEMENT]",
+            col_stone_cyan,
+        );
+
+        // 4. Panel C Card (Bottom-Left: WOOD RELIEF EXTREME OVERDRIVE)
+        self.batch
+            .draw_rect(left_x, card_bot_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            left_x,
+            card_bot_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+
+        let mut y = card_bot_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            18,
+            "[C] WOOD RELIEF (EXTREME)",
+            col_warn_orange,
+        );
+        y += 24.0;
+        self.batch.draw_rect(
+            left_x + 16.0,
+            y,
+            card_w - 32.0,
+            1.0,
+            col_card_divider,
+            white_uv,
+        );
+        y += 12.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            13,
+            "Heaters: 3x Floor T=220 + Upper T=130",
+            col_warn_orange,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Peak Pressure:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{:.1}", metrics.bl_peak_pressure),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "First Relief:",
+            col_label,
+        );
+        let bl_relief_str = match metrics.bl_relief_tick {
+            Some(t) => format!("Tick {t:>5} (FAST)"),
+            None => "  PENDING".to_string(),
+        };
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &bl_relief_str,
+            if metrics.bl_relief_tick.is_some() {
+                col_relief_green
+            } else {
+                col_dim
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Relief Plug Wood:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}/9 cells", metrics.bl_wood_remaining),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch
+            .draw_text(&self.atlas, left_x + 16.0, y, 15, "Steam Cells:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.bl_steam_count),
+            col_warn_orange,
+        );
+        y += 26.0;
+
+        let status_c = if metrics.bl_relief_tick.is_some() {
+            "[OVERDRIVE VENT PLUME]"
+        } else if metrics.bl_steam_count > 0 {
+            "[RAPID ESCALATION]"
+        } else {
+            "[SUPERHEATING]"
+        };
+        self.batch
+            .draw_text(&self.atlas, left_x + 16.0, y, 15, "State:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            status_c,
+            if metrics.bl_relief_tick.is_some() {
+                col_relief_green
+            } else {
+                col_warn_orange
+            },
+        );
+
+        // 5. Panel D Card (Bottom-Right: STONE SEALED EXTREME -> CATASTROPHIC BREACH)
+        self.batch
+            .draw_rect(right_x, card_bot_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            right_x,
+            card_bot_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+
+        let mut y = card_bot_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            18,
+            "[D] DELAYED PRESSURE BREACH",
+            col_breach_red,
+        );
+        y += 24.0;
+        self.batch.draw_rect(
+            right_x + 16.0,
+            y,
+            card_w - 32.0,
+            1.0,
+            col_card_divider,
+            white_uv,
+        );
+        y += 12.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            13,
+            "Heaters: 3x Floor T=220 + Upper T=130",
+            col_dim,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Peak Pressure:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{:.1}", metrics.br_peak_pressure),
+            if metrics.br_peak_pressure > 80.0 {
+                col_breach_red
+            } else {
+                col_val_white
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "First Breach:",
+            col_label,
+        );
+        let br_rupture_str = match metrics.br_rupture_tick {
+            Some(t) => format!("Tick {t:>5} (DELAYED)"),
+            None => "  ACCUMULATING".to_string(),
+        };
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &br_rupture_str,
+            if metrics.br_rupture_tick.is_some() {
+                col_breach_red
+            } else {
+                col_warn_orange
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Weak Seam Wood:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}/9 cells", metrics.br_weak_seam_remaining),
+            if metrics.br_weak_seam_remaining < 9 {
+                col_breach_red
+            } else {
+                col_val_white
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Duct Steam Vent:",
+            col_label,
+        );
+        let vent_str = match metrics.br_first_vent_tick {
+            Some(t) => format!("Tick {t:>5} ({} cells)", metrics.br_exterior_steam_count),
+            None => "  AWAITING BREACH".to_string(),
+        };
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &vent_str,
+            if metrics.br_first_vent_tick.is_some() {
+                col_breach_red
+            } else {
+                col_dim
+            },
+        );
+        y += 26.0;
+
+        let status_d = if metrics.br_first_vent_tick.is_some() {
+            "SIDE WALL BREACH -> VENTING"
+        } else if metrics.br_rupture_tick.is_some() {
+            "[RUPTURE OPENED]"
+        } else if metrics.br_current_pressure > 80.0 {
+            "[CRITICAL OVERPRESSURE]"
+        } else if metrics.br_steam_count > 0 {
+            "[PRESSURE PROPAGATING]"
+        } else {
+            "[SUPERHEATING]"
+        };
+        self.batch
+            .draw_text(&self.atlas, right_x + 16.0, y, 15, "State:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            status_d,
+            if metrics.br_rupture_tick.is_some() {
+                col_breach_red
+            } else {
+                col_warn_orange
+            },
+        );
+
+        // 6. Bottom Controls Bar
+        let bot_bar_y = sh - 32.0;
+        self.batch.draw_text(&self.atlas, 24.0, bot_bar_y, 15, "SPACE Play / Pause (60 TPS)   |   N Single Step   |   R Reset World & Metrics   |   ESC Quit", col_label);
+
+        // Upload and Draw
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+
         if self.batch.vertices.len() > self.vertex_capacity {
             self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
             self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {

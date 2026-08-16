@@ -61,8 +61,7 @@ pub struct AllocationReport {
     pub flags_current_bytes: u64,
     pub flags_next_bytes: u64,
     pub total_requested_world_bytes: u64,
-    /// G7-A activity diagnostics scratch (per-cell flags + 3 per-chunk u32
-    /// buffers). Measurement baseline only — no work is skipped yet.
+    /// G7-A/B activity diagnostics and sleep state scratch (per-cell flags + 6 per-chunk u32 buffers).
     pub activity_scratch_bytes: u64,
 }
 
@@ -82,7 +81,7 @@ impl AllocationReport {
             flags_next_bytes: layout.flags_bytes,
             total_requested_world_bytes: layout.total_world_bytes,
             activity_scratch_bytes: layout.material_bytes
-                + 3 * (chunk_count(config.width, config.height, config.chunk_size) as u64) * 4,
+                + 6 * (chunk_count(config.width, config.height, config.chunk_size) as u64) * 4,
         }
     }
 }
@@ -166,8 +165,14 @@ pub struct GpuWorld {
     pub chunk_activity: wgpu::Buffer,
     /// G7-A per-chunk "had any frontier this tick" diagnostic.
     pub chunk_changed_this_tick: wgpu::Buffer,
-    /// G7-A per-chunk consecutive stable ticks (observation baseline only).
+    /// G7-A per-chunk consecutive stable ticks (observation baseline).
     pub chunk_stable_ticks: wgpu::Buffer,
+    /// G7-B per-chunk user/external edit wake trigger.
+    pub chunk_edit_wake: wgpu::Buffer,
+    /// G7-B per-chunk run/sleep state (0 = RUNNABLE, 1 = SLEEPING).
+    pub chunk_state: wgpu::Buffer,
+    /// G7-B per-chunk wake reason diagnostic bitmask.
+    pub chunk_wake_reason: wgpu::Buffer,
 }
 
 /// Creates a zero-initialized buffer of `size` bytes.
@@ -306,6 +311,24 @@ impl GpuWorld {
             chunk_bytes,
             activity_usage,
         )?;
+        let chunk_edit_wake = create_zeroed_buffer(
+            device,
+            "world/activity/chunk-edit-wake",
+            chunk_bytes,
+            activity_usage,
+        )?;
+        let chunk_state = create_zeroed_buffer(
+            device,
+            "world/activity/chunk-state",
+            chunk_bytes,
+            activity_usage,
+        )?;
+        let chunk_wake_reason = create_zeroed_buffer(
+            device,
+            "world/activity/chunk-wake-reason",
+            chunk_bytes,
+            activity_usage,
+        )?;
 
         let allocation = AllocationReport::from_layout(config, &layout);
 
@@ -328,6 +351,9 @@ impl GpuWorld {
             chunk_activity,
             chunk_changed_this_tick,
             chunk_stable_ticks,
+            chunk_edit_wake,
+            chunk_state,
+            chunk_wake_reason,
         })
     }
 
@@ -398,6 +424,48 @@ impl GpuWorld {
         self.read_u32_buffer(device, queue, &self.chunk_stable_ticks, count)
     }
 
+    /// Reads the per-chunk run/sleep state (G7-B test helper, 0 = RUNNABLE, 1 = SLEEPING).
+    pub fn read_chunk_state_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let count = chunk_count(
+            self.config.width,
+            self.config.height,
+            self.config.chunk_size,
+        ) as u64;
+        self.read_u32_buffer(device, queue, &self.chunk_state, count)
+    }
+
+    /// Reads the per-chunk wake reason bitmasks (G7-B test helper).
+    pub fn read_chunk_wake_reason_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let count = chunk_count(
+            self.config.width,
+            self.config.height,
+            self.config.chunk_size,
+        ) as u64;
+        self.read_u32_buffer(device, queue, &self.chunk_wake_reason, count)
+    }
+
+    /// Reads the per-chunk edit-wake flags (G7-B test helper).
+    pub fn read_chunk_edit_wake_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let count = chunk_count(
+            self.config.width,
+            self.config.height,
+            self.config.chunk_size,
+        ) as u64;
+        self.read_u32_buffer(device, queue, &self.chunk_edit_wake, count)
+    }
+
     /// Reads a single cell's material value (diagnostic/test helper).
     ///
     /// Out-of-bounds coordinates fail with `CoordinateOutOfBounds` (Void) —
@@ -442,6 +510,24 @@ impl GpuWorld {
             cells.push(u32::from_ne_bytes(chunk.try_into().unwrap()));
         }
         Ok(cells)
+    }
+
+    /// Marks the chunk containing `(x, y)` with an edit wake trigger, resetting
+    /// its stable ticks. The GPU `activity_wake` pass automatically propagates the
+    /// wake to all 8 neighbor chunks via its safety halo evaluation.
+    pub fn mark_edit_wake_for_cell(&self, queue: &wgpu::Queue, x: i64, y: i64) {
+        if x < 0 || y < 0 || x >= self.config.width as i64 || y >= self.config.height as i64 {
+            return;
+        }
+        let cx = (x as u32) / self.config.chunk_size;
+        let cy = (y as u32) / self.config.chunk_size;
+        let c_x = powdergame_core::chunks_x(self.config.width, self.config.chunk_size);
+        let n_idx = cy * c_x + cx;
+        let off = (n_idx as u64) * 4;
+        let one = 1u32.to_ne_bytes();
+        let zero = 0u32.to_ne_bytes();
+        queue.write_buffer(&self.chunk_edit_wake, off, &one);
+        queue.write_buffer(&self.chunk_stable_ticks, off, &zero);
     }
 
     /// Minimal world-edit hook: sets one cell's material value.
@@ -495,6 +581,7 @@ impl GpuWorld {
             queue.write_buffer(&self.temperature_current, t_off, &zero);
             queue.write_buffer(&self.temperature_next, t_off, &zero);
         }
+        self.mark_edit_wake_for_cell(queue, x, y);
         Ok(())
     }
 
@@ -517,6 +604,7 @@ impl GpuWorld {
         let bytes = value.to_ne_bytes();
         queue.write_buffer(&self.flags_current, offset, &bytes);
         queue.write_buffer(&self.flags_next, offset, &bytes);
+        self.mark_edit_wake_for_cell(queue, x, y);
         Ok(())
     }
 
@@ -621,6 +709,7 @@ impl GpuWorld {
         let bytes = value.to_ne_bytes();
         queue.write_buffer(&self.temperature_current, offset, &bytes);
         queue.write_buffer(&self.temperature_next, offset, &bytes);
+        self.mark_edit_wake_for_cell(queue, x, y);
         Ok(())
     }
 
@@ -688,6 +777,7 @@ impl GpuWorld {
         let bytes = value.to_ne_bytes();
         queue.write_buffer(&self.pressure_current, offset, &bytes);
         queue.write_buffer(&self.pressure_next, offset, &bytes);
+        self.mark_edit_wake_for_cell(queue, x, y);
         Ok(())
     }
 }

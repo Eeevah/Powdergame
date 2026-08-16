@@ -26,6 +26,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 const EMPTY: u32 = 0u;
@@ -38,6 +42,7 @@ const VOID_TARGET: u32 = 0xFFFFFFFEu;
 @group(0) @binding(3) var<storage, read_write> marker: array<u32>;
 @group(0) @binding(4) var<storage, read> class_table: array<u32, 16>;
 @group(0) @binding(5) var<storage, read> density_table: array<u32, 16>;
+@group(0) @binding(6) var<storage, read> chunk_state: array<u32>;
 
 // Candidate kind: 0 = out of domain (Void), 1 = EMPTY, 2 = static/blocked,
 // 3 = movable Matter (rank known via candidate_rank).
@@ -178,6 +183,15 @@ fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // Diagnostic: single invocation proves the dispatch executed (no atomic).
     if (index == 0u) {
         marker[0] = 1u;
+    }
+
+    if (params.sleep_enabled != 0u) {
+        let cx = (index % params.width) / params.chunk_size;
+        let cy = (index / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            proposal[index] = NO_MOVE;
+            return;
+        }
     }
 
     let mat = material_current[index];

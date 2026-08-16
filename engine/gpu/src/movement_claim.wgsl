@@ -31,6 +31,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 struct ArbitrationParams {
@@ -51,6 +55,7 @@ const VOID_PEER: u32 = 0x3FFFFFFFu;
 @group(0) @binding(1) var<storage, read> proposal: array<u32>;
 @group(0) @binding(2) var<storage, read_write> claim: array<u32>;
 @group(0) @binding(3) var<uniform> arbitration: ArbitrationParams;
+@group(0) @binding(4) var<storage, read> chunk_state: array<u32>;
 
 fn edge_priority(source: u32, target_cell: u32, tick: u32) -> u32 {
     var h: u32 = source ^ (target_cell * 0x9E3779B9u) ^ (tick * 0x85EBCA6Bu);
@@ -66,6 +71,15 @@ fn claim_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let c = gid.y * params.threads_x + gid.x;
     if (c >= params.cell_count) {
         return;
+    }
+
+    if (params.sleep_enabled != 0u) {
+        let cx = (c % params.width) / params.chunk_size;
+        let cy = (c / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            claim[c] = NO_CLAIM;
+            return;
+        }
     }
 
     // Void-exit edge: the destination endpoint does not exist inside the

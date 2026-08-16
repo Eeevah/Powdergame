@@ -9,6 +9,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 struct ArbitrationParams {
@@ -23,6 +27,7 @@ struct ArbitrationParams {
 @group(0) @binding(2) var<storage, read> proposal: array<u32>;
 @group(0) @binding(3) var<storage, read_write> claim: array<u32>;
 @group(0) @binding(4) var<uniform> arbitration: ArbitrationParams;
+@group(0) @binding(5) var<storage, read> chunk_state: array<u32>;
 
 const EMPTY: u32 = 0u;
 const NO_CLAIM: u32 = 0u;
@@ -43,6 +48,15 @@ fn expansion_claim_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     claim[c] = NO_CLAIM;
+
+    if (params.sleep_enabled != 0u) {
+        let cx = (c % params.width) / params.chunk_size;
+        let cy = (c / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            return;
+        }
+    }
+
     if (material_current[c] != EMPTY) {
         return;
     }

@@ -43,6 +43,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 struct CombDesc {
@@ -51,6 +55,13 @@ struct CombDesc {
     sustain: f32,
     heat_per_tick: f32,
     burn_duration: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+};
+
+struct CombTable {
+    table: array<CombDesc, 16>,
 };
 
 const EMPTY: u32 = 0u;
@@ -67,11 +78,12 @@ const NO_SPAWN: u32 = 0u;
 @group(0) @binding(1) var<storage, read> material_current: array<u32>;
 @group(0) @binding(2) var<storage, read> temperature_current: array<f32>;
 @group(0) @binding(3) var<storage, read> flags_current: array<u32>;
-@group(0) @binding(4) var<storage, read> combustion_table: array<CombDesc, 16>;
+@group(0) @binding(4) var<uniform> combustion_table: CombTable;
 @group(0) @binding(5) var<storage, read_write> temperature_next: array<f32>;
 @group(0) @binding(6) var<storage, read_write> flags_next: array<u32>;
 @group(0) @binding(7) var<storage, read_write> proposal: array<u32>;
 @group(0) @binding(8) var<storage, read_write> material_next: array<u32>;
+@group(0) @binding(9) var<storage, read> chunk_state: array<u32>;
 
 fn sanitize(t: f32) -> f32 {
     if (t != t) {
@@ -158,6 +170,18 @@ fn combustion_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let mat = material_current[index];
     let flags = flags_current[index];
 
+    if (params.sleep_enabled != 0u) {
+        let cx = (index % params.width) / params.chunk_size;
+        let cy = (index / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            material_next[index] = mat;
+            temperature_next[index] = sanitize(temperature_current[index]);
+            flags_next[index] = flags & ~COMBUSTION_MASK;
+            proposal[index] = NO_SPAWN;
+            return;
+        }
+    }
+
     if (mat == EMPTY) {
         temperature_next[index] = TEMPERATURE_REFERENCE;
         flags_next[index] = flags & ~COMBUSTION_MASK;
@@ -172,7 +196,7 @@ fn combustion_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
 
-    let desc = combustion_table[mat];
+    let desc = combustion_table.table[mat];
     let t = sanitize(temperature_current[index]);
 
     // Non-combustible Matter can never burn, hold the burning bit, or keep

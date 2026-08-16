@@ -54,11 +54,7 @@ fn pressure(sim: &Simulation, x: i64, y: i64) -> f32 {
         .expect("pressure readback")
 }
 
-fn temp(sim: &Simulation, x: i64, y: i64) -> f32 {
-    sim.world
-        .read_temperature_cell(&sim.context.device, &sim.context.queue, x, y)
-        .expect("temperature readback")
-}
+
 
 fn block_water_motion_except_top_wall(sim: &Simulation, wall_material: u32) {
     // Water at (3,3). Liquid candidates down/down-diagonal/lateral are Stone;
@@ -382,6 +378,16 @@ fn test_c_d_initial_thermal_matter_symmetry() {
     let sim = two_hundred_fifty_six();
     stage_test_2x2_world(&sim);
 
+    let mats = sim
+        .world
+        .read_material_all(&sim.context.device, &sim.context.queue)
+        .expect("material readback");
+    let temps = sim
+        .world
+        .read_temperature_all(&sim.context.device, &sim.context.queue)
+        .expect("temperature readback");
+    let w = 256;
+
     // Verify that inside the chamber bounds (width 100, height 66),
     // Panel C (14..114, 170..236) and Panel D (142..242, 170..236)
     // have 100% identical material and initial temperature for every internal cell.
@@ -391,15 +397,15 @@ fn test_c_d_initial_thermal_matter_symmetry() {
             let d_x = 142 + dx;
             let y = 170 + dy;
 
-            let c_mat = cell(&sim, c_x, y);
-            let d_mat = cell(&sim, d_x, y);
+            let c_mat = mats[(y * w + c_x) as usize];
+            let d_mat = mats[(y * w + d_x) as usize];
             assert_eq!(
                 c_mat, d_mat,
                 "Internal chamber material mismatch at relative ({dx}, {dy}): C({c_x},{y})={c_mat} vs D({d_x},{y})={d_mat}"
             );
 
-            let c_temp = temp(&sim, c_x, y);
-            let d_temp = temp(&sim, d_x, y);
+            let c_temp = temps[(y * w + c_x) as usize];
+            let d_temp = temps[(y * w + d_x) as usize];
             assert!(
                 (c_temp - d_temp).abs() < 1e-4,
                 "Internal chamber temperature mismatch at relative ({dx}, {dy}): C={c_temp:.2} vs D={d_temp:.2}"
@@ -420,14 +426,21 @@ fn two_by_two_multi_boiler_stress_lab_relative_ordering_contract() {
     let mut breach_d_pressure: f32 = 0.0;
     let mut breach_d_cell: (u32, u32) = (0, 0);
 
+    let w = 256;
+
     // Run simulation for 300 ticks
     for tick in 1..=300 {
         sim.tick().expect("multi boiler lab tick");
 
+        let mats = sim
+            .world
+            .read_material_all(&sim.context.device, &sim.context.queue)
+            .expect("mats readback");
+
         // Panel A: Wood plug at y=44, x=60..68 (9 cells)
         let mut a_wood = 0;
         for x in 60..=68 {
-            if cell(&sim, x, 44) == MATERIAL_WOOD {
+            if mats[(44 * w + x) as usize] == MATERIAL_WOOD {
                 a_wood += 1;
             }
         }
@@ -439,7 +452,7 @@ fn two_by_two_multi_boiler_stress_lab_relative_ordering_contract() {
         // Panel C: Wood plug at y=170, x=60..68 (9 cells)
         let mut c_wood = 0;
         for x in 60..=68 {
-            if cell(&sim, x, 170) == MATERIAL_WOOD {
+            if mats[(170 * w + x) as usize] == MATERIAL_WOOD {
                 c_wood += 1;
             }
         }
@@ -451,12 +464,16 @@ fn two_by_two_multi_boiler_stress_lab_relative_ordering_contract() {
         // Panel D: Weak seam at x=242, y=214..222 (9 cells)
         let mut d_wood = 0;
         for y in 214..=222 {
-            if cell(&sim, 242, y) == MATERIAL_WOOD {
+            if mats[(y * w + 242) as usize] == MATERIAL_WOOD {
                 d_wood += 1;
             } else if first_breach_d.is_none() {
                 // Record breach cell and local neighbor pressure
                 breach_d_cell = (242, y as u32);
-                breach_d_pressure = pressure(&sim, 241, y);
+                let pressures = sim
+                    .world
+                    .read_pressure_all(&sim.context.device, &sim.context.queue)
+                    .expect("pressures readback");
+                breach_d_pressure = pressures[(y * w + 241) as usize];
             }
         }
         if first_breach_d.is_none() && d_wood < 9 {
@@ -471,7 +488,7 @@ fn two_by_two_multi_boiler_stress_lab_relative_ordering_contract() {
         let mut ext_steam = 0u32;
         for y in 210..=226 {
             for x in 243..=254 {
-                if cell(&sim, x, y) == MATERIAL_STEAM {
+                if mats[(y * w + x) as usize] == MATERIAL_STEAM {
                     ext_steam += 1;
                 }
             }
@@ -486,9 +503,13 @@ fn two_by_two_multi_boiler_stress_lab_relative_ordering_contract() {
     assert!(first_relief_a.is_some(), "Panel A relief plug must open");
 
     // 2. Panel B (Top-Right Stone Control): Stone roof must remain unbroken
+    let mats = sim
+        .world
+        .read_material_all(&sim.context.device, &sim.context.queue)
+        .expect("final mats readback");
     for x in 143..=241 {
         assert_eq!(
-            cell(&sim, x, 44),
+            mats[(44 * w + x) as usize],
             MATERIAL_STONE,
             "Panel B roof must remain 100% stone"
         );

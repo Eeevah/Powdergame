@@ -41,7 +41,7 @@
 use powdergame_core::{
     chunks_x, chunks_y, combustion_table, conductivity_table, decay_table, density_table,
     heat_capacity_table, movement_class_table, phase_descriptor_table, rupture_threshold_table,
-    WorldConfig, PRESSURE_ACTIVITY_EPS, THERMAL_ACTIVITY_EPS,
+    WorldConfig, DEFAULT_SLEEP_THRESHOLD_TICKS, PRESSURE_ACTIVITY_EPS, THERMAL_ACTIVITY_EPS,
 };
 
 use crate::context::{GpuContext, GpuError};
@@ -54,18 +54,16 @@ const WORKGROUP_SIZE: u32 = 64;
 const WORKGROUPS_X: u32 = 256;
 /// Total threads per dispatch row (`WORKGROUPS_X * WORKGROUP_SIZE`).
 const THREADS_X: u64 = (WORKGROUPS_X as u64) * (WORKGROUP_SIZE as u64);
-/// Params uniform size: cell_count, threads_x, width, height (4 u32) = 16
-/// bytes. Material tables live in separate storage buffers (no uniform
-/// alignment concerns).
-const PARAMS_SIZE: u64 = 16;
+/// Params uniform size: cell_count, threads_x, width, height, chunk_size, chunks_x, chunks_y, sleep_enabled (8 u32) = 32 bytes.
+const PARAMS_SIZE: u64 = 32;
 /// Arbitration uniform size: tick (u32) + 3 pad u32 = 16 bytes.
 const ARBITRATION_PARAMS_SIZE: u64 = 16;
 /// Material table buffer size (16 u32 entries each).
 const TABLE_SIZE: u64 = 64;
 /// Phase descriptor table: 16 descriptors × 32 bytes (G5-B yield/confinement metadata).
 const PHASE_TABLE_SIZE: u64 = 512;
-/// Combustion descriptor table: 16 descriptors × 20 bytes.
-const COMBUSTION_TABLE_SIZE: u64 = 320;
+/// Combustion descriptor uniform table: 16 descriptors × 32 bytes = 512 bytes.
+const COMBUSTION_TABLE_SIZE: u64 = 512;
 /// Decay descriptor table: 16 descriptors × 8 bytes.
 const DECAY_TABLE_SIZE: u64 = 128;
 /// Size of the diagnostic marker buffer (one `u32` + padding).
@@ -73,6 +71,8 @@ const MARKER_SIZE: u64 = 16;
 /// G7-A activity params uniform: cell_count, threads_x, width, height,
 /// chunk_size, chunks_x, chunks_y, thermal_eps, pressure_eps + 3 pad = 48 B.
 const ACTIVITY_PARAMS_SIZE: u64 = 48;
+/// G7-B activity wake params uniform: chunks_x, chunks_y, sleep_enabled, sleep_threshold = 16 B.
+const WAKE_PARAMS_SIZE: u64 = 16;
 /// Upper bound for cell indices so the claim encoding `(peer << 2) | kind`
 /// can never overflow or collide with sentinels.
 const MAX_CELL_COUNT: u64 = 1 << 30;
@@ -85,8 +85,7 @@ enum BindingKind {
 }
 
 /// Builds a compute-stage uniform binding entry with an explicit minimum
-/// size (the G7-A activity params uniform is 48 bytes, larger than the
-/// 16-byte movement params).
+/// size.
 fn uniform_entry(binding: u32, min_size: u64) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
@@ -106,7 +105,7 @@ fn buffer_entry(binding: u32, kind: &BindingKind) -> wgpu::BindGroupLayoutEntry 
         BindingKind::Uniform => wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
             has_dynamic_offset: false,
-            min_binding_size: wgpu::BufferSize::new(PARAMS_SIZE),
+            min_binding_size: None,
         },
         BindingKind::Read => wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -148,6 +147,7 @@ pub struct Simulation {
     rupture_pipeline: wgpu::ComputePipeline,
     activity_propose_pipeline: wgpu::ComputePipeline,
     activity_reduce_pipeline: wgpu::ComputePipeline,
+    activity_wake_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
@@ -165,9 +165,14 @@ pub struct Simulation {
     rupture_bind_group: wgpu::BindGroup,
     activity_propose_bind_group: wgpu::BindGroup,
     activity_reduce_bind_group: wgpu::BindGroup,
+    activity_wake_bind_group: wgpu::BindGroup,
+    pub params: wgpu::Buffer,
+    pub wake_params: wgpu::Buffer,
     pub arbitration_params: wgpu::Buffer,
     marker: wgpu::Buffer,
 
+    pub sleep_enabled: bool,
+    pub sleep_threshold: u32,
     /// Number of ticks submitted since creation.
     pub tick_count: u64,
 }
@@ -303,6 +308,12 @@ impl Simulation {
                     label: Some("powdergame-g7a-activity-reduce"),
                     source: wgpu::ShaderSource::Wgsl(include_str!("activity_reduce.wgsl").into()),
                 });
+        let shader_activity_wake = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("powdergame-g7b-activity-wake"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("activity_wake.wgsl").into()),
+            });
 
         // Bind group layouts.
         let propose_layout =
@@ -317,6 +328,7 @@ impl Simulation {
                         buffer_entry(3, &BindingKind::ReadWrite), // marker
                         buffer_entry(4, &BindingKind::Read), // class_table
                         buffer_entry(5, &BindingKind::Read), // density_table
+                        buffer_entry(6, &BindingKind::Read), // chunk_state
                     ],
                 });
         let claim_layout =
@@ -329,6 +341,7 @@ impl Simulation {
                         buffer_entry(1, &BindingKind::Read), // proposal
                         buffer_entry(2, &BindingKind::ReadWrite), // claim
                         buffer_entry(3, &BindingKind::Uniform), // arbitration
+                        buffer_entry(4, &BindingKind::Read), // chunk_state
                     ],
                 });
         let commit_layout =
@@ -345,6 +358,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(6, &BindingKind::Read), // flags_current
                         buffer_entry(7, &BindingKind::ReadWrite), // flags_next
+                        buffer_entry(8, &BindingKind::Read), // chunk_state
                     ],
                 });
         let thermal_layout =
@@ -359,6 +373,7 @@ impl Simulation {
                         buffer_entry(3, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(4, &BindingKind::Read), // conductivity_table
                         buffer_entry(5, &BindingKind::Read), // capacity_table
+                        buffer_entry(6, &BindingKind::Read), // chunk_state
                     ],
                 });
         let phase_layout =
@@ -374,6 +389,7 @@ impl Simulation {
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
                         buffer_entry(5, &BindingKind::ReadWrite), // expansion proposal
                         buffer_entry(6, &BindingKind::ReadWrite), // cell_activity (G7-A transition marker)
+                        buffer_entry(7, &BindingKind::Read), // chunk_state
                     ],
                 });
         let expansion_claim_layout =
@@ -387,6 +403,7 @@ impl Simulation {
                         buffer_entry(2, &BindingKind::Read), // proposal
                         buffer_entry(3, &BindingKind::ReadWrite), // claim
                         buffer_entry(4, &BindingKind::Uniform), // arbitration
+                        buffer_entry(5, &BindingKind::Read), // chunk_state
                     ],
                 });
         let expansion_spawn_commit_layout =
@@ -402,6 +419,7 @@ impl Simulation {
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
                         buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(6, &BindingKind::ReadWrite), // flags_next
+                        buffer_entry(7, &BindingKind::Read), // chunk_state
                     ],
                 });
         let expansion_pressure_layout =
@@ -418,6 +436,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::Read), // claim
                         buffer_entry(6, &BindingKind::Read), // pressure_current
                         buffer_entry(7, &BindingKind::ReadWrite), // pressure_next
+                        buffer_entry(8, &BindingKind::Read), // chunk_state
                     ],
                 });
         let decay_layout =
@@ -434,6 +453,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::ReadWrite), // material_next
                         buffer_entry(6, &BindingKind::ReadWrite), // flags_next
                         buffer_entry(7, &BindingKind::ReadWrite), // temperature_next
+                        buffer_entry(8, &BindingKind::Read), // chunk_state
                     ],
                 });
         let combustion_layout =
@@ -446,11 +466,12 @@ impl Simulation {
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // temperature_current
                         buffer_entry(3, &BindingKind::Read), // flags_current
-                        buffer_entry(4, &BindingKind::Read), // combustion_table
+                        uniform_entry(4, 512), // combustion_table (uniform to respect DX12 8 storage-buffer limit)
                         buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(6, &BindingKind::ReadWrite), // flags_next
                         buffer_entry(7, &BindingKind::ReadWrite), // proposal (smoke request)
                         buffer_entry(8, &BindingKind::ReadWrite), // material_next (consumed fuel)
+                        buffer_entry(9, &BindingKind::Read), // chunk_state
                     ],
                 });
         let smoke_claim_layout =
@@ -464,6 +485,7 @@ impl Simulation {
                         buffer_entry(2, &BindingKind::Read), // proposal (smoke request)
                         buffer_entry(3, &BindingKind::ReadWrite), // claim (smoke winner)
                         buffer_entry(4, &BindingKind::Uniform), // arbitration
+                        buffer_entry(5, &BindingKind::Read), // chunk_state
                     ],
                 });
         let smoke_commit_layout =
@@ -477,6 +499,7 @@ impl Simulation {
                         buffer_entry(2, &BindingKind::Read), // claim (smoke winner)
                         buffer_entry(3, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
+                        buffer_entry(5, &BindingKind::Read), // chunk_state
                     ],
                 });
 
@@ -491,6 +514,7 @@ impl Simulation {
                         buffer_entry(2, &BindingKind::Read), // pressure_current
                         buffer_entry(3, &BindingKind::ReadWrite), // pressure_next
                         buffer_entry(4, &BindingKind::Read), // movement_class_table
+                        buffer_entry(5, &BindingKind::Read), // chunk_state
                     ],
                 });
 
@@ -508,6 +532,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::ReadWrite), // material_next
                         buffer_entry(6, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(7, &BindingKind::ReadWrite), // flags_next
+                        buffer_entry(8, &BindingKind::Read), // chunk_state
                     ],
                 });
 
@@ -541,6 +566,23 @@ impl Simulation {
                         buffer_entry(2, &BindingKind::ReadWrite), // chunk_activity
                         buffer_entry(3, &BindingKind::ReadWrite), // chunk_changed
                         buffer_entry(4, &BindingKind::ReadWrite), // chunk_stable
+                    ],
+                });
+
+        // G7-B activity wake pass: 1 thread per chunk evaluates self activity,
+        // 8-neighbor activity halo, edit wakes, settling threshold, and sleep enable.
+        let activity_wake_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g7b-activity-wake-bgl"),
+                    entries: &[
+                        uniform_entry(0, WAKE_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read), // chunk_activity
+                        buffer_entry(2, &BindingKind::Read), // chunk_stable_ticks
+                        buffer_entry(3, &BindingKind::ReadWrite), // chunk_edit_wake
+                        buffer_entry(4, &BindingKind::ReadWrite), // chunk_state
+                        buffer_entry(5, &BindingKind::ReadWrite), // chunk_wake_reason
                     ],
                 });
 
@@ -665,8 +707,14 @@ impl Simulation {
             &shader_activity_reduce,
             "reduce_main",
         );
+        let activity_wake_pipeline = make_pipeline(
+            "powdergame-g7b-activity-wake",
+            &activity_wake_layout,
+            &shader_activity_wake,
+            "wake_main",
+        );
 
-        // Params uniform: cell_count, threads_x, width, height.
+        // Params uniform: cell_count, threads_x, width, height, chunk_size, chunks_x, chunks_y, sleep_enabled.
         let cell_count_u32 = u32::try_from(world.layout.cell_count).map_err(|_| {
             GpuError::Other(format!(
                 "world cell count {} does not fit in u32 for dispatch",
@@ -675,11 +723,8 @@ impl Simulation {
         })?;
         let threads_x_u32 =
             u32::try_from(THREADS_X).map_err(|_| GpuError::Other("threads_x overflow".into()))?;
-        let mut params_data = [0u8; PARAMS_SIZE as usize];
-        params_data[..4].copy_from_slice(&cell_count_u32.to_ne_bytes());
-        params_data[4..8].copy_from_slice(&threads_x_u32.to_ne_bytes());
-        params_data[8..12].copy_from_slice(&world.config.width.to_ne_bytes());
-        params_data[12..16].copy_from_slice(&world.config.height.to_ne_bytes());
+        let chunks_x_u32 = chunks_x(world.config.width, world.config.chunk_size);
+        let chunks_y_u32 = chunks_y(world.config.height, world.config.chunk_size);
 
         let params = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g3/movement/params"),
@@ -687,12 +732,37 @@ impl Simulation {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+
+        let wake_params = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g7b/activity/wake-params"),
+            size: WAKE_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let sleep_enabled = true;
+        let sleep_threshold = DEFAULT_SLEEP_THRESHOLD_TICKS;
+
+        let mut params_data = [0u8; PARAMS_SIZE as usize];
+        params_data[..4].copy_from_slice(&cell_count_u32.to_ne_bytes());
+        params_data[4..8].copy_from_slice(&threads_x_u32.to_ne_bytes());
+        params_data[8..12].copy_from_slice(&world.config.width.to_ne_bytes());
+        params_data[12..16].copy_from_slice(&world.config.height.to_ne_bytes());
+        params_data[16..20].copy_from_slice(&world.config.chunk_size.to_ne_bytes());
+        params_data[20..24].copy_from_slice(&chunks_x_u32.to_ne_bytes());
+        params_data[24..28].copy_from_slice(&chunks_y_u32.to_ne_bytes());
+        params_data[28..32].copy_from_slice(&(if sleep_enabled { 1u32 } else { 0u32 }).to_ne_bytes());
         context.queue.write_buffer(&params, 0, &params_data);
+
+        let mut wake_data = [0u8; WAKE_PARAMS_SIZE as usize];
+        wake_data[..4].copy_from_slice(&chunks_x_u32.to_ne_bytes());
+        wake_data[4..8].copy_from_slice(&chunks_y_u32.to_ne_bytes());
+        wake_data[8..12].copy_from_slice(&(if sleep_enabled { 1u32 } else { 0u32 }).to_ne_bytes());
+        wake_data[12..16].copy_from_slice(&sleep_threshold.to_ne_bytes());
+        context.queue.write_buffer(&wake_params, 0, &wake_data);
 
         // G7-A activity params (48 B): cell_count, threads_x, width, height,
         // chunk_size, chunks_x, chunks_y, thermal_eps, pressure_eps + pads.
-        let chunks_x_u32 = chunks_x(world.config.width, world.config.chunk_size);
-        let chunks_y_u32 = chunks_y(world.config.height, world.config.chunk_size);
         let mut activity_params_data = [0u8; ACTIVITY_PARAMS_SIZE as usize];
         activity_params_data[..4].copy_from_slice(&cell_count_u32.to_ne_bytes());
         activity_params_data[4..8].copy_from_slice(&threads_x_u32.to_ne_bytes());
@@ -851,11 +921,11 @@ impl Simulation {
         });
         context.queue.write_buffer(&decay_table_buf, 0, &decay_data);
 
-        // G4-C combustion descriptor table (16 × 20 bytes; Material data,
-        // not per-cell state). Generic: Wood/Oil share one grammar.
+        // G4-C combustion descriptor table (16 × 32 bytes aligned uniform buffer;
+        // Material data, not per-cell state). Generic: Wood/Oil share one grammar.
         let mut combustion_data = [0u8; COMBUSTION_TABLE_SIZE as usize];
         for (i, desc) in combustion_table().iter().enumerate() {
-            let off = i * 20;
+            let off = i * 32;
             combustion_data[off..off + 4].copy_from_slice(&desc.is_combustible.to_ne_bytes());
             combustion_data[off + 4..off + 8]
                 .copy_from_slice(&desc.ignition_threshold.to_ne_bytes());
@@ -868,7 +938,7 @@ impl Simulation {
         let combustion_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g4c/combustion/table"),
             size: COMBUSTION_TABLE_SIZE,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         context
@@ -923,6 +993,10 @@ impl Simulation {
                         binding: 5,
                         resource: density_table_buf.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: world.chunk_state.as_entire_binding(),
+                    },
                 ],
             });
         let claim_bind_group = context
@@ -946,6 +1020,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 3,
                         resource: arbitration_params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: world.chunk_state.as_entire_binding(),
                     },
                 ],
             });
@@ -987,6 +1065,10 @@ impl Simulation {
                         binding: 7,
                         resource: world.flags_next.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 8,
+                        resource: world.chunk_state.as_entire_binding(),
+                    },
                 ],
             });
         let thermal_bind_group = context
@@ -1018,6 +1100,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 5,
                         resource: capacity_table_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: world.chunk_state.as_entire_binding(),
                     },
                 ],
             });
@@ -1055,6 +1141,10 @@ impl Simulation {
                         binding: 6,
                         resource: world.cell_activity.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: world.chunk_state.as_entire_binding(),
+                    },
                 ],
             });
         let expansion_claim_bind_group =
@@ -1083,6 +1173,10 @@ impl Simulation {
                         wgpu::BindGroupEntry {
                             binding: 4,
                             resource: arbitration_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.chunk_state.as_entire_binding(),
                         },
                     ],
                 });
@@ -1120,6 +1214,10 @@ impl Simulation {
                         wgpu::BindGroupEntry {
                             binding: 6,
                             resource: world.flags_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.chunk_state.as_entire_binding(),
                         },
                     ],
                 });
@@ -1162,6 +1260,10 @@ impl Simulation {
                             binding: 7,
                             resource: world.pressure_next.as_entire_binding(),
                         },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: world.chunk_state.as_entire_binding(),
+                        },
                     ],
                 });
         let decay_bind_group = context
@@ -1201,6 +1303,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 7,
                         resource: world.temperature_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 8,
+                        resource: world.chunk_state.as_entire_binding(),
                     },
                 ],
             });
@@ -1246,6 +1352,10 @@ impl Simulation {
                         binding: 8,
                         resource: world.material_next.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 9,
+                        resource: world.chunk_state.as_entire_binding(),
+                    },
                 ],
             });
         let smoke_claim_bind_group = context
@@ -1273,6 +1383,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 4,
                         resource: arbitration_params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: world.chunk_state.as_entire_binding(),
                     },
                 ],
             });
@@ -1303,6 +1417,10 @@ impl Simulation {
                             binding: 4,
                             resource: world.material_next.as_entire_binding(),
                         },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.chunk_state.as_entire_binding(),
+                        },
                     ],
                 });
 
@@ -1331,6 +1449,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 4,
                         resource: class_table.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: world.chunk_state.as_entire_binding(),
                     },
                 ],
             });
@@ -1372,6 +1494,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 7,
                         resource: world.flags_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 8,
+                        resource: world.chunk_state.as_entire_binding(),
                     },
                 ],
             });
@@ -1451,6 +1577,40 @@ impl Simulation {
                     ],
                 });
 
+        let activity_wake_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-g7b-activity-wake-bg"),
+                    layout: &activity_wake_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wake_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.chunk_activity.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.chunk_stable_ticks.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.chunk_edit_wake.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.chunk_state.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.chunk_wake_reason.as_entire_binding(),
+                        },
+                    ],
+                });
+
         Ok(Self {
             context,
             world,
@@ -1470,6 +1630,7 @@ impl Simulation {
             rupture_pipeline,
             activity_propose_pipeline,
             activity_reduce_pipeline,
+            activity_wake_pipeline,
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
@@ -1486,16 +1647,60 @@ impl Simulation {
             rupture_bind_group,
             activity_propose_bind_group,
             activity_reduce_bind_group,
+            activity_wake_bind_group,
+            params,
+            wake_params,
             arbitration_params,
             marker,
+            sleep_enabled,
+            sleep_threshold,
             tick_count: 0,
         })
+    }
+
+    /// Toggles chunk-level simulation sleep optimization.
+    pub fn set_sleep_enabled(&mut self, enabled: bool) {
+        self.sleep_enabled = enabled;
+        self.update_uniforms();
+    }
+
+    /// Sets the number of consecutive stable ticks required before a chunk may sleep.
+    pub fn set_sleep_threshold(&mut self, threshold: u32) {
+        self.sleep_threshold = threshold;
+        self.update_uniforms();
+    }
+
+    fn update_uniforms(&self) {
+        let cell_count_u32 = self.world.layout.cell_count as u32;
+        let threads_x_u32 = THREADS_X as u32;
+        let chunks_x_u32 = chunks_x(self.world.config.width, self.world.config.chunk_size);
+        let chunks_y_u32 = chunks_y(self.world.config.height, self.world.config.chunk_size);
+        let sleep_enabled_u32 = if self.sleep_enabled { 1u32 } else { 0u32 };
+
+        let mut params_data = [0u8; PARAMS_SIZE as usize];
+        params_data[..4].copy_from_slice(&cell_count_u32.to_ne_bytes());
+        params_data[4..8].copy_from_slice(&threads_x_u32.to_ne_bytes());
+        params_data[8..12].copy_from_slice(&self.world.config.width.to_ne_bytes());
+        params_data[12..16].copy_from_slice(&self.world.config.height.to_ne_bytes());
+        params_data[16..20].copy_from_slice(&self.world.config.chunk_size.to_ne_bytes());
+        params_data[20..24].copy_from_slice(&chunks_x_u32.to_ne_bytes());
+        params_data[24..28].copy_from_slice(&chunks_y_u32.to_ne_bytes());
+        params_data[28..32].copy_from_slice(&sleep_enabled_u32.to_ne_bytes());
+        self.context.queue.write_buffer(&self.params, 0, &params_data);
+
+        let mut wake_data = [0u8; WAKE_PARAMS_SIZE as usize];
+        wake_data[..4].copy_from_slice(&chunks_x_u32.to_ne_bytes());
+        wake_data[4..8].copy_from_slice(&chunks_y_u32.to_ne_bytes());
+        wake_data[8..12].copy_from_slice(&sleep_enabled_u32.to_ne_bytes());
+        wake_data[12..16].copy_from_slice(&self.sleep_threshold.to_ne_bytes());
+        self.context.queue.write_buffer(&self.wake_params, 0, &wake_data);
     }
 
     /// Submits one tick on the GPU (no CPU full-world copy):
     ///
     /// ```text
-    /// movement propose → claim → commit (material + temperature + flags)
+    /// activity wake evaluation (1 thread per chunk)
+    /// → movement propose → claim → commit (material + temperature + flags)
     /// → copy material/temperature/flags Next→Current
     /// → thermal conduction (write-self) → copy temperature Next→Current
     /// → phase transition + expansion proposal → expansion claim/commit
@@ -1506,15 +1711,8 @@ impl Simulation {
     /// → copy material/temperature/flags Next→Current
     /// → scalar pressure 4-neighbor propagation → copy pressure Next→Current
     /// → structural rupture (neighbor Pressure → self EMPTY) → opening
+    /// → activity propose + reduce (chunk frontier measurement)
     /// ```
-    ///
-    /// Causal order: Matter first carries its Temperature and combustion
-    /// flags through ownership, then the new location conducts, then the
-    /// settled Temperature selects the phase, then combustion state/heat
-    /// runs, then Smoke spawns with ownership. G5-A pressure propagation
-    /// runs last on settled Matter. G5-B expansion/confinement feeds it;
-    /// G5-C structural rupture runs after pressure propagation; ordinary
-    /// movement through the resulting EMPTY opening provides venting.
     pub fn tick(&mut self) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
@@ -1541,6 +1739,21 @@ impl Simulation {
             pass.set_bind_group(0, bg, &[]);
             pass.dispatch_workgroups(WORKGROUPS_X, dispatch_y, 1);
         };
+
+        // G7-B: Chunk wake pass runs FIRST on the chunk-level state from the
+        // previous tick + edit wakes, establishing RUNNABLE vs SLEEPING for
+        // this tick's physics passes.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g7b-activity-wake-pass"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.activity_wake_pipeline);
+            pass.set_bind_group(0, &self.activity_wake_bind_group, &[]);
+            let a_chunks_x = chunks_x(self.world.config.width, self.world.config.chunk_size);
+            let a_chunks_y = chunks_y(self.world.config.height, self.world.config.chunk_size);
+            pass.dispatch_workgroups(a_chunks_x, a_chunks_y, 1);
+        }
 
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {

@@ -13,8 +13,10 @@
 
 use powdergame_core::{
     chunk_count, chunks_x, chunks_y, ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION,
-    ACTIVITY_THERMAL, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM,
-    MATERIAL_WATER, MATERIAL_WOOD,
+    ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING, MATERIAL_EMPTY, MATERIAL_ICE,
+    MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_WATER, MATERIAL_WOOD,
+    WAKE_REASON_ALWAYS_ACTIVE, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_SELF_ACTIVITY,
+    WAKE_REASON_SETTLING, WAKE_REASON_USER_EDIT,
 };
 use powdergame_gpu::Simulation;
 
@@ -865,12 +867,14 @@ pub struct ObservatoryCollector {
     /// G6 parallel-integrity instrument: blocking one-shot snapshots for the
     /// pristine tick-0 baseline and the exact tick-1 ownership latch.
     g6_mode: bool,
-    /// G7-A activity demo mode: chunk-activity readbacks + aggregation.
+    /// G7-A/B activity demo mode: chunk-activity readbacks + aggregation.
     activity_mode: bool,
     chunk_bytes: u64,
     staging_chunk_activity: wgpu::Buffer,
     staging_chunk_changed: wgpu::Buffer,
     staging_chunk_stable: wgpu::Buffer,
+    staging_chunk_state: wgpu::Buffer,
+    staging_chunk_wake_reason: wgpu::Buffer,
     initial_latched: bool,
     c_staging_material: wgpu::Buffer,
     c_staging_temperature: wgpu::Buffer,
@@ -932,7 +936,7 @@ impl ObservatoryCollector {
         let c_staging_flags = mk_staging("observatory/g6-staging/flags");
         let c_staging_pressure = mk_staging("observatory/g6-staging/pressure");
 
-        // G7-A activity chunk staging (small: 16 u32 for a 4×4-chunk world).
+        // G7 activity chunk staging (small: 16 u32 for a 4×4-chunk world).
         let mk_chunk_staging = |label: &str| {
             device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some(label),
@@ -945,6 +949,9 @@ impl ObservatoryCollector {
             mk_chunk_staging("observatory/activity/staging/chunk-activity");
         let staging_chunk_changed = mk_chunk_staging("observatory/activity/staging/chunk-changed");
         let staging_chunk_stable = mk_chunk_staging("observatory/activity/staging/chunk-stable");
+        let staging_chunk_state = mk_chunk_staging("observatory/activity/staging/chunk-state");
+        let staging_chunk_wake_reason =
+            mk_chunk_staging("observatory/activity/staging/chunk-wake-reason");
 
         let mut activity_prev_masks = Vec::with_capacity(n_chunks as usize);
         activity_prev_masks.resize(n_chunks as usize, ACTIVITY_NO_PREV_SAMPLE);
@@ -974,6 +981,8 @@ impl ObservatoryCollector {
             staging_chunk_activity,
             staging_chunk_changed,
             staging_chunk_stable,
+            staging_chunk_state,
+            staging_chunk_wake_reason,
             initial_latched: false,
             c_staging_material,
             c_staging_temperature,
@@ -1123,10 +1132,13 @@ impl ObservatoryCollector {
                 );
 
                 if self.activity_mode {
-                    // G7-A chunk-activity readbacks (small per-chunk arrays).
+                    // G7 chunk-activity and sleep/wake readbacks (small per-chunk arrays).
                     let act_slice = self.staging_chunk_activity.slice(..).get_mapped_range();
                     let chg_slice = self.staging_chunk_changed.slice(..).get_mapped_range();
                     let stb_slice = self.staging_chunk_stable.slice(..).get_mapped_range();
+                    let state_slice = self.staging_chunk_state.slice(..).get_mapped_range();
+                    let rsn_slice = self.staging_chunk_wake_reason.slice(..).get_mapped_range();
+
                     let chunks_x = chunks_x(
                         simulation.world.config.width,
                         simulation.world.config.chunk_size,
@@ -1138,11 +1150,19 @@ impl ObservatoryCollector {
                     let n_chunks = (chunks_x * chunks_y) as usize;
                     let chunk_act = bytemuck_u32_slice(&act_slice, n_chunks);
                     let chunk_stb = bytemuck_u32_slice(&stb_slice, n_chunks);
+                    let chunk_state = bytemuck_u32_slice(&state_slice, n_chunks);
+                    let chunk_rsn = bytemuck_u32_slice(&rsn_slice, n_chunks);
+
                     evaluate_activity_state(
                         chunk_act,
                         chunk_stb,
+                        chunk_state,
+                        chunk_rsn,
                         chunks_x,
                         chunks_y,
+                        simulation.world.config.chunk_size,
+                        simulation.sleep_enabled,
+                        simulation.sleep_threshold,
                         self.pending_tick,
                         &mut self.activity_metrics,
                         &mut self.activity_prev_masks,
@@ -1151,9 +1171,13 @@ impl ObservatoryCollector {
                     drop(act_slice);
                     drop(chg_slice);
                     drop(stb_slice);
+                    drop(state_slice);
+                    drop(rsn_slice);
                     self.staging_chunk_activity.unmap();
                     self.staging_chunk_changed.unmap();
                     self.staging_chunk_stable.unmap();
+                    self.staging_chunk_state.unmap();
+                    self.staging_chunk_wake_reason.unmap();
                 }
 
                 drop(mat_slice);
@@ -1378,6 +1402,20 @@ impl ObservatoryCollector {
                 0,
                 self.chunk_bytes,
             );
+            encoder.copy_buffer_to_buffer(
+                &simulation.world.chunk_state,
+                0,
+                &self.staging_chunk_state,
+                0,
+                self.chunk_bytes,
+            );
+            encoder.copy_buffer_to_buffer(
+                &simulation.world.chunk_wake_reason,
+                0,
+                &self.staging_chunk_wake_reason,
+                0,
+                self.chunk_bytes,
+            );
         }
 
         queue.submit([encoder.finish()]);
@@ -1389,6 +1427,8 @@ impl ObservatoryCollector {
         let tx_act = tx.clone();
         let tx_chg = tx.clone();
         let tx_stb = tx.clone();
+        let tx_state = tx.clone();
+        let tx_rsn = tx.clone();
 
         // Async mapping on all 4 world buffers
         self.staging_material
@@ -1426,6 +1466,16 @@ impl ObservatoryCollector {
                 .slice(..)
                 .map_async(wgpu::MapMode::Read, move |res| {
                     let _ = tx_stb.send(res);
+                });
+            self.staging_chunk_state
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |res| {
+                    let _ = tx_state.send(res);
+                });
+            self.staging_chunk_wake_reason
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |res| {
+                    let _ = tx_rsn.send(res);
                 });
         }
 
@@ -1498,7 +1548,7 @@ pub struct IntegrityMetrics {
     pub d_empty_pressure_violations: u32,
 }
 
-/// G7-A per-panel chunk-activity counters (one quadrant of the 4×4-chunk
+/// G7-A/B per-panel chunk-activity counters (one quadrant of the 4×4-chunk
 /// demo world; chunk regions, not cell scans).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ActivityPanelMetrics {
@@ -1509,6 +1559,8 @@ pub struct ActivityPanelMetrics {
     pub reaction_active: u32,
     pub fully_stable: u32,
     pub max_stable_ticks: u32,
+    pub runnable_chunks: u32,
+    pub sleeping_chunks: u32,
 }
 
 /// Sentinel marking "no previous sample yet" in the per-chunk previous-mask
@@ -1516,15 +1568,8 @@ pub struct ActivityPanelMetrics {
 /// must never be counted as a stable→active transition.
 pub const ACTIVITY_NO_PREV_SAMPLE: u32 = u32::MAX;
 
-/// G7-A global chunk-activity observation metrics, computed from real GPU
-/// readback of `chunk_activity` / `chunk_stable_ticks` (never hardcoded).
-///
-/// - `fully_stable`: chunks whose mask is 0 this sample (no frontier).
-/// - `max_stable_ticks`: longest consecutive zero-activity run observed.
-/// - `sampled_wake_candidates`: chunks that transitioned stable→active
-///   between diagnostic samples (derived from samples only — NOT an
-///   exhaustive event stream and NOT actual G7-B wake execution). The first
-///   sample only establishes the baseline and never increments this count.
+/// G7-A/B global chunk-activity and sleep/wake metrics, computed from real GPU
+/// readback of `chunk_activity`, `chunk_stable_ticks`, `chunk_state`, `chunk_wake_reason`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ActivityMetrics {
     pub sample_tick: u64,
@@ -1536,10 +1581,20 @@ pub struct ActivityMetrics {
     pub fully_stable: u32,
     pub max_stable_ticks: u32,
     pub sampled_wake_candidates: u32,
+    pub sleep_enabled: bool,
+    pub sleep_threshold: u32,
+    pub runnable_chunks: u32,
+    pub sleeping_chunks: u32,
+    pub wake_reason_self: u32,
+    pub wake_reason_halo: u32,
+    pub wake_reason_edit: u32,
+    pub wake_reason_settling: u32,
+    pub wake_reason_always: u32,
+    pub guarded_cells_skipped: u64,
     pub panels: [ActivityPanelMetrics; 4],
 }
 
-/// G7-A demo panel names (world 256×256, chunk 64 → 4×4 chunks).
+/// G7-A/B demo panel names (world 256×256, chunk 64 → 4×4 chunks).
 pub const ACTIVITY_PANEL_NAMES: [&str; 4] = [
     "A STABLE WATER BULK",
     "B STABLE STEAM / GAS BULK",
@@ -1547,15 +1602,20 @@ pub const ACTIVITY_PANEL_NAMES: [&str; 4] = [
     "D SLOW ACTIVE WORLD",
 ];
 
-/// Aggregates per-chunk activity/stability into global + 4-quadrant panel
+/// Aggregates per-chunk activity/stability/sleep/wake into global + 4-quadrant panel
 /// metrics and counts stable→active wake transitions against the previous
 /// sample's masks.
-#[allow(clippy::too_many_arguments)] // diagnostic pure fn: 5 slices/dims + metrics + prev
+#[allow(clippy::too_many_arguments)] // diagnostic pure fn
 pub fn evaluate_activity_state(
     chunk_activity: &[u32],
     chunk_stable: &[u32],
+    chunk_state: &[u32],
+    chunk_wake_reason: &[u32],
     chunks_x: u32,
     chunks_y: u32,
+    chunk_size: u32,
+    sleep_enabled: bool,
+    sleep_threshold: u32,
     tick: u64,
     metrics: &mut ActivityMetrics,
     prev_masks: &mut [u32],
@@ -1568,6 +1628,15 @@ pub fn evaluate_activity_state(
     metrics.reaction_active = 0;
     metrics.fully_stable = 0;
     metrics.max_stable_ticks = 0;
+    metrics.sleep_enabled = sleep_enabled;
+    metrics.sleep_threshold = sleep_threshold;
+    metrics.runnable_chunks = 0;
+    metrics.sleeping_chunks = 0;
+    metrics.wake_reason_self = 0;
+    metrics.wake_reason_halo = 0;
+    metrics.wake_reason_edit = 0;
+    metrics.wake_reason_settling = 0;
+    metrics.wake_reason_always = 0;
     metrics.panels = [
         ActivityPanelMetrics::default(),
         ActivityPanelMetrics::default(),
@@ -1583,6 +1652,11 @@ pub fn evaluate_activity_state(
             let idx = (cy * chunks_x + cx) as usize;
             let mask = chunk_activity.get(idx).copied().unwrap_or(0);
             let stable = chunk_stable.get(idx).copied().unwrap_or(0);
+            let state = chunk_state
+                .get(idx)
+                .copied()
+                .unwrap_or(CHUNK_STATE_RUNNABLE);
+            let rsn = chunk_wake_reason.get(idx).copied().unwrap_or(0);
 
             let panel = if cy < half_y {
                 if cx < half_x {
@@ -1606,6 +1680,30 @@ pub fn evaluate_activity_state(
             }
             p.max_stable_ticks = p.max_stable_ticks.max(stable);
 
+            if state == CHUNK_STATE_SLEEPING {
+                p.sleeping_chunks += 1;
+                metrics.sleeping_chunks += 1;
+            } else {
+                p.runnable_chunks += 1;
+                metrics.runnable_chunks += 1;
+            }
+
+            if (rsn & WAKE_REASON_SELF_ACTIVITY) != 0 {
+                metrics.wake_reason_self += 1;
+            }
+            if (rsn & WAKE_REASON_NEIGHBOR_HALO) != 0 {
+                metrics.wake_reason_halo += 1;
+            }
+            if (rsn & WAKE_REASON_USER_EDIT) != 0 {
+                metrics.wake_reason_edit += 1;
+            }
+            if (rsn & WAKE_REASON_SETTLING) != 0 {
+                metrics.wake_reason_settling += 1;
+            }
+            if (rsn & WAKE_REASON_ALWAYS_ACTIVE) != 0 {
+                metrics.wake_reason_always += 1;
+            }
+
             metrics.matter_active += u32::from(mask & ACTIVITY_MATTER != 0);
             metrics.thermal_active += u32::from(mask & ACTIVITY_THERMAL != 0);
             metrics.pressure_active += u32::from(mask & ACTIVITY_PRESSURE != 0);
@@ -1616,8 +1714,6 @@ pub fn evaluate_activity_state(
             metrics.max_stable_ticks = metrics.max_stable_ticks.max(stable);
 
             // Stable → active between samples = a wake candidate observation.
-            // The FIRST sample (sentinel prev) only establishes the baseline;
-            // only a later sampled 0 → nonzero transition counts.
             if let Some(prev) = prev_masks.get_mut(idx) {
                 if *prev != ACTIVITY_NO_PREV_SAMPLE && *prev == 0 && mask != 0 {
                     metrics.sampled_wake_candidates += 1;
@@ -1626,6 +1722,9 @@ pub fn evaluate_activity_state(
             }
         }
     }
+
+    let cells_per_chunk = (chunk_size as u64) * (chunk_size as u64);
+    metrics.guarded_cells_skipped = (metrics.sleeping_chunks as u64) * cells_per_chunk * 14;
 }
 
 /// Evaluates the G6 integrity diagnostics from one GPU readback snapshot.
@@ -2466,5 +2565,50 @@ mod tests {
         assert_eq!(metrics.c_smoke_winners, 1);
         assert_eq!(metrics.c_exp_steam_sources, 3);
         assert_eq!(metrics.c_smoke_wood_preserved, 3);
+    }
+
+    #[test]
+    fn test_activity_observatory_evaluation() {
+        let n_chunks = 16;
+        let mut chunk_act = vec![0u32; n_chunks];
+        let mut chunk_stb = vec![10u32; n_chunks];
+        let mut chunk_state = vec![CHUNK_STATE_SLEEPING; n_chunks];
+        let mut chunk_rsn = vec![0u32; n_chunks];
+        let mut prev_masks = vec![ACTIVITY_NO_PREV_SAMPLE; n_chunks];
+
+        // Chunk 0: Matter active, Runnable, SELF wake reason
+        chunk_act[0] = ACTIVITY_MATTER;
+        chunk_stb[0] = 0;
+        chunk_state[0] = CHUNK_STATE_RUNNABLE;
+        chunk_rsn[0] = WAKE_REASON_SELF_ACTIVITY;
+
+        // Chunk 1: Thermal active, Runnable, HALO wake reason
+        chunk_act[1] = ACTIVITY_THERMAL;
+        chunk_stb[1] = 0;
+        chunk_state[1] = CHUNK_STATE_RUNNABLE;
+        chunk_rsn[1] = WAKE_REASON_NEIGHBOR_HALO;
+
+        let mut metrics = ActivityMetrics::default();
+        evaluate_activity_state(
+            &chunk_act,
+            &chunk_stb,
+            &chunk_state,
+            &chunk_rsn,
+            4,
+            4,
+            64,
+            true,
+            8,
+            100,
+            &mut metrics,
+            &mut prev_masks,
+        );
+
+        assert_eq!(metrics.total_chunks, 16);
+        assert_eq!(metrics.matter_active, 1);
+        assert_eq!(metrics.thermal_active, 1);
+        assert!(metrics.sleep_enabled);
+        assert_eq!(metrics.sleep_threshold, 8);
+        assert!(metrics.guarded_cells_skipped > 0);
     }
 }

@@ -7,6 +7,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 struct PhaseDesc {
@@ -34,6 +38,7 @@ struct PhaseEffect {
 @group(0) @binding(5) var<storage, read> claim: array<u32>;
 @group(0) @binding(6) var<storage, read> pressure_current: array<f32>;
 @group(0) @binding(7) var<storage, read_write> pressure_next: array<f32>;
+@group(0) @binding(8) var<storage, read> chunk_state: array<u32>;
 
 const EMPTY: u32 = 0u;
 const NO_PHASE_TARGET: u32 = 0xFFFFFFFFu;
@@ -79,6 +84,15 @@ fn expansion_pressure_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let c = gid.y * params.threads_x + gid.x;
     if (c >= params.cell_count) {
         return;
+    }
+
+    if (params.sleep_enabled != 0u) {
+        let cx = (c % params.width) / params.chunk_size;
+        let cy = (c / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            pressure_next[c] = sanitize_pressure(pressure_current[c]);
+            return;
+        }
     }
 
     let p0 = sanitize_pressure(pressure_current[c]);

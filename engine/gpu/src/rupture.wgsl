@@ -11,6 +11,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -21,6 +25,7 @@ struct Params {
 @group(0) @binding(5) var<storage, read_write> material_next: array<u32>;
 @group(0) @binding(6) var<storage, read_write> temperature_next: array<f32>;
 @group(0) @binding(7) var<storage, read_write> flags_next: array<u32>;
+@group(0) @binding(8) var<storage, read> chunk_state: array<u32>;
 
 const EMPTY: u32 = 0u;
 const TABLE_LEN: u32 = 16u;
@@ -69,6 +74,15 @@ fn rupture_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let index = gid.y * params.threads_x + gid.x;
     if (index >= params.cell_count) {
         return;
+    }
+
+    if (params.sleep_enabled != 0u) {
+        let cx = (index % params.width) / params.chunk_size;
+        let cy = (index / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            material_next[index] = material_current[index];
+            return;
+        }
     }
 
     let material = material_current[index];

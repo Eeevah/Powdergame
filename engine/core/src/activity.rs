@@ -55,6 +55,22 @@ pub const ACTIVITY_REACTION: u32 = 1 << 3;
 pub const ACTIVITY_ALL_BITS: u32 =
     ACTIVITY_MATTER | ACTIVITY_THERMAL | ACTIVITY_PRESSURE | ACTIVITY_REACTION;
 
+/// Chunk simulation run/sleep state (G7-B).
+pub const CHUNK_STATE_RUNNABLE: u32 = 0;
+pub const CHUNK_STATE_SLEEPING: u32 = 1;
+
+/// Wake reason bitmask (G7-B diagnostic & safety tracking).
+pub const WAKE_REASON_NONE: u32 = 0;
+pub const WAKE_REASON_SELF_ACTIVITY: u32 = 1 << 0;
+pub const WAKE_REASON_NEIGHBOR_HALO: u32 = 1 << 1;
+pub const WAKE_REASON_USER_EDIT: u32 = 1 << 2;
+pub const WAKE_REASON_SETTLING: u32 = 1 << 3;
+pub const WAKE_REASON_ALWAYS_ACTIVE: u32 = 1 << 4;
+
+/// Conservative default consecutive stable ticks before an inactive chunk can sleep.
+/// This is a validation threshold, not a final G8 performance tuning value.
+pub const DEFAULT_SLEEP_THRESHOLD_TICKS: u32 = 8;
+
 /// Smallest absolute temperature difference considered a meaningful
 /// thermal frontier (gameplay scalar, not Celsius).
 pub const THERMAL_ACTIVITY_EPS: f32 = 0.001;

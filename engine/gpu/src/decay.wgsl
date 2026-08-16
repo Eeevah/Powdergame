@@ -27,6 +27,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 struct DecayDesc {
@@ -46,6 +50,7 @@ const TEMPERATURE_REFERENCE: f32 = 0.0;
 @group(0) @binding(5) var<storage, read_write> material_next: array<u32>;
 @group(0) @binding(6) var<storage, read_write> flags_next: array<u32>;
 @group(0) @binding(7) var<storage, read_write> temperature_next: array<f32>;
+@group(0) @binding(8) var<storage, read> chunk_state: array<u32>;
 
 fn read_decay_age(f: u32) -> u32 {
     return (f & FLAG_DECAY_AGE_MASK) >> FLAG_DECAY_AGE_SHIFT;
@@ -65,6 +70,17 @@ fn decay_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let mat = material_current[index];
     let flags = flags_current[index];
     let temp = temperature_current[index];
+
+    if (params.sleep_enabled != 0u) {
+        let cx = (index % params.width) / params.chunk_size;
+        let cy = (index / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            material_next[index] = mat;
+            temperature_next[index] = temp;
+            flags_next[index] = flags & ~FLAG_DECAY_AGE_MASK;
+            return;
+        }
+    }
 
     if (mat >= 16u) {
         material_next[index] = mat;

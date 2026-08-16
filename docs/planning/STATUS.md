@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16; G6-A TECHNICAL PASS / FROZEN, G6-B TECHNICAL PASS / FROZEN, G6-C1 COMPLETE / FROZEN, G6-C2 TECHNICAL PASS / FROZEN). G7 (Active/Sleep) IN_PROGRESS — G7-A (Chunk Activity Observatory / Measurement Baseline) VALIDATION candidate / AWAITING USER RE-VALIDATION (observatory fixture hardening 완료); G7-B/C PLANNED.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16). G7 (Active/Sleep) IN_PROGRESS — G7-A (Chunk Activity Observatory / Measurement Baseline) PASS / USER VALIDATED; G7-B (Actual Sleep / Wake Correctness) implementation complete / PASS candidate (Independent red-team review and user validation pending); G7-C PLANNED.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: PASS / CLOSED (G6-A TECHNICAL PASS / FROZEN; G6-B TECHNICAL PASS / FROZEN; G6-C1 COMPLETE / FROZEN; G6-C2 TECHNICAL PASS / FROZEN; G6 User Validation APPROVED 2026-08-16). G7 — Active/Sleep: IN_PROGRESS (G7-A Chunk Activity Observatory / Measurement Baseline: VALIDATION candidate / AWAITING USER RE-VALIDATION — fixture hardening 완료, measurement/visualization baseline만, 실제 sleep/work-skip 없음; G7-B/C PLANNED).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active/Sleep: IN_PROGRESS (G7-A Chunk Activity Observatory: PASS / USER VALIDATED; G7-B Actual Sleep/Wake Correctness: implementation complete / PASS candidate, independent red-team review and user validation pending; G7-C PLANNED).**
 
 ### Current Summary
 

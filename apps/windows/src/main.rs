@@ -456,6 +456,28 @@ impl App {
             window.request_redraw();
         }
     }
+
+    fn toggle_sleep(&mut self, window: &Window) {
+        if let Some(sim) = &mut self.simulation {
+            let next_state = !sim.sleep_enabled;
+            sim.set_sleep_enabled(next_state);
+            println!(
+                "[powdergame] sleep optimization: {}",
+                if next_state { "ENABLED (Sparse Work)" } else { "DISABLED (Always-Active Reference)" }
+            );
+            window.request_redraw();
+        }
+    }
+
+    fn adjust_sleep_threshold(&mut self, delta: i32, window: &Window) {
+        if let Some(sim) = &mut self.simulation {
+            let cur = sim.sleep_threshold as i32;
+            let next = (cur + delta).clamp(1, 64) as u32;
+            sim.set_sleep_threshold(next);
+            println!("[powdergame] sleep settling threshold: {} ticks", next);
+            window.request_redraw();
+        }
+    }
 }
 
 /// Unified staging configuration for boiler stress experiment chambers.
@@ -1551,6 +1573,15 @@ impl ApplicationHandler for App {
                     Key::Named(NamedKey::Escape) => {
                         println!("[powdergame] ESC pressed; exiting");
                         event_loop.exit();
+                    }
+                    Key::Character(ref c) if c.eq_ignore_ascii_case("s") => {
+                        self.toggle_sleep(&window);
+                    }
+                    Key::Character(ref c) if c == "[" => {
+                        self.adjust_sleep_threshold(-1, &window);
+                    }
+                    Key::Character(ref c) if c == "]" => {
+                        self.adjust_sleep_threshold(1, &window);
                     }
                     Key::Character(ref c) if c.eq_ignore_ascii_case("n") => {
                         self.request_step(&window);

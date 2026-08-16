@@ -2907,10 +2907,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
     }
 
-    /// G7-A chunk-activity observation HUD. Every number comes from
-    /// `ActivityMetrics` (real GPU readback of chunk_activity /
-    /// chunk_stable_ticks). The world cells carry the same activity data as
-    /// a heatmap overlay (Renderer Activity palette).
+    /// G7-A/B chunk-activity and sleep/wake observation HUD. Every number comes from
+    /// `ActivityMetrics` (real GPU readback of chunk_activity / chunk_stable_ticks /
+    /// chunk_state / chunk_wake_reason).
+    #[allow(clippy::too_many_arguments)]
     pub fn render_activity_hud(
         &mut self,
         device: &wgpu::Device,
@@ -2949,20 +2949,35 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             "G7 ACTIVE / SLEEP OBSERVATORY | Stable Bulk vs Active Frontier",
             col_title,
         );
+        let mode_text = if metrics.sleep_enabled {
+            format!("SLEEP: [ON] (Threshold: {} ticks)", metrics.sleep_threshold)
+        } else {
+            "SLEEP: [OFF] (Always-Active Reference)".to_string()
+        };
+        let mode_color = if metrics.sleep_enabled { col_green } else { col_orange };
+        self.batch.draw_text(
+            &self.atlas,
+            24.0,
+            42.0,
+            14,
+            &mode_text,
+            mode_color,
+        );
+
         let sim_text = format!("SIM TICK: {:>6}", sim_ticks);
         let sample_text = format!("DIAGNOSTIC SAMPLE: {:>6}", metrics.sample_tick);
         let full_tick_str = format!("{sim_text}   |   {sample_text}");
         self.batch
             .draw_text_right(&self.atlas, sw - 24.0, 22.0, 15, &full_tick_str, col_header);
 
-        let sidebar_w = 360.0f32;
+        let sidebar_w = 380.0f32;
         let left_x = 20.0;
         let right_x = sw - sidebar_w + 10.0;
         let card_w = sidebar_w - 20.0;
         let top_y = 65.0;
 
-        // 2. Left: global activity card.
-        let glob_h = 330.0;
+        // 2. Left: global activity & sleep card.
+        let glob_h = 420.0;
         self.batch
             .draw_rect(left_x, top_y, card_w, glob_h, col_card_bg, white_uv);
         self.batch.draw_outline(
@@ -2980,70 +2995,62 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             left_x + 14.0,
             y,
             17,
-            "GLOBAL CHUNK ACTIVITY",
+            "GLOBAL SIMULATION STATE",
             col_header,
         );
-        y += 30.0;
+        y += 26.0;
+        let sleep_pct = (metrics.sleeping_chunks * 100)
+            .checked_div(metrics.total_chunks)
+            .unwrap_or(0);
         let rows = [
             ("Total Chunks", metrics.total_chunks.to_string()),
+            ("Runnable Chunks", format!("{} / {}", metrics.runnable_chunks, metrics.total_chunks)),
+            ("Sleeping Chunks", format!("{} / {} ({}%)", metrics.sleeping_chunks, metrics.total_chunks, sleep_pct)),
+            ("Wake: Self Activity", metrics.wake_reason_self.to_string()),
+            ("Wake: Neighbor Halo (8)", metrics.wake_reason_halo.to_string()),
+            ("Wake: User Edit", metrics.wake_reason_edit.to_string()),
+            ("Wake: Settling / Always", format!("{} / {}", metrics.wake_reason_settling, metrics.wake_reason_always)),
             ("Matter Active", metrics.matter_active.to_string()),
             ("Thermal Active", metrics.thermal_active.to_string()),
             ("Pressure Active", metrics.pressure_active.to_string()),
             ("Reaction Active", metrics.reaction_active.to_string()),
-            ("Fully Stable", metrics.fully_stable.to_string()),
+            ("Fully Stable (0 mask)", metrics.fully_stable.to_string()),
             ("Max Stable Ticks", metrics.max_stable_ticks.to_string()),
-            (
-                "Sampled Wake Candidates",
-                metrics.sampled_wake_candidates.to_string(),
-            ),
+            ("Guarded Cell-Passes Skipped", format!("~{} / tick", metrics.guarded_cells_skipped)),
         ];
         for (label, value) in rows {
             self.batch
-                .draw_text(&self.atlas, left_x + 14.0, y, 15, label, col_label);
-            self.batch.draw_text(
-                &self.atlas,
-                left_x + card_w - 70.0,
-                y,
-                15,
-                &value,
-                col_val_white,
-            );
-            y += 26.0;
+                .draw_text(&self.atlas, left_x + 14.0, y, 14, label, col_label);
+            self.batch
+                .draw_text(&self.atlas, left_x + card_w - 120.0, y, 14, &value, col_val_white);
+            y += 24.0;
         }
 
         // 3. Activity legend.
-        let legend_y = top_y + glob_h + 14.0;
+        let legend_y = top_y + glob_h + 12.0;
         self.batch.draw_text(
             &self.atlas,
             left_x + 14.0,
             legend_y,
-            15,
-            "HEATMAP: GREEN Matter | ORANGE Thermal | BLUE Pressure | RED Reaction | DIM Stable",
+            14,
+            "HEATMAP: GREEN Matter | ORANGE Thermal | BLUE Pressure | RED Reaction",
             col_header,
         );
-        let note_y = legend_y + 26.0;
+        let note_y = legend_y + 22.0;
         self.batch.draw_text(
             &self.atlas,
             left_x + 14.0,
             note_y,
-            13,
-            "Existence != Activity: a settled bulk chunk has no frontier and its",
+            12,
+            "Dense State, Sparse Work: stable sleeping chunks skip 14 simulation passes.",
             col_label,
         );
         self.batch.draw_text(
             &self.atlas,
             left_x + 14.0,
-            note_y + 36.0,
-            13,
-            "Chunk may hold multiple bits; heatmap shows dominant priority",
-            col_label,
-        );
-        self.batch.draw_text(
-            &self.atlas,
-            left_x + 14.0,
-            note_y + 18.0,
-            13,
-            "stable counter grows. No subsystem dispatch is skipped yet (G7-A).",
+            note_y + 16.0,
+            12,
+            "Active frontiers wake early via 8-neighbor halo before cross-chunk impact.",
             col_label,
         );
 
@@ -3060,13 +3067,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.batch
                 .draw_text(&self.atlas, right_x + 14.0, py + 12.0, 16, name, col_header);
             let counts = format!(
-                "M {} | T {} | P {} | R {} | stable {}/{}",
+                "M {} | T {} | P {} | R {} | Run {} | Sleep {}",
                 p.matter_active,
                 p.thermal_active,
                 p.pressure_active,
                 p.reaction_active,
-                p.fully_stable,
-                p.total_chunks
+                p.runnable_chunks,
+                p.sleeping_chunks,
             );
             self.batch.draw_text(
                 &self.atlas,
@@ -3076,7 +3083,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 &counts,
                 col_val_white,
             );
-            let max_s = format!("max stable ticks: {}", p.max_stable_ticks);
+            let max_s = format!("max stable ticks: {} | fully stable: {}/{}", p.max_stable_ticks, p.fully_stable, p.total_chunks);
             self.batch.draw_text(
                 &self.atlas,
                 right_x + 14.0,
@@ -3087,18 +3094,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             );
             let (status, status_col) = if p.total_chunks == 0 {
                 ("--", col_dim)
-            } else if p.fully_stable == p.total_chunks {
-                ("FULLY STABLE", col_green)
+            } else if p.sleeping_chunks == p.total_chunks {
+                ("FULL BULK SLEEP (SPARSE SKIP)", col_green)
             } else if p.reaction_active > 0 {
-                ("REACTIVE", col_red)
+                ("REACTIVE (WAKE LOCKED)", col_red)
             } else if p.pressure_active > 0 {
-                ("PRESSURE FRONT", col_blue)
+                ("PRESSURE FRONT (WAKE PROP)", col_blue)
             } else if p.thermal_active > 0 {
-                ("THERMAL FRONT", col_orange)
+                ("THERMAL FRONT (WAKE PROP)", col_orange)
             } else if p.matter_active > 0 {
-                ("MOVING FRONTIER", col_green)
+                ("MOVING FRONTIER (WAKE HALO)", col_green)
             } else {
-                ("MIXED", col_label)
+                ("SETTLING TO SLEEP", col_label)
             };
             self.batch.draw_text(
                 &self.atlas,
@@ -3116,8 +3123,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             &self.atlas,
             24.0,
             bot_bar_y,
-            15,
-            "SPACE Play / Pause   |   F Fast x1/x4/x16   |   N Single Step (1 tick)   |   R Reset   |   ESC Quit",
+            14,
+            "SPACE Play/Pause  |  S Toggle Sleep ON/OFF  |  [ / ] Sleep Threshold  |  F Fast  |  N Step  |  R Reset  |  ESC Quit",
             col_label,
         );
 

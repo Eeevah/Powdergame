@@ -24,6 +24,10 @@ struct Params {
     threads_x: u32,
     width: u32,
     height: u32,
+    chunk_size: u32,
+    chunks_x: u32,
+    chunks_y: u32,
+    sleep_enabled: u32,
 };
 
 const EMPTY: u32 = 0u;
@@ -36,12 +40,21 @@ const SMOKE_DEST_KIND: u32 = 3u;
 @group(0) @binding(2) var<storage, read> claim: array<u32>;
 @group(0) @binding(3) var<storage, read_write> temperature_next: array<f32>;
 @group(0) @binding(4) var<storage, read_write> material_next: array<u32>;
+@group(0) @binding(5) var<storage, read> chunk_state: array<u32>;
 
 @compute @workgroup_size(64, 1, 1)
 fn smoke_commit_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let c = gid.y * params.threads_x + gid.x;
     if (c >= params.cell_count) {
         return;
+    }
+
+    if (params.sleep_enabled != 0u) {
+        let cx = (c % params.width) / params.chunk_size;
+        let cy = (c / params.width) / params.chunk_size;
+        if (chunk_state[cy * params.chunks_x + cx] != 0u) {
+            return;
+        }
     }
 
     let my_claim = claim[c];

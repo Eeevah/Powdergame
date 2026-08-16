@@ -96,7 +96,7 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
         PassContract {
             name: "phase_transition.wgsl",
             source: include_str!("../src/phase_transition.wgsl"),
-            expected_readwrite_bindings: &["material_next", "proposal"],
+            expected_readwrite_bindings: &["material_next", "proposal", "cell_activity"],
         },
         PassContract {
             name: "expansion_claim.wgsl",

@@ -308,6 +308,16 @@ Static Analysis & Formatting:
 - **--activity-demo**: 256×256 (4×4 chunks), 60 TPS. 2×2 panel — [A] STABLE WATER BULK / [B] STABLE STEAM/GAS BULK / [C] WAKE PROPAGATION / [D] SLOW ACTIVE WORLD. G4~G6 screen-space HUD (SIM TICK / DIAGNOSTIC SAMPLE / Total Chunks / Matter·Thermal·Pressure·Reaction Active / Fully Stable / Max Stable Ticks) + chunk activity heatmap overlay.
 - **Automated tests**: engine/gpu/tests/activity.rs **15 passed** (baseline + false-sleep hazard fixture: stable Water에 Sand 접근, stable Steam에 thermal frontier 접근, ignition heat 접근 등).
 - **FAST validation PASS**: fmt / `cargo check --workspace --all-targets` (warning 0) / activity 15 passed / windows 7 passed / `--activity-demo --smoke-frames 300` exit 0 / `--smoke-frames 60` (marker=1) / `--density-demo --smoke-frames 180` exit 0. **성능 benchmark 실행 안 함** (G8이 공식 Performance Gate).
+
+### G7-A semantic hardening (후속, `fix: harden G7 activity semantics`)
+
+- **코드 vs 문서 불일치 감사 완료**: (A) THERMAL activity에 phase candidate 의미 추가 구현, (B) evidence 문서의 "reduce shader가 neighbor chunk activity를 참조하는 seam 처리" 문구 정정 — 실제 구조는 **cell-level stencil이 world 좌표로 seam 반대편을 읽는 것**이고, dedicated chunk-to-chunk wake propagation은 **없음** (G7-B에서 actual sleep과 함께 구현).
+- **Phase false-sleep hazard 보강**: 1:1 write-self phase는 rule이 성립하면 같은 tick에 변환되고 hysteresis가 변환 후 상태를 안정으로 보장하므로 end-of-tick 상태에 "대기 중인 phase candidate"는 원리상 존재하지 않는다. 실제 관측 신호로 **phase pass가 transition tick을 `cell_activity`에 THERMAL self-marker로 기록** (propose는 OR-merge, 매 tick clear) 하고, detector는 phase table을 바인딩해 **phase-condition 방어적 체크**도 수행. physics semantics 변경 0.
+- **Phase zero-gradient tests (GPU, 전 세계 균일 T — gradient 0)**: `uniform_water_above_boil_threshold_reports_thermal_active` / `uniform_steam_below_condense_threshold_reports_thermal_active` / `uniform_water_below_freeze_threshold_reports_thermal_active` / `uniform_ice_above_melt_threshold_reports_thermal_active` PASS — THERMAL이 phase transition 때문에만 발생. negative: `uniform_water_inside_phase_hysteresis_without_gradient_can_be_inactive` PASS (activity 0, stable 증가).
+- **Cross-chunk**: `cross_chunk_thermal_frontier_detected` / `cross_chunk_pressure_frontier_detected` — seam x=63/64 양쪽 chunk 모두 감지.
+- **Pressure-medium audit**: PRESSURE activity를 pressure-medium(LIQUID/GAS) cell로 제한 (G5 계약 정합; EMPTY/STATIC/POWDER는 field가 매 tick 0). `non_medium_cells_do_not_report_pressure_activity` PASS — Stone-only chunk가 이웃 pressured Water 때문에 오보되지 않음. false-negative 위험 없음 (pressure work는 항상 medium에서 발생).
+- **`chunk_changed` 의미 명시**: "이번 tick에 activity(frontier) 존재" = stable counter reset 원인. 이전/다음 state 비교 dirty tracking이 아님 (필요 시 G7-B 별도 설계).
+- **Automated tests**: activity **23 passed** (15 baseline + 8 hardening). phase 16 / wgsl_parse 1 / parallel_integrity 12 (write contract에 phase `cell_activity` read-write 추가) / windows 7 전부 PASS. FAST validation + `--activity-demo --smoke-frames 300` / `--smoke-frames 60` / `--density-demo --smoke-frames 180` exit 0. **성능 benchmark 실행 안 함.**
 - **한계**: 실제 work skipping / sleep cutoff / active-list compaction / indirect dispatch 없음 — measurement baseline.
 - Evidence: `docs/evidence/G7_A_ACTIVITY_BASELINE_2026-08-16.md`
 
@@ -345,7 +355,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (136 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 15 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 7 windows observatory + 1 wgsl parse + 15 GPU activity = 320 total, ignored 2 performance benchmarks [coarse + controlled]; full-workspace re-collection은 다음 FULL CHECKPOINT에서)
+tests: passed (136 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 15 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 7 windows observatory + 1 wgsl parse + 23 GPU activity = 328 total, ignored 2 performance benchmarks [coarse + controlled]; full-workspace re-collection은 다음 FULL CHECKPOINT에서)
 benchmarks: G6-C2 full-tick 2048x2048: median 0.8426 ms/tick (1186.8 TPS, RTX 5090/DX12). G2 controlled baseline: median ~0.146 ms/tick.
 m0_status: IN_PROGRESS (G0-G6 PASS/CLOSED User Validation APPROVED 2026-08-16; G7 IN_PROGRESS — G7-A VALIDATION candidate; G8/G9 pending)
 ```

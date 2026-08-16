@@ -373,6 +373,7 @@ impl Simulation {
                         buffer_entry(3, &BindingKind::Read), // phase_table
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
                         buffer_entry(5, &BindingKind::ReadWrite), // expansion proposal
+                        buffer_entry(6, &BindingKind::ReadWrite), // cell_activity (G7-A transition marker)
                     ],
                 });
         let expansion_claim_layout =
@@ -526,6 +527,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::Read), // class table
                         buffer_entry(6, &BindingKind::Read), // density table
                         buffer_entry(7, &BindingKind::ReadWrite), // cell_activity
+                        buffer_entry(8, &BindingKind::Read), // phase table
                     ],
                 });
         let activity_reduce_layout =
@@ -1031,6 +1033,10 @@ impl Simulation {
                         binding: 5,
                         resource: world.proposal.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: world.cell_activity.as_entire_binding(),
+                    },
                 ],
             });
         let expansion_claim_bind_group =
@@ -1390,6 +1396,10 @@ impl Simulation {
                         wgpu::BindGroupEntry {
                             binding: 7,
                             resource: world.cell_activity.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: phase_table_buf.as_entire_binding(),
                         },
                     ],
                 });

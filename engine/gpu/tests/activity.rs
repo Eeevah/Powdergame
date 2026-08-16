@@ -8,13 +8,16 @@
 //!
 //! Bit semantics (engine/core/src/activity.rs):
 //!   ACTIVITY_MATTER    = 1 << 0   movement / density frontier exists
-//!   ACTIVITY_THERMAL   = 1 << 1   temperature gradient or heat source
-//!   ACTIVITY_PRESSURE  = 1 << 2   pressure gradient
+//!   ACTIVITY_THERMAL   = 1 << 1   temperature gradient, heat source, phase
+//!                                 rule satisfied, or a phase transition
+//!                                 actually fired this tick
+//!   ACTIVITY_PRESSURE  = 1 << 2   pressure gradient (pressure media only)
 //!   ACTIVITY_REACTION  = 1 << 3   combustion / decay state progressing
 
 use powdergame_core::{
     WorldConfig, ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL,
-    MATERIAL_EMPTY, MATERIAL_SAND, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
+    MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
+    MATERIAL_WOOD,
 };
 use powdergame_gpu::Simulation;
 
@@ -71,6 +74,16 @@ fn fill_rect(sim: &Simulation, x0: i64, y0: i64, x1: i64, y1: i64, id: u32) {
     for y in y0..=y1 {
         for x in x0..=x1 {
             set(sim, x, y, id);
+        }
+    }
+}
+
+/// Set one temperature on EVERY cell (incl. the boundary ring) so the world
+/// is exactly uniform — any activity then cannot come from a gradient.
+fn fill_uniform_t(sim: &Simulation, t: f32, w: i64, h: i64) {
+    for y in 0..h {
+        for x in 0..w {
+            set_t(sim, x, y, t);
         }
     }
 }
@@ -399,4 +412,162 @@ fn ignition_heat_wakes_sleep_candidate_wood() {
     let mask = chunk_activity(&sim)[0];
     assert_ne!(mask & ACTIVITY_REACTION, 0);
     assert_eq!(chunk_stable(&sim)[0], 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase transition activity (zero-gradient fixtures)
+//
+// Each positive fixture is a SEALED chamber inside Stone with one uniform
+// temperature over the ENTIRE world (ring included), so there is no
+// temperature gradient anywhere. Activity can therefore only come from the
+// phase rule: the phase pass self-marks the transition tick in the activity
+// buffer (THERMAL), so the chunk that performed phase work is never
+// observed as stable. The detector also checks the phase condition directly
+// (defensive — 1:1 transitions resolve within one tick).
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn uniform_water_above_boil_threshold_reports_thermal_active() {
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    fill_rect(&sim, 20, 20, 43, 43, MATERIAL_WATER); // sealed chamber
+    fill_uniform_t(&sim, 70.0, 64, 64); // uniform, above boil (60)
+
+    sim.tick().expect("tick 1 (boil)");
+
+    // Zero gradient; the phase transition itself marks the tick.
+    let mask = chunk_activity(&sim)[0];
+    assert_ne!(mask & ACTIVITY_THERMAL, 0);
+    assert_eq!(chunk_stable(&sim)[0], 0);
+}
+
+#[test]
+fn uniform_steam_below_condense_threshold_reports_thermal_active() {
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    fill_rect(&sim, 20, 20, 43, 43, MATERIAL_STEAM); // sealed chamber
+    fill_uniform_t(&sim, 30.0, 64, 64); // uniform, below condense (40)
+
+    sim.tick().expect("tick 1 (condense)");
+
+    let mask = chunk_activity(&sim)[0];
+    assert_ne!(mask & ACTIVITY_THERMAL, 0);
+    assert_eq!(chunk_stable(&sim)[0], 0);
+}
+
+#[test]
+fn uniform_water_below_freeze_threshold_reports_thermal_active() {
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    fill_rect(&sim, 20, 20, 43, 43, MATERIAL_WATER); // sealed chamber
+    fill_uniform_t(&sim, -30.0, 64, 64); // uniform, below freeze (-20)
+
+    sim.tick().expect("tick 1 (freeze)");
+
+    let mask = chunk_activity(&sim)[0];
+    assert_ne!(mask & ACTIVITY_THERMAL, 0);
+    assert_eq!(chunk_stable(&sim)[0], 0);
+}
+
+#[test]
+fn uniform_ice_above_melt_threshold_reports_thermal_active() {
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    fill_rect(&sim, 20, 20, 43, 43, MATERIAL_ICE); // sealed chamber
+    fill_uniform_t(&sim, 0.0, 64, 64); // uniform, above melt (-10)
+
+    sim.tick().expect("tick 1 (melt)");
+
+    let mask = chunk_activity(&sim)[0];
+    assert_ne!(mask & ACTIVITY_THERMAL, 0);
+    assert_eq!(chunk_stable(&sim)[0], 0);
+}
+
+#[test]
+fn uniform_water_inside_phase_hysteresis_without_gradient_can_be_inactive() {
+    let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
+    fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
+    fill_rect(&sim, 20, 20, 43, 43, MATERIAL_WATER); // sealed chamber
+    fill_uniform_t(&sim, 0.0, 64, 64); // uniform reference T, hysteresis band
+
+    sim.tick().expect("tick 1");
+    sim.tick().expect("tick 2");
+    sim.tick().expect("tick 3");
+
+    // No phase rule fires at T=0, no gradient, sealed → fully inactive and
+    // the stable counter grows (hysteresis-safe negative test).
+    assert_eq!(chunk_activity(&sim)[0], 0);
+    assert_eq!(chunk_stable(&sim)[0], 3);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-chunk frontiers (cell-level stencil crosses the seam in world coords)
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn cross_chunk_thermal_frontier_detected() {
+    // 128×128 → 4 chunks; seam at x=63/64. Uniform halves (left 100 / right
+    // 0) create a thermal gradient exactly at the seam → BOTH chunks
+    // (0,0) and (1,0) report THERMAL.
+    let mut sim = make_sim(WorldConfig::new(128, 128, 64).unwrap());
+    fill_rect(&sim, 1, 1, 126, 126, MATERIAL_STONE);
+    for y in 0..128 {
+        for x in 0..64 {
+            set_t(&sim, x, y, 100.0);
+        }
+        for x in 64..128 {
+            set_t(&sim, x, y, 0.0);
+        }
+    }
+
+    sim.tick().expect("tick 1");
+
+    let acts = chunk_activity(&sim);
+    assert_ne!(acts[0] & ACTIVITY_THERMAL, 0); // chunk (0,0): seam at x=63
+    assert_ne!(acts[1] & ACTIVITY_THERMAL, 0); // chunk (1,0): seam at x=64
+}
+
+#[test]
+fn cross_chunk_pressure_frontier_detected() {
+    // Sealed Water pocket straddling the x=63/64 seam; P=50 staged on the
+    // chunk-0 side, P=0 on the chunk-1 side. Pressure (a medium-only field)
+    // is detected on BOTH sides of the seam — the chunk boundary is not a
+    // pressure wall.
+    let mut sim = make_sim(WorldConfig::new(128, 128, 64).unwrap());
+    fill_rect(&sim, 1, 1, 126, 126, MATERIAL_STONE);
+    fill_rect(&sim, 62, 31, 65, 33, MATERIAL_WATER); // crosses x=63/64
+    for y in 31..=33 {
+        for x in 62..=63 {
+            set_p(&sim, x, y, 50.0);
+        }
+    }
+
+    sim.tick().expect("tick 1");
+
+    let acts = chunk_activity(&sim);
+    assert_ne!(acts[0] & ACTIVITY_PRESSURE, 0); // chunk (0,0): P=50 side
+    assert_ne!(acts[1] & ACTIVITY_PRESSURE, 0); // chunk (1,0): P=0 side
+}
+
+#[test]
+fn non_medium_cells_do_not_report_pressure_activity() {
+    // G5 contract: only LIQUID/GAS are pressure media. A Stone-only chunk
+    // adjacent to pressured Water must NOT report PRESSURE activity (its
+    // cells are not media; their pressure field is zeroed each tick). The
+    // Water side still reports the frontier.
+    let mut sim = make_sim(WorldConfig::new(128, 128, 64).unwrap());
+    fill_rect(&sim, 1, 1, 126, 126, MATERIAL_STONE);
+    fill_rect(&sim, 62, 31, 63, 33, MATERIAL_WATER); // sealed, chunk 0 only
+    for y in 31..=33 {
+        for x in 62..=63 {
+            set_p(&sim, x, y, 50.0);
+        }
+    }
+    // Chunk 1 (x 64..127) stays pure Stone.
+
+    sim.tick().expect("tick 1");
+
+    let acts = chunk_activity(&sim);
+    assert_ne!(acts[0] & ACTIVITY_PRESSURE, 0); // Water medium sees the field
+    assert_eq!(acts[1], 0); // Stone-only chunk: no pressure, no other frontier
 }

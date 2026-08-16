@@ -29,12 +29,18 @@ struct PhaseDesc {
 @group(0) @binding(3) var<storage, read> phase_table: array<PhaseDesc, 16>;
 @group(0) @binding(4) var<storage, read_write> material_next: array<u32>;
 @group(0) @binding(5) var<storage, read_write> proposal: array<u32>;
+// G7-A: the phase pass also self-marks a transition tick in the activity
+// measurement buffer (diagnostic only; never read back into physics). The
+// activity propose pass later OR-merges its computed mask, so a chunk that
+// performed phase work this tick is never observed as stable.
+@group(0) @binding(6) var<storage, read_write> cell_activity: array<u32>;
 
 const EMPTY: u32 = 0u;
 const NO_PHASE_TARGET: u32 = 0xFFFFFFFFu;
 const NO_PROPOSAL: u32 = 0u;
 const BLOCKED_EXPANSION: u32 = 0xFFFFFFFFu;
 const TEMPERATURE_REFERENCE: f32 = 0.0;
+const ACTIVITY_THERMAL: u32 = 1u << 1u;
 
 fn sanitize_temperature(t: f32) -> f32 {
     if (t != t) {
@@ -94,6 +100,10 @@ fn phase_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     proposal[index] = NO_PROPOSAL;
+    // G7-A: clear the phase/thermal measurement bit for this cell every tick
+    // (the propose pass OR-merges afterwards, so a transition marker set
+    // below survives; anything stale from a previous tick does not).
+    cell_activity[index] = cell_activity[index] & ~ACTIVITY_THERMAL;
     let mat = material_current[index];
     if (mat == EMPTY || mat >= 16u) {
         material_next[index] = mat;
@@ -113,6 +123,12 @@ fn phase_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     material_next[index] = next_mat;
+    // G7-A: a phase transition is meaningful change — mark the tick so the
+    // chunk cannot look stable even when the post-transition state has no
+    // remaining frontier (e.g. sealed Water → Steam in one tick).
+    if (next_mat != mat) {
+        cell_activity[index] = cell_activity[index] | ACTIVITY_THERMAL;
+    }
     if (next_mat != mat && matter_yield > 1u) {
         // G5-B baseline supports one additional cell (yield=2). Unknown
         // larger yields fail closed into confinement pressure rather than

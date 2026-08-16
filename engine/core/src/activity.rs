@@ -15,11 +15,27 @@
 //!   has any real candidate (EMPTY move, density-swap-appropriate neighbor,
 //!   or an out-of-domain Void exit). Existence of Matter is NOT activity.
 //! - `ACTIVITY_THERMAL`: a cell with a relevant 4-neighbor temperature
-//!   gradient, or an active heat source (combusting Matter).
+//!   gradient, an active heat source (combusting Matter), a phase rule
+//!   currently satisfied on its own Material + Temperature, or a phase
+//!   transition that actually fired this tick (the phase pass self-marks
+//!   the transition in the activity buffer; the detector additionally
+//!   evaluates the phase condition as a defensive check — 1:1 transitions
+//!   self-resolve within one tick, so the marker is the observable
+//!   signal).
 //! - `ACTIVITY_PRESSURE`: a cell with a non-trivial 4-neighbor pressure
-//!   gradient.
+//!   gradient, evaluated on pressure-media cells only (LIQUID/GAS per the
+//!   G5 contract — EMPTY/STATIC/POWDER have their pressure field zeroed
+//!   every tick and never carry a pressure frontier).
 //! - `ACTIVITY_REACTION`: a cell whose reaction state is actively changing
 //!   (combusting Matter, or Matter with a progressing decay age).
+//!
+//! Chunk seams: the cell-level stencil reads 1-cell neighbors in world
+//! coordinates, so a frontier across a chunk boundary is detected normally;
+//! there is no dedicated chunk-to-chunk wake propagation pass yet (G7-B).
+//! `chunk_changed_this_tick` means "a frontier was present this tick" (it
+//! resets the stable counter) — it does NOT compare previous/next world
+//! state; state-delta dirty tracking, if ever needed, is separate G7-B
+//! work.
 //!
 //! The exact epsilons are gameplay measurement baselines, not physical
 //! constants; sleep thresholds are NOT chosen here (that decision is left

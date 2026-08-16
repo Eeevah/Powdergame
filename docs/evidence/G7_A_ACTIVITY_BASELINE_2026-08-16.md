@@ -9,6 +9,8 @@ G7 — Active / Sleep gate, sub-step A.
 
 이번 G7-A는 **측정/시각화 baseline**이다. 아직 aggressive sleep optimization, GPU active-list compaction, indirect dispatch, 실제 subsystem skip은 하지 않는다.
 
+**Semantic hardening round (후속)**: phase transition이 실제로 발생한 tick을 activity buffer에 self-mark (phase pass) + detector의 phase-condition 방어적 체크 + PRESSURE activity를 pressure-medium(LIQUID/GAS) cell로 제한 + 문서 문구를 실제 구현과 100% 일치하도록 정정. G7-A는 계속 VALIDATION candidate. commit `fix: harden G7 activity semantics`.
+
 ---
 
 ## 1. Chunk activity state
@@ -40,9 +42,11 @@ PRESSURE_ACTIVITY_EPS = 0.001
 ## 2. Activity bit 의미
 
 - **MATTER_ACTIVE**: movable Matter가 EMPTY interface에 인접, density ordering 후보 존재, 또는 movement frontier 생성 가능. *"해당 material이 존재함"과 같지 않다.*
-- **THERMAL_ACTIVE**: 4-neighbor temperature gradient > EPS, 또는 phase threshold 근처 변화 가능 / burning·heat source.
-- **PRESSURE_ACTIVE**: neighbor pressure 차이 > EPS 또는 confinement/frontier.
-- **REACTION_ACTIVE**: burning Wood/Oil, decay 진행 Matter, phase/reaction state가 실제 변화 중.
+- **THERMAL_ACTIVE**: 4-neighbor temperature gradient > EPS, burning·heat source, **phase rule이 현재 자기 Material + Temperature에서 성립** (detector의 방어적 체크), 또는 **이번 tick에 실제로 발생한 phase transition** (phase pass가 activity buffer에 self-mark).
+- **PRESSURE_ACTIVE**: neighbor pressure 차이 > EPS — **pressure medium(LIQUID/GAS) cell에서만 평가** (G5 계약: EMPTY/STATIC/POWDER는 medium이 아니며 pressure field가 매 tick 0으로 정리되므로 pressure frontier를 가질 수 없음).
+- **REACTION_ACTIVE**: burning Wood/Oil, decay 진행 Matter, reaction state가 실제 변화 중.
+
+Phase transition은 1:1 write-self이므로 rule이 성립하는 cell은 같은 tick 안에서 반드시 변환된다 (hysteresis band가 변환 후 상태를 안정으로 보장). 따라서 end-of-tick 측정 기준으로는 "대기 중인 phase candidate"가 존재할 수 없고, phase pass가 transition tick을 `cell_activity`에 직접 표시하는 것이 실제 관측 가능한 신호다. detector의 phase-condition 체크는 방어적(defensive)이다 — 향후 semantics가 candidate를 남기는 경우를 대비한다.
 
 ## 3. Same-Matter no-op audit
 
@@ -79,12 +83,15 @@ G7-A에서는 aggregate diagnostic만 유지 (persistent per-reason 저장 없�
 
 ## 6. GPU passes
 
-2개 명시적 진단 pass (G3부터의 shader-per-pass 구조, string scanner 없음):
+진단 pass 2개 (G3부터의 shader-per-pass 구조, string scanner 없음):
 
-- `activity_propose.wgsl` — cell 단위로 4 activity bit를 평가 (EMPTY/STATIC/movable, neighbor temperature/pressure gradient, burning·decay flag) → `cell_activity` scratch.
-- `activity_reduce.wgsl` — 64×64 chunk별 reduction: cell bit 합산 → `chunk_activity`, `chunk_changed` (이전 tick과 비교), `chunk_stable` update. chunk 경계에서 이웃 chunk의 activity가 wake-candidate로 반영되도록 seam 처리를 포함 (chunk이 activity wall이 되지 않음).
+- `activity_propose.wgsl` — cell 단위로 4 activity bit를 평가 (EMPTY/STATIC/movable stencil, neighbor temperature/pressure gradient — pressure는 medium만, burning·decay flag, phase condition). `cell_activity`에 **OR-merge** (phase pass가 mid-tick에 설정한 transition 마커를 보존).
+- `activity_reduce.wgsl` — 64×64 chunk별 reduction: cell bit OR 합산 → `chunk_activity`, `chunk_changed_this_tick` (= 이 chunk에 이번 tick activity(frontier)가 있었는지, mask != 0 → 1), `chunk_stable` update.
+- `phase_transition.wgsl` — physics pass이지만 G7-A 진단을 위해 매 tick 모든 cell의 `cell_activity` THERMAL bit를 clear 후, transition이 실제 발생한 cell에만 다시 set (self-write). physics state에는 영향 없음.
 
-tick 끝에 실행 (시뮬레이션 semantics에 영향 없음, read-only 진단). `parallel_integrity` write-contract / `wgsl_parse` 테스트에 두 shader 등록.
+**Chunk 경계 정확한 의미**: `activity_propose`의 cell-level stencil은 **world 좌표로 1-cell neighbor를 읽으므로** chunk seam 반대편의 Matter/field도 정상 감지된다 — seam이 activity detection wall이 아니다. **dedicated chunk-to-chunk wake propagation pass는 아직 없다** (그 기능은 G7-B에서 actual sleep과 함께 구현). `chunk_changed`는 "이번 tick에 activity(frontier) 존재"를 의미하며 **이전/다음 state를 비교하는 dirty tracking이 아니다** — state-delta dirty tracking이 필요하면 G7-B 별도 설계.
+
+`parallel_integrity` write-contract (phase pass의 `cell_activity` read-write 포함) / `wgsl_parse` 테스트에 등록.
 
 ## 7. --activity-demo (G7 Activity Observatory)
 
@@ -112,37 +119,43 @@ Fully Stable / Max Stable Ticks
 
 chunk heatmap overlay (PresentationPalette::Activity): inactive candidate = dark, activity bit별 색 — 진단 가독성 우선, 색을 겹쳐 복잡하게 만들지 않음.
 
-## 8. Automated tests (engine/gpu/tests/activity.rs, 15 passed)
+## 8. Automated tests (engine/gpu/tests/activity.rs, 23 passed)
 
-- `stable_stone_chunk_reports_inactive`
-- `stable_water_bulk_eventually_reports_no_internal_movement_frontier`
-- `water_empty_interface_reports_matter_active`
-- `density_inversion_reports_active`
+Baseline (15):
+
+- `stable_stone_chunk_reports_inactive`, `stable_water_bulk_reports_no_internal_movement_frontier`
+- `same_matter_noop_does_not_create_false_activity` (same-Matter no-op audit regression)
+- `water_empty_interface_reports_matter_active`, `density_inversion_reports_active`
+- `thermal_gradient_reports_thermal_active`, `pressure_gradient_reports_pressure_active`
 - `burning_wood_reports_reaction_active`
-- `thermal_gradient_reports_thermal_active`
-- `pressure_gradient_reports_pressure_active`
-- `neighbor_influence_produces_wake_candidate`
-- `stable_duration_increments_only_when_no_meaningful_change`
-- `meaningful_change_resets_stable_duration`
+- `stable_duration_increments_only_when_no_meaningful_change`, `meaningful_change_resets_stable_duration`
+- `neighbor_activity_does_not_falsely_wake_adjacent_stable_chunk`
 - `chunk_boundary_frontier_marks_both_relevant_chunks`
-- `same_matter_noop_does_not_create_false_activity`
-- + thermal/pressure frontier wake-candidate 및 stable-duration 경계 케이스
+- False-sleep hazard: `sand_falling_into_water_wakes_interface`, `thermal_frontier_wakes_cold_steam_candidate`, `ignition_heat_wakes_sleep_candidate_wood`
 
-False-sleep hazard fixture 포함: stable Water candidate에 Sand 접근 → wake candidate / stable Steam에 thermal frontier 접근 → wake candidate / ignition heat 접근 → reaction·thermal wake candidate (future sleep correctness 근거).
+Semantic hardening (8):
+
+- Phase zero-gradient positive: `uniform_water_above_boil_threshold_reports_thermal_active`, `uniform_steam_below_condense_threshold_reports_thermal_active`, `uniform_water_below_freeze_threshold_reports_thermal_active`, `uniform_ice_above_melt_threshold_reports_thermal_active` — 전 세계 균일 T (ring 포함, gradient 0), sealed chamber → THERMAL은 phase transition marker 때문에만 발생.
+- Phase negative: `uniform_water_inside_phase_hysteresis_without_gradient_can_be_inactive` — T=0 hysteresis → activity 0, stable counter 증가.
+- Cross-chunk: `cross_chunk_thermal_frontier_detected`, `cross_chunk_pressure_frontier_detected` — seam x=63/64 양쪽 chunk 모두 감지 (cell-level stencil이 world 좌표로 seam을 넘어 읽음).
+- Pressure-medium audit: `non_medium_cells_do_not_report_pressure_activity` — Stone-only chunk가 이웃 pressured Water 때문에 PRESSURE로 오보되지 않음.
 
 ## 9. Validation (FAST)
 
 ```text
 cargo fmt --all -- --check                       PASS
 cargo check --workspace --all-targets            PASS (warning 0)
-cargo test -p powdergame-gpu --test activity -- --test-threads=1   PASS — 15 passed
+cargo test -p powdergame-gpu --test activity -- --test-threads=1   PASS — 23 passed
+cargo test -p powdergame-gpu --test phase -- --test-threads=1       PASS — 16 passed (regression)
+cargo test -p powdergame-gpu --test wgsl_parse                       PASS — 1 passed
+cargo test -p powdergame-gpu --test parallel_integrity -- --test-threads=1   PASS — 12 passed (write contract incl. phase cell_activity)
 cargo test -p powdergame-windows                 PASS — 7 passed
 --activity-demo --smoke-frames 300               exit 0 (device loss 0)
 --smoke-frames 60                                exit 0 (marker=1)
 --density-demo --smoke-frames 180                exit 0
 ```
 
-Instrumentation overhead sanity: 2개 진단 pass는 매 tick 실행되지만 reference-world smoke는 정상 동작 (marker=1). **공식 performance benchmark는 실행하지 않았다** (G8이 공식 Performance Evidence Gate; 기존 ignored performance tests 유지).
+Instrumentation overhead sanity: 진단 pass들은 매 tick 실행되지만 reference-world smoke는 정상 동작 (marker=1). **공식 performance benchmark는 실행하지 않았다** (G8이 공식 Performance Evidence Gate; 기존 ignored performance tests 유지).
 
 ## 10. Limits / next
 

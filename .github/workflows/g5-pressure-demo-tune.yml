@@ -1,0 +1,40 @@
+name: G5 Pressure Demo Tune
+
+on:
+  push:
+    branches:
+      - feature/m0-g5-boiler-user-validation
+
+permissions:
+  contents: write
+
+jobs:
+  tune-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply timing tune
+        run: python tools/g5_pressure_demo_tune.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Core regression
+        run: cargo test -p powdergame-core
+      - name: WGSL parse regression
+        run: cargo test -p powdergame-gpu --test wgsl_parse -- --nocapture
+      - name: Workspace compile
+        run: cargo check --workspace --all-targets
+      - name: Diff sanity
+        shell: bash
+        run: git diff --check
+      - name: Commit tuned demo and remove helpers
+        shell: bash
+        run: |
+          git rm tools/g5_pressure_demo_tune.py .github/workflows/g5-pressure-demo-tune.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/windows/src/main.rs docs/planning/G5_USER_VALIDATION.md
+          git commit -m "chore: tune G5 boiler demo observation timing"
+          git push origin HEAD:feature/m0-g5-boiler-user-validation

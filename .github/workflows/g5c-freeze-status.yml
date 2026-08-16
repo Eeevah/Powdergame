@@ -71,3 +71,5 @@ jobs:
           git add docs/planning/STATUS.md
           git commit -m "docs: freeze G5 pressure-chain technical evidence"
           git push origin HEAD:feature/m0-g5-rupture-vent
+
+# trigger-after-registration

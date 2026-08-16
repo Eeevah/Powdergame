@@ -21,6 +21,15 @@ jobs:
       - name: Apply G5-C implementation
         run: python tools/g5c_apply.py
 
+      - name: Correct validation-test borrow typo
+        shell: pwsh
+        run: |
+          $path = 'engine/gpu/tests/rupture.rs'
+          $text = Get-Content $path -Raw
+          $text = $text.Replace('    set(sim, 3, 1, MATERIAL_WATER);', '    set(&sim, 3, 1, MATERIAL_WATER);')
+          $text = $text.Replace('        set(sim, x, y, MATERIAL_STONE);', '        set(&sim, x, y, MATERIAL_STONE);')
+          Set-Content -Path $path -Value $text -NoNewline
+
       - name: Format Rust
         run: cargo fmt --all
 

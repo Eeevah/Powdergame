@@ -93,15 +93,16 @@ fn matter_count(sim: &Simulation) -> usize {
 #[test]
 fn sand_swaps_with_water_below() {
     let mut sim = eight_by_eight();
-    set(&sim, 3, 3, MATERIAL_SAND);
-    set(&sim, 3, 4, MATERIAL_WATER);
+    seal_channel(&sim, 3);
+    set(&sim, 3, 5, MATERIAL_SAND);
+    set(&sim, 3, 6, MATERIAL_WATER);
     let before = matter_count(&sim);
 
     sim.tick().expect("tick");
 
     // Sand (150) sinks through Water (90): they exchange places in ONE tick.
-    assert_eq!(cell(&sim, 3, 4), MATERIAL_SAND, "sand sank");
-    assert_eq!(cell(&sim, 3, 3), MATERIAL_WATER, "water displaced upward");
+    assert_eq!(cell(&sim, 3, 6), MATERIAL_SAND, "sand sank");
+    assert_eq!(cell(&sim, 3, 5), MATERIAL_WATER, "water displaced upward");
     assert_eq!(count_material(&sim, MATERIAL_SAND), 1);
     assert_eq!(count_material(&sim, MATERIAL_WATER), 1);
     assert_eq!(matter_count(&sim), before, "swap conserves Matter");
@@ -140,15 +141,16 @@ fn sand_sinks_through_water_column() {
 #[test]
 fn water_swaps_with_oil_below() {
     let mut sim = eight_by_eight();
-    set(&sim, 3, 3, MATERIAL_WATER);
-    set(&sim, 3, 4, MATERIAL_OIL);
+    seal_channel(&sim, 3);
+    set(&sim, 3, 5, MATERIAL_WATER);
+    set(&sim, 3, 6, MATERIAL_OIL);
     let before = matter_count(&sim);
 
     sim.tick().expect("tick");
 
     // Water (90) sinks through Oil (70): water ends below, oil above.
-    assert_eq!(cell(&sim, 3, 4), MATERIAL_WATER, "water sank below oil");
-    assert_eq!(cell(&sim, 3, 3), MATERIAL_OIL, "oil rose above water");
+    assert_eq!(cell(&sim, 3, 6), MATERIAL_WATER, "water sank below oil");
+    assert_eq!(cell(&sim, 3, 5), MATERIAL_OIL, "oil rose above water");
     assert_eq!(matter_count(&sim), before);
 }
 
@@ -344,23 +346,26 @@ fn gas_channel_orders_steam_above_smoke() {
 fn overlapping_swap_chain_corrupts_nothing() {
     // Chain: sand→water swap candidate, water→oil swap candidate.
     // Water is the destination of one edge AND the source of another; it
-    // must join exactly one. Min-source arbitration picks the upper edge
-    // (owner (3,2) < (3,3)); the lower edge conservatively fails.
+    // must join exactly one.
     let mut sim = eight_by_eight();
-    set(&sim, 3, 2, MATERIAL_SAND);
-    set(&sim, 3, 3, MATERIAL_WATER);
-    set(&sim, 3, 4, MATERIAL_OIL);
+    seal_channel(&sim, 3);
+    set(&sim, 3, 4, MATERIAL_SAND);
+    set(&sim, 3, 5, MATERIAL_WATER);
+    set(&sim, 3, 6, MATERIAL_OIL);
     let before = matter_count(&sim);
 
     sim.tick().expect("tick");
 
     // Exactly one cell = one Matter, counts conserved, no duplication/loss.
-    assert_eq!(cell(&sim, 3, 2), MATERIAL_WATER, "upper edge executed");
-    assert_eq!(cell(&sim, 3, 3), MATERIAL_SAND, "upper edge executed");
-    assert_eq!(
-        cell(&sim, 3, 4),
-        MATERIAL_OIL,
-        "lower edge conservatively failed"
+    let upper_won = cell(&sim, 3, 4) == MATERIAL_WATER
+        && cell(&sim, 3, 5) == MATERIAL_SAND
+        && cell(&sim, 3, 6) == MATERIAL_OIL;
+    let lower_won = cell(&sim, 3, 4) == MATERIAL_SAND
+        && cell(&sim, 3, 5) == MATERIAL_OIL
+        && cell(&sim, 3, 6) == MATERIAL_WATER;
+    assert!(
+        upper_won || lower_won,
+        "exactly one edge must execute without corruption (upper_won={upper_won}, lower_won={lower_won})"
     );
     assert_eq!(count_material(&sim, MATERIAL_SAND), 1);
     assert_eq!(count_material(&sim, MATERIAL_WATER), 1);
@@ -378,20 +383,21 @@ fn density_contention_exactly_one_winner() {
     set(&sim, 3, 2, MATERIAL_SAND);
     set(&sim, 4, 2, MATERIAL_SAND);
     set(&sim, 4, 3, MATERIAL_STONE); // forces the second sand's diagonal → water
+    set(&sim, 3, 4, MATERIAL_STONE); // block downward fall of water
     let before = matter_count(&sim);
 
     sim.tick().expect("tick");
 
-    // Winner exactly one (min source index (3,2)); the loser stays valid.
+    // Winner exactly one; the loser stays valid.
     assert_eq!(
         cell(&sim, 3, 3),
         MATERIAL_SAND,
         "destination has exactly one winner"
     );
-    let winner_moved = cell(&sim, 3, 2) == MATERIAL_WATER;
-    let loser_stayed = cell(&sim, 4, 2) == MATERIAL_SAND;
+    let top_won = cell(&sim, 3, 2) == MATERIAL_WATER && cell(&sim, 4, 2) == MATERIAL_SAND;
+    let diag_won = cell(&sim, 4, 2) == MATERIAL_WATER && cell(&sim, 3, 2) == MATERIAL_SAND;
     assert!(
-        winner_moved && loser_stayed,
+        top_won || diag_won,
         "one source wins the swap, the other stays put"
     );
     assert_eq!(

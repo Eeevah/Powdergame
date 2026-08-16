@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16). G6 (Parallel Integrity) IN_PROGRESS — G6-A (GPU Write Ownership Audit) TECHNICAL PASS, G6-B (Ownership Contention Integrity) TECHNICAL PASS, G6-C (Arbitration Quality Decision) MEASUREMENT COMPLETE / DECISION PENDING; G6 overall NOT CLOSED. Next Gate: G6-C2 Integration Decision → G7 Active/Sleep.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16). G6 (Parallel Integrity) IN_PROGRESS — G6-A (GPU Write Ownership Audit) TECHNICAL PASS, G6-B (Ownership Contention Integrity) TECHNICAL PASS, G6-C1 (Arbitration Quality Measurement) COMPLETE, G6-C2 (Stateless Edge Hash Integration) TECHNICAL PASS; G6 overall VALIDATION READY / AWAITING USER APPROVAL (NOT CLOSED). Next Gate: G6 User Approval → G7 Active/Sleep.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: IN_PROGRESS (G6-A GPU Write Ownership Audit TECHNICAL PASS; G6-B Ownership Contention Integrity TECHNICAL PASS; G6-C MEASUREMENT COMPLETE / DECISION PENDING; G6 overall NOT CLOSED).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: IN_PROGRESS (G6-A TECHNICAL PASS; G6-B TECHNICAL PASS; G6-C1 COMPLETE; G6-C2 TECHNICAL PASS; G6 overall AWAITING USER APPROVAL / NOT CLOSED).**
 
 ### Current Summary
 
@@ -46,10 +46,12 @@
 
 2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**, **G4 (Thermal / Phase / Combustion)**, **G5 (Pressure Chain)**가 구현·검증·사용자 검증 승인 완료되어 **PASS / CLOSED** 되었다.
 
-현재 **G6 — Parallel Integrity**가 진행 중이며:
+현재 **G6 — Parallel Integrity**의 모든 기술적 게이트(G6-A, G6-B, G6-C1, G6-C2)가 완료되었으며:
 - **G6-A (GPU Write Ownership Audit)**: **TECHNICAL PASS**
 - **G6-B (Ownership Contention Integrity)**: **TECHNICAL PASS**
-- **G6-C (Arbitration Quality Decision)**: **MEASUREMENT COMPLETE / DECISION PENDING** (G6-C1 측정 완료; 해시 후보의 방향 편향 제거 효과 및 RTX 5090 성능 오버헤드 측정 완료. 권고: `HASH CANDIDATE WORTH INTEGRATING`).
+- **G6-C1 (Arbitration Quality Measurement)**: **COMPLETE**
+- **G6-C2 (Stateless Edge Hash Production Integration)**: **TECHNICAL PASS** (프로덕션 edge-hash 도입 완료, 0 atomics / 0 writable storage aliases 유지, 방향 편향 제거, RTX 5090 성능 오버헤드 0.0% 검증 완료).
+- **G6 전체**: **VALIDATION READY / AWAITING USER APPROVAL** (사용자 최종 승인 전까지 PASS/CLOSED 하지 않음).
 
 ---
 
@@ -230,10 +232,10 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 
 ---
 
-### Automated Test Evidence Summary (Total 295 Tests)
+### Automated Test Evidence Summary (Total 297 Tests)
 
 ```text
-cargo test --workspace -- --test-threads=1 전체 PASS (295 passed, 0 failed, 1 ignored controlled benchmark)
+cargo test --workspace -- --test-threads=1 전체 PASS (297 passed, 0 failed, 1 ignored controlled benchmark)
   - Core unit tests: 130 passed
   - GPU arbitration quality tests (G6-C1): 6 passed
   - GPU combustion & decay tests: 56 passed
@@ -241,7 +243,7 @@ cargo test --workspace -- --test-threads=1 전체 PASS (295 passed, 0 failed, 1 
   - GPU expansion tests: 5 passed
   - GPU headless smoke test: 1 passed
   - GPU local movement tests: 16 passed (1 perf benchmark ignored)
-  - GPU parallel integrity tests (G6-A/B): 10 passed
+  - GPU parallel integrity tests (G6-A/B/C2): 12 passed
   - GPU phase transition tests: 16 passed
   - GPU scalar pressure tests: 8 passed
   - GPU rupture & 2x2 multi-boiler stress lab tests: 7 passed
@@ -276,8 +278,9 @@ Static Analysis & Formatting:
 ### Next Action
 
 1. **G6-A & G6-B**: **TECHNICAL PASS**
-2. **G6-C1**: **MEASUREMENT COMPLETE / DECISION PENDING** (권고: `HASH CANDIDATE WORTH INTEGRATING`)
-3. **Next Gate: G6-C2 Integration Decision** (사용자 결정에 따라 프로덕션 해시 도입 또는 베이스라인 유지 확정). G6-C 완료 및 사용자 승인 전까지 G6 PASS / CLOSED 하지 않음.
+2. **G6-C1**: **MEASUREMENT COMPLETE**
+3. **G6-C2**: **TECHNICAL PASS** (Stateless Edge Hash Production Integration Complete, 0.0% regression verified on RTX 5090)
+4. **Next Gate: G6 User Approval** (사용자 최종 승인 전까지 G6 PASS / CLOSED 하지 않음 → 승인 후 G7 Active/Sleep 착수).
 
 ---
 
@@ -291,7 +294,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5 PASS / CLOSED (G2/G3/G4/G5 User Validation APPROVED); G6 IN_PROGRESS (G6-A/B TECHNICAL PASS, G6-C1 MEASUREMENT COMPLETE / DECISION PENDING).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5 PASS / CLOSED (G2/G3/G4/G5 User Validation APPROVED); G6 IN_PROGRESS (G6-A/B/C2 TECHNICAL PASS, G6-C1 COMPLETE; AWAITING USER APPROVAL).
 
 M0 `ACHIEVED`: **NO**
 
@@ -307,7 +310,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (130 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 16 GPU movement + 10 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 4 windows observatory + 1 wgsl parse = 295 total, ignored 1 controlled benchmark)
-benchmarks: G2 controlled reference-world baseline: median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12). G3/G4/G5/G6: correctness-first.
-m0_status: IN_PROGRESS (G0-G5 PASS/CLOSED User Validation APPROVED 2026-08-16; G6 IN_PROGRESS [G6-A/B TECHNICAL PASS, G6-C1 MEASUREMENT COMPLETE / DECISION PENDING]; G7-G9 pending)
+tests: passed (130 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 16 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 4 windows observatory + 1 wgsl parse = 297 total, ignored 1 controlled benchmark)
+benchmarks: G6-C2 full-tick 2048x2048: median 0.8426 ms/tick (1186.8 TPS, RTX 5090/DX12). G2 controlled baseline: median ~0.146 ms/tick.
+m0_status: IN_PROGRESS (G0-G5 PASS/CLOSED User Validation APPROVED 2026-08-16; G6 IN_PROGRESS [G6-A/B/C2 TECHNICAL PASS, G6-C1 COMPLETE; AWAITING USER APPROVAL]; G7-G9 pending)
 ```

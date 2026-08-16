@@ -698,3 +698,96 @@ fn test_mixed_integrity_stress_long_run() {
         }
     }
 }
+
+#[test]
+fn test_production_hash_contention_varies_with_tick_but_preserves_single_edge() {
+    let mut left_wins = 0;
+    let mut right_wins = 0;
+
+    for seed in 0..64u64 {
+        let mut sim = make_sim(WorldConfig {
+            width: 64,
+            height: 64,
+            chunk_size: 64,
+        });
+        sim.tick_count = seed;
+
+        // Symmetric horizontal contention: Left at (31, 32), Right at (33, 32), Target at (32, 32).
+        // Sand falling diagonally down into (32, 32):
+        // Left sand at (31, 31), Right sand at (33, 31), Target at (32, 32)
+        // Block (31, 32) and (33, 32) with Stone so down is blocked and they must take down-diagonals.
+        set(&sim, 31, 32, MATERIAL_STONE);
+        set(&sim, 33, 32, MATERIAL_STONE);
+        set(&sim, 30, 31, MATERIAL_STONE);
+        set(&sim, 34, 31, MATERIAL_STONE);
+        set(&sim, 30, 32, MATERIAL_STONE);
+        set(&sim, 34, 32, MATERIAL_STONE);
+
+        set(&sim, 31, 31, MATERIAL_SAND);
+        set(&sim, 33, 31, MATERIAL_SAND);
+
+        sim.tick().expect("production tick");
+
+        let dest = cell(&sim, 32, 32);
+        assert_eq!(
+            dest, MATERIAL_SAND,
+            "contested target must receive exactly one Sand"
+        );
+
+        let left_src = cell(&sim, 31, 31);
+        let right_src = cell(&sim, 33, 31);
+
+        if left_src == MATERIAL_EMPTY && right_src == MATERIAL_SAND {
+            left_wins += 1;
+        } else if right_src == MATERIAL_EMPTY && left_src == MATERIAL_SAND {
+            right_wins += 1;
+        } else {
+            panic!(
+                "exactly one source must move: left_src={}, right_src={}",
+                left_src, right_src
+            );
+        }
+
+        assert_eq!(
+            count_material(&sim, MATERIAL_SAND),
+            2,
+            "sand count strictly conserved"
+        );
+    }
+
+    assert!(
+        left_wins > 0 && right_wins > 0,
+        "both contenders must win across tick seeds in production (got left={}, right={})",
+        left_wins,
+        right_wins
+    );
+}
+
+#[test]
+fn test_production_same_seed_determinism() {
+    let run = |seed: u64| -> Vec<u32> {
+        let mut sim = make_sim(WorldConfig {
+            width: 64,
+            height: 64,
+            chunk_size: 64,
+        });
+        sim.tick_count = seed;
+
+        set(&sim, 31, 32, MATERIAL_STONE);
+        set(&sim, 33, 32, MATERIAL_STONE);
+        set(&sim, 31, 31, MATERIAL_SAND);
+        set(&sim, 33, 31, MATERIAL_SAND);
+
+        sim.tick().expect("tick");
+        sim.world
+            .read_material_all(&sim.context.device, &sim.context.queue)
+            .expect("read all")
+    };
+
+    let run1 = run(42);
+    let run2 = run(42);
+    assert_eq!(
+        run1, run2,
+        "identical initial state and seed must produce bit-exact results"
+    );
+}

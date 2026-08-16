@@ -1,6 +1,8 @@
 // G5-B — phase expansion destination Claim/Resolve.
-// Each EMPTY destination reads only its 8-neighborhood and chooses the
-// smallest source index whose proposal targets this cell. claim[c]=source+1.
+//
+// G6-C2: Each EMPTY destination reads only its 8-neighborhood and chooses
+// the source index targeting this cell with the lowest edge_priority.
+// Ties break deterministically by smaller source index. claim[c]=source+1.
 
 struct Params {
     cell_count: u32,
@@ -9,14 +11,30 @@ struct Params {
     height: u32,
 };
 
+struct ArbitrationParams {
+    tick: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+};
+
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> material_current: array<u32>;
 @group(0) @binding(2) var<storage, read> proposal: array<u32>;
 @group(0) @binding(3) var<storage, read_write> claim: array<u32>;
+@group(0) @binding(4) var<uniform> arbitration: ArbitrationParams;
 
 const EMPTY: u32 = 0u;
 const NO_CLAIM: u32 = 0u;
 const NO_SOURCE: u32 = 0xFFFFFFFFu;
+
+fn edge_priority(source: u32, target_cell: u32, tick: u32) -> u32 {
+    var h: u32 = source ^ (target_cell * 0x9E3779B9u) ^ (tick * 0x85EBCA6Bu);
+    h = (h ^ (h >> 16u)) * 0x7FEB352Du;
+    h = (h ^ (h >> 15u)) * 0x846CA68Bu;
+    h = h ^ (h >> 16u);
+    return h;
+}
 
 @compute @workgroup_size(64, 1, 1)
 fn expansion_claim_main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -31,7 +49,8 @@ fn expansion_claim_main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let x = i32(c % params.width);
     let y = i32(c / params.width);
-    var best = NO_SOURCE;
+    var best_source = NO_SOURCE;
+    var best_priority: u32 = 0xFFFFFFFFu;
     var dy: i32 = -1;
     while (dy <= 1) {
         var dx: i32 = -1;
@@ -41,8 +60,12 @@ fn expansion_claim_main(@builtin(global_invocation_id) gid: vec3<u32>) {
                 let ny = y + dy;
                 if (nx >= 0 && ny >= 0 && nx < i32(params.width) && ny < i32(params.height)) {
                     let s = u32(ny) * params.width + u32(nx);
-                    if (proposal[s] == c + 1u && s < best) {
-                        best = s;
+                    if (proposal[s] == c + 1u) {
+                        let p = edge_priority(s, c, arbitration.tick);
+                        if (p < best_priority || (p == best_priority && s < best_source)) {
+                            best_source = s;
+                            best_priority = p;
+                        }
                     }
                 }
             }
@@ -51,7 +74,7 @@ fn expansion_claim_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         dy = dy + 1;
     }
 
-    if (best != NO_SOURCE) {
-        claim[c] = best + 1u;
+    if (best_source != NO_SOURCE) {
+        claim[c] = best_source + 1u;
     }
 }

@@ -57,6 +57,8 @@ const THREADS_X: u64 = (WORKGROUPS_X as u64) * (WORKGROUP_SIZE as u64);
 /// bytes. Material tables live in separate storage buffers (no uniform
 /// alignment concerns).
 const PARAMS_SIZE: u64 = 16;
+/// Arbitration uniform size: tick (u32) + 3 pad u32 = 16 bytes.
+const ARBITRATION_PARAMS_SIZE: u64 = 16;
 /// Material table buffer size (16 u32 entries each).
 const TABLE_SIZE: u64 = 64;
 /// Phase descriptor table: 16 descriptors × 32 bytes (G5-B yield/confinement metadata).
@@ -139,6 +141,7 @@ pub struct Simulation {
     smoke_commit_bind_group: wgpu::BindGroup,
     pressure_bind_group: wgpu::BindGroup,
     rupture_bind_group: wgpu::BindGroup,
+    pub arbitration_params: wgpu::Buffer,
     marker: wgpu::Buffer,
 
     /// Number of ticks submitted since creation.
@@ -286,6 +289,7 @@ impl Simulation {
                         buffer_entry(0, &BindingKind::Uniform),
                         buffer_entry(1, &BindingKind::Read), // proposal
                         buffer_entry(2, &BindingKind::ReadWrite), // claim
+                        buffer_entry(3, &BindingKind::Uniform), // arbitration
                     ],
                 });
         let commit_layout =
@@ -342,6 +346,7 @@ impl Simulation {
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // proposal
                         buffer_entry(3, &BindingKind::ReadWrite), // claim
+                        buffer_entry(4, &BindingKind::Uniform), // arbitration
                     ],
                 });
         let expansion_spawn_commit_layout =
@@ -418,6 +423,7 @@ impl Simulation {
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // proposal (smoke request)
                         buffer_entry(3, &BindingKind::ReadWrite), // claim (smoke winner)
+                        buffer_entry(4, &BindingKind::Uniform), // arbitration
                     ],
                 });
         let smoke_commit_layout =
@@ -752,6 +758,14 @@ impl Simulation {
             mapped_at_creation: false,
         });
 
+        // G6-C2: Global simulation-owned arbitration parameter buffer (16 bytes, tick: u32).
+        let arbitration_params = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g6/arbitration/params"),
+            size: ARBITRATION_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let propose_bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -801,6 +815,10 @@ impl Simulation {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: world.claim.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: arbitration_params.as_entire_binding(),
                     },
                 ],
             });
@@ -930,6 +948,10 @@ impl Simulation {
                         wgpu::BindGroupEntry {
                             binding: 3,
                             resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: arbitration_params.as_entire_binding(),
                         },
                     ],
                 });
@@ -1117,6 +1139,10 @@ impl Simulation {
                         binding: 3,
                         resource: world.claim.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: arbitration_params.as_entire_binding(),
+                    },
                 ],
             });
         let smoke_commit_bind_group =
@@ -1251,6 +1277,7 @@ impl Simulation {
             pressure_bind_group,
             rupture_bind_group,
 
+            arbitration_params,
             marker,
             tick_count: 0,
         })
@@ -1283,6 +1310,13 @@ impl Simulation {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
             .map_err(|_| GpuError::Other("dispatch height overflow".into()))?;
+
+        // G6-C2: Update arbitration uniform once at tick start (low 32 bits of tick_count).
+        let mut arb_bytes = [0u8; 16];
+        arb_bytes[..4].copy_from_slice(&(self.tick_count as u32).to_ne_bytes());
+        self.context
+            .queue
+            .write_buffer(&self.arbitration_params, 0, &arb_bytes);
 
         let mut encoder =
             self.context

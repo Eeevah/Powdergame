@@ -149,11 +149,13 @@ fn competing_expansions_have_one_winner_and_loser_becomes_pressure() {
         MATERIAL_STEAM,
         "exactly one destination winner"
     );
-    assert_eq!(pressure(&sim, 3, 4), 0.0, "smallest source won claim");
-    let loser_p = pressure(&sim, 5, 4);
+    let p_a = pressure(&sim, 3, 4);
+    let p_b = pressure(&sim, 5, 4);
+    let a_won = p_a.abs() < 1.0e-3 && (p_b - WATER_BOIL_BLOCKED_PRESSURE).abs() < 1.0e-3;
+    let b_won = p_b.abs() < 1.0e-3 && (p_a - WATER_BOIL_BLOCKED_PRESSURE).abs() < 1.0e-3;
     assert!(
-        (loser_p - WATER_BOIL_BLOCKED_PRESSURE).abs() < 1.0e-3,
-        "claim loser pressure={loser_p}"
+        a_won || b_won,
+        "exactly one winner (p=0) and one loser (p={WATER_BOIL_BLOCKED_PRESSURE}); got p_a={p_a}, p_b={p_b}"
     );
 }
 

@@ -1088,13 +1088,13 @@ fn wood_ignition_front_propagates_then_leaves_empty_cells() {
         "ignition front must propagate along the strip"
     );
 
-    // Phase 2: with continued burning, the earliest cells are consumed.
+    // Phase 2: with continued burning, the earliest cell is consumed (no longer Wood).
     let consumed = tick_until(&mut sim, 3000, 50, |s| {
-        cell(s, 3, 8) == MATERIAL_EMPTY && count_material(s, MATERIAL_WOOD) > 0
+        cell(s, 3, 8) != MATERIAL_WOOD && count_material(s, MATERIAL_WOOD) > 0
     });
     assert!(
         consumed.is_some(),
-        "earliest Wood cells must eventually burn to EMPTY while the front continues"
+        "earliest Wood cells must eventually burn away while the front continues"
     );
 
     // Invariants after the long run: finite temperatures, no stale

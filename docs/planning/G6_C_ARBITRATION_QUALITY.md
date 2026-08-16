@@ -1,11 +1,13 @@
 # G6-C — Arbitration Quality Decision
 
-Status: **DESIGN READY / MEASUREMENT NOT STARTED**
+Status: **G6-C1 COMPLETE / G6-C2 INTEGRATED & VALIDATED**
 
 Prerequisites:
 
 - G6-A GPU Write Ownership Audit — **TECHNICAL PASS**
 - G6-B Ownership Contention Integrity — **TECHNICAL PASS**
+- G6-C1 Arbitration Quality Measurement — **COMPLETE**
+- G6-C2 Stateless Edge Hash Integration — **TECHNICAL PASS**
 - Frozen correctness baseline: `ea08f6605703bb42593f7e6a1fb5181c99909ca8`
 - G5 frozen base: `2112dfbacdefdcb02f4d82496dee374fc8e97f70`
 

@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16). G6 (Parallel Integrity) IN_PROGRESS — G6-A (GPU Write Ownership Audit) TECHNICAL PASS, G6-B (Ownership Contention Integrity) TECHNICAL PASS, G6-C (Arbitration Quality Decision) NOT STARTED; G6 overall NOT CLOSED. Next Gate: G6-C Arbitration Quality Decision → G7 Active/Sleep.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16). G6 (Parallel Integrity) IN_PROGRESS — G6-A (GPU Write Ownership Audit) TECHNICAL PASS, G6-B (Ownership Contention Integrity) TECHNICAL PASS, G6-C (Arbitration Quality Decision) MEASUREMENT COMPLETE / DECISION PENDING; G6 overall NOT CLOSED. Next Gate: G6-C2 Integration Decision → G7 Active/Sleep.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: IN_PROGRESS (G6-A GPU Write Ownership Audit TECHNICAL PASS; G6-B Ownership Contention Integrity TECHNICAL PASS; G6-C NOT STARTED; G6 overall NOT CLOSED).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: IN_PROGRESS (G6-A GPU Write Ownership Audit TECHNICAL PASS; G6-B Ownership Contention Integrity TECHNICAL PASS; G6-C MEASUREMENT COMPLETE / DECISION PENDING; G6 overall NOT CLOSED).**
 
 ### Current Summary
 
@@ -46,7 +46,10 @@
 
 2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**, **G4 (Thermal / Phase / Combustion)**, **G5 (Pressure Chain)**가 구현·검증·사용자 검증 승인 완료되어 **PASS / CLOSED** 되었다.
 
-현재 **G6 — Parallel Integrity**가 진행 중이며, **G6-A (GPU Write Ownership Audit)** 및 **G6-B (Ownership Contention Integrity)**가 RTX 5090 / DX12 실기 검증을 통과하여 **TECHNICAL PASS** 상태이다. G6-C (Arbitration Quality Decision) 및 G6 종합 완료는 후속 단계로 관리된다.
+현재 **G6 — Parallel Integrity**가 진행 중이며:
+- **G6-A (GPU Write Ownership Audit)**: **TECHNICAL PASS**
+- **G6-B (Ownership Contention Integrity)**: **TECHNICAL PASS**
+- **G6-C (Arbitration Quality Decision)**: **MEASUREMENT COMPLETE / DECISION PENDING** (G6-C1 측정 완료; 해시 후보의 방향 편향 제거 효과 및 RTX 5090 성능 오버헤드 측정 완료. 권고: `HASH CANDIDATE WORTH INTEGRATING`).
 
 ---
 
@@ -172,8 +175,8 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 #### G6-A GPU Write Ownership Audit — TECHNICAL PASS
 - **Production Pass Inventory (14 Shaders)**: `movement_propose`, `movement_claim`, `movement_commit`, `thermal`, `phase_transition`, `expansion_claim`, `expansion_spawn_commit`, `expansion_pressure`, `decay`, `combustion`, `smoke_claim`, `smoke_commit`, `pressure`, `rupture`.
 - **Structural Invariant Audit**:
-  - `SELF_WRITE` 위반: **0건 (NONE)**. 모든 일반 규칙 및 self-write 패스는 자기 invocation 슬롯(`self`, `c`, `index`)만 기록.
-  - 직접 neighbor 변소(Direct neighbor mutation): **0건 (NONE)**.
+  - `SELF_WRITE` 위반: **0건 (NONE)**.
+  - 직접 neighbor 변조(Direct neighbor mutation): **0건 (NONE)**.
   - 아토믹(`atomic*`), 스핀락, `var<workgroup>` 공유 메모리: **0건 (NONE)**.
   - 전역 정렬(Global sort), 우선순위 큐: **0건 (NONE)**.
   - 셀당 영속 RNG 상태: **0건 (NONE)**.
@@ -195,9 +198,20 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 - **Heavy Mixed Integrity Stress**:
   - 5개 상이한 물리 구역(Sand/Water hopper, Oil/Water density, Burning Wood/Smoke, Boiling Boiler, Melting Ice)을 포함하는 64×64 월드에서 300틱 연속 병렬 스트레스 실행 (`test_mixed_integrity_stress_long_run`). 모든 셀 ID 유효, EMPTY 위생 완벽 유지, $T/P$ 유한성 확인, 디바이스 손실 0건 (`PASS`).
 
-#### G6-C Arbitration Quality Decision — NOT STARTED
-- 현재 중재 규칙: 가장 작은 소스 인덱스 승리 (`s < best`).
-- G6-A/B 정합성 베이스라인으로 동결. 방향 편향 정량 측정 및 해시 중재 비교는 G6-C에서 별도 진행.
+#### G6-C1 Arbitration Quality Measurement — MEASUREMENT COMPLETE / DECISION PENDING
+- **측정 대상**: Frozen Fixed-Index Baseline vs Test-Only Stateless Edge-Hash Candidate (`edge_priority(source, target_cell, tick)`).
+- **편향(Bias) 비교 결과 (2,048 Contests per orientation)**:
+  - 수평 충돌 (Left vs Right): Baseline 100% Left vs 0% Right $\to$ Candidate **49.3% Left vs 50.7% Right** (편향 완전 해소).
+  - 수직 충돌 (Up vs Down): Baseline 100% Up vs 0% Down $\to$ Candidate **50.0% Up vs 50.0% Down** (완전 균등).
+  - 대각 충돌 (NW vs SE): Baseline 100% NW vs 0% SE $\to$ Candidate **51.2% NW vs 48.8% SE**.
+  - 회전(0° Left vs Up): Candidate **53.5% Left vs 46.5% Up**.
+  - 틱 시드(64 ticks): Candidate **51.6% Left vs 48.4% Right** (영구 고정 없음).
+  - 에지 상호 합의(Edge Agreement): 100% 상호 일치 (분할 소유권 0건).
+  - 결정론적 재현성: 100% bit-exact.
+- **RTX 5090 / DX12 성능 마이크로벤치마크 (2048×2048 = 4,194,304 셀)**:
+  - Sparse (현실적 5% 충돌): Baseline 0.0412 ms vs Candidate 0.0412 ms (**Delta: -0.18%**, 오차 범위 내 동일).
+  - Heavy (100% 밀집 충돌): Baseline 0.0396 ms vs Candidate 0.0412 ms (**Delta: +0.0015 ms / +3.86% claim-only**, 전체 틱 기준 **~1.0%** 수준).
+- **공식 권고**: **`HASH CANDIDATE WORTH INTEGRATING`** (G6-C2 채택 검토 단계로 진입 대기).
 
 ---
 
@@ -216,11 +230,12 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 
 ---
 
-### Automated Test Evidence Summary (Total 289 Tests)
+### Automated Test Evidence Summary (Total 295 Tests)
 
 ```text
-cargo test --workspace -- --test-threads=1 전체 PASS (289 passed, 0 failed, 1 ignored controlled benchmark)
+cargo test --workspace -- --test-threads=1 전체 PASS (295 passed, 0 failed, 1 ignored controlled benchmark)
   - Core unit tests: 130 passed
+  - GPU arbitration quality tests (G6-C1): 6 passed
   - GPU combustion & decay tests: 56 passed
   - GPU density displacement tests: 15 passed
   - GPU expansion tests: 5 passed
@@ -261,7 +276,8 @@ Static Analysis & Formatting:
 ### Next Action
 
 1. **G6-A & G6-B**: **TECHNICAL PASS**
-2. **Next Gate: G6-C Arbitration Quality Decision** (방향 편향 측정 및 무상태 해시 중재 후보 평가). G6-C 완료 및 사용자 승인 전까지 G6 PASS / CLOSED 하지 않음.
+2. **G6-C1**: **MEASUREMENT COMPLETE / DECISION PENDING** (권고: `HASH CANDIDATE WORTH INTEGRATING`)
+3. **Next Gate: G6-C2 Integration Decision** (사용자 결정에 따라 프로덕션 해시 도입 또는 베이스라인 유지 확정). G6-C 완료 및 사용자 승인 전까지 G6 PASS / CLOSED 하지 않음.
 
 ---
 
@@ -275,7 +291,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5 PASS / CLOSED (G2/G3/G4/G5 User Validation APPROVED); G6 IN_PROGRESS (G6-A/B TECHNICAL PASS, G6-C pending).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5 PASS / CLOSED (G2/G3/G4/G5 User Validation APPROVED); G6 IN_PROGRESS (G6-A/B TECHNICAL PASS, G6-C1 MEASUREMENT COMPLETE / DECISION PENDING).
 
 M0 `ACHIEVED`: **NO**
 
@@ -291,7 +307,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (130 core + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 16 GPU movement + 10 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 4 windows observatory + 1 wgsl parse = 289 total, ignored 1 controlled benchmark)
+tests: passed (130 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 16 GPU movement + 10 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 4 windows observatory + 1 wgsl parse = 295 total, ignored 1 controlled benchmark)
 benchmarks: G2 controlled reference-world baseline: median ~0.146 ms/tick (~6838 TPS, RTX 5090/DX12). G3/G4/G5/G6: correctness-first.
-m0_status: IN_PROGRESS (G0-G5 PASS/CLOSED User Validation APPROVED 2026-08-16; G6 IN_PROGRESS [G6-A/B TECHNICAL PASS, G6-C pending]; G7-G9 pending)
+m0_status: IN_PROGRESS (G0-G5 PASS/CLOSED User Validation APPROVED 2026-08-16; G6 IN_PROGRESS [G6-A/B TECHNICAL PASS, G6-C1 MEASUREMENT COMPLETE / DECISION PENDING]; G7-G9 pending)
 ```

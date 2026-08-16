@@ -12,8 +12,9 @@
 //! loop. Simulation truth is never mutated by diagnostic instrumentation.
 
 use powdergame_core::{
-    MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_WATER,
-    MATERIAL_WOOD,
+    chunk_count, chunks_x, chunks_y, ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION,
+    ACTIVITY_THERMAL, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM,
+    MATERIAL_WATER, MATERIAL_WOOD,
 };
 use powdergame_gpu::Simulation;
 
@@ -851,6 +852,10 @@ pub struct ObservatoryCollector {
     metrics: ObservatoryMetrics,
     pressure_metrics: PressureObservatoryMetrics,
     integrity_metrics: IntegrityMetrics,
+    /// G7-A chunk-activity observation metrics (activity demo mode).
+    activity_metrics: ActivityMetrics,
+    /// Previous sample's per-chunk masks (stable→active wake detection).
+    activity_prev_masks: Vec<u32>,
     initial_wood_set: bool,
     initial_a_ice: u32,
     initial_b_steam: u32,
@@ -860,6 +865,12 @@ pub struct ObservatoryCollector {
     /// G6 parallel-integrity instrument: blocking one-shot snapshots for the
     /// pristine tick-0 baseline and the exact tick-1 ownership latch.
     g6_mode: bool,
+    /// G7-A activity demo mode: chunk-activity readbacks + aggregation.
+    activity_mode: bool,
+    chunk_bytes: u64,
+    staging_chunk_activity: wgpu::Buffer,
+    staging_chunk_changed: wgpu::Buffer,
+    staging_chunk_stable: wgpu::Buffer,
     initial_latched: bool,
     c_staging_material: wgpu::Buffer,
     c_staging_temperature: wgpu::Buffer,
@@ -870,10 +881,17 @@ pub struct ObservatoryCollector {
 impl ObservatoryCollector {
     /// Creates staging buffers and allocates a new collector. `g6_mode` enables
     /// the G6 parallel-integrity one-tick instrument (blocking tick-0 / tick-1
-    /// snapshots + real readback ownership metrics).
-    pub fn new(simulation: &Simulation, g6_mode: bool) -> Self {
+    /// snapshots + real readback ownership metrics); `activity_mode` enables
+    /// the G7-A chunk-activity observation readbacks (activity demo).
+    pub fn new(simulation: &Simulation, g6_mode: bool, activity_mode: bool) -> Self {
         let device = &simulation.context.device;
         let cell_bytes = simulation.world.layout.material_bytes;
+        let n_chunks = chunk_count(
+            simulation.world.config.width,
+            simulation.world.config.height,
+            simulation.world.config.chunk_size,
+        );
+        let chunk_bytes = (n_chunks as u64) * 4;
 
         let staging_material = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("observatory/staging/material"),
@@ -914,6 +932,23 @@ impl ObservatoryCollector {
         let c_staging_flags = mk_staging("observatory/g6-staging/flags");
         let c_staging_pressure = mk_staging("observatory/g6-staging/pressure");
 
+        // G7-A activity chunk staging (small: 16 u32 for a 4×4-chunk world).
+        let mk_chunk_staging = |label: &str| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size: chunk_bytes,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            })
+        };
+        let staging_chunk_activity =
+            mk_chunk_staging("observatory/activity/staging/chunk-activity");
+        let staging_chunk_changed = mk_chunk_staging("observatory/activity/staging/chunk-changed");
+        let staging_chunk_stable = mk_chunk_staging("observatory/activity/staging/chunk-stable");
+
+        let mut activity_prev_masks = Vec::with_capacity(n_chunks as usize);
+        activity_prev_masks.resize(n_chunks as usize, 0);
+
         Self {
             staging_material,
             staging_temperature,
@@ -925,6 +960,8 @@ impl ObservatoryCollector {
             metrics: ObservatoryMetrics::default(),
             pressure_metrics: PressureObservatoryMetrics::default(),
             integrity_metrics: IntegrityMetrics::default(),
+            activity_metrics: ActivityMetrics::default(),
+            activity_prev_masks,
             initial_wood_set: false,
             initial_a_ice: 0,
             initial_b_steam: 0,
@@ -932,6 +969,11 @@ impl ObservatoryCollector {
             cell_bytes,
             c_latch_reported: false,
             g6_mode,
+            activity_mode,
+            chunk_bytes,
+            staging_chunk_activity,
+            staging_chunk_changed,
+            staging_chunk_stable,
             initial_latched: false,
             c_staging_material,
             c_staging_temperature,
@@ -945,6 +987,10 @@ impl ObservatoryCollector {
         self.metrics = ObservatoryMetrics::default();
         self.pressure_metrics = PressureObservatoryMetrics::default();
         self.integrity_metrics = IntegrityMetrics::default();
+        self.activity_metrics = ActivityMetrics::default();
+        for m in &mut self.activity_prev_masks {
+            *m = 0;
+        }
         self.initial_wood_set = false;
         self.initial_a_ice = 0;
         self.initial_b_steam = 0;
@@ -975,6 +1021,11 @@ impl ObservatoryCollector {
     /// Current live parallel integrity metrics snapshot.
     pub fn integrity_metrics(&self) -> &IntegrityMetrics {
         &self.integrity_metrics
+    }
+
+    /// Current live G7-A chunk-activity metrics snapshot.
+    pub fn activity_metrics(&self) -> &ActivityMetrics {
+        &self.activity_metrics
     }
 
     /// Non-blocking update: checks pending map callbacks and requests next
@@ -1070,6 +1121,40 @@ impl ObservatoryCollector {
                     self.pending_tick,
                     &mut self.integrity_metrics,
                 );
+
+                if self.activity_mode {
+                    // G7-A chunk-activity readbacks (small per-chunk arrays).
+                    let act_slice = self.staging_chunk_activity.slice(..).get_mapped_range();
+                    let chg_slice = self.staging_chunk_changed.slice(..).get_mapped_range();
+                    let stb_slice = self.staging_chunk_stable.slice(..).get_mapped_range();
+                    let chunks_x = chunks_x(
+                        simulation.world.config.width,
+                        simulation.world.config.chunk_size,
+                    );
+                    let chunks_y = chunks_y(
+                        simulation.world.config.height,
+                        simulation.world.config.chunk_size,
+                    );
+                    let n_chunks = (chunks_x * chunks_y) as usize;
+                    let chunk_act = bytemuck_u32_slice(&act_slice, n_chunks);
+                    let chunk_stb = bytemuck_u32_slice(&stb_slice, n_chunks);
+                    evaluate_activity_state(
+                        chunk_act,
+                        chunk_stb,
+                        chunks_x,
+                        chunks_y,
+                        self.pending_tick,
+                        &mut self.activity_metrics,
+                        &mut self.activity_prev_masks,
+                    );
+                    let _ = chg_slice;
+                    drop(act_slice);
+                    drop(chg_slice);
+                    drop(stb_slice);
+                    self.staging_chunk_activity.unmap();
+                    self.staging_chunk_changed.unmap();
+                    self.staging_chunk_stable.unmap();
+                }
 
                 drop(mat_slice);
                 drop(temp_slice);
@@ -1271,6 +1356,29 @@ impl ObservatoryCollector {
             0,
             self.cell_bytes,
         );
+        if self.activity_mode {
+            encoder.copy_buffer_to_buffer(
+                &simulation.world.chunk_activity,
+                0,
+                &self.staging_chunk_activity,
+                0,
+                self.chunk_bytes,
+            );
+            encoder.copy_buffer_to_buffer(
+                &simulation.world.chunk_changed_this_tick,
+                0,
+                &self.staging_chunk_changed,
+                0,
+                self.chunk_bytes,
+            );
+            encoder.copy_buffer_to_buffer(
+                &simulation.world.chunk_stable_ticks,
+                0,
+                &self.staging_chunk_stable,
+                0,
+                self.chunk_bytes,
+            );
+        }
 
         queue.submit([encoder.finish()]);
 
@@ -1278,8 +1386,11 @@ impl ObservatoryCollector {
         let tx_temp = tx.clone();
         let tx_flag = tx.clone();
         let tx_press = tx.clone();
+        let tx_act = tx.clone();
+        let tx_chg = tx.clone();
+        let tx_stb = tx.clone();
 
-        // Async mapping on all 4 buffers
+        // Async mapping on all 4 world buffers
         self.staging_material
             .slice(..)
             .map_async(wgpu::MapMode::Read, move |res| {
@@ -1300,6 +1411,23 @@ impl ObservatoryCollector {
             .map_async(wgpu::MapMode::Read, move |res| {
                 let _ = tx_press.send(res);
             });
+        if self.activity_mode {
+            self.staging_chunk_activity
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |res| {
+                    let _ = tx_act.send(res);
+                });
+            self.staging_chunk_changed
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |res| {
+                    let _ = tx_chg.send(res);
+                });
+            self.staging_chunk_stable
+                .slice(..)
+                .map_async(wgpu::MapMode::Read, move |res| {
+                    let _ = tx_stb.send(res);
+                });
+        }
 
         self.pending = true;
         self.pending_tick = current_tick;
@@ -1368,6 +1496,127 @@ pub struct IntegrityMetrics {
     pub d_empty_temp_violations: u32,
     pub d_empty_flag_violations: u32,
     pub d_empty_pressure_violations: u32,
+}
+
+/// G7-A per-panel chunk-activity counters (one quadrant of the 4×4-chunk
+/// demo world; chunk regions, not cell scans).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ActivityPanelMetrics {
+    pub total_chunks: u32,
+    pub matter_active: u32,
+    pub thermal_active: u32,
+    pub pressure_active: u32,
+    pub reaction_active: u32,
+    pub fully_stable: u32,
+    pub max_stable_ticks: u32,
+}
+
+/// G7-A global chunk-activity observation metrics, computed from real GPU
+/// readback of `chunk_activity` / `chunk_stable_ticks` (never hardcoded).
+///
+/// - `fully_stable`: chunks whose mask is 0 this sample (no frontier).
+/// - `max_stable_ticks`: longest consecutive zero-activity run observed.
+/// - `wake_events`: chunks that transitioned stable→active between samples
+///   (the G7-A wake-detection observation; actual sleeping is G7-B).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ActivityMetrics {
+    pub sample_tick: u64,
+    pub total_chunks: u32,
+    pub matter_active: u32,
+    pub thermal_active: u32,
+    pub pressure_active: u32,
+    pub reaction_active: u32,
+    pub fully_stable: u32,
+    pub max_stable_ticks: u32,
+    pub wake_events: u32,
+    pub panels: [ActivityPanelMetrics; 4],
+}
+
+/// G7-A demo panel names (world 256×256, chunk 64 → 4×4 chunks).
+pub const ACTIVITY_PANEL_NAMES: [&str; 4] = [
+    "A STABLE WATER BULK",
+    "B STABLE STEAM / GAS BULK",
+    "C WAKE PROPAGATION",
+    "D SLOW ACTIVE WORLD",
+];
+
+/// Aggregates per-chunk activity/stability into global + 4-quadrant panel
+/// metrics and counts stable→active wake transitions against the previous
+/// sample's masks.
+#[allow(clippy::too_many_arguments)] // diagnostic pure fn: 5 slices/dims + metrics + prev
+pub fn evaluate_activity_state(
+    chunk_activity: &[u32],
+    chunk_stable: &[u32],
+    chunks_x: u32,
+    chunks_y: u32,
+    tick: u64,
+    metrics: &mut ActivityMetrics,
+    prev_masks: &mut [u32],
+) {
+    metrics.sample_tick = tick;
+    metrics.total_chunks = chunks_x * chunks_y;
+    metrics.matter_active = 0;
+    metrics.thermal_active = 0;
+    metrics.pressure_active = 0;
+    metrics.reaction_active = 0;
+    metrics.fully_stable = 0;
+    metrics.max_stable_ticks = 0;
+    metrics.panels = [
+        ActivityPanelMetrics::default(),
+        ActivityPanelMetrics::default(),
+        ActivityPanelMetrics::default(),
+        ActivityPanelMetrics::default(),
+    ];
+
+    let half_x = chunks_x / 2;
+    let half_y = chunks_y / 2;
+
+    for cy in 0..chunks_y {
+        for cx in 0..chunks_x {
+            let idx = (cy * chunks_x + cx) as usize;
+            let mask = chunk_activity.get(idx).copied().unwrap_or(0);
+            let stable = chunk_stable.get(idx).copied().unwrap_or(0);
+
+            let panel = if cy < half_y {
+                if cx < half_x {
+                    0
+                } else {
+                    1
+                }
+            } else if cx < half_x {
+                2
+            } else {
+                3
+            };
+            let p = &mut metrics.panels[panel];
+            p.total_chunks += 1;
+            p.matter_active += u32::from(mask & ACTIVITY_MATTER != 0);
+            p.thermal_active += u32::from(mask & ACTIVITY_THERMAL != 0);
+            p.pressure_active += u32::from(mask & ACTIVITY_PRESSURE != 0);
+            p.reaction_active += u32::from(mask & ACTIVITY_REACTION != 0);
+            if mask == 0 {
+                p.fully_stable += 1;
+            }
+            p.max_stable_ticks = p.max_stable_ticks.max(stable);
+
+            metrics.matter_active += u32::from(mask & ACTIVITY_MATTER != 0);
+            metrics.thermal_active += u32::from(mask & ACTIVITY_THERMAL != 0);
+            metrics.pressure_active += u32::from(mask & ACTIVITY_PRESSURE != 0);
+            metrics.reaction_active += u32::from(mask & ACTIVITY_REACTION != 0);
+            if mask == 0 {
+                metrics.fully_stable += 1;
+            }
+            metrics.max_stable_ticks = metrics.max_stable_ticks.max(stable);
+
+            // Stable → active between samples = a wake candidate observation.
+            if let Some(prev) = prev_masks.get_mut(idx) {
+                if *prev == 0 && mask != 0 {
+                    metrics.wake_events += 1;
+                }
+                *prev = mask;
+            }
+        }
+    }
 }
 
 /// Evaluates the G6 integrity diagnostics from one GPU readback snapshot.

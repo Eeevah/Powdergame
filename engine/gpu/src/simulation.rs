@@ -39,8 +39,9 @@
 //! Blocked expansion generation and rupture remain G5-B/G5-C.
 
 use powdergame_core::{
-    combustion_table, conductivity_table, decay_table, density_table, heat_capacity_table,
-    movement_class_table, phase_descriptor_table, rupture_threshold_table, WorldConfig,
+    chunks_x, chunks_y, combustion_table, conductivity_table, decay_table, density_table,
+    heat_capacity_table, movement_class_table, phase_descriptor_table, rupture_threshold_table,
+    WorldConfig, PRESSURE_ACTIVITY_EPS, THERMAL_ACTIVITY_EPS,
 };
 
 use crate::context::{GpuContext, GpuError};
@@ -69,6 +70,9 @@ const COMBUSTION_TABLE_SIZE: u64 = 320;
 const DECAY_TABLE_SIZE: u64 = 128;
 /// Size of the diagnostic marker buffer (one `u32` + padding).
 const MARKER_SIZE: u64 = 16;
+/// G7-A activity params uniform: cell_count, threads_x, width, height,
+/// chunk_size, chunks_x, chunks_y, thermal_eps, pressure_eps + 3 pad = 48 B.
+const ACTIVITY_PARAMS_SIZE: u64 = 48;
 /// Upper bound for cell indices so the claim encoding `(peer << 2) | kind`
 /// can never overflow or collide with sentinels.
 const MAX_CELL_COUNT: u64 = 1 << 30;
@@ -78,6 +82,22 @@ enum BindingKind {
     Uniform,
     Read,
     ReadWrite,
+}
+
+/// Builds a compute-stage uniform binding entry with an explicit minimum
+/// size (the G7-A activity params uniform is 48 bytes, larger than the
+/// 16-byte movement params).
+fn uniform_entry(binding: u32, min_size: u64) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::COMPUTE,
+        ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: wgpu::BufferSize::new(min_size),
+        },
+        count: None,
+    }
 }
 
 /// Builds a compute-stage buffer binding entry.
@@ -126,6 +146,8 @@ pub struct Simulation {
     smoke_commit_pipeline: wgpu::ComputePipeline,
     pressure_pipeline: wgpu::ComputePipeline,
     rupture_pipeline: wgpu::ComputePipeline,
+    activity_propose_pipeline: wgpu::ComputePipeline,
+    activity_reduce_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
@@ -141,6 +163,8 @@ pub struct Simulation {
     smoke_commit_bind_group: wgpu::BindGroup,
     pressure_bind_group: wgpu::BindGroup,
     rupture_bind_group: wgpu::BindGroup,
+    activity_propose_bind_group: wgpu::BindGroup,
+    activity_reduce_bind_group: wgpu::BindGroup,
     pub arbitration_params: wgpu::Buffer,
     marker: wgpu::Buffer,
 
@@ -264,6 +288,21 @@ impl Simulation {
                 label: Some("powdergame-g5c-rupture"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("rupture.wgsl").into()),
             });
+
+        let shader_activity_propose =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g7a-activity-propose"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("activity_propose.wgsl").into()),
+                });
+        let shader_activity_reduce =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g7a-activity-reduce"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("activity_reduce.wgsl").into()),
+                });
 
         // Bind group layouts.
         let propose_layout =
@@ -471,6 +510,38 @@ impl Simulation {
                     ],
                 });
 
+        // G7-A activity passes (measurement baseline; G6 write-ownership
+        // preserved: per-cell self-write, per-chunk self-write, no atomics).
+        let activity_propose_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g7a-activity-propose-bgl"),
+                    entries: &[
+                        uniform_entry(0, ACTIVITY_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // temperature_current
+                        buffer_entry(3, &BindingKind::Read), // pressure_current
+                        buffer_entry(4, &BindingKind::Read), // flags_current
+                        buffer_entry(5, &BindingKind::Read), // class table
+                        buffer_entry(6, &BindingKind::Read), // density table
+                        buffer_entry(7, &BindingKind::ReadWrite), // cell_activity
+                    ],
+                });
+        let activity_reduce_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g7a-activity-reduce-bgl"),
+                    entries: &[
+                        uniform_entry(0, ACTIVITY_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read), // cell_activity
+                        buffer_entry(2, &BindingKind::ReadWrite), // chunk_activity
+                        buffer_entry(3, &BindingKind::ReadWrite), // chunk_changed
+                        buffer_entry(4, &BindingKind::ReadWrite), // chunk_stable
+                    ],
+                });
+
         let make_pipeline = |label: &str,
                              layout: &wgpu::BindGroupLayout,
                              module: &wgpu::ShaderModule,
@@ -580,6 +651,18 @@ impl Simulation {
             &shader_rupture,
             "rupture_main",
         );
+        let activity_propose_pipeline = make_pipeline(
+            "powdergame-g7a-activity-propose",
+            &activity_propose_layout,
+            &shader_activity_propose,
+            "propose_main",
+        );
+        let activity_reduce_pipeline = make_pipeline(
+            "powdergame-g7a-activity-reduce",
+            &activity_reduce_layout,
+            &shader_activity_reduce,
+            "reduce_main",
+        );
 
         // Params uniform: cell_count, threads_x, width, height.
         let cell_count_u32 = u32::try_from(world.layout.cell_count).map_err(|_| {
@@ -603,6 +686,30 @@ impl Simulation {
             mapped_at_creation: false,
         });
         context.queue.write_buffer(&params, 0, &params_data);
+
+        // G7-A activity params (48 B): cell_count, threads_x, width, height,
+        // chunk_size, chunks_x, chunks_y, thermal_eps, pressure_eps + pads.
+        let chunks_x_u32 = chunks_x(world.config.width, world.config.chunk_size);
+        let chunks_y_u32 = chunks_y(world.config.height, world.config.chunk_size);
+        let mut activity_params_data = [0u8; ACTIVITY_PARAMS_SIZE as usize];
+        activity_params_data[..4].copy_from_slice(&cell_count_u32.to_ne_bytes());
+        activity_params_data[4..8].copy_from_slice(&threads_x_u32.to_ne_bytes());
+        activity_params_data[8..12].copy_from_slice(&world.config.width.to_ne_bytes());
+        activity_params_data[12..16].copy_from_slice(&world.config.height.to_ne_bytes());
+        activity_params_data[16..20].copy_from_slice(&world.config.chunk_size.to_ne_bytes());
+        activity_params_data[20..24].copy_from_slice(&chunks_x_u32.to_ne_bytes());
+        activity_params_data[24..28].copy_from_slice(&chunks_y_u32.to_ne_bytes());
+        activity_params_data[28..32].copy_from_slice(&THERMAL_ACTIVITY_EPS.to_ne_bytes());
+        activity_params_data[32..36].copy_from_slice(&PRESSURE_ACTIVITY_EPS.to_ne_bytes());
+        let activity_params = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g7a/activity/params"),
+            size: ACTIVITY_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context
+            .queue
+            .write_buffer(&activity_params, 0, &activity_params_data);
 
         // Movement-class table (read-only storage; EMPTY/unknown map to 0).
         let mut class_data = [0u8; TABLE_SIZE as usize];
@@ -1245,6 +1352,77 @@ impl Simulation {
                 ],
             });
 
+        let activity_propose_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-g7a-activity-propose-bg"),
+                    layout: &activity_propose_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: activity_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.temperature_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.pressure_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.flags_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: class_table.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: density_table_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.cell_activity.as_entire_binding(),
+                        },
+                    ],
+                });
+        let activity_reduce_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-g7a-activity-reduce-bg"),
+                    layout: &activity_reduce_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: activity_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.cell_activity.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.chunk_activity.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.chunk_changed_this_tick.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.chunk_stable_ticks.as_entire_binding(),
+                        },
+                    ],
+                });
+
         Ok(Self {
             context,
             world,
@@ -1262,6 +1440,8 @@ impl Simulation {
             smoke_commit_pipeline,
             pressure_pipeline,
             rupture_pipeline,
+            activity_propose_pipeline,
+            activity_reduce_pipeline,
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
@@ -1276,7 +1456,8 @@ impl Simulation {
             smoke_commit_bind_group,
             pressure_bind_group,
             rupture_bind_group,
-
+            activity_propose_bind_group,
+            activity_reduce_bind_group,
             arbitration_params,
             marker,
             tick_count: 0,
@@ -1608,6 +1789,33 @@ impl Simulation {
             0,
             self.world.layout.flags_bytes,
         );
+
+        // G7-A: chunk activity measurement baseline. Runs last on the settled
+        // Current state and writes ONLY the activity diagnostic buffers — no
+        // physics buffers are touched, so the measurement can never perturb
+        // the world. G7-A observes; it does not yet skip any subsystem.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g7a-activity-propose-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.activity_propose_pipeline,
+                &self.activity_propose_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g7a-activity-reduce-pass"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&self.activity_reduce_pipeline);
+            pass.set_bind_group(0, &self.activity_reduce_bind_group, &[]);
+            let a_chunks_x = chunks_x(self.world.config.width, self.world.config.chunk_size);
+            let a_chunks_y = chunks_y(self.world.config.height, self.world.config.chunk_size);
+            pass.dispatch_workgroups(a_chunks_x, a_chunks_y, 1);
+        }
 
         self.context.queue.submit([encoder.finish()]);
         self.tick_count += 1;

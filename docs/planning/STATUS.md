@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16; G6-A TECHNICAL PASS / FROZEN, G6-B TECHNICAL PASS / FROZEN, G6-C1 COMPLETE / FROZEN, G6-C2 TECHNICAL PASS / FROZEN). Next Gate: G7 Active/Sleep.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16; G6-A TECHNICAL PASS / FROZEN, G6-B TECHNICAL PASS / FROZEN, G6-C1 COMPLETE / FROZEN, G6-C2 TECHNICAL PASS / FROZEN). G7 (Active/Sleep) IN_PROGRESS — G7-A (Chunk Activity Observatory / Measurement Baseline) VALIDATION candidate; G7-B/C PLANNED.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: PASS / CLOSED (G6-A TECHNICAL PASS / FROZEN; G6-B TECHNICAL PASS / FROZEN; G6-C1 COMPLETE / FROZEN; G6-C2 TECHNICAL PASS / FROZEN; G6 User Validation APPROVED 2026-08-16).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: PASS / CLOSED (G6-A TECHNICAL PASS / FROZEN; G6-B TECHNICAL PASS / FROZEN; G6-C1 COMPLETE / FROZEN; G6-C2 TECHNICAL PASS / FROZEN; G6 User Validation APPROVED 2026-08-16). G7 — Active/Sleep: IN_PROGRESS (G7-A Chunk Activity Observatory / Measurement Baseline: VALIDATION candidate — measurement/visualization baseline만, 실제 sleep/work-skip 없음; G7-B/C PLANNED).**
 
 ### Current Summary
 
@@ -295,10 +295,27 @@ Static Analysis & Formatting:
   - **FAST x16**: RTX 5090에서 원활, tick 36724까지 장기 stress 관찰 가능. observed sim rate ≈ 960 TPS는 **G6 demo fast-forward 동작 관찰값** — G8 공식 performance benchmark가 아니며 성능 claim으로 확대하지 않음.
   - 최종 화면: SIM TICK ≈ 36724 / DIAGNOSTIC SAMPLE ≈ 36708 / FAST x16.
 
+## G7 — Active / Sleep
+
+### G7-A — Chunk Activity Observatory / Measurement Baseline (TECHNICAL 구현 완료, VALIDATION candidate)
+
+- **철학**: Dense State, Sparse Work — dense SoA storage 유지, Cell state를 sparse container로 바꾸지 않음. Matter count가 아니라 changeable frontier가 계산 필요성을 결정.
+- **Chunk activity state**: GPU-side 64×64 chunk 기준 diagnostic 버퍼 3종 (`chunk_activity` bitmask / `chunk_changed` / `chunk_stable`). bit: `ACTIVITY_MATTER=1<<0`, `ACTIVITY_THERMAL=1<<1`, `ACTIVITY_PRESSURE=1<<2`, `ACTIVITY_REACTION=1<<3` (engine/core/src/activity.rs). 진단 state이지 per-cell simulation state 아님.
+- **Same-Matter no-op audit**: movement_propose — NORMAL move는 EMPTY만 허용, density는 rank ordering 필수 (equal rank는 절대 swap 안 함), lateral은 EMPTY-only → Water↔Water/Oil↔Oil 등 무의미한 same-ID ownership edge 경로 없음. regression test `same_matter_noop_does_not_create_false_activity` 추가.
+- **Stable-duration**: `chunk_stable`는 consecutive-stable-ticks 관찰용 (sleep cutoff로 사용하지 않음; threshold 임의 선택 금지). meaningful change 시 `chunk_changed`로 reset.
+- **Wake reason model**: SELF_CHANGED / NEIGHBOR_ACTIVE / EDIT / PHASE_CHANGE / REACTION / THERMAL_FRONT / PRESSURE_FRONT — 진단 aggregate 수준.
+- **GPU passes**: `activity_propose.wgsl`(cell bit 평가) + `activity_reduce.wgsl`(chunk reduction, seam 처리 포함 — chunk가 activity wall이 되지 않음). tick 끝에 read-only 진단. parallel_integrity write-contract / wgsl_parse 등록.
+- **--activity-demo**: 256×256 (4×4 chunks), 60 TPS. 2×2 panel — [A] STABLE WATER BULK / [B] STABLE STEAM/GAS BULK / [C] WAKE PROPAGATION / [D] SLOW ACTIVE WORLD. G4~G6 screen-space HUD (SIM TICK / DIAGNOSTIC SAMPLE / Total Chunks / Matter·Thermal·Pressure·Reaction Active / Fully Stable / Max Stable Ticks) + chunk activity heatmap overlay.
+- **Automated tests**: engine/gpu/tests/activity.rs **15 passed** (baseline + false-sleep hazard fixture: stable Water에 Sand 접근, stable Steam에 thermal frontier 접근, ignition heat 접근 등).
+- **FAST validation PASS**: fmt / `cargo check --workspace --all-targets` (warning 0) / activity 15 passed / windows 7 passed / `--activity-demo --smoke-frames 300` exit 0 / `--smoke-frames 60` (marker=1) / `--density-demo --smoke-frames 180` exit 0. **성능 benchmark 실행 안 함** (G8이 공식 Performance Gate).
+- **한계**: 실제 work skipping / sleep cutoff / active-list compaction / indirect dispatch 없음 — measurement baseline.
+- Evidence: `docs/evidence/G7_A_ACTIVITY_BASELINE_2026-08-16.md`
+
 ### Next Action
 
-1. **G6 — Parallel Integrity**: **PASS / CLOSED** (G6-A/B/C1/C2 FROZEN, G6 User Validation APPROVED 2026-08-16)
-2. **G7 — Active / Sleep 준비** (G6 설명에 Active Chunk를 섞지 않음; G7 구현은 G6 closure 이후 별도 지시에 따라 착수)
+1. **G7-A — Chunk Activity Observatory**: **VALIDATION candidate** — 사용자가 `--activity-demo`를 직접 보고 A/B/C/D panel과 stable-duration 분포를 확인 (G7-A는 measurement baseline; G7 PASS/CLOSED 아님)
+2. **G7-B — Sleep/Wake correctness** (wake reason 기반, false-sleep 방지, stable-duration 관찰 결과를 바탕으로 cutoff 설계)
+3. **G7-C — active-list compaction / indirect dispatch** (성능 측정은 G8 공식 Gate에서)
 
 ---
 
@@ -312,7 +329,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6 PASS / CLOSED (G2/G3/G4/G5/G6 User Validation APPROVED 2026-08-16); Next Gate: **G7 Active/Sleep**.
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6 PASS / CLOSED (G2/G3/G4/G5/G6 User Validation APPROVED 2026-08-16); G7 Active/Sleep **IN_PROGRESS** (G7-A VALIDATION candidate).
 
 M0 `ACHIEVED`: **NO**
 
@@ -328,7 +345,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (130 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 15 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 7 windows observatory + 1 wgsl parse = 299 total, ignored 2 performance benchmarks [coarse + controlled])
+tests: passed (136 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 15 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 7 windows observatory + 1 wgsl parse + 15 GPU activity = 320 total, ignored 2 performance benchmarks [coarse + controlled]; full-workspace re-collection은 다음 FULL CHECKPOINT에서)
 benchmarks: G6-C2 full-tick 2048x2048: median 0.8426 ms/tick (1186.8 TPS, RTX 5090/DX12). G2 controlled baseline: median ~0.146 ms/tick.
-m0_status: IN_PROGRESS (G0-G6 PASS/CLOSED User Validation APPROVED 2026-08-16; Next Gate G7 Active/Sleep; G8/G9 pending)
+m0_status: IN_PROGRESS (G0-G6 PASS/CLOSED User Validation APPROVED 2026-08-16; G7 IN_PROGRESS — G7-A VALIDATION candidate; G8/G9 pending)
 ```

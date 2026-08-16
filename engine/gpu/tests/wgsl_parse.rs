@@ -50,6 +50,14 @@ fn all_production_wgsl_parses_without_a_gpu() {
         ),
         ("pressure.wgsl", include_str!("../src/pressure.wgsl")),
         ("rupture.wgsl", include_str!("../src/rupture.wgsl")),
+        (
+            "activity_propose.wgsl",
+            include_str!("../src/activity_propose.wgsl"),
+        ),
+        (
+            "activity_reduce.wgsl",
+            include_str!("../src/activity_reduce.wgsl"),
+        ),
     ];
 
     for (name, source) in shaders {

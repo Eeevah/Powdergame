@@ -39,6 +39,7 @@
 
 use std::sync::Arc;
 
+use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
 use powdergame_gpu::GpuError;
@@ -57,6 +58,9 @@ pub enum PresentationPalette {
     /// procedural G3 HUD overlay (the G6 HUD is drawn by the screen-space
     /// text renderer so panel titles + readback metrics stay legible).
     Integrity = 3,
+    /// G7 activity observatory: Lab-style base colors + per-chunk activity
+    /// heatmap overlay (read-only chunk_activity storage binding).
+    Activity = 4,
 }
 
 /// Read-only view spec for presenting the material world (G2/G3/G4).
@@ -68,6 +72,11 @@ pub struct WorldViewSpec<'a> {
     pub material_buffer: &'a wgpu::Buffer,
     pub temperature_buffer: Option<&'a wgpu::Buffer>,
     pub flags_buffer: Option<&'a wgpu::Buffer>,
+    /// G7-A per-chunk activity masks (presentation read-only; the Activity
+    /// palette heatmap overlay). None for other palettes.
+    pub chunk_activity_buffer: Option<&'a wgpu::Buffer>,
+    /// Chunk edge length (used by the Activity palette; 0 otherwise).
+    pub chunk_size: u32,
     pub width: u32,
     pub height: u32,
     pub palette: PresentationPalette,
@@ -103,8 +112,8 @@ struct Params {
     surface_w: u32,
     surface_h: u32,
     palette: u32,
-    _pad0: u32,
-    _pad1: u32,
+    chunk_size: u32,
+    chunks_x: u32,
     _pad2: u32,
 };
 
@@ -153,6 +162,7 @@ struct Metrics {
 @group(0) @binding(2) var<storage, read> temperatures: array<f32>;
 @group(0) @binding(3) var<storage, read> flags: array<u32>;
 @group(0) @binding(4) var<uniform> metrics: Metrics;
+@group(0) @binding(5) var<storage, read> chunk_activity: array<u32>;
 
 const EMPTY: u32 = 0u;
 const BOUNDARY: u32 = 1u;
@@ -167,6 +177,12 @@ const WOOD: u32 = 9u;
 const PALETTE_LAB: u32 = 1u;
 const PALETTE_THERMAL: u32 = 2u;
 const PALETTE_INTEGRITY: u32 = 3u;
+const PALETTE_ACTIVITY: u32 = 4u;
+
+const ACT_MATTER: u32 = 1u << 0u;
+const ACT_THERMAL: u32 = 1u << 1u;
+const ACT_PRESSURE: u32 = 1u << 2u;
+const ACT_REACTION: u32 = 1u << 3u;
 const FLAG_COMBUSTING: u32 = 1u;
 const FLAG_FLAME_EVENT: u32 = 2u;
 
@@ -312,7 +328,10 @@ fn temp_hit(px: f32, py: f32, origin_x: f32, origin_y: f32, cell: f32, spacing: 
 // Presentation-only debug palette (material IDs never change).
 // Forest: Stone is green terrain/trees. Lab/ThermalLab/Integrity: Stone is neutral.
 fn debug_color(id: u32, palette: u32) -> vec4<f32> {
-    if (palette == PALETTE_LAB || palette == PALETTE_THERMAL || palette == PALETTE_INTEGRITY) {
+    if (palette == PALETTE_LAB
+        || palette == PALETTE_THERMAL
+        || palette == PALETTE_INTEGRITY
+        || palette == PALETTE_ACTIVITY) {
         if (id == EMPTY) { return vec4<f32>(0.05, 0.055, 0.07, 1.0); }
         if (id == BOUNDARY) { return vec4<f32>(0.22, 0.23, 0.25, 1.0); }
         if (id == STONE) { return vec4<f32>(0.46, 0.47, 0.50, 1.0); }
@@ -421,6 +440,28 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> {
     return vec4<f32>(pos[vi], 0.0, 1.0);
 }
 
+// G7-A activity heatmap overlay: one dominant presentation color per chunk
+// (priority REACTION > PRESSURE > THERMAL > MATTER); zero-activity chunks
+// are dimmed. Presentation-only — simulation truth is never altered.
+fn activity_overlay(cell_x: u32, cell_y: u32, base: vec4<f32>) -> vec4<f32> {
+    let chunk = (cell_y / params.chunk_size) * params.chunks_x + (cell_x / params.chunk_size);
+    let mask = chunk_activity[chunk];
+    if (mask == 0u) {
+        return base * vec4<f32>(0.52, 0.52, 0.58, 1.0);
+    }
+    var col = base;
+    if ((mask & ACT_REACTION) != 0u) {
+        col = mix(col, vec4<f32>(1.0, 0.22, 0.22, 1.0), 0.55);
+    } else if ((mask & ACT_PRESSURE) != 0u) {
+        col = mix(col, vec4<f32>(0.25, 0.5, 1.0, 1.0), 0.55);
+    } else if ((mask & ACT_THERMAL) != 0u) {
+        col = mix(col, vec4<f32>(1.0, 0.55, 0.12, 1.0), 0.55);
+    } else {
+        col = mix(col, vec4<f32>(0.3, 0.85, 0.35, 1.0), 0.55);
+    }
+    return col;
+}
+
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let fw = f32(params.surface_w);
@@ -430,6 +471,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let lab = params.palette == PALETTE_LAB;
     let thermal = params.palette == PALETTE_THERMAL;
     let integrity = params.palette == PALETTE_INTEGRITY;
+    let activity = params.palette == PALETTE_ACTIVITY;
     var scale = min(fw / ww, fh / wh);
     var off_x = (fw - ww * scale) * 0.5;
     var off_y = (fh - wh * scale) * 0.5;
@@ -456,6 +498,14 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         scale = min(avail_w / ww, avail_h / wh);
         off_x = (fw - ww * scale) * 0.5;
         off_y = 60.0 + (avail_h - wh * scale) * 0.5;
+    } else if (activity) {
+        // G7: same letterboxing as G6 — banner + cards clear of the world.
+        let sidebar_w = 400.0;
+        let avail_w = max(fw - sidebar_w * 2.0, 1.0);
+        let avail_h = max(fh - 140.0, 1.0);
+        scale = min(avail_w / ww, avail_h / wh);
+        off_x = (fw - ww * scale) * 0.5;
+        off_y = 60.0 + (avail_h - wh * scale) * 0.5;
     }
     let px = frag.x;
     let py = frag.y;
@@ -470,7 +520,11 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
                 cell_x, cell_y, materials[idx], temperatures[idx], flags[idx]
             );
         }
-        return debug_color(materials[idx], params.palette);
+        let base = debug_color(materials[idx], params.palette);
+        if (activity) {
+            return activity_overlay(cell_x, cell_y, base);
+        }
+        return base;
     }
     if (lab) {
         let hud = lab_hud(px, py, fw, fh, off_x, off_y, scale);
@@ -709,6 +763,7 @@ pub enum HudData<'a> {
     Thermal(&'a crate::observatory::ObservatoryMetrics, u64),
     Pressure(&'a crate::observatory::PressureObservatoryMetrics, u64),
     ParallelIntegrity(&'a crate::observatory::IntegrityMetrics, u64),
+    Activity(&'a crate::observatory::ActivityMetrics, u64),
 }
 
 impl Renderer {
@@ -784,6 +839,17 @@ impl Renderer {
                             sim_ticks,
                         );
                     }
+                    HudData::Activity(metrics, sim_ticks) => {
+                        tr.render_activity_hud(
+                            &self.device,
+                            &self.queue,
+                            &mut render_pass,
+                            self.config.width,
+                            self.config.height,
+                            metrics,
+                            sim_ticks,
+                        );
+                    }
                 }
             }
             drop(render_pass);
@@ -806,8 +872,12 @@ struct WorldView {
     params: wgpu::Buffer,
     #[allow(dead_code)]
     metrics_buf: wgpu::Buffer,
+    /// Real or zeroed-dummy chunk-activity buffer (binding 5 is always bound).
+    #[allow(dead_code)]
+    chunk_activity: wgpu::Buffer,
     world_width: u32,
     world_height: u32,
+    chunk_size: u32,
     palette: u32,
 }
 
@@ -870,6 +940,12 @@ fn build_world_view(
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: storage,
+                count: None,
+            },
         ],
     });
 
@@ -919,6 +995,20 @@ fn build_world_view(
         mapped_at_creation: false,
     });
 
+    // Binding 5 is always bound; the Activity palette provides the real
+    // per-chunk buffer, every other palette gets a tiny zeroed dummy (never
+    // read because the activity branch is palette-gated).
+    let chunk_activity = spec.chunk_activity_buffer.map_or_else(
+        || {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("powdergame-world-view-dummy-chunk-activity"),
+                contents: &[0u8; 4],
+                usage: wgpu::BufferUsages::STORAGE,
+            })
+        },
+        |b| b.clone(),
+    );
+
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("powdergame-world-view-bg"),
         layout: &bind_group_layout,
@@ -949,6 +1039,10 @@ fn build_world_view(
                 binding: 4,
                 resource: metrics_buf.as_entire_binding(),
             },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: chunk_activity.as_entire_binding(),
+            },
         ],
     });
 
@@ -957,8 +1051,10 @@ fn build_world_view(
         bind_group,
         params,
         metrics_buf,
+        chunk_activity,
         world_width: spec.width,
         world_height: spec.height,
+        chunk_size: spec.chunk_size,
         palette: spec.palette as u32,
     };
     write_world_view_params(queue, &world_view, config);
@@ -977,5 +1073,12 @@ fn write_world_view_params(
     data[8..12].copy_from_slice(&config.width.to_ne_bytes());
     data[12..16].copy_from_slice(&config.height.to_ne_bytes());
     data[16..20].copy_from_slice(&wv.palette.to_ne_bytes());
+    data[20..24].copy_from_slice(&wv.chunk_size.to_ne_bytes());
+    let chunks_x = if wv.chunk_size == 0 {
+        0
+    } else {
+        wv.world_width.div_ceil(wv.chunk_size)
+    };
+    data[24..28].copy_from_slice(&chunks_x.to_ne_bytes());
     queue.write_buffer(&wv.params, 0, &data);
 }

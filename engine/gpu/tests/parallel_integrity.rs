@@ -148,6 +148,20 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
             source: include_str!("../src/rupture.wgsl"),
             expected_readwrite_bindings: &["material_next", "temperature_next", "flags_next"],
         },
+        PassContract {
+            name: "activity_propose.wgsl",
+            source: include_str!("../src/activity_propose.wgsl"),
+            expected_readwrite_bindings: &["cell_activity"],
+        },
+        PassContract {
+            name: "activity_reduce.wgsl",
+            source: include_str!("../src/activity_reduce.wgsl"),
+            expected_readwrite_bindings: &[
+                "chunk_activity",
+                "chunk_changed_this_tick",
+                "chunk_stable_ticks",
+            ],
+        },
     ];
 
     for contract in &contracts {

@@ -35,9 +35,9 @@
 use wgpu::util::DeviceExt;
 
 use powdergame_core::{
-    initial_material_ids, is_valid_cell_material_value, Domain, WorldConfig, WorldLayout,
-    FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, PRESSURE_ELEM_SIZE, PRESSURE_REFERENCE,
-    TEMPERATURE_ELEM_SIZE, TEMPERATURE_REFERENCE,
+    chunk_count, initial_material_ids, is_valid_cell_material_value, Domain, WorldConfig,
+    WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, PRESSURE_ELEM_SIZE,
+    PRESSURE_REFERENCE, TEMPERATURE_ELEM_SIZE, TEMPERATURE_REFERENCE,
 };
 
 use crate::context::GpuError;
@@ -61,6 +61,9 @@ pub struct AllocationReport {
     pub flags_current_bytes: u64,
     pub flags_next_bytes: u64,
     pub total_requested_world_bytes: u64,
+    /// G7-A activity diagnostics scratch (per-cell flags + 3 per-chunk u32
+    /// buffers). Measurement baseline only — no work is skipped yet.
+    pub activity_scratch_bytes: u64,
 }
 
 impl AllocationReport {
@@ -78,6 +81,8 @@ impl AllocationReport {
             flags_current_bytes: layout.flags_bytes,
             flags_next_bytes: layout.flags_bytes,
             total_requested_world_bytes: layout.total_world_bytes,
+            activity_scratch_bytes: layout.material_bytes
+                + 3 * (chunk_count(config.width, config.height, config.chunk_size) as u64) * 4,
         }
     }
 }
@@ -121,6 +126,11 @@ impl std::fmt::Display for AllocationReport {
             "total world-state bytes: {}",
             self.total_requested_world_bytes
         );
+        let _ = writeln!(
+            out,
+            "G7 activity scratch bytes: {}",
+            self.activity_scratch_bytes
+        );
         f.write_str(out.trim_end())
     }
 }
@@ -148,6 +158,16 @@ pub struct GpuWorld {
     /// Per-cell ownership edge claim (reciprocal agreement for moves/swaps).
     /// G4-C reuses this buffer for smoke spawn claims (sequential passes).
     pub claim: wgpu::Buffer,
+
+    /// G7-A per-cell activity flags (diagnostic measurement scratch;
+    /// every cell is rewritten each tick by the activity propose pass).
+    pub cell_activity: wgpu::Buffer,
+    /// G7-A per-chunk activity mask (OR of the chunk's cell flags).
+    pub chunk_activity: wgpu::Buffer,
+    /// G7-A per-chunk "had any frontier this tick" diagnostic.
+    pub chunk_changed_this_tick: wgpu::Buffer,
+    /// G7-A per-chunk consecutive stable ticks (observation baseline only).
+    pub chunk_stable_ticks: wgpu::Buffer,
 }
 
 /// Creates a zero-initialized buffer of `size` bytes.
@@ -256,6 +276,37 @@ impl GpuWorld {
             wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         )?;
 
+        // G7-A activity diagnostics (measurement baseline; no dispatch is
+        // skipped yet — G7-B decides that from these outputs).
+        let activity_usage = wgpu::BufferUsages::STORAGE
+            | wgpu::BufferUsages::COPY_SRC
+            | wgpu::BufferUsages::COPY_DST;
+        let cell_activity = create_zeroed_buffer(
+            device,
+            "world/activity/cell-activity",
+            layout.material_bytes,
+            activity_usage,
+        )?;
+        let chunk_bytes = chunk_count(config.width, config.height, config.chunk_size) as u64 * 4;
+        let chunk_activity = create_zeroed_buffer(
+            device,
+            "world/activity/chunk-activity",
+            chunk_bytes,
+            activity_usage,
+        )?;
+        let chunk_changed_this_tick = create_zeroed_buffer(
+            device,
+            "world/activity/chunk-changed",
+            chunk_bytes,
+            activity_usage,
+        )?;
+        let chunk_stable_ticks = create_zeroed_buffer(
+            device,
+            "world/activity/chunk-stable",
+            chunk_bytes,
+            activity_usage,
+        )?;
+
         let allocation = AllocationReport::from_layout(config, &layout);
 
         Ok(Self {
@@ -273,7 +324,78 @@ impl GpuWorld {
             flags_next,
             proposal,
             claim,
+            cell_activity,
+            chunk_activity,
+            chunk_changed_this_tick,
+            chunk_stable_ticks,
         })
+    }
+
+    /// Reads a whole u32 buffer (test/diagnostic helper).
+    fn read_u32_buffer(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        buffer: &wgpu::Buffer,
+        count: u64,
+    ) -> Result<Vec<u32>, GpuError> {
+        let bytes = read_back_bytes(device, queue, buffer, 0, count * 4)?;
+        let mut values = Vec::with_capacity(bytes.len() / 4);
+        for chunk in bytes.chunks_exact(4) {
+            values.push(u32::from_ne_bytes(chunk.try_into().unwrap()));
+        }
+        Ok(values)
+    }
+
+    /// Reads all per-cell activity flags (G7-A test helper).
+    pub fn read_cell_activity_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        self.read_u32_buffer(device, queue, &self.cell_activity, self.layout.cell_count)
+    }
+
+    /// Reads the per-chunk activity masks (G7-A test helper).
+    pub fn read_chunk_activity_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let count = chunk_count(
+            self.config.width,
+            self.config.height,
+            self.config.chunk_size,
+        ) as u64;
+        self.read_u32_buffer(device, queue, &self.chunk_activity, count)
+    }
+
+    /// Reads the per-chunk "changed this tick" diagnostics (G7-A test helper).
+    pub fn read_chunk_changed_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let count = chunk_count(
+            self.config.width,
+            self.config.height,
+            self.config.chunk_size,
+        ) as u64;
+        self.read_u32_buffer(device, queue, &self.chunk_changed_this_tick, count)
+    }
+
+    /// Reads the per-chunk stable-ticks counters (G7-A test helper).
+    pub fn read_chunk_stable_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u32>, GpuError> {
+        let count = chunk_count(
+            self.config.width,
+            self.config.height,
+            self.config.chunk_size,
+        ) as u64;
+        self.read_u32_buffer(device, queue, &self.chunk_stable_ticks, count)
     }
 
     /// Reads a single cell's material value (diagnostic/test helper).

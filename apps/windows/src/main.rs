@@ -65,6 +65,7 @@ const DENSITY_DEMO_TPS: u32 = 15;
 const THERMAL_DEMO_TPS: u32 = 60;
 const PRESSURE_DEMO_TPS: u32 = 60;
 const PARALLEL_INTEGRITY_DEMO_TPS: u32 = 60;
+const ACTIVITY_DEMO_TPS: u32 = 60;
 
 const MOVEMENT_DEMO_TITLE: &str = "Powdergame G2 Demo | SAND | WATER | OIL | STEAM | SMOKE";
 const DENSITY_DEMO_TITLE: &str =
@@ -75,6 +76,8 @@ const PRESSURE_DEMO_TITLE: &str =
     "Powdergame G5 Pressure Multi-Boiler Lab | 2x2 Standard vs Extreme Overdrive | Heat → Steam → Confinement → Rupture → Vent";
 const PARALLEL_INTEGRITY_DEMO_TITLE: &str =
     "Powdergame G6 Parallel Integrity Lab | Contention + Chunk Boundary + Ownership Stress";
+const ACTIVITY_DEMO_TITLE: &str =
+    "Powdergame G7 Active/Sleep Observatory | Stable Bulk vs Active Frontier";
 
 /// Which demo fixture (if any) the app presents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,6 +88,7 @@ enum DemoMode {
     Thermal,
     Pressure,
     ParallelIntegrity,
+    Activity,
 }
 
 impl DemoMode {
@@ -99,6 +103,7 @@ impl DemoMode {
             DemoMode::Thermal => THERMAL_DEMO_TPS,
             DemoMode::Pressure => PRESSURE_DEMO_TPS,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TPS,
+            DemoMode::Activity => ACTIVITY_DEMO_TPS,
         }
     }
 
@@ -217,6 +222,7 @@ impl App {
             DemoMode::Thermal => THERMAL_DEMO_TITLE,
             DemoMode::Pressure => PRESSURE_DEMO_TITLE,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TITLE,
+            DemoMode::Activity => ACTIVITY_DEMO_TITLE,
             DemoMode::None => "Powdergame — G0 Runtime",
         };
         // The thermal and pressure observatories use a larger world (320×192 / 256×256),
@@ -224,6 +230,7 @@ impl App {
         let (window_w, window_h) = if self.demo_mode == DemoMode::Thermal
             || self.demo_mode == DemoMode::Pressure
             || self.demo_mode == DemoMode::ParallelIntegrity
+            || self.demo_mode == DemoMode::Activity
         {
             (1600.0, 900.0)
         } else {
@@ -263,6 +270,7 @@ impl App {
                 DemoMode::Thermal => (320, 192),
                 DemoMode::Pressure => (256, 256),
                 DemoMode::ParallelIntegrity => (256, 256),
+                DemoMode::Activity => (256, 256),
                 _ => (128, 128),
             };
             WorldConfig::new(w, h, 64).expect("demo world config")
@@ -275,10 +283,12 @@ impl App {
         let observatory_collector = if self.demo_mode == DemoMode::Thermal
             || self.demo_mode == DemoMode::Pressure
             || self.demo_mode == DemoMode::ParallelIntegrity
+            || self.demo_mode == DemoMode::Activity
         {
             Some(ObservatoryCollector::new(
                 &simulation,
                 self.demo_mode == DemoMode::ParallelIntegrity,
+                self.demo_mode == DemoMode::Activity,
             ))
         } else {
             None
@@ -313,6 +323,10 @@ impl App {
                 stage_parallel_integrity_demo(&simulation)?;
                 println!("[powdergame] parallel integrity demo: 2x2 contention lab staged");
             }
+            DemoMode::Activity => {
+                stage_activity_demo(&simulation)?;
+                println!("[powdergame] activity demo: 4-panel active/sleep observatory staged");
+            }
         }
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
@@ -325,8 +339,12 @@ impl App {
                 DemoMode::Density => PresentationPalette::Lab,
                 DemoMode::Thermal | DemoMode::Pressure => PresentationPalette::ThermalLab,
                 DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
+                DemoMode::Activity => PresentationPalette::Activity,
                 _ => PresentationPalette::Forest,
             },
+            chunk_activity_buffer: (self.demo_mode == DemoMode::Activity)
+                .then_some(&simulation.world.chunk_activity),
+            chunk_size: simulation.world.config.chunk_size,
         });
         let renderer = Renderer::new(
             &simulation.context.instance,
@@ -1267,6 +1285,95 @@ fn stage_parallel_integrity_demo(simulation: &Simulation) -> Result<(), GpuError
     Ok(())
 }
 
+/// G7-A activity observatory: 256×256 (4×4 chunks), 2×2 panel layout with
+/// stone dividers at x 127..128 / y 127..128.
+///
+///   [A] STABLE WATER BULK     — sealed tank (no EMPTY interface → no
+///       movement frontier) beside a draining water column (active).
+///   [B] STABLE STEAM / GAS     — sealed Steam chamber at T=80 in cold
+///       Stone: no movement frontier; a real thermal boundary stays active
+///       until the world equilibrates.
+///   [C] WAKE PROPAGATION       — stable Stone plateau left, falling Sand
+///       column right: the stable chunks never wake from adjacency, and
+///       the falling column's chunks reset their stable counters.
+///   [D] SLOW ACTIVE WORLD      — Wood strip ignited by a hot Stone end
+///       (reaction + heat front) + a boiling Water pot (pressure + steam).
+///
+/// Staging uses only the validated edit hook (material + temperature);
+/// everything after the first tick is the production GPU simulation.
+fn stage_activity_demo(simulation: &Simulation) -> Result<(), GpuError> {
+    let q = &simulation.context.queue;
+    let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
+    let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
+    let stone = MATERIAL_STONE;
+    let fill = |x0: i64, y0: i64, x1: i64, y1: i64, id: u32| -> Result<(), GpuError> {
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                set(x, y, id)?;
+            }
+        }
+        Ok(())
+    };
+    let fill_t = |x0: i64, y0: i64, x1: i64, y1: i64, t: f32| -> Result<(), GpuError> {
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                set_t(x, y, t)?;
+            }
+        }
+        Ok(())
+    };
+
+    // Central cross dividers (same as G5/G6 labs).
+    for y in 1..=254 {
+        set(127, y, stone)?;
+        set(128, y, stone)?;
+    }
+    for x in 1..=254 {
+        set(x, 127, stone)?;
+        set(x, 128, stone)?;
+    }
+
+    // [A] STABLE WATER BULK (top-left: x 1..126, y 1..126).
+    // Sealed tank: water has no EMPTY interface on any stencil stage → the
+    // bulk chunks report no movement frontier (existence != activity).
+    fill(30, 40, 91, 105, stone)?; // tank shell
+    fill(32, 42, 89, 103, MATERIAL_WATER)?;
+    // Draining column beside the tank (real movement frontier while falling).
+    fill(96, 121, 107, 123, stone)?; // landing floor
+    fill(100, 44, 103, 80, MATERIAL_WATER)?;
+
+    // [B] STABLE STEAM / GAS BULK (top-right: x 129..254, y 1..126).
+    // Sealed chamber, Steam at T=80 (above the 40 condense threshold).
+    fill(140, 40, 231, 92, stone)?; // chamber shell
+    fill(143, 43, 228, 88, MATERIAL_STEAM)?;
+    fill_t(143, 43, 228, 88, 80.0)?;
+
+    // [C] WAKE PROPAGATION (bottom-left: x 1..126, y 129..254).
+    // Stable Stone plateau (left) + falling Sand column (right).
+    fill(5, 150, 60, 200, stone)?; // stable plateau
+    fill(70, 251, 120, 253, stone)?; // sand landing floor
+    fill(80, 140, 86, 235, MATERIAL_SAND)?; // tall falling column
+
+    // [D] SLOW ACTIVE WORLD (bottom-right: x 129..254, y 129..254).
+    // Wood strip ignited at one end by a hot Stone reservoir.
+    fill(140, 174, 149, 179, stone)?;
+    fill_t(140, 174, 149, 179, 200.0)?;
+    fill(150, 175, 200, 178, MATERIAL_WOOD)?;
+    // Boiling Water pot (hot Stone under a lidded cup with a vent):
+    // expansion steam rises; confinement pressure forms when the vent is
+    // occupied — a genuine PRESSURE frontier source.
+    fill(210, 231, 245, 236, stone)?;
+    fill_t(210, 231, 245, 236, 200.0)?;
+    fill(214, 229, 240, 230, stone)?; // cup floor
+    fill(214, 210, 240, 211, stone)?; // lid
+    fill(226, 210, 229, 211, MATERIAL_EMPTY)?; // vent
+    fill(214, 212, 215, 228, stone)?; // cup wall L
+    fill(239, 212, 240, 228, stone)?; // cup wall R
+    fill(217, 216, 238, 228, MATERIAL_WATER)?;
+
+    Ok(())
+}
+
 /// Resets the demo world to its pristine boundary-ring state and re-stages
 /// the active demo scene, using only the validated edit hook.
 fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuError> {
@@ -1300,6 +1407,7 @@ fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuEr
         DemoMode::Thermal => stage_thermal_demo(simulation),
         DemoMode::Pressure => stage_pressure_demo(simulation),
         DemoMode::ParallelIntegrity => stage_parallel_integrity_demo(simulation),
+        DemoMode::Activity => stage_activity_demo(simulation),
         DemoMode::None => Ok(()),
     }
 }
@@ -1468,6 +1576,12 @@ impl ApplicationHandler for App {
                                 )
                             })
                         }
+                        DemoMode::Activity => self.observatory_collector.as_ref().map(|c| {
+                            renderer::HudData::Activity(
+                                c.activity_metrics(),
+                                self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
+                            )
+                        }),
                         _ => None,
                     };
                     if let Err(e) = renderer.render(hud_data) {
@@ -1525,6 +1639,7 @@ fn parse_demo_mode() -> DemoMode {
             "--thermal-demo" => return DemoMode::Thermal,
             "--pressure-demo" => return DemoMode::Pressure,
             "--parallel-integrity-demo" => return DemoMode::ParallelIntegrity,
+            "--activity-demo" => return DemoMode::Activity,
             _ => {}
         }
     }
@@ -1570,6 +1685,11 @@ fn main() {
         DemoMode::Pressure => println!(
             "[powdergame] pressure demo: 128×128 twin boilers, 60 TPS. \
              LEFT Wood relief plug should rupture/vent; RIGHT Stone control stays sealed. \
+             Starts PAUSED (SPACE play | N step | R reset | ESC quit)"
+        ),
+        DemoMode::Activity => println!(
+            "[powdergame] activity demo: 256x256 G7 active/sleep observatory, 60 TPS. \
+             A stable water bulk | B sealed steam bulk | C wake propagation | D slow active. \
              Starts PAUSED (SPACE play | N step | R reset | ESC quit)"
         ),
         DemoMode::ParallelIntegrity => println!(

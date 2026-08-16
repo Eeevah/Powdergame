@@ -7,6 +7,7 @@
 //! - `powdergame-gpu` MUST NOT depend on Window/Renderer/Input.
 //! - only `apps/windows` may combine core + gpu with the platform layer.
 
+pub mod activity;
 pub mod combustion;
 pub mod decay;
 pub mod domain;
@@ -19,6 +20,11 @@ pub mod rupture;
 pub mod thermal;
 pub mod world_config;
 
+pub use activity::{
+    chunk_count, chunks_x, chunks_y, stable_ticks_update, ACTIVITY_ALL_BITS, ACTIVITY_MATTER,
+    ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, PRESSURE_ACTIVITY_EPS,
+    THERMAL_ACTIVITY_EPS,
+};
 pub use combustion::{
     combustion_descriptor, combustion_flag_mask, combustion_flags_next, combustion_step,
     combustion_table, fuel_progress, pick_smoke_spawn, with_fuel_progress, CombustionDescriptor,

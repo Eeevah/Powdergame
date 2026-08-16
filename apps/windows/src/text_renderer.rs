@@ -10,7 +10,10 @@ use bytemuck::{Pod, Zeroable};
 use fontdue::{Font, FontSettings};
 use powdergame_gpu::GpuError;
 
-use crate::observatory::{IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics};
+use crate::observatory::{
+    ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
+    ACTIVITY_PANEL_NAMES,
+};
 
 /// Single vertex for the text / UI quad batcher.
 #[repr(C)]
@@ -2851,6 +2854,259 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             bot_bar_y,
             15,
             "SPACE Play / Pause   |   F Fast-Forward x1/x4/x16   |   N Single Step (1 tick)   |   R Reset World & Metrics   |   ESC Quit",
+            col_label,
+        );
+
+        // Upload and draw (tail of render_parallel_integrity_hud).
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// G7-A chunk-activity observation HUD. Every number comes from
+    /// `ActivityMetrics` (real GPU readback of chunk_activity /
+    /// chunk_stable_ticks). The world cells carry the same activity data as
+    /// a heatmap overlay (Renderer Activity palette).
+    pub fn render_activity_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        metrics: &ActivityMetrics,
+        sim_ticks: u64,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+
+        self.batch.clear();
+        let white_uv = self.atlas.solid_white_uv;
+
+        let col_title = [0.95, 0.96, 0.98, 1.0];
+        let col_header = [0.85, 0.90, 0.96, 1.0];
+        let col_label = [0.65, 0.70, 0.78, 1.0];
+        let col_val_white = [0.98, 0.98, 0.98, 1.0];
+        let col_green = [0.35, 0.95, 0.60, 1.0];
+        let col_orange = [1.0, 0.60, 0.20, 1.0];
+        let col_blue = [0.35, 0.60, 1.0, 1.0];
+        let col_red = [1.0, 0.35, 0.30, 1.0];
+        let col_dim = [0.45, 0.48, 0.56, 1.0];
+
+        let col_card_bg = [0.07, 0.09, 0.13, 0.90];
+        let col_card_border = [0.18, 0.22, 0.30, 1.0];
+
+        // 1. Top banner.
+        self.batch.draw_text(
+            &self.atlas,
+            24.0,
+            16.0,
+            24,
+            "G7 ACTIVE / SLEEP OBSERVATORY | Stable Bulk vs Active Frontier",
+            col_title,
+        );
+        let sim_text = format!("SIM TICK: {:>6}", sim_ticks);
+        let sample_text = format!("DIAGNOSTIC SAMPLE: {:>6}", metrics.sample_tick);
+        let full_tick_str = format!("{sim_text}   |   {sample_text}");
+        self.batch
+            .draw_text_right(&self.atlas, sw - 24.0, 22.0, 15, &full_tick_str, col_header);
+
+        let sidebar_w = 360.0f32;
+        let left_x = 20.0;
+        let right_x = sw - sidebar_w + 10.0;
+        let card_w = sidebar_w - 20.0;
+        let top_y = 65.0;
+
+        // 2. Left: global activity card.
+        let glob_h = 330.0;
+        self.batch
+            .draw_rect(left_x, top_y, card_w, glob_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            left_x,
+            top_y,
+            card_w,
+            glob_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+        let mut y = top_y + 16.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 14.0,
+            y,
+            17,
+            "GLOBAL CHUNK ACTIVITY",
+            col_header,
+        );
+        y += 30.0;
+        let rows = [
+            ("Total Chunks", metrics.total_chunks.to_string()),
+            ("Matter Active", metrics.matter_active.to_string()),
+            ("Thermal Active", metrics.thermal_active.to_string()),
+            ("Pressure Active", metrics.pressure_active.to_string()),
+            ("Reaction Active", metrics.reaction_active.to_string()),
+            ("Fully Stable", metrics.fully_stable.to_string()),
+            ("Max Stable Ticks", metrics.max_stable_ticks.to_string()),
+            ("Wake Events", metrics.wake_events.to_string()),
+        ];
+        for (label, value) in rows {
+            self.batch
+                .draw_text(&self.atlas, left_x + 14.0, y, 15, label, col_label);
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + card_w - 70.0,
+                y,
+                15,
+                &value,
+                col_val_white,
+            );
+            y += 26.0;
+        }
+
+        // 3. Activity legend.
+        let legend_y = top_y + glob_h + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 14.0,
+            legend_y,
+            15,
+            "HEATMAP: GREEN Matter | ORANGE Thermal | BLUE Pressure | RED Reaction | DIM Stable",
+            col_header,
+        );
+        let note_y = legend_y + 26.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 14.0,
+            note_y,
+            13,
+            "Existence != Activity: a settled bulk chunk has no frontier and its",
+            col_label,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 14.0,
+            note_y + 18.0,
+            13,
+            "stable counter grows. No subsystem dispatch is skipped yet (G7-A).",
+            col_label,
+        );
+
+        // 4. Right: four panel cards.
+        let panel_top = top_y;
+        let panel_h = (sh - panel_top - 110.0) / 4.0 - 10.0;
+        for (i, name) in ACTIVITY_PANEL_NAMES.iter().enumerate() {
+            let py = panel_top + (panel_h + 10.0) * (i as f32);
+            self.batch
+                .draw_rect(right_x, py, card_w, panel_h, col_card_bg, white_uv);
+            self.batch
+                .draw_outline(right_x, py, card_w, panel_h, 1.0, col_card_border, white_uv);
+            let p = &metrics.panels[i];
+            self.batch
+                .draw_text(&self.atlas, right_x + 14.0, py + 12.0, 16, name, col_header);
+            let counts = format!(
+                "M {} | T {} | P {} | R {} | stable {}/{}",
+                p.matter_active,
+                p.thermal_active,
+                p.pressure_active,
+                p.reaction_active,
+                p.fully_stable,
+                p.total_chunks
+            );
+            self.batch.draw_text(
+                &self.atlas,
+                right_x + 14.0,
+                py + 38.0,
+                14,
+                &counts,
+                col_val_white,
+            );
+            let max_s = format!("max stable ticks: {}", p.max_stable_ticks);
+            self.batch.draw_text(
+                &self.atlas,
+                right_x + 14.0,
+                py + 60.0,
+                13,
+                &max_s,
+                col_label,
+            );
+            let (status, status_col) = if p.total_chunks == 0 {
+                ("--", col_dim)
+            } else if p.fully_stable == p.total_chunks {
+                ("FULLY STABLE", col_green)
+            } else if p.reaction_active > 0 {
+                ("REACTIVE", col_red)
+            } else if p.pressure_active > 0 {
+                ("PRESSURE FRONT", col_blue)
+            } else if p.thermal_active > 0 {
+                ("THERMAL FRONT", col_orange)
+            } else if p.matter_active > 0 {
+                ("MOVING FRONTIER", col_green)
+            } else {
+                ("MIXED", col_label)
+            };
+            self.batch.draw_text(
+                &self.atlas,
+                right_x + 14.0,
+                py + panel_h - 34.0,
+                15,
+                status,
+                status_col,
+            );
+        }
+
+        // 5. Bottom controls bar.
+        let bot_bar_y = sh - 32.0;
+        self.batch.draw_text(
+            &self.atlas,
+            24.0,
+            bot_bar_y,
+            15,
+            "SPACE Play / Pause   |   N Single Step (1 tick)   |   R Reset   |   ESC Quit",
             col_label,
         );
 

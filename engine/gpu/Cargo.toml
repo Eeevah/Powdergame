@@ -10,3 +10,6 @@ powdergame-core = { workspace = true }
 wgpu = { workspace = true }
 pollster = { workspace = true }
 env_logger = { workspace = true }
+
+[dev-dependencies]
+naga = { version = "26", features = ["wgsl-in"] }

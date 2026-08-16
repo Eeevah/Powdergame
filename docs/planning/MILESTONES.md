@@ -92,12 +92,28 @@ Bit-perfect determinism을 기본 correctness 기준으로 사용하지 않는�
 # M0 — First World
 
 **Type:** Delivery  
-**Status:** PLANNED  
+**Status:** IN_PROGRESS  
 **Purpose:** 첫 GPU 세계가 Powdergame의 핵심 철학을 실제로 증명하는가.
 
 M0의 목적은 콘텐츠를 많이 넣는 것이 아니다.
 
 > **수백만 개의 아주 싼 Local Rule을 RTX 5090에서 병렬로 실행해, Matter들이 실제로 서로 영향을 주는 살아 있는 첫 세계가 성립한다는 것을 증명한다.**
+
+## Current Gate State — 2026-08-17
+
+현재 실제 세부 상태는 `STATUS.md`가 최종 기준이다.
+
+이 문서 갱신 시점의 요약:
+
+- G0-G7: PASS / CLOSED
+- G8: IN_PROGRESS
+  - G8-A Measurement Substrate: COMPLETE
+  - G8-B Benchmark Scenario Suite: NEXT
+  - G8-C Official Matrix Measurement: PENDING
+- G9: PENDING
+- M0 `ACHIEVED`: NO
+
+---
 
 ## M0 Reference Configuration
 
@@ -350,9 +366,26 @@ Water heated
 
 ### Claim
 
-M0의 성능을 추측이 아니라 숫자로 설명할 수 있다.
+M0의 성능을 추측이 아니라 재현 가능한 숫자와 병목 결론으로 설명할 수 있다.
 
-### Required Benchmark Scenarios
+G8은 최대 TPS 경쟁이 아니다.
+
+> **어떤 실제 gameplay workload가 얼마의 비용을 만들며, 다음 작업이 최적화인지 제품 구현인지 판단할 수 있어야 한다.**
+
+### G8-A — Measurement Substrate
+
+Required evidence:
+
+- production pipeline과 동일한 pass ordering 측정
+- ordinary production path에 profiling feature/readback 의존성 없음
+- per-pass GPU timestamp 측정
+- profiled / unprofiled state equivalence
+- timed loop 밖 activity census
+- application-tracked GPU memory accounting
+
+### G8-B — Benchmark Scenario Suite
+
+Required repeatable fixtures:
 
 - Sand Fall
 - Water Flow
@@ -360,12 +393,18 @@ M0의 성능을 추측이 아니라 숫자로 설명할 수 있다.
 - Pressure Burst
 - Heavy Mixed World
 
-### Required Metrics
+각 fixture는 동일 config에서 자동 staging 가능하고, scenario-specific benchmark code가 production physics를 변경하지 않아야 한다.
 
+### G8-C — Official Matrix Measurement
+
+Required metrics:
+
+- production sustained simulation throughput
+- simulation tick wall time
+- GPU tick envelope
 - Render FPS
-- simulation tick time
-- GPU simulation time
 - GPU rendering time
+- simulation + rendering 동시 실행 상태
 - Matter movement cost
 - Temperature cost
 - Pressure cost
@@ -374,49 +413,172 @@ M0의 성능을 추측이 아니라 숫자로 설명할 수 있다.
 - Active/Sleep management cost
 - active Cell count
 - active Chunk count
-- VRAM usage
+- tracked GPU memory
+- commit SHA / Windows / GPU / driver / WorldConfig / chunk size / build mode
+
+### Measurement Integrity
+
+- timed loop 안에서 full-world readback 금지
+- scenario마다 동일한 warm-up/trial 정책 사용
+- single-tick latency와 sustained batch throughput을 혼동하지 않음
+- debug HUD의 wall-clock TPS를 공식 GPU benchmark로 확대 해석하지 않음
+- profiling overhead를 production cost로 보고하지 않음
 
 ### M0 Numeric Target
 
-아직 임의의 numeric pass/fail 기준을 두지 않는다.
+60 TPS는 reference product target이다.
 
-M0는 **baseline을 만들고 병목을 볼 수 있는 것**이 gate다.
+그러나 M0는 임의의 최대 TPS 숫자 하나만으로 PASS/FAIL을 결정하지 않는다.
 
-M1 이후 실제 RTX 5090 결과를 기반으로 performance budget을 설정한다.
+M0의 G8 Gate는 다음을 요구한다.
+
+- representative baseline 확보
+- subsystem cost 분리
+- 병목 식별 가능
+- 결과가 재현 가능
+- 최적화가 지금 필요한지 결론 가능
+
+### Optimization Decision Rule
+
+다음 증거가 없으면 G7-C compaction / indirect dispatch 또는 공격적인 packing을 G9보다 먼저 구현하지 않는다.
+
+- 대표 workload에서 60 TPS 또는 필요한 render responsiveness를 막는 병목
+- 콘텐츠 추가 예산을 심각하게 제한하는 subsystem cost
+- world scale 또는 user interaction 구현을 막는 구조적 비용
+
+병목이 확인되면 한 번에 하나의 최적화 가설만 baseline과 비교한다.
 
 ---
 
-## G9 — Product Validation
+## G9 — Playable First World / Product Validation
 
 ### Claim
 
-기술적으로 움직이는 것뿐 아니라 Powdergame의 핵심 재미가 실제로 보인다.
+기술적으로 움직이는 것을 넘어, 사용자가 직접 세계를 만들고 관찰하고 다시 실험하면서 Powdergame의 핵심 재미를 경험할 수 있다.
 
-대표 M0 experiment:
+G9는 고정된 정답 fixture를 구경하는 마지막 승인 절차가 아니다.
+
+> **M0의 실제 게임 vertical slice다.**
+
+### G9-A — Sandbox Interaction
+
+Required evidence:
+
+- Matter 선택
+- draw / erase
+- brush size
+- Heat 또는 Temperature 조작 도구
+- pause / play / single-step / speed control / reset
+- pan / zoom
+- experiment preset load
+- edit command가 GPU authoritative simulation에 안전하게 반영
+- input/presentation code가 physics를 직접 우회하거나 임의 변경하지 않음
+
+Failure:
+
+- 사용자가 고정 demo를 재생/정지하는 것만 가능
+- test staging 함수 없이는 세계를 만들 수 없음
+- UI가 CPU-side 별도 simulation truth를 만듦
+
+### G9-B — Open Emergence
+
+Required evidence:
+
+현재 M0 Matter와 공통 Rule만 사용해 사용자가 직접 만든 sandbox setup에서 다음 종류의 chain이 발생할 수 있다.
 
 ```text
-Heat
-→ Water
-→ Steam
-→ expansion
-→ Pressure
-→ rupture
-→ vent
-→ nearby Heat/Smoke/Movement
-→ follow-up reaction
+Sand / Water / Oil movement and layering
+Ice ↔ Water ↔ Steam
+Wood / Oil combustion
+sealed chamber → Pressure → rupture → vent
+Heat / Smoke / Pressure → follow-up change
 ```
 
-### Required User Questions
+- 결과 전체를 scenario-specific script로 작성하지 않음
+- `boiler_explosion()` 같은 전용 정답 기능 없이 공통 Rule이 결합
+- 동일 Matter가 한 가지 정답 장면이 아니라 여러 실험에 사용 가능
+- 예상 밖 결과가 invariant를 지키고 세계 규칙상 납득 가능하면 관찰 대상으로 보존
+
+### G9-C — Discovery MVP
+
+Required evidence:
+
+실제 simulation truth에서 나온 semantic state/event를 사용해 첫 의미 있는 관찰을 기록한다.
+
+최소 후보:
+
+- Phase Change
+- Combustion Started / Extinguished
+- Pressure Generated
+- Rupture / Vent
+- Matter Transformation
+- 의미 있는 resistance / no-reaction observation
+
+Discovery policy:
+
+- 현상 단위 기록
+- 정확한 threshold / coefficient 비공개
+- 남은 exact discovery count 비공개
+- “아직 발견하지 못한 성질이 있다” 정도의 hint 허용
+- reset/preset이 runtime truth와 다른 가짜 발견을 만들지 않음
+
+> **사전은 정답표가 아니라 플레이어가 발견한 세계의 연구 노트다.**
+
+### G9-D — Honest Presentation
+
+Required evidence:
+
+- Simulation Truth와 Presentation Effect가 구조적으로 분리
+- combustion, Smoke/Temperature 또는 rupture/vent 중 핵심 현상을 raw diagnostic color보다 읽기 쉬운 modern feedback으로 표현
+- read-only state 또는 semantic event에서 presentation input 추출
+- 실제로 일어나지 않은 movement/reaction을 보여주지 않음
+- cell simulation resolution이 final FX resolution을 강제하지 않음
+
+최종 art stack 전체, 모든 sound, 완성된 post-processing은 M0 요구사항이 아니다.
+
+그러나 현재 진단 HUD와 pixel palette만으로 제품 재미를 판정하지 않는다.
+
+### G9-E — User Product Validation
+
+Required user questions:
 
 - 직접 만졌을 때 재미있는가?
 - 단순한 local Rule들이 서로 연결되어 예상보다 큰 현상을 만드는가?
 - 결과가 현실과 똑같지 않아도 세계 안에서 말이 되는가?
 - “이걸 넣으면 무슨 일이 일어날까?”라는 다음 실험 욕구가 생기는가?
 - 성능 최적화가 세계를 죽이는 편법으로 느껴지지 않는가?
+- 고정 설명 없이도 원인과 결과를 어느 정도 읽을 수 있는가?
+
+Strong success signals:
+
+- 사용자가 지시 없이 두 번째 실험을 시작
+- 같은 Matter를 다른 용도로 다시 사용
+- 정확한 수치를 몰라도 결과의 원인을 설명
+- 예상하지 못했지만 납득 가능한 결과를 발견
+- 관찰 후 새로운 조건이나 Matter를 자발적으로 추가
 
 ### Final Approval
 
-**사용자가 직접 플레이하고 승인해야 M0 = ACHIEVED.**
+**사용자가 실제 sandbox를 직접 플레이하고 승인해야 M0 = ACHIEVED.**
+
+자동 테스트, benchmark, AI review와 고정 observatory 승인은 G9-E의 사용자 제품 승인을 대체하지 않는다.
+
+---
+
+## M0 Closure Order
+
+```text
+G8-B Benchmark Fixtures
+→ G8-C Official Matrix and Bottleneck Decision
+→ G9-A Sandbox Interaction
+→ G9-B Open Emergence
+→ G9-C Discovery MVP
+→ G9-D Honest Presentation
+→ G9-E User Approval
+→ M0 ACHIEVED
+```
+
+G8에서 명확한 blocker가 나오지 않는 한 G9 전에 별도 최적화 Phase를 삽입하지 않는다.
 
 ---
 
@@ -436,6 +598,11 @@ Heat
 - strict global energy conservation
 - broad GPU compatibility
 - Browser/macOS product version
-- 숫자로 미리 정한 무리한 performance target
+- 수십 개 Material의 일괄 구현
+- atmosphere composition / universal mixture solver
+- 완성된 production art/audio stack 전체
+- 숫자로 미리 정한 무리한 최대 performance target
 
-M0의 목적은 이 미래 기능을 많이 구현하는 것이 아니라 **이들을 나중에 같은 저비용 local physics 철학으로 확장할 수 있는 첫 세계를 증명하는 것**이다.
+M0의 목적은 이 미래 기능을 많이 구현하는 것이 아니다.
+
+> **이미 증명한 빠른 GPU 세계를 플레이어가 실제로 자기 세계로 사용할 수 있게 만들고, 다음 실험 욕구가 생기는지 확인하는 것.**

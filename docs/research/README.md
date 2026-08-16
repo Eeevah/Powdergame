@@ -50,6 +50,7 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 - `derived/MATERIAL_SELECTION_FRAMEWORK.md` — **현실의 특징 강한 물질 → 역사적 자연관/연금술 → interaction gap → 필요한 만큼만 오리지널 Matter** 순서로 후보를 줄이는 interaction-first 선정 원칙.
 - `derived/CURATED_INTERACTION_CORE.md` — 위 선정 원칙을 실제 후보에 적용해 현실 물질 중심의 수십 종 core와 소수의 original gap-filler를 제안한다.
 - `derived/FIRST_INTERACTION_ROSTER.md` — 현재 16종 기반을 포함해 **38개 Matter identity**를 첫 넓은 interaction roster로 정리한다. 현실/일반 15종 + 현실 exotic 3종 + original gap-filler 4종만 추가하며, reserve/merge/defer 규칙도 함께 기록한다.
+- `derived/BLOCK_PALETTE_AND_PG2_GAP_REVIEW.md` — Minecraft의 **한 블록=기억할 행동** 설계와 Powder Game 2의 compact element verbs를 참고해, 현재 roster에서 너무 뭉뚱그려진 `Metal / Stone / Plant` family와 adhesion/absorption/foam/contagion/delayed-trigger 빈칸을 재검토한다. Iron/Copper/Lead/Mercury, Basalt/Limestone/Amethyst, Vine/Moss/Fungus/Algae, Sponge/Soapy Water/Nitroglycerin/Fuse 등을 다음 family 후보로 제안한다.
 
 ## Master Encyclopedia
 
@@ -71,6 +72,7 @@ source name / lore
 → behavior family
 → duplicate merge
 → real/historical coverage check
+→ block/material family differentiation
 → only then original gap-filler
 → user review
 → ADR / SPEC / content registration
@@ -88,6 +90,7 @@ Current ADR/SPEC conflict check
 Candidate extraction
   ├─ high-interaction real Matter
   ├─ historical / philosophical archetype
+  ├─ block/material family representative
   ├─ original gap-filler
   └─ future / meta
   ↓

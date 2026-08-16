@@ -54,8 +54,6 @@ fn pressure(sim: &Simulation, x: i64, y: i64) -> f32 {
         .expect("pressure readback")
 }
 
-
-
 fn block_water_motion_except_top_wall(sim: &Simulation, wall_material: u32) {
     // Water at (3,3). Liquid candidates down/down-diagonal/lateral are Stone;
     // the top cell (3,2) is the structural wall stressed by Pressure.

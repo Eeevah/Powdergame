@@ -463,7 +463,11 @@ impl App {
             sim.set_sleep_enabled(next_state);
             println!(
                 "[powdergame] sleep optimization: {}",
-                if next_state { "ENABLED (Sparse Work)" } else { "DISABLED (Always-Active Reference)" }
+                if next_state {
+                    "ENABLED (Sparse Work)"
+                } else {
+                    "DISABLED (Always-Active Reference)"
+                }
             );
             window.request_redraw();
         }

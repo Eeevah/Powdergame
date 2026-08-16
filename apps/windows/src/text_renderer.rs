@@ -2954,15 +2954,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         } else {
             "SLEEP: [OFF] (Always-Active Reference)".to_string()
         };
-        let mode_color = if metrics.sleep_enabled { col_green } else { col_orange };
-        self.batch.draw_text(
-            &self.atlas,
-            24.0,
-            42.0,
-            14,
-            &mode_text,
-            mode_color,
-        );
+        let mode_color = if metrics.sleep_enabled {
+            col_green
+        } else {
+            col_orange
+        };
+        self.batch
+            .draw_text(&self.atlas, 24.0, 42.0, 14, &mode_text, mode_color);
 
         let sim_text = format!("SIM TICK: {:>6}", sim_ticks);
         let sample_text = format!("DIAGNOSTIC SAMPLE: {:>6}", metrics.sample_tick);
@@ -3004,25 +3002,52 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             .unwrap_or(0);
         let rows = [
             ("Total Chunks", metrics.total_chunks.to_string()),
-            ("Runnable Chunks", format!("{} / {}", metrics.runnable_chunks, metrics.total_chunks)),
-            ("Sleeping Chunks", format!("{} / {} ({}%)", metrics.sleeping_chunks, metrics.total_chunks, sleep_pct)),
+            (
+                "Runnable Chunks",
+                format!("{} / {}", metrics.runnable_chunks, metrics.total_chunks),
+            ),
+            (
+                "Sleeping Chunks",
+                format!(
+                    "{} / {} ({}%)",
+                    metrics.sleeping_chunks, metrics.total_chunks, sleep_pct
+                ),
+            ),
             ("Wake: Self Activity", metrics.wake_reason_self.to_string()),
-            ("Wake: Neighbor Halo (8)", metrics.wake_reason_halo.to_string()),
+            (
+                "Wake: Neighbor Halo (8)",
+                metrics.wake_reason_halo.to_string(),
+            ),
             ("Wake: User Edit", metrics.wake_reason_edit.to_string()),
-            ("Wake: Settling / Always", format!("{} / {}", metrics.wake_reason_settling, metrics.wake_reason_always)),
+            (
+                "Wake: Settling / Always",
+                format!(
+                    "{} / {}",
+                    metrics.wake_reason_settling, metrics.wake_reason_always
+                ),
+            ),
             ("Matter Active", metrics.matter_active.to_string()),
             ("Thermal Active", metrics.thermal_active.to_string()),
             ("Pressure Active", metrics.pressure_active.to_string()),
             ("Reaction Active", metrics.reaction_active.to_string()),
             ("Fully Stable (0 mask)", metrics.fully_stable.to_string()),
             ("Max Stable Ticks", metrics.max_stable_ticks.to_string()),
-            ("Guarded Cell-Passes Skipped", format!("~{} / tick", metrics.guarded_cells_skipped)),
+            (
+                "Guarded Cell-Passes Skipped",
+                format!("~{} / tick", metrics.guarded_cells_skipped),
+            ),
         ];
         for (label, value) in rows {
             self.batch
                 .draw_text(&self.atlas, left_x + 14.0, y, 14, label, col_label);
-            self.batch
-                .draw_text(&self.atlas, left_x + card_w - 120.0, y, 14, &value, col_val_white);
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + card_w - 120.0,
+                y,
+                14,
+                &value,
+                col_val_white,
+            );
             y += 24.0;
         }
 
@@ -3083,7 +3108,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 &counts,
                 col_val_white,
             );
-            let max_s = format!("max stable ticks: {} | fully stable: {}/{}", p.max_stable_ticks, p.fully_stable, p.total_chunks);
+            let max_s = format!(
+                "max stable ticks: {} | fully stable: {}/{}",
+                p.max_stable_ticks, p.fully_stable, p.total_chunks
+            );
             self.batch.draw_text(
                 &self.atlas,
                 right_x + 14.0,

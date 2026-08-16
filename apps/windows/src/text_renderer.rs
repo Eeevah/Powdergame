@@ -78,8 +78,8 @@ impl FontAtlas {
         let mut row_h = 0u32;
         let mut glyphs = HashMap::new();
 
-        // Rasterize standard sizes: 13, 15, 18, 24 px
-        let sizes = [13u32, 15u32, 18u32, 24u32];
+        // Rasterize standard sizes: 12, 13, 14, 15, 16, 17, 18, 24 px
+        let sizes = [12u32, 13u32, 14u32, 15u32, 16u32, 17u32, 18u32, 24u32];
 
         for &sz in &sizes {
             let px_f32 = sz as f32;
@@ -3204,5 +3204,28 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_font_atlas_contains_all_required_hud_sizes() {
+        let context =
+            pollster::block_on(powdergame_gpu::GpuContext::new()).expect("DX12 GPU context");
+        let (atlas, _tex, _view) =
+            FontAtlas::build(&context.device, &context.queue).expect("FontAtlas build");
+
+        let required_sizes = [12u32, 13, 14, 15, 16, 17, 18, 24];
+        for &sz in &required_sizes {
+            for ch in ['A', 'Z', 'a', 'z', '0', '9', ':', '%', '[', ']', ' '] {
+                assert!(
+                    atlas.glyphs.contains_key(&(ch, sz)),
+                    "atlas must contain glyph for '{ch}' at size {sz}px"
+                );
+            }
+        }
     }
 }

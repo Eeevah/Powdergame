@@ -1672,6 +1672,19 @@ impl Simulation {
         self.update_uniforms();
     }
 
+    /// Resets the simulation world state, diagnostics scratch, and tick counter to tick 0.
+    /// Preserves sleep optimization settings (`sleep_enabled`, `sleep_threshold`).
+    pub fn reset(&mut self) -> Result<(), GpuError> {
+        self.world.reset(&self.context.queue)?;
+        self.tick_count = 0;
+        let arb_bytes = [0u8; 16];
+        self.context
+            .queue
+            .write_buffer(&self.arbitration_params, 0, &arb_bytes);
+        self.update_uniforms();
+        Ok(())
+    }
+
     fn update_uniforms(&self) {
         let cell_count_u32 = self.world.layout.cell_count as u32;
         let threads_x_u32 = THREADS_X as u32;

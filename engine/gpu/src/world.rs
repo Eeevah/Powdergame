@@ -357,6 +357,50 @@ impl GpuWorld {
         })
     }
 
+    /// Resets all dense GPU world state and scratch buffers to the pristine
+    /// initial state (outermost ring BOUNDARY_BLOCK, interior EMPTY, zero temperatures,
+    /// zero pressures, zero flags, cleared proposal/claim scratch buffers, zeroed activity/diagnostics).
+    ///
+    /// Uses bulk uploads via `queue.write_buffer` instead of per-cell edits, eliminating
+    /// multi-second pipeline stalls during demo reset.
+    pub fn reset(&self, queue: &wgpu::Queue) -> Result<(), GpuError> {
+        let initial_ids = initial_material_ids(&self.config)
+            .map_err(|e| GpuError::Other(format!("initial world build failed: {e}")))?;
+        let mut material_bytes: Vec<u8> = Vec::with_capacity(initial_ids.len() * 4);
+        for id in &initial_ids {
+            material_bytes.extend_from_slice(&id.to_ne_bytes());
+        }
+
+        queue.write_buffer(&self.material_current, 0, &material_bytes);
+        queue.write_buffer(&self.material_next, 0, &material_bytes);
+
+        let zero_cells = vec![0u8; self.layout.material_bytes as usize];
+        queue.write_buffer(&self.temperature_current, 0, &zero_cells);
+        queue.write_buffer(&self.temperature_next, 0, &zero_cells);
+        queue.write_buffer(&self.pressure_current, 0, &zero_cells);
+        queue.write_buffer(&self.pressure_next, 0, &zero_cells);
+        queue.write_buffer(&self.flags_current, 0, &zero_cells);
+        queue.write_buffer(&self.flags_next, 0, &zero_cells);
+        queue.write_buffer(&self.proposal, 0, &zero_cells);
+        queue.write_buffer(&self.claim, 0, &zero_cells);
+        queue.write_buffer(&self.cell_activity, 0, &zero_cells);
+
+        let chunk_bytes = (chunk_count(
+            self.config.width,
+            self.config.height,
+            self.config.chunk_size,
+        ) * 4) as usize;
+        let zero_chunks = vec![0u8; chunk_bytes];
+        queue.write_buffer(&self.chunk_activity, 0, &zero_chunks);
+        queue.write_buffer(&self.chunk_changed_this_tick, 0, &zero_chunks);
+        queue.write_buffer(&self.chunk_stable_ticks, 0, &zero_chunks);
+        queue.write_buffer(&self.chunk_edit_wake, 0, &zero_chunks);
+        queue.write_buffer(&self.chunk_state, 0, &zero_chunks);
+        queue.write_buffer(&self.chunk_wake_reason, 0, &zero_chunks);
+
+        Ok(())
+    }
+
     /// Reads a whole u32 buffer (test/diagnostic helper).
     fn read_u32_buffer(
         &self,

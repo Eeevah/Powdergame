@@ -442,6 +442,7 @@ impl App {
     fn request_reset(&mut self, window: &Window) {
         if let Some(demo) = &mut self.demo {
             demo.reset_pending = true;
+            demo.step_pending = false;
             demo.playing = false;
             demo.last_tick = None;
             demo.ticks = 0;
@@ -1430,32 +1431,9 @@ fn stage_activity_demo(simulation: &Simulation) -> Result<(), GpuError> {
 }
 
 /// Resets the demo world to its pristine boundary-ring state and re-stages
-/// the active demo scene, using only the validated edit hook.
-fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuError> {
-    let q = &simulation.context.queue;
-    let w = i64::from(simulation.world.config.width);
-    let h = i64::from(simulation.world.config.height);
-    for y in 0..h {
-        for x in 0..w {
-            simulation.world.write_material(q, x, y, MATERIAL_EMPTY)?;
-        }
-    }
-    for x in 0..w {
-        simulation
-            .world
-            .write_material(q, x, 0, MATERIAL_BOUNDARY_BLOCK)?;
-        simulation
-            .world
-            .write_material(q, x, h - 1, MATERIAL_BOUNDARY_BLOCK)?;
-    }
-    for y in 0..h {
-        simulation
-            .world
-            .write_material(q, 0, y, MATERIAL_BOUNDARY_BLOCK)?;
-        simulation
-            .world
-            .write_material(q, w - 1, y, MATERIAL_BOUNDARY_BLOCK)?;
-    }
+/// the active demo scene, using bulk initialization and validated edit hooks.
+fn reset_demo_world(simulation: &mut Simulation, mode: DemoMode) -> Result<(), GpuError> {
+    simulation.reset()?;
     match mode {
         DemoMode::Movement => stage_movement_demo(simulation),
         DemoMode::Density => stage_density_demo(simulation),
@@ -1477,6 +1455,7 @@ fn step_demo(
 ) {
     if demo.reset_pending {
         demo.reset_pending = false;
+        demo.step_pending = false;
         if let Err(e) = reset_demo_world(simulation, mode) {
             eprintln!("[powdergame] demo reset error: {e}");
         } else {
@@ -1881,6 +1860,174 @@ mod tests {
         );
         println!(
             "[powdergame][G7-A] long-run: C pre-arrival stable={c_pre_arrival}              first MATTER arrival tick={arrival} reset_to_zero={c_arrival_stable_zero}"
+        );
+    }
+
+    /// Validates that `reset_demo_world` returns the simulation to the exact pristine
+    /// staged state byte-for-byte across all GPU buffers, resets tick_count to 0,
+    /// preserves sleep optimization settings, is idempotent across repeated resets,
+    /// and matches a freshly constructed fixture on tick 1.
+    #[test]
+    fn activity_demo_reset_exact_equivalence() {
+        let context1 =
+            pollster::block_on(powdergame_gpu::GpuContext::new()).expect("DX12 GPU context");
+        let mut sim_reset = Simulation::with_context(
+            context1,
+            WorldConfig::new(256, 256, 64).expect("world config"),
+        )
+        .expect("simulation init");
+        sim_reset.set_sleep_enabled(true);
+        sim_reset.set_sleep_threshold(7);
+        stage_activity_demo(&sim_reset).expect("stage activity demo");
+
+        let context2 =
+            pollster::block_on(powdergame_gpu::GpuContext::new()).expect("DX12 GPU context");
+        let mut sim_fresh = Simulation::with_context(
+            context2,
+            WorldConfig::new(256, 256, 64).expect("world config"),
+        )
+        .expect("simulation init");
+        sim_fresh.set_sleep_enabled(true);
+        sim_fresh.set_sleep_threshold(7);
+        stage_activity_demo(&sim_fresh).expect("stage fresh demo");
+
+        // Run sim_reset for 50 ticks to diverge all physics, combustion, movement, and activity state
+        for _ in 0..50 {
+            sim_reset.tick().expect("tick");
+        }
+        assert_eq!(sim_reset.tick_count, 50);
+
+        // Reset sim_reset
+        super::reset_demo_world(&mut sim_reset, super::DemoMode::Activity)
+            .expect("reset demo world");
+
+        // 1. tick_count == 0
+        assert_eq!(sim_reset.tick_count, 0, "tick_count must reset to 0");
+        // 2. sleep settings preserved
+        assert!(sim_reset.sleep_enabled, "sleep_enabled must be preserved");
+        assert_eq!(
+            sim_reset.sleep_threshold, 7,
+            "sleep_threshold must be preserved"
+        );
+
+        // 3. Exact buffer match with freshly staged world
+        let m_r = sim_reset
+            .world
+            .read_material_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let m_f = sim_fresh
+            .world
+            .read_material_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(m_r, m_f, "material buffer mismatch after reset");
+
+        let t_r = sim_reset
+            .world
+            .read_temperature_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let t_f = sim_fresh
+            .world
+            .read_temperature_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(t_r, t_f, "temperature buffer mismatch after reset");
+
+        let p_r = sim_reset
+            .world
+            .read_pressure_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let p_f = sim_fresh
+            .world
+            .read_pressure_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(p_r, p_f, "pressure buffer mismatch after reset");
+
+        let fl_r = sim_reset
+            .world
+            .read_flags_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let fl_f = sim_fresh
+            .world
+            .read_flags_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(fl_r, fl_f, "flags buffer mismatch after reset");
+
+        let act_r = sim_reset
+            .world
+            .read_chunk_activity_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let act_f = sim_fresh
+            .world
+            .read_chunk_activity_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(act_r, act_f, "chunk_activity mismatch after reset");
+
+        let st_r = sim_reset
+            .world
+            .read_chunk_state_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let st_f = sim_fresh
+            .world
+            .read_chunk_state_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(st_r, st_f, "chunk_state mismatch after reset");
+
+        let stb_r = sim_reset
+            .world
+            .read_chunk_stable_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let stb_f = sim_fresh
+            .world
+            .read_chunk_stable_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(stb_r, stb_f, "chunk_stable mismatch after reset");
+
+        let rsn_r = sim_reset
+            .world
+            .read_chunk_wake_reason_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let rsn_f = sim_fresh
+            .world
+            .read_chunk_wake_reason_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(rsn_r, rsn_f, "chunk_wake_reason mismatch after reset");
+
+        let ew_r = sim_reset
+            .world
+            .read_chunk_edit_wake_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let ew_f = sim_fresh
+            .world
+            .read_chunk_edit_wake_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(ew_r, ew_f, "chunk_edit_wake mismatch after reset");
+
+        // 4. Repeated reset idempotency: run for 20 ticks, reset again
+        for _ in 0..20 {
+            sim_reset.tick().expect("tick");
+        }
+        super::reset_demo_world(&mut sim_reset, super::DemoMode::Activity).expect("repeat reset");
+        assert_eq!(sim_reset.tick_count, 0);
+        let m_r2 = sim_reset
+            .world
+            .read_material_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        assert_eq!(m_r2, m_f, "material mismatch on second reset");
+
+        // 5. Next tick is tick 1 and matches fresh tick 1 exactly
+        sim_reset.tick().expect("tick 1 reset");
+        sim_fresh.tick().expect("tick 1 fresh");
+        assert_eq!(sim_reset.tick_count, 1);
+        let m_r_t1 = sim_reset
+            .world
+            .read_material_all(&sim_reset.context.device, &sim_reset.context.queue)
+            .unwrap();
+        let m_f_t1 = sim_fresh
+            .world
+            .read_material_all(&sim_fresh.context.device, &sim_fresh.context.queue)
+            .unwrap();
+        assert_eq!(
+            m_r_t1, m_f_t1,
+            "tick 1 material outcome mismatch between reset and fresh"
         );
     }
 }

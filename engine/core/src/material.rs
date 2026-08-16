@@ -150,6 +150,9 @@ pub struct MaterialDescriptor {
     /// `None` means this Matter never decays. This is Material data —
     /// the per-cell `flags` field stores only the decay age bits (u12).
     pub decay: Option<DecayDescriptor>,
+    /// Generic G5-C structural rupture threshold in gameplay Pressure units.
+    /// `None` means Pressure cannot rupture this Matter in the M0 baseline.
+    pub rupture_threshold: Option<f32>,
 }
 
 /// The registered Matter catalog.
@@ -167,6 +170,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         phase_transitions: &[],
         combustion: None,
         decay: None,
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_STONE,
@@ -178,6 +182,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         phase_transitions: &[],
         combustion: None,
         decay: None,
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_SAND,
@@ -189,6 +194,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         phase_transitions: &[],
         combustion: None,
         decay: None,
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_WATER,
@@ -215,6 +221,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         ],
         combustion: None,
         decay: None,
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_OIL,
@@ -231,6 +238,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             burn_duration_ticks: COMBUSTION_OIL_BURN_DURATION,
         }),
         decay: None,
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_STEAM,
@@ -248,6 +256,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         }],
         combustion: None,
         decay: None,
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_SMOKE,
@@ -262,6 +271,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             lifetime_ticks: SMOKE_LIFETIME_TICKS,
             target_material: MATERIAL_EMPTY,
         }),
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_ICE,
@@ -279,6 +289,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         }],
         combustion: None,
         decay: None,
+        rupture_threshold: None,
     },
     MaterialDescriptor {
         id: MATERIAL_WOOD,
@@ -295,6 +306,7 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
             burn_duration_ticks: COMBUSTION_WOOD_BURN_DURATION,
         }),
         decay: None,
+        rupture_threshold: Some(crate::rupture::WOOD_RUPTURE_THRESHOLD),
     },
 ];
 

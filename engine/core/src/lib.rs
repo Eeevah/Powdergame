@@ -15,6 +15,7 @@ pub mod material;
 pub mod movement;
 pub mod phase;
 pub mod pressure;
+pub mod rupture;
 pub mod thermal;
 pub mod world_config;
 
@@ -60,6 +61,9 @@ pub use phase::{
 pub use pressure::{
     is_pressure_medium, pressure_step, sanitize_pressure, PressureNeighbor,
     PRESSURE_DIFFUSION_RATE, PRESSURE_MAX, PRESSURE_REFERENCE,
+};
+pub use rupture::{
+    rupture_threshold, rupture_threshold_table, should_rupture, WOOD_RUPTURE_THRESHOLD,
 };
 pub use thermal::{
     conductivity_table, heat_capacity_table, sanitize_temperature, thermal_properties,

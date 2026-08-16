@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion & finite fuel TECHNICAL PASS, Smoke decay lifecycle G4 integration hardening TECHNICAL PASS, G4 Large 4-Panel Thermal Observatory `--thermal-demo` User Validation APPROVED on 2026-08-16).
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion & finite fuel TECHNICAL PASS, Smoke decay lifecycle G4 integration hardening TECHNICAL PASS, G4 Large 4-Panel Thermal Observatory `--thermal-demo` User Validation APPROVED on 2026-08-16). G5 (Pressure Chain) IN_PROGRESS — G5-A Pressure Field TECHNICAL PASS / FROZEN, G5-B Expansion / Confinement → Pressure TECHNICAL PASS / FROZEN, G5-C Rupture / Opening / Vent implementation & validation in progress.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion TECHNICAL PASS, Smoke decay G4 integration hardening TECHNICAL PASS, G4 4-Panel Thermal Observatory `--thermal-demo` (320×192) User Validation APPROVED on 2026-08-16).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (G4-A thermal baseline TECHNICAL PASS, G4-B phase transition TECHNICAL PASS, G4-C combustion TECHNICAL PASS, Smoke decay G4 integration hardening TECHNICAL PASS, G4 4-Panel Thermal Observatory `--thermal-demo` (320×192) User Validation APPROVED on 2026-08-16). G5 — Pressure Chain: IN_PROGRESS (G5-A Pressure Field TECHNICAL PASS / FROZEN; G5-B Expansion / Confinement → Pressure TECHNICAL PASS / FROZEN; G5-C Rupture / Opening / Vent IN_PROGRESS).**
 
 ### Current Summary
 
@@ -48,7 +48,7 @@
 
 G4는 **G4-A (Thermal Baseline)**, **G4-B (Phase Transition)**, **G4-C (Combustion & Finite Fuel)**, 그리고 **Smoke Decay Lifecycle (G4 Integration Hardening)**를 포함하며, 4-Panel Large Thermal Observatory (`--thermal-demo`, 320×192) 및 고해상도 Screen-Space 진단 HUD를 통한 장기 관측(~9104 ticks)에서 물리 보존 법칙과 라이프사이클이 모두 입증되어 사용자의 공식 승인을 받았다.
 
-다음 단계는 **G5 — Pressure Chain** (Phase expansion / yield / Pressure / rupture / vent)이다.
+현재 **G5 — Pressure Chain** 진행 중이다. G5-A scalar Pressure propagation과 G5-B Phase expansion / confinement → Pressure generation은 RTX 5090 / DX12 실기 검증으로 TECHNICAL PASS / FROZEN이며, 다음 sub-gate는 **G5-C — Pressure stress → rupture → opening → venting**이다.
 
 ---
 

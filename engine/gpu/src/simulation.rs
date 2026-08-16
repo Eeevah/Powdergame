@@ -40,7 +40,7 @@
 
 use powdergame_core::{
     combustion_table, conductivity_table, decay_table, density_table, heat_capacity_table,
-    movement_class_table, phase_descriptor_table, WorldConfig,
+    movement_class_table, phase_descriptor_table, rupture_threshold_table, WorldConfig,
 };
 
 use crate::context::{GpuContext, GpuError};
@@ -123,6 +123,7 @@ pub struct Simulation {
     smoke_claim_pipeline: wgpu::ComputePipeline,
     smoke_commit_pipeline: wgpu::ComputePipeline,
     pressure_pipeline: wgpu::ComputePipeline,
+    rupture_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
@@ -137,6 +138,7 @@ pub struct Simulation {
     smoke_claim_bind_group: wgpu::BindGroup,
     smoke_commit_bind_group: wgpu::BindGroup,
     pressure_bind_group: wgpu::BindGroup,
+    rupture_bind_group: wgpu::BindGroup,
     marker: wgpu::Buffer,
 
     /// Number of ticks submitted since creation.
@@ -251,6 +253,13 @@ impl Simulation {
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("powdergame-g5a-pressure"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("pressure.wgsl").into()),
+            });
+
+        let shader_rupture = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("powdergame-g5c-rupture"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("rupture.wgsl").into()),
             });
 
         // Bind group layouts.
@@ -439,6 +448,23 @@ impl Simulation {
                     ],
                 });
 
+        let rupture_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g5c-rupture-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // pressure_current
+                        buffer_entry(3, &BindingKind::Read), // rupture threshold table
+                        buffer_entry(4, &BindingKind::Read), // movement class table
+                        buffer_entry(5, &BindingKind::ReadWrite), // material_next
+                        buffer_entry(6, &BindingKind::ReadWrite), // temperature_next
+                        buffer_entry(7, &BindingKind::ReadWrite), // flags_next
+                    ],
+                });
+
         let make_pipeline = |label: &str,
                              layout: &wgpu::BindGroupLayout,
                              module: &wgpu::ShaderModule,
@@ -542,6 +568,12 @@ impl Simulation {
             &shader_pressure,
             "pressure_main",
         );
+        let rupture_pipeline = make_pipeline(
+            "powdergame-g5c-rupture",
+            &rupture_layout,
+            &shader_rupture,
+            "rupture_main",
+        );
 
         // Params uniform: cell_count, threads_x, width, height.
         let cell_count_u32 = u32::try_from(world.layout.cell_count).map_err(|_| {
@@ -579,6 +611,22 @@ impl Simulation {
             mapped_at_creation: false,
         });
         context.queue.write_buffer(&class_table, 0, &class_data);
+
+        // G5-C Material-owned structural rupture thresholds (0 = unbreakable).
+        let mut rupture_data = [0u8; TABLE_SIZE as usize];
+        for (i, value) in rupture_threshold_table().iter().enumerate() {
+            let off = i * 4;
+            rupture_data[off..off + 4].copy_from_slice(&value.to_ne_bytes());
+        }
+        let rupture_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("g5c/rupture/threshold-table"),
+            size: TABLE_SIZE,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context
+            .queue
+            .write_buffer(&rupture_table_buf, 0, &rupture_data);
 
         // Density-rank table (read-only storage; 0 = no movable density).
         // This is a Material property upload — there are no per-cell
@@ -1130,6 +1178,47 @@ impl Simulation {
                 ],
             });
 
+        let rupture_bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("powdergame-g5c-rupture-bg"),
+                layout: &rupture_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: world.material_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: world.pressure_current.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: rupture_table_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: class_table.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: world.material_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: world.temperature_next.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: world.flags_next.as_entire_binding(),
+                    },
+                ],
+            });
+
         Ok(Self {
             context,
             world,
@@ -1146,6 +1235,7 @@ impl Simulation {
             smoke_claim_pipeline,
             smoke_commit_pipeline,
             pressure_pipeline,
+            rupture_pipeline,
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
@@ -1159,6 +1249,7 @@ impl Simulation {
             smoke_claim_bind_group,
             smoke_commit_bind_group,
             pressure_bind_group,
+            rupture_bind_group,
 
             marker,
             tick_count: 0,
@@ -1178,6 +1269,7 @@ impl Simulation {
     /// → smoke commit (destination self-write Smoke + hot T)
     /// → copy material/temperature/flags Next→Current
     /// → scalar pressure 4-neighbor propagation → copy pressure Next→Current
+    /// → structural rupture (neighbor Pressure → self EMPTY) → opening
     /// ```
     ///
     /// Causal order: Matter first carries its Temperature and combustion
@@ -1185,7 +1277,8 @@ impl Simulation {
     /// settled Temperature selects the phase, then combustion state/heat
     /// runs, then Smoke spawns with ownership. G5-A pressure propagation
     /// runs last on settled Matter. G5-B expansion/confinement feeds it;
-    /// structural stress/rupture remains G5-C.
+    /// G5-C structural rupture runs after pressure propagation; ordinary
+    /// movement through the resulting EMPTY opening provides venting.
     pub fn tick(&mut self) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
@@ -1448,6 +1541,38 @@ impl Simulation {
             &self.world.pressure_current,
             0,
             self.world.layout.pressure_bytes,
+        );
+
+        // G5-C: weak structural Matter reads settled neighboring Pressure
+        // and may self-write to EMPTY. The new opening becomes authoritative
+        // before the next tick's ordinary movement pass.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g5c-rupture-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(&mut pass, &self.rupture_pipeline, &self.rupture_bind_group);
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.world.material_next,
+            0,
+            &self.world.material_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.temperature_next,
+            0,
+            &self.world.temperature_current,
+            0,
+            self.world.layout.temperature_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.flags_next,
+            0,
+            &self.world.flags_current,
+            0,
+            self.world.layout.flags_bytes,
         );
 
         self.context.queue.submit([encoder.finish()]);

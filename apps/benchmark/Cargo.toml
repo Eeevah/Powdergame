@@ -1,0 +1,15 @@
+[package]
+name = "powdergame-benchmark"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "powdergame-benchmark"
+path = "src/main.rs"
+
+[dependencies]
+powdergame-core = { workspace = true }
+powdergame-gpu = { workspace = true }
+wgpu = { workspace = true }
+pollster = { workspace = true }

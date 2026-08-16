@@ -1459,6 +1459,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "powdergame-benchmark"
+version = "0.1.0"
+dependencies = [
+ "pollster",
+ "powdergame-core",
+ "powdergame-gpu",
+ "wgpu",
+]
+
+[[package]]
 name = "powdergame-core"
 version = "0.1.0"
 

@@ -39,12 +39,15 @@
 //! Blocked expansion generation and rupture remain G5-B/G5-C.
 
 use powdergame_core::{
-    chunks_x, chunks_y, combustion_table, conductivity_table, decay_table, density_table,
-    heat_capacity_table, movement_class_table, phase_descriptor_table, rupture_threshold_table,
-    WorldConfig, DEFAULT_SLEEP_THRESHOLD_TICKS, PRESSURE_ACTIVITY_EPS, THERMAL_ACTIVITY_EPS,
+    chunk_count, chunks_x, chunks_y, combustion_table, conductivity_table, decay_table,
+    density_table, heat_capacity_table, movement_class_table, phase_descriptor_table,
+    rupture_threshold_table, WorldConfig, ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION,
+    ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING, DEFAULT_SLEEP_THRESHOLD_TICKS,
+    PRESSURE_ACTIVITY_EPS, THERMAL_ACTIVITY_EPS,
 };
 
 use crate::context::{GpuContext, GpuError};
+use crate::profiler::{GpuProfiler, ProfiledTickReport, QUERY_COUNT};
 use crate::world::GpuWorld;
 
 /// Workgroup size of the movement shaders.
@@ -1685,7 +1688,8 @@ impl Simulation {
         Ok(())
     }
 
-    fn update_uniforms(&self) {
+    /// Updates the parameter and wake uniforms on the GPU.
+    pub fn update_uniforms(&self) {
         let cell_count_u32 = self.world.layout.cell_count as u32;
         let threads_x_u32 = THREADS_X as u32;
         let chunks_x_u32 = chunks_x(self.world.config.width, self.world.config.chunk_size);
@@ -1715,24 +1719,45 @@ impl Simulation {
             .write_buffer(&self.wake_params, 0, &wake_data);
     }
 
-    /// Submits one tick on the GPU (no CPU full-world copy):
-    ///
-    /// ```text
-    /// activity wake evaluation (1 thread per chunk)
-    /// → movement propose → claim → commit (material + temperature + flags)
-    /// → copy material/temperature/flags Next→Current
-    /// → thermal conduction (write-self) → copy temperature Next→Current
-    /// → phase transition + expansion proposal → expansion claim/commit
-    /// → unresolved expansion → pressure impulse → copy phase state Current
-    /// → combustion (self-write heat/flags + Smoke spawn request)
-    /// → smoke claim (destination winner exactly one)
-    /// → smoke commit (destination self-write Smoke + hot T)
-    /// → copy material/temperature/flags Next→Current
-    /// → scalar pressure 4-neighbor propagation → copy pressure Next→Current
-    /// → structural rupture (neighbor Pressure → self EMPTY) → opening
-    /// → activity propose + reduce (chunk frontier measurement)
-    /// ```
+    /// Submits one tick on the GPU in production unprofiled mode (no CPU full-world copy).
     pub fn tick(&mut self) -> Result<(), GpuError> {
+        self.tick_internal(None)
+    }
+
+    /// Submits one tick on the GPU in timestamp-profiled mode and reads back the 17 pass timings.
+    pub fn tick_profiled(
+        &mut self,
+        profiler: &mut GpuProfiler,
+    ) -> Result<ProfiledTickReport, GpuError> {
+        self.tick_internal(Some(profiler))?;
+        profiler.readback_report(
+            &self.context.device,
+            self.tick_count - 1,
+            self.context.timestamp_period,
+        )
+    }
+
+    /// Shared internal tick implementation guaranteeing identical pass ordering, dispatch,
+    /// copies, and semantics between production and profiled modes.
+    ///
+    /// Pipeline order:
+    /// ```text
+    /// 1. activity wake evaluation (1 thread per chunk)
+    /// 2. movement propose → 3. claim → 4. commit (material + temperature + flags)
+    /// → copy material/temperature/flags Next→Current
+    /// 5. thermal conduction (write-self) → copy temperature Next→Current
+    /// 6. phase transition + 7. expansion proposal → 8. expansion claim/commit
+    /// → 9. unresolved expansion pressure impulse → copy phase state Current
+    /// 10. decay (age increment + finite lifetime decay to EMPTY)
+    /// 11. combustion (self-write heat/flags + Smoke spawn request)
+    /// 12. smoke claim (destination winner exactly one)
+    /// 13. smoke commit (destination self-write Smoke + hot T)
+    /// → copy material/temperature/flags Next→Current
+    /// 14. scalar pressure 4-neighbor propagation → copy pressure Next→Current
+    /// 15. structural rupture (neighbor Pressure → self EMPTY) → opening
+    /// 16. activity propose + 17. reduce (chunk frontier measurement)
+    /// ```
+    fn tick_internal(&mut self, profiler: Option<&mut GpuProfiler>) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
             .map_err(|_| GpuError::Other("dispatch height overflow".into()))?;
@@ -1748,8 +1773,17 @@ impl Simulation {
             self.context
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("powdergame-g4c-tick-encoder"),
+                    label: Some("powdergame-simulation-tick-encoder"),
                 });
+
+        let query_set_ref = profiler.as_ref().map(|p| &p.query_set);
+        let make_timestamp_writes = |pass_idx: u32| {
+            query_set_ref.map(|qs| wgpu::ComputePassTimestampWrites {
+                query_set: qs,
+                beginning_of_pass_write_index: Some(pass_idx * 2),
+                end_of_pass_write_index: Some(pass_idx * 2 + 1),
+            })
+        };
 
         let dispatch = |pass: &mut wgpu::ComputePass<'_>,
                         pipeline: &wgpu::ComputePipeline,
@@ -1759,13 +1793,11 @@ impl Simulation {
             pass.dispatch_workgroups(WORKGROUPS_X, dispatch_y, 1);
         };
 
-        // G7-B: Chunk wake pass runs FIRST on the chunk-level state from the
-        // previous tick + edit wakes, establishing RUNNABLE vs SLEEPING for
-        // this tick's physics passes.
+        // Pass 0: activity_wake
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7b-activity-wake-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(0),
             });
             pass.set_pipeline(&self.activity_wake_pipeline);
             pass.set_bind_group(0, &self.activity_wake_bind_group, &[]);
@@ -1779,24 +1811,27 @@ impl Simulation {
         // dispatch; only after that pass ends do we consume the one-tick triggers.
         encoder.clear_buffer(&self.world.chunk_edit_wake, 0, None);
 
+        // Pass 1: movement_propose
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g3-propose-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(1),
             });
             dispatch(&mut pass, &self.propose_pipeline, &self.propose_bind_group);
         }
+        // Pass 2: movement_claim
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g3-claim-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(2),
             });
             dispatch(&mut pass, &self.claim_pipeline, &self.claim_bind_group);
         }
+        // Pass 3: movement_commit
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g3-commit-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(3),
             });
             dispatch(&mut pass, &self.commit_pipeline, &self.commit_bind_group);
         }
@@ -1824,10 +1859,11 @@ impl Simulation {
             self.world.layout.flags_bytes,
         );
 
+        // Pass 4: thermal
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4a-thermal-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(4),
             });
             dispatch(&mut pass, &self.thermal_pipeline, &self.thermal_bind_group);
         }
@@ -1839,17 +1875,19 @@ impl Simulation {
             self.world.layout.temperature_bytes,
         );
 
+        // Pass 5: phase_transition
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4b-g5b-phase-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(5),
             });
             dispatch(&mut pass, &self.phase_pipeline, &self.phase_bind_group);
         }
+        // Pass 6: expansion_claim
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-claim-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(6),
             });
             dispatch(
                 &mut pass,
@@ -1857,10 +1895,11 @@ impl Simulation {
                 &self.expansion_claim_bind_group,
             );
         }
+        // Pass 7: expansion_spawn_commit
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-spawn-commit-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(7),
             });
             dispatch(
                 &mut pass,
@@ -1868,10 +1907,11 @@ impl Simulation {
                 &self.expansion_spawn_commit_bind_group,
             );
         }
+        // Pass 8: expansion_pressure
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-pressure-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(8),
             });
             dispatch(
                 &mut pass,
@@ -1879,9 +1919,8 @@ impl Simulation {
                 &self.expansion_pressure_bind_group,
             );
         }
-        // Phase identity + any won expansion spawn become authoritative
-        // together. Unresolved expansion pressure is visible to the G5-A
-        // propagation pass later in the same tick.
+
+        // Expansion copies
         encoder.copy_buffer_to_buffer(
             &self.world.material_next,
             0,
@@ -1911,11 +1950,11 @@ impl Simulation {
             self.world.layout.pressure_bytes,
         );
 
-        // G4-D: decay pass (age increment + finite lifetime decay to EMPTY).
+        // Pass 9: decay
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4d-decay-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(9),
             });
             dispatch(&mut pass, &self.decay_pipeline, &self.decay_bind_group);
         }
@@ -1941,12 +1980,11 @@ impl Simulation {
             self.world.layout.flags_bytes,
         );
 
-        // G4-C: combustion state/heat (self-write) + Smoke spawn requests.
-
+        // Pass 10: combustion
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-combustion-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(10),
             });
             dispatch(
                 &mut pass,
@@ -1954,13 +1992,11 @@ impl Simulation {
                 &self.combustion_bind_group,
             );
         }
-        // Smoke spawn ownership: destination winner exactly one (the
-        // movement `proposal`/`claim` scratch is safe to reuse here — the
-        // movement passes fully consumed it earlier in this tick).
+        // Pass 11: smoke_claim
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-smoke-claim-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(11),
             });
             dispatch(
                 &mut pass,
@@ -1968,10 +2004,11 @@ impl Simulation {
                 &self.smoke_claim_bind_group,
             );
         }
+        // Pass 12: smoke_commit
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-smoke-commit-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(12),
             });
             dispatch(
                 &mut pass,
@@ -1979,6 +2016,8 @@ impl Simulation {
                 &self.smoke_commit_bind_group,
             );
         }
+
+        // Combustion copies
         encoder.copy_buffer_to_buffer(
             &self.world.material_next,
             0,
@@ -2001,13 +2040,11 @@ impl Simulation {
             self.world.layout.flags_bytes,
         );
 
-        // G5-A: spatial scalar pressure. It is deliberately not carried on
-        // movement ownership edges; the settled Matter map decides where the
-        // field can exist and which 4-neighbor cells exchange it.
+        // Pass 13: pressure
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5a-pressure-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(13),
             });
             dispatch(
                 &mut pass,
@@ -2023,13 +2060,11 @@ impl Simulation {
             self.world.layout.pressure_bytes,
         );
 
-        // G5-C: weak structural Matter reads settled neighboring Pressure
-        // and may self-write to EMPTY. The new opening becomes authoritative
-        // before the next tick's ordinary movement pass.
+        // Pass 14: rupture
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5c-rupture-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(14),
             });
             dispatch(&mut pass, &self.rupture_pipeline, &self.rupture_bind_group);
         }
@@ -2055,14 +2090,11 @@ impl Simulation {
             self.world.layout.flags_bytes,
         );
 
-        // G7-A: chunk activity measurement baseline. Runs last on the settled
-        // Current state and writes ONLY the activity diagnostic buffers — no
-        // physics buffers are touched, so the measurement can never perturb
-        // the world. G7-A observes; it does not yet skip any subsystem.
+        // Pass 15: activity_propose
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7a-activity-propose-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(15),
             });
             dispatch(
                 &mut pass,
@@ -2070,10 +2102,11 @@ impl Simulation {
                 &self.activity_propose_bind_group,
             );
         }
+        // Pass 16: activity_reduce
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7a-activity-reduce-pass"),
-                timestamp_writes: None,
+                timestamp_writes: make_timestamp_writes(16),
             });
             pass.set_pipeline(&self.activity_reduce_pipeline);
             pass.set_bind_group(0, &self.activity_reduce_bind_group, &[]);
@@ -2082,9 +2115,124 @@ impl Simulation {
             pass.dispatch_workgroups(a_chunks_x, a_chunks_y, 1);
         }
 
+        // If profiling, resolve timestamps to resolve buffer and copy to readback staging buffer.
+        if let Some(prof) = profiler {
+            encoder.resolve_query_set(&prof.query_set, 0..QUERY_COUNT, &prof.resolve_buffer, 0);
+            encoder.copy_buffer_to_buffer(
+                &prof.resolve_buffer,
+                0,
+                &prof.readback_buffer,
+                0,
+                (QUERY_COUNT as u64) * 8,
+            );
+        }
+
         self.context.queue.submit([encoder.finish()]);
         self.tick_count += 1;
         Ok(())
+    }
+
+    /// Performs an out-of-band non-timed activity census on the world.
+    /// Reads `cell_activity`, `chunk_activity`, and `chunk_state` from the GPU.
+    ///
+    /// Note: this must NEVER be called inside timed simulation loops.
+    pub fn activity_census(&self) -> Result<ActivityCensusReport, GpuError> {
+        let dev = &self.context.device;
+        let q = &self.context.queue;
+
+        let cell_acts = self.world.read_cell_activity_all(dev, q)?;
+        let chunk_acts = self.world.read_chunk_activity_all(dev, q)?;
+        let chunk_states = self.world.read_chunk_state_all(dev, q)?;
+
+        let mut any_active_cells = 0u64;
+        let mut matter_active_cells = 0u64;
+        let mut thermal_active_cells = 0u64;
+        let mut pressure_active_cells = 0u64;
+        let mut reaction_active_cells = 0u64;
+
+        for &act in &cell_acts {
+            if act != 0 {
+                any_active_cells += 1;
+            }
+            if (act & ACTIVITY_MATTER) != 0 {
+                matter_active_cells += 1;
+            }
+            if (act & ACTIVITY_THERMAL) != 0 {
+                thermal_active_cells += 1;
+            }
+            if (act & ACTIVITY_PRESSURE) != 0 {
+                pressure_active_cells += 1;
+            }
+            if (act & ACTIVITY_REACTION) != 0 {
+                reaction_active_cells += 1;
+            }
+        }
+
+        let total_chunks = chunk_acts.len() as u32;
+        let mut active_chunks = 0u32;
+        let mut runnable_chunks = 0u32;
+        let mut sleeping_chunks = 0u32;
+
+        for i in 0..chunk_acts.len() {
+            if chunk_acts[i] != 0 {
+                active_chunks += 1;
+            }
+            if chunk_states[i] == CHUNK_STATE_RUNNABLE {
+                runnable_chunks += 1;
+            } else if chunk_states[i] == CHUNK_STATE_SLEEPING {
+                sleeping_chunks += 1;
+            }
+        }
+
+        Ok(ActivityCensusReport {
+            total_cells: self.world.layout.cell_count,
+            any_active_cells,
+            matter_active_cells,
+            thermal_active_cells,
+            pressure_active_cells,
+            reaction_active_cells,
+            total_chunks,
+            active_chunks,
+            runnable_chunks,
+            sleeping_chunks,
+        })
+    }
+
+    /// Computes the exact application-tracked GPU allocation bytes.
+    pub fn tracked_memory_report(&self, profiler: Option<&GpuProfiler>) -> TrackedMemoryReport {
+        let world_dense_state_bytes = self.world.layout.material_bytes * 2
+            + self.world.layout.temperature_bytes * 2
+            + self.world.layout.pressure_bytes * 2
+            + self.world.layout.flags_bytes * 2;
+        let movement_scratch_bytes = self.world.layout.material_bytes * 2;
+        let chunk_bytes = chunk_count(
+            self.world.config.width,
+            self.world.config.height,
+            self.world.config.chunk_size,
+        ) as u64
+            * 4;
+        let activity_scratch_bytes = self.world.layout.material_bytes + chunk_bytes * 6;
+        let uniforms_and_tables_bytes = PARAMS_SIZE
+            + WAKE_PARAMS_SIZE
+            + ARBITRATION_PARAMS_SIZE
+            + MARKER_SIZE
+            + PHASE_TABLE_SIZE
+            + COMBUSTION_TABLE_SIZE;
+        let profiler_bytes = profiler.map_or(0, |p| p.tracked_gpu_allocation_bytes());
+        let total_tracked_gpu_bytes = world_dense_state_bytes
+            + movement_scratch_bytes
+            + activity_scratch_bytes
+            + uniforms_and_tables_bytes
+            + profiler_bytes;
+
+        TrackedMemoryReport {
+            world_dense_state_bytes,
+            movement_scratch_bytes,
+            activity_scratch_bytes,
+            uniforms_and_tables_bytes,
+            profiler_bytes,
+            total_tracked_gpu_bytes,
+        }
     }
 
     /// Waits for GPU work and reads the diagnostic marker.
@@ -2127,4 +2275,36 @@ impl Simulation {
         staging.unmap();
         Ok(value)
     }
+}
+
+/// Detailed non-timed activity census of the active world.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivityCensusReport {
+    pub total_cells: u64,
+    pub any_active_cells: u64,
+    pub matter_active_cells: u64,
+    pub thermal_active_cells: u64,
+    pub pressure_active_cells: u64,
+    pub reaction_active_cells: u64,
+    pub total_chunks: u32,
+    pub active_chunks: u32,
+    pub runnable_chunks: u32,
+    pub sleeping_chunks: u32,
+}
+
+/// Detailed application-tracked GPU allocation report.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackedMemoryReport {
+    /// 8 logical dense world state buffers: material, temperature, pressure, flags (current + next each).
+    pub world_dense_state_bytes: u64,
+    /// Movement arbitration scratch buffers: proposal + claim.
+    pub movement_scratch_bytes: u64,
+    /// G7 activity diagnostic buffers: cell_activity + 6 chunk buffers.
+    pub activity_scratch_bytes: u64,
+    /// Uniforms, simulation tables, and debug markers.
+    pub uniforms_and_tables_bytes: u64,
+    /// Profiler resolve and readback staging buffers (if allocated).
+    pub profiler_bytes: u64,
+    /// Sum of all application-tracked GPU buffer allocations.
+    pub total_tracked_gpu_bytes: u64,
 }

@@ -8,11 +8,17 @@
 //! - production world state lives on the GPU; CPU only orchestrates.
 
 pub mod context;
+pub mod profiler;
 pub mod simulation;
 pub mod world;
 
 pub use context::{
-    describe_adapter_info, verify_target_hardware, AdapterReport, GpuContext, GpuError,
+    describe_adapter_info, verify_target_hardware, AdapterReport, ContextOptions, GpuContext,
+    GpuError,
 };
-pub use simulation::Simulation;
+pub use profiler::{
+    GpuProfiler, GroupedSubsystemSummary, PassTiming, ProfiledTickReport, PASS_COUNT, PASS_NAMES,
+    QUERY_COUNT,
+};
+pub use simulation::{ActivityCensusReport, Simulation, TrackedMemoryReport};
 pub use world::GpuWorld;

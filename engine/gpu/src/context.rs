@@ -21,6 +21,15 @@ pub struct GpuContext {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub adapter_info: wgpu::AdapterInfo,
+    pub profiling_enabled: bool,
+    pub timestamp_period: f32,
+}
+
+/// Optional initialization flags for GpuContext.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ContextOptions {
+    /// Whether to request wgpu::Features::TIMESTAMP_QUERY for GPU profiling.
+    pub enable_profiling: bool,
 }
 
 /// Human-readable report of the selected adapter (evidence for G0).
@@ -94,8 +103,13 @@ pub fn verify_target_hardware(info: &wgpu::AdapterInfo) -> Result<(), GpuError> 
 }
 
 impl GpuContext {
-    /// Initializes an instance, DX12 adapter, device and queue.
+    /// Initializes an instance, DX12 adapter, device and queue with default options (no profiling).
     pub async fn new() -> Result<Self, GpuError> {
+        Self::new_with_options(ContextOptions::default()).await
+    }
+
+    /// Initializes an instance, DX12 adapter, device and queue with explicit options.
+    pub async fn new_with_options(options: ContextOptions) -> Result<Self, GpuError> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::DX12,
             ..Default::default()
@@ -115,10 +129,18 @@ impl GpuContext {
         // G0: the backend must actually be DX12. No silent fallback.
         verify_target_hardware(&adapter_info)?;
 
+        let mut required_features = wgpu::Features::empty();
+        if options.enable_profiling {
+            if !adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+                return Err(GpuError::FeatureNotSupported("TIMESTAMP_QUERY".to_string()));
+            }
+            required_features |= wgpu::Features::TIMESTAMP_QUERY;
+        }
+
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("powdergame-device"),
-                required_features: wgpu::Features::empty(),
+                required_features,
                 required_limits: wgpu::Limits::default(),
                 memory_hints: wgpu::MemoryHints::default(),
                 trace: wgpu::Trace::Off,
@@ -126,13 +148,25 @@ impl GpuContext {
             .await
             .map_err(|e| GpuError::DeviceRequestFailed(e.to_string()))?;
 
+        let timestamp_period = queue.get_timestamp_period();
+
         Ok(Self {
             instance,
             adapter,
             device,
             queue,
             adapter_info,
+            profiling_enabled: options.enable_profiling,
+            timestamp_period,
         })
+    }
+
+    /// Initializes a GPU context explicitly configured for timestamp profiling.
+    pub async fn with_profiling() -> Result<Self, GpuError> {
+        Self::new_with_options(ContextOptions {
+            enable_profiling: true,
+        })
+        .await
     }
 }
 
@@ -145,6 +179,8 @@ pub enum GpuError {
     UnexpectedBackend(Backend),
     /// The selected adapter is not the expected reference hardware.
     UnexpectedHardware { vendor: u32, name: String },
+    /// A requested GPU feature is not supported by the adapter.
+    FeatureNotSupported(String),
     /// Device creation failed.
     DeviceRequestFailed(String),
     /// Surface creation failed.
@@ -183,6 +219,9 @@ impl std::fmt::Display for GpuError {
                 f,
                 "expected NVIDIA RTX 5090 but got {name} (vendor=0x{vendor:04X})"
             ),
+            GpuError::FeatureNotSupported(feat) => {
+                write!(f, "required GPU feature not supported by adapter: {feat}")
+            }
             GpuError::DeviceRequestFailed(msg) => write!(f, "device request failed: {msg}"),
             GpuError::SurfaceCreateFailed(msg) => write!(f, "surface create failed: {msg}"),
             GpuError::SurfaceFrameAcquireFailed(msg) => write!(f, "frame acquire failed: {msg}"),

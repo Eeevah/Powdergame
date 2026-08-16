@@ -4,6 +4,7 @@ members = [
     "engine/core",
     "engine/gpu",
     "apps/windows",
+    "apps/benchmark",
 ]
 
 [workspace.package]

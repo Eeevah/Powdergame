@@ -8,7 +8,7 @@ Read this first when entering the repo.
 - G0-G7: PASS / CLOSED
 - G7-A: USER VALIDATED / FROZEN
 - G7-B: PASS / CLOSED / FROZEN
-- Next: G8 Performance Evidence
+- G8: Performance Evidence (IN_PROGRESS; G8-A Measurement Substrate COMPLETE)
 
 ## Windows
 

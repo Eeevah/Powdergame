@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7-A USER VALIDATED / FROZEN, G7-B PASS / CLOSED / FROZEN, G7 User Validation APPROVED on 2026-08-17). Next gate: G8 — Performance Evidence.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS; G8-A Measurement Substrate COMPLETE).
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A Chunk Activity Observatory: PASS / USER VALIDATED / FROZEN; G7-B Actual Sleep/Wake Correctness: PASS / CLOSED / FROZEN, Independent Red-Team REVIEW PASS, Windows / RTX 5090 / DX12 User Validation APPROVED on 2026-08-17; G7-C: DEFERRED PERFORMANCE OPTIMIZATION CANDIDATE). Next Gate: G8 — Performance Evidence.**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A Measurement Substrate: COMPLETE).**
 
 ### Current Summary
 
@@ -370,10 +370,26 @@ Static Analysis & Formatting:
 
 ---
 
+### G8 — Performance Evidence (IN_PROGRESS)
+
+- **G8-A (Measurement Substrate)**: **COMPLETE / TRUSTWORTHY MEASUREMENT ESTABLISHED**
+  - Headless benchmark harness (`powdergame-benchmark` at `apps/benchmark/`).
+  - Observational profiling via `wgpu::Features::TIMESTAMP_QUERY` and per-compute-pass `timestamp_writes`.
+  - Exact 17 pass timing measurement + `gpu_tick_envelope` + grouped subsystem roll-ups.
+  - Mode A Production Throughput (batch-submitted, end synchronization once): Median = 870.0 TPS (1.1494 ms/tick, 2048×2048 reference world, RTX 5090 / DX12).
+  - Mode B GPU Breakdown: Envelope Median = 1.0217 ms, GPU Pass Sum = 0.7688 ms, Residual = 0.2528 ms.
+  - Out-of-band Activity Census snapshot: 266,016 active cells (6.34%), 219 active chunks (21.4%), 643 sleeping chunks (62.8%).
+  - Application-tracked GPU memory report: 176.03 MB total.
+  - Zero production optimization performed; G7-C not implemented; G8 official five-scenario matrix pending G8-B.
+  - Evidence: `docs/evidence/G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md`
+
+---
+
 ### Next Action
 
-1. **G8 — Performance Evidence**: Official benchmark harness and performance matrix measurement across all M0 subsystems (Sand fall, Water flow, Fire/Heat, Pressure burst, Heavy mixed world).
-2. **Optimization Policy**: Do not optimize compact active lists / indirect dispatch before G8 measurement identifies them as a real bottleneck.
+1. **G8-B — Benchmark Scenario Suite**: Implement the five official reference benchmark fixtures (Sand Fall, Water Flow, Fire/Heat, Pressure Burst, Heavy Mixed World).
+2. **G8-C — Official Matrix Measurement**: Gather definitive multi-trial baseline numbers across all 5 official fixtures.
+3. **Policy**: Do not optimize compact active lists / indirect dispatch before G8 measurement identifies them as a real bottleneck.
 
 ---
 
@@ -387,7 +403,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); Next: G8 Performance Evidence.
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A COMPLETE).
 
 M0 `ACHIEVED`: **NO**
 
@@ -396,14 +412,14 @@ M0 `ACHIEVED`: **NO**
 ## Machine-generated Facts
 
 ```text
-base_commit_sha: 6de27451a931cdc3c07cdea012163fb80eab87c6
+base_commit_sha: 94babb2667c081b5588489e1b4e710cc6efa68be
 build_id: local-cargo-2026-08-17
 platform: Windows
 primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (357 discovered, 354 passed, 3 ignored [coarse + controlled perf, 3000-tick fixture], 0 failed)
-benchmarks: G6-C2 full-tick 2048x2048: median 0.8426 ms/tick (1186.8 TPS, RTX 5090/DX12). G2 controlled baseline: median ~0.146 ms/tick. Official G8 performance matrix pending.
-m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; Next: G8 Performance Evidence; G9 pending)
+tests: passed (362 discovered, 359 passed, 3 ignored [coarse + controlled perf, 3000-tick fixture], 0 failed)
+benchmarks: G8-A 2048x2048 reference calibration: Mode A Production Sustained TPS = 870.0 TPS (1.1494 ms/tick, RTX 5090/DX12); Mode B Envelope = 1.0217 ms, Pass Sum = 0.7688 ms.
+m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A COMPLETE; G9 pending)
 ```

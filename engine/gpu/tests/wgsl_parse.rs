@@ -36,6 +36,18 @@ fn all_production_wgsl_parses_without_a_gpu() {
             "smoke_commit.wgsl",
             include_str!("../src/smoke_commit.wgsl"),
         ),
+        (
+            "expansion_claim.wgsl",
+            include_str!("../src/expansion_claim.wgsl"),
+        ),
+        (
+            "expansion_spawn_commit.wgsl",
+            include_str!("../src/expansion_spawn_commit.wgsl"),
+        ),
+        (
+            "expansion_pressure.wgsl",
+            include_str!("../src/expansion_pressure.wgsl"),
+        ),
         ("pressure.wgsl", include_str!("../src/pressure.wgsl")),
     ];
 

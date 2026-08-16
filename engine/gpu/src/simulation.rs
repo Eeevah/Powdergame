@@ -59,8 +59,8 @@ const THREADS_X: u64 = (WORKGROUPS_X as u64) * (WORKGROUP_SIZE as u64);
 const PARAMS_SIZE: u64 = 16;
 /// Material table buffer size (16 u32 entries each).
 const TABLE_SIZE: u64 = 64;
-/// Phase descriptor table: 16 descriptors × 16 bytes.
-const PHASE_TABLE_SIZE: u64 = 256;
+/// Phase descriptor table: 16 descriptors × 32 bytes (G5-B yield/confinement metadata).
+const PHASE_TABLE_SIZE: u64 = 512;
 /// Combustion descriptor table: 16 descriptors × 20 bytes.
 const COMBUSTION_TABLE_SIZE: u64 = 320;
 /// Decay descriptor table: 16 descriptors × 8 bytes.
@@ -115,6 +115,9 @@ pub struct Simulation {
     commit_pipeline: wgpu::ComputePipeline,
     thermal_pipeline: wgpu::ComputePipeline,
     phase_pipeline: wgpu::ComputePipeline,
+    expansion_claim_pipeline: wgpu::ComputePipeline,
+    expansion_spawn_commit_pipeline: wgpu::ComputePipeline,
+    expansion_pressure_pipeline: wgpu::ComputePipeline,
     decay_pipeline: wgpu::ComputePipeline,
     combustion_pipeline: wgpu::ComputePipeline,
     smoke_claim_pipeline: wgpu::ComputePipeline,
@@ -125,6 +128,9 @@ pub struct Simulation {
     commit_bind_group: wgpu::BindGroup,
     thermal_bind_group: wgpu::BindGroup,
     phase_bind_group: wgpu::BindGroup,
+    expansion_claim_bind_group: wgpu::BindGroup,
+    expansion_spawn_commit_bind_group: wgpu::BindGroup,
+    expansion_pressure_bind_group: wgpu::BindGroup,
     decay_bind_group: wgpu::BindGroup,
     combustion_bind_group: wgpu::BindGroup,
 
@@ -185,9 +191,34 @@ impl Simulation {
         let shader_phase = context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("powdergame-g4b-phase"),
+                label: Some("powdergame-g4b-g5b-phase"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("phase_transition.wgsl").into()),
             });
+        let shader_expansion_claim =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g5b-expansion-claim"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("expansion_claim.wgsl").into()),
+                });
+        let shader_expansion_spawn_commit =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g5b-expansion-spawn-commit"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("expansion_spawn_commit.wgsl").into(),
+                    ),
+                });
+        let shader_expansion_pressure =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-g5b-expansion-pressure"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("expansion_pressure.wgsl").into(),
+                    ),
+                });
         let shader_decay = context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -282,13 +313,57 @@ impl Simulation {
             context
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("powdergame-g4b-phase-bgl"),
+                    label: Some("powdergame-g4b-g5b-phase-bgl"),
                     entries: &[
                         buffer_entry(0, &BindingKind::Uniform),
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // temperature_current
                         buffer_entry(3, &BindingKind::Read), // phase_table
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
+                        buffer_entry(5, &BindingKind::ReadWrite), // expansion proposal
+                    ],
+                });
+        let expansion_claim_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g5b-expansion-claim-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // proposal
+                        buffer_entry(3, &BindingKind::ReadWrite), // claim
+                    ],
+                });
+        let expansion_spawn_commit_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g5b-expansion-spawn-commit-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // temperature_current
+                        buffer_entry(3, &BindingKind::Read), // claim
+                        buffer_entry(4, &BindingKind::ReadWrite), // material_next
+                        buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
+                        buffer_entry(6, &BindingKind::ReadWrite), // flags_next
+                    ],
+                });
+        let expansion_pressure_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-g5b-expansion-pressure-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // temperature_current
+                        buffer_entry(3, &BindingKind::Read), // phase_table
+                        buffer_entry(4, &BindingKind::Read), // proposal
+                        buffer_entry(5, &BindingKind::Read), // claim
+                        buffer_entry(6, &BindingKind::Read), // pressure_current
+                        buffer_entry(7, &BindingKind::ReadWrite), // pressure_next
                     ],
                 });
         let decay_layout =
@@ -413,10 +488,28 @@ impl Simulation {
             "thermal_main",
         );
         let phase_pipeline = make_pipeline(
-            "powdergame-g4b-phase",
+            "powdergame-g4b-g5b-phase",
             &phase_layout,
             &shader_phase,
             "phase_main",
+        );
+        let expansion_claim_pipeline = make_pipeline(
+            "powdergame-g5b-expansion-claim",
+            &expansion_claim_layout,
+            &shader_expansion_claim,
+            "expansion_claim_main",
+        );
+        let expansion_spawn_commit_pipeline = make_pipeline(
+            "powdergame-g5b-expansion-spawn-commit",
+            &expansion_spawn_commit_layout,
+            &shader_expansion_spawn_commit,
+            "expansion_spawn_commit_main",
+        );
+        let expansion_pressure_pipeline = make_pipeline(
+            "powdergame-g5b-expansion-pressure",
+            &expansion_pressure_layout,
+            &shader_expansion_pressure,
+            "expansion_pressure_main",
         );
         let decay_pipeline = make_pipeline(
             "powdergame-g4d-decay",
@@ -536,15 +629,22 @@ impl Simulation {
             .queue
             .write_buffer(&capacity_table_buf, 0, &capacity_data);
 
-        // G4-B phase descriptor table (16 × 16 bytes; Material data, not
-        // per-cell state). Compiled from each Material's ordered rules.
+        // G4-B/G5-B phase descriptor table (16 × 32 bytes; Material data,
+        // not per-cell state): targets + matter yield + thresholds +
+        // confinement pressure. No per-cell expansion buffer is added.
         let mut phase_data = [0u8; PHASE_TABLE_SIZE as usize];
         for (i, desc) in phase_descriptor_table().iter().enumerate() {
-            let off = i * 16;
+            let off = i * 32;
             phase_data[off..off + 4].copy_from_slice(&desc.below_target.to_ne_bytes());
             phase_data[off + 4..off + 8].copy_from_slice(&desc.above_target.to_ne_bytes());
-            phase_data[off + 8..off + 12].copy_from_slice(&desc.below_threshold.to_ne_bytes());
-            phase_data[off + 12..off + 16].copy_from_slice(&desc.above_threshold.to_ne_bytes());
+            phase_data[off + 8..off + 12].copy_from_slice(&desc.below_yield.to_ne_bytes());
+            phase_data[off + 12..off + 16].copy_from_slice(&desc.above_yield.to_ne_bytes());
+            phase_data[off + 16..off + 20].copy_from_slice(&desc.below_threshold.to_ne_bytes());
+            phase_data[off + 20..off + 24].copy_from_slice(&desc.above_threshold.to_ne_bytes());
+            phase_data[off + 24..off + 28]
+                .copy_from_slice(&desc.below_blocked_pressure.to_ne_bytes());
+            phase_data[off + 28..off + 32]
+                .copy_from_slice(&desc.above_blocked_pressure.to_ne_bytes());
         }
         let phase_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g4b/phase/table"),
@@ -754,8 +854,115 @@ impl Simulation {
                         binding: 4,
                         resource: world.material_next.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: world.proposal.as_entire_binding(),
+                    },
                 ],
             });
+        let expansion_claim_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-g5b-expansion-claim-bg"),
+                    layout: &expansion_claim_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                    ],
+                });
+        let expansion_spawn_commit_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-g5b-expansion-spawn-commit-bg"),
+                    layout: &expansion_spawn_commit_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.temperature_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.material_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.temperature_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.flags_next.as_entire_binding(),
+                        },
+                    ],
+                });
+        let expansion_pressure_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-g5b-expansion-pressure-bg"),
+                    layout: &expansion_pressure_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.temperature_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: phase_table_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.pressure_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.pressure_next.as_entire_binding(),
+                        },
+                    ],
+                });
         let decay_bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -931,6 +1138,9 @@ impl Simulation {
             commit_pipeline,
             thermal_pipeline,
             phase_pipeline,
+            expansion_claim_pipeline,
+            expansion_spawn_commit_pipeline,
+            expansion_pressure_pipeline,
             decay_pipeline,
             combustion_pipeline,
             smoke_claim_pipeline,
@@ -941,6 +1151,9 @@ impl Simulation {
             commit_bind_group,
             thermal_bind_group,
             phase_bind_group,
+            expansion_claim_bind_group,
+            expansion_spawn_commit_bind_group,
+            expansion_pressure_bind_group,
             decay_bind_group,
             combustion_bind_group,
             smoke_claim_bind_group,
@@ -958,7 +1171,8 @@ impl Simulation {
     /// movement propose → claim → commit (material + temperature + flags)
     /// → copy material/temperature/flags Next→Current
     /// → thermal conduction (write-self) → copy temperature Next→Current
-    /// → phase transition (self-write) → copy material Next→Current
+    /// → phase transition + expansion proposal → expansion claim/commit
+    /// → unresolved expansion → pressure impulse → copy phase state Current
     /// → combustion (self-write heat/flags + Smoke spawn request)
     /// → smoke claim (destination winner exactly one)
     /// → smoke commit (destination self-write Smoke + hot T)
@@ -970,8 +1184,8 @@ impl Simulation {
     /// flags through ownership, then the new location conducts, then the
     /// settled Temperature selects the phase, then combustion state/heat
     /// runs, then Smoke spawns with ownership. G5-A pressure propagation
-    /// runs last on settled Matter. Expansion generation / rupture remain
-    /// G5-B/G5-C.
+    /// runs last on settled Matter. G5-B expansion/confinement feeds it;
+    /// structural stress/rupture remains G5-C.
     pub fn tick(&mut self) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
         let dispatch_y = u32::try_from(cell_count.div_ceil(THREADS_X))
@@ -1054,17 +1268,74 @@ impl Simulation {
 
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("powdergame-g4b-phase-pass"),
+                label: Some("powdergame-g4b-g5b-phase-pass"),
                 timestamp_writes: None,
             });
             dispatch(&mut pass, &self.phase_pipeline, &self.phase_bind_group);
         }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g5b-expansion-claim-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.expansion_claim_pipeline,
+                &self.expansion_claim_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g5b-expansion-spawn-commit-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.expansion_spawn_commit_pipeline,
+                &self.expansion_spawn_commit_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g5b-expansion-pressure-pass"),
+                timestamp_writes: None,
+            });
+            dispatch(
+                &mut pass,
+                &self.expansion_pressure_pipeline,
+                &self.expansion_pressure_bind_group,
+            );
+        }
+        // Phase identity + any won expansion spawn become authoritative
+        // together. Unresolved expansion pressure is visible to the G5-A
+        // propagation pass later in the same tick.
         encoder.copy_buffer_to_buffer(
             &self.world.material_next,
             0,
             &self.world.material_current,
             0,
             self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.temperature_next,
+            0,
+            &self.world.temperature_current,
+            0,
+            self.world.layout.temperature_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.flags_next,
+            0,
+            &self.world.flags_current,
+            0,
+            self.world.layout.flags_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.pressure_next,
+            0,
+            &self.world.pressure_current,
+            0,
+            self.world.layout.pressure_bytes,
         );
 
         // G4-D: decay pass (age increment + finite lifetime decay to EMPTY).

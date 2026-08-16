@@ -52,9 +52,10 @@ pub use movement::{
     MoveTarget,
 };
 pub use phase::{
-    is_phase_candidate, phase_descriptor_table, select_phase_transition, PhaseGpuDescriptor,
-    PhaseTransition, TemperatureCondition, ICE_MELT_ABOVE, NO_PHASE_TARGET, STEAM_CONDENSE_BELOW,
-    WATER_BOIL_ABOVE, WATER_FREEZE_BELOW,
+    is_phase_candidate, phase_descriptor_table, select_phase_effect, select_phase_transition,
+    PhaseEffect, PhaseGpuDescriptor, PhaseTransition, TemperatureCondition, ICE_MELT_ABOVE,
+    MAX_PHASE_MATTER_YIELD, NO_PHASE_TARGET, PHASE_IDENTITY_MATTER_YIELD, STEAM_CONDENSE_BELOW,
+    WATER_BOIL_ABOVE, WATER_BOIL_BLOCKED_PRESSURE, WATER_BOIL_MATTER_YIELD, WATER_FREEZE_BELOW,
 };
 pub use pressure::{
     is_pressure_medium, pressure_step, sanitize_pressure, PressureNeighbor,

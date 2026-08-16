@@ -1,4 +1,4 @@
-//! G4-B — Phase transition: temperature-based 1:1 self transitions.
+//! G4-B/G5-B — Phase transition with data-driven expansion metadata.
 //!
 //! Ice ↔ Water ↔ Steam is a **Self Transition** (`REACTION_SPEC` §3): the
 //! decision depends only on the cell's own Material + Temperature, so one
@@ -27,6 +27,16 @@ pub const ICE_MELT_ABOVE: f32 = -10.0;
 pub const STEAM_CONDENSE_BELOW: f32 = 40.0;
 pub const WATER_BOIL_ABOVE: f32 = 60.0;
 
+/// G5-B baseline: ordinary phase rules are identity-yield (1 cell in → 1 out).
+pub const PHASE_IDENTITY_MATTER_YIELD: u32 = 1;
+/// G5-B minimum sufficient expansion: boiling Water requests one extra Steam cell.
+pub const WATER_BOIL_MATTER_YIELD: u32 = 2;
+/// Pressure impulse created when the extra boiling yield cannot acquire space.
+/// Gameplay scalar, not SI pressure.
+pub const WATER_BOIL_BLOCKED_PRESSURE: f32 = 100.0;
+/// Current G5-B ownership path supports at most one additional Matter cell.
+pub const MAX_PHASE_MATTER_YIELD: u32 = 2;
+
 /// Sentinel for "no transition target" in the compact GPU table.
 /// Distinct from `EMPTY == 0` so "no rule" can never be confused with
 /// "becomes EMPTY".
@@ -47,6 +57,10 @@ pub struct PhaseTransition {
     pub condition: TemperatureCondition,
     pub threshold: f32,
     pub target_material: u32,
+    /// Total Matter cells requested by this transition, including self.
+    pub matter_yield: u32,
+    /// Pressure added at the source when requested extra yield is unresolved.
+    pub blocked_pressure: f32,
 }
 
 /// Compact per-Material descriptor for GPU upload (one per material id).
@@ -59,16 +73,24 @@ pub struct PhaseTransition {
 pub struct PhaseGpuDescriptor {
     pub below_target: u32,
     pub above_target: u32,
+    pub below_yield: u32,
+    pub above_yield: u32,
     pub below_threshold: f32,
     pub above_threshold: f32,
+    pub below_blocked_pressure: f32,
+    pub above_blocked_pressure: f32,
 }
 
-/// Pure reference: selects the phase target for `material_id` at
-/// `temperature`, or `None` when the Material has no matching rule.
-///
-/// This is a unit/reference helper — the production full-world path is the
-/// GPU phase pass, never a CPU world loop.
-pub fn select_phase_transition(material_id: u32, temperature: f32) -> Option<u32> {
+/// Full selected phase effect used by G5-B expansion/confinement.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PhaseEffect {
+    pub target_material: u32,
+    pub matter_yield: u32,
+    pub blocked_pressure: f32,
+}
+
+/// Selects the first matching Material-owned phase effect.
+pub fn select_phase_effect(material_id: u32, temperature: f32) -> Option<PhaseEffect> {
     let rules = registry_lookup(material_id)?.phase_transitions;
     let t = sanitize_temperature(temperature);
     for rule in rules {
@@ -77,10 +99,23 @@ pub fn select_phase_transition(material_id: u32, temperature: f32) -> Option<u32
             TemperatureCondition::Above => t > rule.threshold,
         };
         if hit {
-            return Some(rule.target_material);
+            return Some(PhaseEffect {
+                target_material: rule.target_material,
+                matter_yield: rule.matter_yield,
+                blocked_pressure: rule.blocked_pressure,
+            });
         }
     }
     None
+}
+
+/// Pure reference: selects the phase target for `material_id` at
+/// `temperature`, or `None` when the Material has no matching rule.
+///
+/// This is a unit/reference helper — the production full-world path is the
+/// GPU phase pass, never a CPU world loop.
+pub fn select_phase_transition(material_id: u32, temperature: f32) -> Option<u32> {
+    select_phase_effect(material_id, temperature).map(|effect| effect.target_material)
 }
 
 /// Returns `true` if the Material owns at least one phase rule
@@ -98,8 +133,12 @@ pub fn phase_descriptor_table() -> [PhaseGpuDescriptor; 16] {
     let none = PhaseGpuDescriptor {
         below_target: NO_PHASE_TARGET,
         above_target: NO_PHASE_TARGET,
+        below_yield: PHASE_IDENTITY_MATTER_YIELD,
+        above_yield: PHASE_IDENTITY_MATTER_YIELD,
         below_threshold: 0.0,
         above_threshold: 0.0,
+        below_blocked_pressure: 0.0,
+        above_blocked_pressure: 0.0,
     };
     let mut table = [none; 16];
     for m in MATERIAL_REGISTRY {
@@ -110,12 +149,16 @@ pub fn phase_descriptor_table() -> [PhaseGpuDescriptor; 16] {
             match rule.condition {
                 TemperatureCondition::Below if !below_seen => {
                     desc.below_target = rule.target_material;
+                    desc.below_yield = rule.matter_yield;
                     desc.below_threshold = rule.threshold;
+                    desc.below_blocked_pressure = rule.blocked_pressure;
                     below_seen = true;
                 }
                 TemperatureCondition::Above if !above_seen => {
                     desc.above_target = rule.target_material;
+                    desc.above_yield = rule.matter_yield;
                     desc.above_threshold = rule.threshold;
+                    desc.above_blocked_pressure = rule.blocked_pressure;
                     above_seen = true;
                 }
                 _ => {}
@@ -297,6 +340,52 @@ mod tests {
         for unknown in [10usize, 15] {
             assert_eq!(table[unknown].below_target, NO_PHASE_TARGET);
             assert_eq!(table[unknown].above_target, NO_PHASE_TARGET);
+        }
+    }
+
+    #[test]
+    fn boiling_effect_requests_expansion_and_confinement_pressure() {
+        let effect = select_phase_effect(MATERIAL_WATER, 70.0).unwrap();
+        assert_eq!(effect.target_material, MATERIAL_STEAM);
+        assert_eq!(effect.matter_yield, WATER_BOIL_MATTER_YIELD);
+        assert_eq!(effect.blocked_pressure, WATER_BOIL_BLOCKED_PRESSURE);
+    }
+
+    #[test]
+    fn non_expanding_phase_rules_keep_identity_yield() {
+        for (material, t) in [
+            (MATERIAL_WATER, -30.0),
+            (MATERIAL_ICE, 0.0),
+            (MATERIAL_STEAM, 30.0),
+        ] {
+            let effect = select_phase_effect(material, t).unwrap();
+            assert_eq!(effect.matter_yield, PHASE_IDENTITY_MATTER_YIELD);
+            assert_eq!(effect.blocked_pressure, 0.0);
+        }
+    }
+
+    #[test]
+    fn phase_descriptor_carries_g5b_metadata() {
+        let table = phase_descriptor_table();
+        let water = table[MATERIAL_WATER as usize];
+        assert_eq!(water.above_yield, WATER_BOIL_MATTER_YIELD);
+        assert_eq!(water.above_blocked_pressure, WATER_BOIL_BLOCKED_PRESSURE);
+        assert_eq!(water.below_yield, PHASE_IDENTITY_MATTER_YIELD);
+        assert_eq!(water.below_blocked_pressure, 0.0);
+    }
+
+    #[test]
+    fn registered_phase_yields_fit_g5b_single_extra_cell_path() {
+        for material in crate::material::MATERIAL_REGISTRY {
+            for rule in material.phase_transitions {
+                assert!(rule.matter_yield >= 1);
+                assert!(rule.matter_yield <= MAX_PHASE_MATTER_YIELD);
+                assert!(rule.blocked_pressure.is_finite());
+                assert!(rule.blocked_pressure >= 0.0);
+                if rule.matter_yield == PHASE_IDENTITY_MATTER_YIELD {
+                    assert_eq!(rule.blocked_pressure, 0.0);
+                }
+            }
         }
     }
 

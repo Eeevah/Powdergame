@@ -13,8 +13,9 @@
 //! Thresholds (relative gameplay scalar, not Celsius), with hysteresis:
 //!   Water freezes below -20, Ice melts above -10,
 //!   Steam condenses below 40, Water boils above 60.
-//! Temperature is preserved across the 1:1 transform (latent heat is out of
-//! scope). 1 Water cell → 1 Steam cell: no expansion/spawn (G5).
+//! Temperature is preserved across the source transform (latent heat is out
+//! of scope). G5-B extends boiling with a data-driven extra Steam request;
+//! sealed fixtures still isolate the original phase identity contract.
 //!
 //! The "next tick" tests prove the phase is NOT a pure ID repaint: a
 //! phase-changed Matter adopts the new Material descriptor's MovementClass
@@ -365,25 +366,26 @@ fn hot_water_moves_then_boils_at_destination() {
 
     sim.tick().expect("tick");
 
-    assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY, "source vacated");
-    assert_eq!(
-        temp(&sim, 3, 3),
-        TEMPERATURE_REFERENCE,
-        "no ghost heat at the source"
-    );
     assert_eq!(
         cell(&sim, 3, 4),
         MATERIAL_STEAM,
         "water moved down, then boiled at the destination"
     );
-    assert_eq!(count_material(&sim, MATERIAL_STEAM), 1);
+    assert_eq!(
+        cell(&sim, 3, 3),
+        MATERIAL_STEAM,
+        "G5-B expansion reuses the newly vacated source cell"
+    );
+    assert_eq!(count_material(&sim, MATERIAL_STEAM), 2);
     assert_eq!(count_material(&sim, MATERIAL_WATER), 0);
-    assert_eq!(matter_count(&sim), before);
+    assert_eq!(matter_count(&sim), before + 1);
     let dest_t = temp(&sim, 3, 4);
+    let spawn_t = temp(&sim, 3, 3);
     assert!(
         (dest_t - 80.0).abs() < 1.0e-3,
         "the hot state must be carried to the new cell; got {dest_t}"
     );
+    assert!((spawn_t - dest_t).abs() < 1.0e-3);
 }
 
 // ── Ice movement semantics ──────────────────────────────────────────────
@@ -469,13 +471,9 @@ fn boiled_water_uses_steam_movement_next_tick() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WATER);
     set_t(&sim, 3, 3, 80.0);
-    // Stone ring below/lateral: down (3,4), down-diagonals (2,4),(4,4),
-    // laterals (2,3),(4,3). Up (3,2) stays EMPTY for the Steam to rise.
-    set(&sim, 3, 4, MATERIAL_STONE);
-    set(&sim, 2, 4, MATERIAL_STONE);
-    set(&sim, 4, 4, MATERIAL_STONE);
-    set(&sim, 2, 3, MATERIAL_STONE);
-    set(&sim, 4, 3, MATERIAL_STONE);
+    // Seal all eight neighbors on tick 1 so G5-B expansion is deliberately
+    // confined; after boiling we open only (3,2) to test GAS movement.
+    box_seal(&sim, 3, 3);
     let before = matter_count(&sim);
 
     // Tick 1: water stays put (all LIQUID stencil candidates blocked), then
@@ -489,6 +487,11 @@ fn boiled_water_uses_steam_movement_next_tick() {
         boil_t > 60.0,
         "steam keeps its heat after boiling; got {boil_t}"
     );
+
+    // Open one cell only after the blocked boiling tick; this keeps the
+    // historical MovementClass adoption test independent of G5-B spawn.
+    set(&sim, 3, 2, MATERIAL_EMPTY);
+    let after_open = matter_count(&sim);
 
     // Tick 2: the GAS identity actually rises one cell.
     sim.tick().expect("tick");
@@ -511,9 +514,10 @@ fn boiled_water_uses_steam_movement_next_tick() {
     assert_eq!(count_material(&sim, MATERIAL_STEAM), 1);
     assert_eq!(
         matter_count(&sim),
-        before,
-        "matter conserved across both ticks"
+        after_open,
+        "opening the fixture changes the authored Stone count, but movement conserves Matter"
     );
+    assert_eq!(after_open + 1, before);
 }
 
 // ── Chunk boundary ──────────────────────────────────────────────────────

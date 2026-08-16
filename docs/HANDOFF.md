@@ -6,24 +6,27 @@
 
 ## 1. Read Order
 
-반드시 다음 순서로 읽는다.
+처음 작업하는 에이전트는 코드 수정 전에 **`docs/development/QUICKSTART.md`와 `docs/planning/STATUS.md`를 먼저 읽는다.**
 
-1. `docs/vision/USER_VISION.md`
-2. `docs/design-history/2026-08-15-foundation-design-session.md`
-3. `docs/architecture/ARCHITECTURE.md`
-4. `docs/architecture/decisions/ADR-0001-world-cell-invariants.md`
-5. `docs/architecture/decisions/ADR-0002-gpu-authoritative-local-simulation.md`
-6. `docs/architecture/decisions/ADR-0003-minimum-sufficient-physics.md`
-7. `docs/architecture/decisions/ADR-0004-approximate-determinism-and-arbitration.md`
-8. `docs/specs/SIMULATION_SPEC.md`
-9. `docs/specs/MATERIAL_SPEC.md`
-10. `docs/specs/REACTION_SPEC.md`
-11. `docs/specs/DETERMINISM_SPEC.md`
-12. `docs/development/PERFORMANCE.md`
-13. `docs/development/DEVELOPMENT.md`
-14. `docs/development/TESTING.md`
-15. `docs/planning/MILESTONES.md`
-16. `docs/planning/STATUS.md`
+그 다음 반드시 다음 순서로 읽는다.
+
+1. `docs/development/QUICKSTART.md`
+2. `docs/vision/USER_VISION.md`
+3. `docs/design-history/2026-08-15-foundation-design-session.md`
+4. `docs/architecture/ARCHITECTURE.md`
+5. `docs/architecture/decisions/ADR-0001-world-cell-invariants.md`
+6. `docs/architecture/decisions/ADR-0002-gpu-authoritative-local-simulation.md`
+7. `docs/architecture/decisions/ADR-0003-minimum-sufficient-physics.md`
+8. `docs/architecture/decisions/ADR-0004-approximate-determinism-and-arbitration.md`
+9. `docs/specs/SIMULATION_SPEC.md`
+10. `docs/specs/MATERIAL_SPEC.md`
+11. `docs/specs/REACTION_SPEC.md`
+12. `docs/specs/DETERMINISM_SPEC.md`
+13. `docs/development/PERFORMANCE.md`
+14. `docs/development/DEVELOPMENT.md`
+15. `docs/development/TESTING.md`
+16. `docs/planning/MILESTONES.md`
+17. `docs/planning/STATUS.md`
 
 `README.md`, `00_USER_VISION.md`, `01_MASTER_DESIGN_REPORT.md`는 위 문서들과 맞춰 최신화되지만 세부 구현 판단은 위 authoritative 문서를 우선한다.
 
@@ -33,7 +36,7 @@
 
 **M0 — First World**를 구현한다.
 
-현재 M0 상태는 `PLANNED`.
+현재 M0 상태는 `IN_PROGRESS`. G0-G6는 PASS / CLOSED, G7은 Active / Sleep 진행 중이다. 최신 세부 상태는 반드시 `docs/planning/STATUS.md`를 따른다.
 
 M0의 목적:
 

@@ -36,7 +36,7 @@
 
 **M0 — First World**를 구현한다.
 
-현재 M0 상태는 `IN_PROGRESS`. G0-G6는 PASS / CLOSED, G7은 Active / Sleep 진행 중이다. 최신 세부 상태는 반드시 `docs/planning/STATUS.md`를 따른다.
+현재 M0 상태는 `IN_PROGRESS`. G0-G7은 PASS / CLOSED 완료되었으며, 다음 진입 게이트는 **G8 — Performance Evidence**다. 최신 세부 상태는 반드시 `docs/planning/STATUS.md`를 따른다.
 
 M0의 목적:
 
@@ -156,10 +156,11 @@ Do not expand M0 with Electricity/Life/Civilization/etc before the current gates
 12. Temperature / Ice-Water-Steam
 13. Combustion
 14. Pressure/rupture
-15. Active/Sleep
-16. benchmark harness
+15. Active/Sleep (G7 — Completed & Frozen)
+16. Performance Evidence / benchmark harness (G8 — Immediate Next Work)
 
 Do not start with aggressive packing/f16/indirect dispatch.
+Do not optimize compact active lists / indirect dispatch before G8 measurement identifies them as a real bottleneck.
 
 ---
 

@@ -5,9 +5,10 @@ Read this first when entering the repo.
 ## Current gate
 
 - M0: IN_PROGRESS
-- G0-G6: PASS / CLOSED
-- G7-A: USER VALIDATED measurement baseline
-- Next: G7-B actual sleep / wake correctness
+- G0-G7: PASS / CLOSED
+- G7-A: USER VALIDATED / FROZEN
+- G7-B: PASS / CLOSED / FROZEN
+- Next: G8 Performance Evidence
 
 ## Windows
 
@@ -47,7 +48,7 @@ git diff --check
 Then run only the required demo smoke matrix.
 
 **PERFORMANCE — manual only**
-Do not run performance benchmarks during normal build/test loops. Run only when explicitly requested or at G8.
+Do not run performance benchmarks during normal build/test loops. G8 is now the next gate where performance measurement is allowed/expected.
 
 ## Never forget
 

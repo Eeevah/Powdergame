@@ -5,7 +5,7 @@ G7 — Active / Sleep gate, sub-step B.
 - **Original Reviewed Candidate**: `3139ffc1524c94957d2e611ae98a296bcc988676`
 - **Red-Team Correctness Fix**: `2e90869b8ddc3d44618a2c264c1f9e099c7d5cc6`
 - **User-Validation Blocker Fix / Validated Runtime HEAD**: `638a27febd5f38a117c9f2a1dedac958446c8c20`
-- **Status**: `G7-B implementation complete / VALIDATED PASS`
+- **Status**: `PASS / CLOSED / FROZEN (User Approved 2026-08-17)`
 - **Philosophy**: **Dense State, Sparse Work** — dense SoA storage 유지 (`material` / `temperature` / `pressure` / `flags`), Cell state를 sparse container로 바꾸지 않음.
 - **Core Principle**: Stable bulk chunk에서 실제 simulation work를 생략하고, 필요한 순간에는 절대로 늦지 않게 Wake하며, Sleep ON과 기존 Always-Active 결과가 의미적으로 완전히 같음을 증명한다.
 
@@ -289,6 +289,11 @@ The `--activity-demo` fixture features live G7-B Sleep/Wake diagnostics:
 - **Independent Re-Review**: `PASS` — remote lineage/diff and implementation contracts independently re-audited after user validation.
 - **Windows / RTX 5090 / DX12 User Validation**: `PASS`
 - **Final G7-B PASS declared**: `YES`
-- **CLOSED / FROZEN declared**: `NO` — milestone closure/freeze is a separate project-management decision; this evidence does not automatically start G7-C or G8.
-- **G7-C / indirect dispatch / active-list compaction**: `NOT STARTED`
-- **G8 performance verification**: `NOT STARTED`
+- **G7-B CLOSED**: `YES`
+- **G7-B FROZEN**: `YES`
+- **User Approval / Closure Date**: `2026-08-17`
+
+### Closure Declarations:
+1. **Freeze of Correctness Semantics**: This closure freezes the validated G7-B correctness/runtime semantics. Future performance work may optimize execution strategy only after G8 evidence and must preserve G7-B behavioral equivalence.
+2. **G7-C (Compaction / Indirect Dispatch)**: `DEFERRED PENDING G8 EVIDENCE` — Compact active lists and indirect dispatch are NOT part of the completed G7 correctness gate. Reconsider only if G8 demonstrates dispatch overhead as a real bottleneck.
+3. **G8 (Performance Evidence)**: `NEXT GATE / NOT YET IMPLEMENTED` — This closure commit closes G7; it does not implement G8.

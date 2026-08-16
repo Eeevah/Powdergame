@@ -4,7 +4,8 @@ G7 — Active / Sleep gate, sub-step B.
 
 - **Original Reviewed Candidate**: `3139ffc1524c94957d2e611ae98a296bcc988676`
 - **Red-Team Correctness Fix**: `2e90869b8ddc3d44618a2c264c1f9e099c7d5cc6`
-- **Status**: `G7-B implementation complete / PASS candidate (Independent re-review + user validation pending)`
+- **User-Validation Blocker Fix / Validated Runtime HEAD**: `638a27febd5f38a117c9f2a1dedac958446c8c20`
+- **Status**: `G7-B implementation complete / VALIDATED PASS`
 - **Philosophy**: **Dense State, Sparse Work** — dense SoA storage 유지 (`material` / `temperature` / `pressure` / `flags`), Cell state를 sparse container로 바꾸지 않음.
 - **Core Principle**: Stable bulk chunk에서 실제 simulation work를 생략하고, 필요한 순간에는 절대로 늦지 않게 Wake하며, Sleep ON과 기존 Always-Active 결과가 의미적으로 완전히 같음을 증명한다.
 
@@ -99,7 +100,7 @@ Before any simulation pass dispatches, the dedicated `activity_wake_pass` execut
 
 ## 3. Automated Test Suite (`sleep_wake.rs`) — All 17 Scenarios Passed
 
-The dedicated integration test suite `engine/gpu/tests/sleep_wake.rs` now verifies all 17 scenarios and structural contracts:
+The dedicated integration test suite `engine/gpu/tests/sleep_wake.rs` verifies all 17 scenarios and structural contracts:
 
 | Scenario | Name | Test Purpose | Result |
 |---|---|---|---|
@@ -147,7 +148,9 @@ test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 
 ---
 
-## 4. Full Workspace Verification
+## 4. Full Workspace Verification — Validated Runtime HEAD `638a27f...`
+
+The final user-validation blocker commit was tested on Windows 11 / NVIDIA GeForce RTX 5090 / DirectX 12.
 
 ```text
 Full Test Suite (`cargo test --workspace -- --test-threads=1`):
@@ -167,25 +170,106 @@ Full Test Suite (`cargo test --workspace -- --test-threads=1`):
   - GPU thermal conduction tests: 13 passed
   - GPU WGSL syntax parse tests: 1 passed
   - GPU world integrity tests: 7 passed
-  - Windows observatory unit tests: 8 passed (1 ignored 3000-tick)
-  - Total: 355 discovered, 352 passed, 3 ignored, 0 failed
-
-Clippy Validation (`cargo clippy --workspace --all-targets -- -D warnings`):
-  - 0 warnings, 0 errors
-
-Performance Benchmarks:
-  - NOT RUN (frozen production baseline; manual perf tests ignored)
-
-Git Workspace Integrity (`git diff --check`):
-  - 0 whitespace or formatting errors
+  - Windows observatory/runtime tests: 10 passed (1 ignored 3000-tick)
+  - Total: 357 discovered, 354 passed, 3 ignored, 0 failed
 ```
+
+The corrected total above is calculated directly from the 20 raw `test result:` summary lines from the final workspace run. The earlier `356 passed` user-validation report total and the pre-blocker-fix `352 passed / 355 discovered` evidence total are superseded.
+
+Final-head Clippy validation:
+```text
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking powdergame-gpu v0.1.0 (...\engine\gpu)
+    Checking powdergame-windows v0.1.0 (...\apps\windows)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.17s
+```
+Result: **PASS — 0 warnings / 0 errors**.
+
+Additional quality gates reported for the final implementation commit:
+```text
+git diff --check                    PASS
+cargo fmt --all -- --check          PASS
+cargo check --workspace             PASS
+```
+
+Performance benchmarks were **NOT RUN**. This correction is a correctness / user-validation gate, not a G8 performance gate.
+
+Repository state after validation:
+```text
+?? run.bat
+?? scripts/
+```
+Interpretation: no tracked implementation changes remained locally; the user-owned untracked `run.bat` and `scripts/` were preserved and intentionally not committed. The worktree is therefore **not literally Git-clean**, but is clean with respect to tracked project files.
 
 ---
 
-## 5. Observatory HUD & Controls
+## 5. User-Validation Blocker Resolution
+
+### 5.1 Blocker A — `R` Reset UI Stall
+
+**Observed defect**
+- The Windows demo reset path cleared a 256×256 world by calling `write_material()` per cell before re-staging the fixture.
+- This produced tens of thousands of tiny queue writes plus edit-wake side effects and caused visible reset stalls/freezing.
+
+**Fix (`638a27f...`)**
+- Added `GpuWorld::reset()` to rebuild the pristine boundary-ring Material state with bulk uploads and zero Current/Next dense state plus movement/activity scratch in bulk.
+- Added `Simulation::reset()` to reset world state, arbitration params and `tick_count = 0`, then refresh uniforms while preserving `sleep_enabled` and `sleep_threshold`.
+- `reset_demo_world()` now calls `Simulation::reset()` and then reuses the existing validated fixture staging functions.
+- Reset input cancels a pending single-step, pauses playback, restores fast-forward to 1×, and keeps the demo tick counter at 0.
+
+**Regression coverage — exact scope**
+`activity_demo_reset_exact_equivalence` verifies:
+- a progressed Activity fixture can reset to a freshly staged baseline;
+- exact readback equality for authoritative Current Material / Temperature / Pressure / Flags;
+- exact equality for read back `chunk_activity`, `chunk_state`, `chunk_stable_ticks`, `chunk_wake_reason`, and `chunk_edit_wake` diagnostics;
+- `Simulation::tick_count == 0` after reset;
+- `sleep_enabled` and `sleep_threshold` preservation;
+- repeated reset idempotency for the asserted baseline state;
+- the next production tick is tick 1, with tick-1 Material output matching a fresh fixture.
+
+The reset implementation itself also zeroes Next buffers and additional scratch buffers, but those buffers are not all independently read back and asserted by this regression test; evidence does not claim otherwise.
+
+**Interactive validation**
+- `R`: immediate fixture reset without the previous visible multi-second/hang behavior.
+- Reset performed repeatedly (3+ cycles) after simulation progress.
+- After reset: paused, fast=1×, SIM TICK=0, sleep enabled/disabled state and threshold preserved.
+- No automatic tick immediately after reset; `N` advances exactly to tick 1.
+
+### 5.2 Blocker B — Missing G7 Activity HUD Glyph Sizes
+
+**Defect**
+- Font atlas only rasterized `[13, 15, 18, 24]`, while Activity HUD requested 12/14/16/17 px as well.
+
+**Fix**
+- Atlas rasterization set expanded to `[12, 13, 14, 15, 16, 17, 18, 24]`.
+- `test_font_atlas_contains_all_required_hud_sizes` guards the required sizes/glyphs.
+
+**Interactive validation**
+- Actual runtime HUD rendered the Activity title, `SLEEP: [ON] (Threshold: N ticks)` / OFF reference text, global rows, wake reasons, activity rows, heatmap/notes, A/B/C/D panel cards, stable text/status and bottom controls without the previous missing-size text disappearance.
+
+### 5.3 Controls Regression
+- `SPACE`: Play/Pause — **PASS**
+- `S`: Sleep ON/OFF — **PASS**
+- `[` / `]`: threshold adjustment 1..64 — **PASS**
+- `F`: 1× → 4× → 16× → 1× — **PASS**
+- `N`: paused single production tick — **PASS**
+- `R`: reset contract above — **PASS**
+
+### 5.4 Long-Run DX12 Regression
+Explicit RTX 5090 / DX12 run:
+```text
+running 1 test
+test tests::activity_demo_long_run_3000_ticks ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 8.16s
+```
+This remains a correctness regression, not a performance benchmark.
+
+---
+
+## 6. Observatory HUD & Controls
 
 The `--activity-demo` fixture features live G7-B Sleep/Wake diagnostics:
-- **`S` Key**: Toggles Sleep Optimization `[ON]` / `[OFF (Always-Active Reference)]`.
+- **`S` Key**: Toggles Sleep Optimization ON / OFF (`Always-Active Reference`).
 - **`[` / `]` Keys**: Decreases / increases the sleep settling threshold (1~64 ticks).
 - **HUD Global Card**:
   - Live counts for `Runnable Chunks` and `Sleeping Chunks` (with %).
@@ -199,9 +283,12 @@ The `--activity-demo` fixture features live G7-B Sleep/Wake diagnostics:
 
 ---
 
-## 6. Gate Status
+## 7. Gate Status
 
-- **G7-B Status**: `G7-B implementation complete / PASS candidate`
-- **Independent Re-Review**: `PENDING`
-- **User Validation**: `PENDING`
-- **Final PASS / CLOSED / FROZEN declared**: `NO`
+- **G7-B Implementation**: `PASS`
+- **Independent Re-Review**: `PASS` — remote lineage/diff and implementation contracts independently re-audited after user validation.
+- **Windows / RTX 5090 / DX12 User Validation**: `PASS`
+- **Final G7-B PASS declared**: `YES`
+- **CLOSED / FROZEN declared**: `NO` — milestone closure/freeze is a separate project-management decision; this evidence does not automatically start G7-C or G8.
+- **G7-C / indirect dispatch / active-list compaction**: `NOT STARTED`
+- **G8 performance verification**: `NOT STARTED`

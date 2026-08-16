@@ -12,7 +12,8 @@
 //! loop. Simulation truth is never mutated by diagnostic instrumentation.
 
 use powdergame_core::{
-    MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_WATER, MATERIAL_WOOD,
+    MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_WATER,
+    MATERIAL_WOOD,
 };
 use powdergame_gpu::Simulation;
 
@@ -23,9 +24,62 @@ pub const THERMAL_OBS_WARM_THRESHOLD: f32 = 10.0;
 /// Bit flag indicating active combustion on a cell (matches core/GPU shader).
 pub const FLAG_COMBUSTING: u32 = 1;
 
+/// Decay-age bit range for Material-owned decay (matches `decay.wgsl`).
+pub const FLAG_DECAY_AGE_SHIFT: u32 = 16;
+pub const FLAG_DECAY_AGE_MASK: u32 = 0x0FFF;
+
+// A claim-losing expansion source receives the Material-owned blocked
+// pressure impulse (`WATER_BOIL_BLOCKED_PRESSURE`, 100); the claim winner
+// receives no impulse and only carries pressure diffused in from its losing
+// neighbors during the same tick. The loser count in `IntegrityMetrics` is
+// derived as "sources whose pressure exceeds the minimum source pressure" —
+// the winner is always the minimum — without any hardcoded expectation of
+// WHICH source won the hash arbitration.
+
 /// Sentinel value indicating no event has occurred yet (e.g. tick record is None).
 #[allow(dead_code)]
 pub const TICK_NONE: u32 = 0xFFFF_FFFF;
+
+// ── G6 Panel bounds (world 256×256, stone dividers at x 127..128 / y 127..128) ──
+pub const G6_A_X_MIN: u32 = 1;
+pub const G6_A_X_MAX: u32 = 126;
+pub const G6_A_Y_MIN: u32 = 1;
+pub const G6_A_Y_MAX: u32 = 126;
+pub const G6_B_X_MIN: u32 = 129;
+pub const G6_B_X_MAX: u32 = 254;
+pub const G6_B_Y_MIN: u32 = 1;
+pub const G6_B_Y_MAX: u32 = 126;
+pub const G6_C_X_MIN: u32 = 1;
+pub const G6_C_X_MAX: u32 = 126;
+pub const G6_C_Y_MIN: u32 = 129;
+pub const G6_C_Y_MAX: u32 = 254;
+pub const G6_D_X_MIN: u32 = 129;
+pub const G6_D_X_MAX: u32 = 254;
+pub const G6_D_Y_MIN: u32 = 129;
+pub const G6_D_Y_MAX: u32 = 254;
+
+// ── G6 Panel C one-tick ownership fixture (staged by `stage_parallel_integrity_demo`;
+//    these constants MUST match the staging geometry so the readback evaluator
+//    interprets the first tick correctly). ──
+/// Shared EMPTY destination the three boiling Water sources all propose.
+pub const EXP_TARGET: (u32, u32) = (22, 185);
+/// The three boiling Water sources (must all become Steam on tick 1).
+pub const EXP_SOURCES: [(u32, u32); 3] = [(21, 186), (22, 186), (23, 186)];
+/// Stone rect (x0, y0, x1, y1) surrounding the expansion fixture — every
+/// source neighbor except the shared target is Stone, so the target is the
+/// only valid expansion candidate.
+pub const EXP_REGION: (u32, u32, u32, u32) = (18, 183, 26, 190);
+/// Shared EMPTY Smoke destination the three burning Wood sources all propose.
+pub const SMOKE_TARGET: (u32, u32) = (100, 185);
+/// The three Wood sources (ignite on tick 1, all preserved).
+pub const SMOKE_SOURCES: [(u32, u32); 3] = [(99, 186), (100, 186), (101, 186)];
+/// Stone rect around the smoke fixture (all non-target neighbors Stone).
+pub const SMOKE_REGION: (u32, u32, u32, u32) = (96, 183, 104, 190);
+/// Small movement fixture: Sand at `MOVE_SRC`, EMPTY at `MOVE_DST` — proves the
+/// movement pass ran in the SAME tick as expansion + smoke (scratch reuse).
+pub const MOVE_SRC: (u32, u32) = (60, 180);
+pub const MOVE_DST: (u32, u32) = (60, 181);
+pub const MOVE_REGION: (u32, u32, u32, u32) = (58, 178, 62, 183);
 
 /// Bounding boxes for the four 4-panel observatory chambers (world size 320×192).
 pub const PANEL_A_X_MIN: u32 = 1;
@@ -796,16 +850,28 @@ pub struct ObservatoryCollector {
     receiver: Option<std::sync::mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>>,
     metrics: ObservatoryMetrics,
     pressure_metrics: PressureObservatoryMetrics,
+    integrity_metrics: IntegrityMetrics,
     initial_wood_set: bool,
     initial_a_ice: u32,
     initial_b_steam: u32,
     last_request_tick: u64,
     cell_bytes: u64,
+    c_latch_reported: bool,
+    /// G6 parallel-integrity instrument: blocking one-shot snapshots for the
+    /// pristine tick-0 baseline and the exact tick-1 ownership latch.
+    g6_mode: bool,
+    initial_latched: bool,
+    c_staging_material: wgpu::Buffer,
+    c_staging_temperature: wgpu::Buffer,
+    c_staging_flags: wgpu::Buffer,
+    c_staging_pressure: wgpu::Buffer,
 }
 
 impl ObservatoryCollector {
-    /// Creates staging buffers and allocates a new collector.
-    pub fn new(simulation: &Simulation) -> Self {
+    /// Creates staging buffers and allocates a new collector. `g6_mode` enables
+    /// the G6 parallel-integrity one-tick instrument (blocking tick-0 / tick-1
+    /// snapshots + real readback ownership metrics).
+    pub fn new(simulation: &Simulation, g6_mode: bool) -> Self {
         let device = &simulation.context.device;
         let cell_bytes = simulation.world.layout.material_bytes;
 
@@ -833,6 +899,20 @@ impl ObservatoryCollector {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
+        // G6 instrument staging set (blocking snapshots, separate from the
+        // async pipeline so a slow in-flight map never delays the latch).
+        let mk_staging = |label: &str| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size: cell_bytes,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            })
+        };
+        let c_staging_material = mk_staging("observatory/g6-staging/material");
+        let c_staging_temperature = mk_staging("observatory/g6-staging/temperature");
+        let c_staging_flags = mk_staging("observatory/g6-staging/flags");
+        let c_staging_pressure = mk_staging("observatory/g6-staging/pressure");
 
         Self {
             staging_material,
@@ -844,11 +924,19 @@ impl ObservatoryCollector {
             receiver: None,
             metrics: ObservatoryMetrics::default(),
             pressure_metrics: PressureObservatoryMetrics::default(),
+            integrity_metrics: IntegrityMetrics::default(),
             initial_wood_set: false,
             initial_a_ice: 0,
             initial_b_steam: 0,
             last_request_tick: 0,
             cell_bytes,
+            c_latch_reported: false,
+            g6_mode,
+            initial_latched: false,
+            c_staging_material,
+            c_staging_temperature,
+            c_staging_flags,
+            c_staging_pressure,
         }
     }
 
@@ -856,10 +944,13 @@ impl ObservatoryCollector {
     pub fn reset(&mut self) {
         self.metrics = ObservatoryMetrics::default();
         self.pressure_metrics = PressureObservatoryMetrics::default();
+        self.integrity_metrics = IntegrityMetrics::default();
         self.initial_wood_set = false;
         self.initial_a_ice = 0;
         self.initial_b_steam = 0;
         self.last_request_tick = 0;
+        self.c_latch_reported = false;
+        self.initial_latched = false;
         // Clear pending async states
         if self.pending {
             self.staging_material.unmap();
@@ -881,9 +972,29 @@ impl ObservatoryCollector {
         &self.pressure_metrics
     }
 
-    /// Non-blocking update: checks pending map callbacks and requests next readback if due.
-    pub fn update(&mut self, simulation: &Simulation, current_tick: u64) {
+    /// Current live parallel integrity metrics snapshot.
+    pub fn integrity_metrics(&self) -> &IntegrityMetrics {
+        &self.integrity_metrics
+    }
+
+    /// Non-blocking update: checks pending map callbacks and requests next
+    /// readback if due. `fast` is the demo fast-forward multiplier (1/4/16) —
+    /// diagnostic sampling stays cheap during fast-forward.
+    ///
+    /// G6 instrument snapshots are blocking one-shots taken at exact ticks so
+    /// the latched values are never smeared by async readback latency:
+    ///   - tick 0 (pristine staged scene): Panel A/B conservation baseline
+    ///   - tick 1 (first post-tick state): Panel C ownership latch
+    pub fn update(&mut self, simulation: &Simulation, current_tick: u64, fast: u32) {
         let device = &simulation.context.device;
+
+        if self.g6_mode && fast == 1 && !self.initial_latched && current_tick == 0 {
+            self.snapshot_integrity_sync(simulation, 0);
+            self.initial_latched = true;
+        }
+        // The exact tick-1 ownership latch is taken by
+        // `latch_first_tick_if_g6` (called from the demo loop right after the
+        // first tick) so the accumulator can never skip past tick 1.
 
         // 1. Check if previous map request finished
         if self.pending {
@@ -949,6 +1060,17 @@ impl ObservatoryCollector {
                     &mut self.pressure_metrics,
                 );
 
+                evaluate_integrity_state(
+                    materials,
+                    temperatures,
+                    flags,
+                    pressures,
+                    width,
+                    height,
+                    self.pending_tick,
+                    &mut self.integrity_metrics,
+                );
+
                 drop(mat_slice);
                 drop(temp_slice);
                 drop(flag_slice);
@@ -961,14 +1083,156 @@ impl ObservatoryCollector {
 
                 self.pending = false;
                 self.receiver = None;
+
+                self.report_c_latch();
             }
         }
 
-        // 2. If idle, check if we should request a new diagnostic readback
-        // Request every ~5 ticks (or immediately at tick 0/1)
-        if !self.pending && (current_tick == 0 || current_tick >= self.last_request_tick + 5) {
+        // 2. If idle, check if we should request a new diagnostic readback.
+        //    Tick 0 (pristine staged scene) is sampled unless the G6 instrument
+        //    already captured it synchronously. Afterwards the cadence widens
+        //    with the fast-forward multiplier so readbacks never throttle the
+        //    sim loop. (The G6 Panel C latch is taken by the synchronous tick-1
+        //    snapshot above, so no async special-case is needed.)
+        let cadence = if fast >= 16 {
+            30
+        } else if fast >= 4 {
+            12
+        } else {
+            5
+        };
+        let need_tick0 = current_tick == 0 && !(self.g6_mode && self.initial_latched);
+        if !self.pending && (need_tick0 || current_tick >= self.last_request_tick + cadence) {
             self.request_readback(simulation, current_tick);
         }
+    }
+
+    /// G6 instrument: called by the demo loop immediately after every tick.
+    /// The exact tick-1 snapshot (first post-tick state) is taken right here —
+    /// before any later tick can run — so the ownership latch is never
+    /// smeared by frame accumulation or async readback latency.
+    pub fn latch_first_tick_if_g6(&mut self, simulation: &Simulation, tick: u64, fast: u32) {
+        if self.g6_mode && fast == 1 && !self.integrity_metrics.c_latched && tick == 1 {
+            self.snapshot_integrity_sync(simulation, 1);
+        }
+    }
+
+    /// Blocking one-shot GPU snapshot for the G6 instrument: copies the
+    /// authoritative Current buffers and evaluates the integrity metrics at
+    /// exactly `tick`. Used for the pristine tick-0 baseline and the tick-1
+    /// ownership latch so async readback latency never smears the latched
+    /// values (one-shot, a few ms each).
+    fn snapshot_integrity_sync(&mut self, simulation: &Simulation, tick: u64) {
+        let device = &simulation.context.device;
+        let queue = &simulation.context.queue;
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("observatory/g6-instrument-copy-encoder"),
+        });
+        encoder.copy_buffer_to_buffer(
+            &simulation.world.material_current,
+            0,
+            &self.c_staging_material,
+            0,
+            self.cell_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &simulation.world.temperature_current,
+            0,
+            &self.c_staging_temperature,
+            0,
+            self.cell_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &simulation.world.flags_current,
+            0,
+            &self.c_staging_flags,
+            0,
+            self.cell_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &simulation.world.pressure_current,
+            0,
+            &self.c_staging_pressure,
+            0,
+            self.cell_bytes,
+        );
+        queue.submit([encoder.finish()]);
+
+        for b in [
+            &self.c_staging_material,
+            &self.c_staging_temperature,
+            &self.c_staging_flags,
+            &self.c_staging_pressure,
+        ] {
+            b.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+        }
+        let _ = device.poll(wgpu::PollType::Wait); // blocking map completion
+
+        let mat_slice = self.c_staging_material.slice(..).get_mapped_range();
+        let temp_slice = self.c_staging_temperature.slice(..).get_mapped_range();
+        let flag_slice = self.c_staging_flags.slice(..).get_mapped_range();
+        let press_slice = self.c_staging_pressure.slice(..).get_mapped_range();
+
+        let width = simulation.world.config.width;
+        let height = simulation.world.config.height;
+        let cell_count = (width * height) as usize;
+        let materials = bytemuck_u32_slice(&mat_slice, cell_count);
+        let temperatures = bytemuck_f32_slice(&temp_slice, cell_count);
+        let flags = bytemuck_u32_slice(&flag_slice, cell_count);
+        let pressures = bytemuck_f32_slice(&press_slice, cell_count);
+
+        evaluate_integrity_state(
+            materials,
+            temperatures,
+            flags,
+            pressures,
+            width,
+            height,
+            tick,
+            &mut self.integrity_metrics,
+        );
+
+        drop(mat_slice);
+        drop(temp_slice);
+        drop(flag_slice);
+        drop(press_slice);
+        self.c_staging_material.unmap();
+        self.c_staging_temperature.unmap();
+        self.c_staging_flags.unmap();
+        self.c_staging_pressure.unmap();
+
+        self.report_c_latch();
+    }
+
+    /// Prints the latched G6-C ownership evidence once (actual GPU readback
+    /// numbers, never hardcoded expectations).
+    fn report_c_latch(&mut self) {
+        if !self.g6_mode || !self.integrity_metrics.c_latched || self.c_latch_reported {
+            return;
+        }
+        self.c_latch_reported = true;
+        let m = &self.integrity_metrics;
+        println!(
+            "[powdergame][G6-C] latch @tick {}: expansion candidates={} winners={} \
+             steam_sources={}/3 pressure_losers={} target={}; \
+             smoke candidates={} winners={} wood_preserved={}/3 smoke_age={} target={}; \
+             movement_done={} scratch_reuse={} result={}",
+            m.tick,
+            m.c_exp_candidates,
+            m.c_exp_winners,
+            m.c_exp_steam_sources,
+            m.c_exp_pressure_losers,
+            if m.c_exp_target_steam { "STEAM" } else { "?" },
+            m.c_smoke_candidates,
+            m.c_smoke_winners,
+            m.c_smoke_wood_preserved,
+            m.c_smoke_age,
+            if m.c_smoke_target_smoke { "SMOKE" } else { "?" },
+            m.c_move_done,
+            m.c_scratch_reuse,
+            m.c_result,
+        );
     }
 
     fn request_readback(&mut self, simulation: &Simulation, current_tick: u64) {
@@ -1054,10 +1318,322 @@ fn bytemuck_f32_slice(bytes: &[u8], count: usize) -> &[f32] {
     unsafe { std::slice::from_raw_parts(raw_ptr, count.min(bytes.len() / 4)) }
 }
 
+/// Live diagnostic metrics for the G6 Parallel Integrity Lab (2×2 layout).
+///
+/// Every value is computed from a real GPU readback of the authoritative
+/// Current buffers (material / temperature / flags / pressure) — nothing is
+/// a hardcoded expectation. Panel C is a one-tick ownership instrument whose
+/// first-tick result is latched and preserved for the rest of the session.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct IntegrityMetrics {
+    pub tick: u64,
+
+    // Panel A — MOVEMENT CONTENTION (closed fixture: conservation required)
+    pub a_matter_count: u32,
+    pub a_initial_matter: u32,
+    pub a_matter_delta: i32,
+    pub a_invalid: u32,
+
+    // Panel B — CHUNK BOUNDARY (closed fixture: conservation required)
+    pub b_cross_chunk_matter: u32,
+    pub b_initial_matter: u32,
+    pub b_matter_delta: i32,
+    pub b_invalid_material: u32,
+    /// Matter currently occupying the seam columns/rows (x 191..192, y 63..64)
+    /// — live evidence that the chunk boundary is not a wall.
+    pub b_crossings: u32,
+
+    // Panel C — EXPANSION + SMOKE OWNERSHIP (one-tick instrument, latched)
+    pub c_latched: bool,
+    pub c_exp_candidates: u32,
+    pub c_exp_winners: u32,
+    pub c_exp_steam_sources: u32,
+    pub c_exp_pressure_losers: u32,
+    pub c_exp_target_steam: bool,
+    pub c_smoke_candidates: u32,
+    pub c_smoke_winners: u32,
+    pub c_smoke_wood_preserved: u32,
+    pub c_smoke_age: u32,
+    pub c_smoke_target_smoke: bool,
+    pub c_move_done: bool,
+    pub c_scratch_reuse: bool,
+    pub c_result: bool,
+
+    // Panel D — HEAVY MIXED STRESS (integrity violations, D region only)
+    pub d_total_matter: u32,
+    pub d_invalid_material_ids: u32,
+    pub d_nan_inf_temperature: u32,
+    pub d_nan_inf_pressure: u32,
+    pub d_negative_pressure: u32,
+    pub d_empty_temp_violations: u32,
+    pub d_empty_flag_violations: u32,
+    pub d_empty_pressure_violations: u32,
+}
+
+/// Evaluates the G6 integrity diagnostics from one GPU readback snapshot.
+///
+/// `tick` is the simulation tick at which the snapshot was captured
+/// (`pending_tick`). Panel A/B initials are latched on the tick-0 snapshot
+/// (the pristine staged scene); Panel C is latched on the FIRST snapshot with
+/// `tick >= 1` and then preserved.
+#[allow(clippy::too_many_arguments)] // 8 args: 4 state slices + dims + tick + metrics (diagnostic pure fn)
+pub fn evaluate_integrity_state(
+    materials: &[u32],
+    temperatures: &[f32],
+    flags: &[u32],
+    pressures: &[f32],
+    width: u32,
+    height: u32,
+    tick: u64,
+    metrics: &mut IntegrityMetrics,
+) {
+    metrics.tick = tick;
+
+    let mut a_matter = 0u32;
+    let mut a_invalid = 0u32;
+    let mut b_matter = 0u32;
+    let mut b_invalid = 0u32;
+    let mut b_crossings = 0u32;
+    let mut c_invalid = 0u32;
+    let mut c_nan_inf_t = 0u32;
+    let mut c_nan_inf_p = 0u32;
+    let mut c_empty_t = 0u32;
+    let mut c_empty_f = 0u32;
+    let mut c_empty_p = 0u32;
+    let mut d_matter = 0u32;
+    let mut d_invalid = 0u32;
+    let mut d_nan_inf_t = 0u32;
+    let mut d_nan_inf_p = 0u32;
+    let mut d_neg_p = 0u32;
+    let mut d_empty_t = 0u32;
+    let mut d_empty_f = 0u32;
+    let mut d_empty_p = 0u32;
+
+    let mut exp_steam_sources = 0u32;
+    let mut exp_source_pressures = [0.0f32; 3];
+    let mut exp_target_steam = false;
+    let mut smoke_candidates = 0u32;
+    let mut smoke_wood_preserved = 0u32;
+    let mut smoke_age = 0u32;
+    let mut smoke_target_smoke = false;
+    let mut move_src_empty = false;
+    let mut move_dst_sand = false;
+
+    for y in 0..height {
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            if idx >= materials.len() {
+                continue;
+            }
+            let mat = materials[idx];
+            let temp = temperatures.get(idx).copied().unwrap_or(0.0);
+            let f = flags.get(idx).copied().unwrap_or(0);
+            let p = pressures.get(idx).copied().unwrap_or(0.0);
+
+            // Registered Matter ids are 2..=9 (EMPTY 0 and Boundary 1 are not
+            // countable Matter); anything above 9 is corruption, not Matter.
+            let is_matter = (2..=9).contains(&mat);
+            let is_invalid = mat > 9;
+
+            let in_a =
+                (G6_A_X_MIN..=G6_A_X_MAX).contains(&x) && (G6_A_Y_MIN..=G6_A_Y_MAX).contains(&y);
+            let in_b =
+                (G6_B_X_MIN..=G6_B_X_MAX).contains(&x) && (G6_B_Y_MIN..=G6_B_Y_MAX).contains(&y);
+            let in_c =
+                (G6_C_X_MIN..=G6_C_X_MAX).contains(&x) && (G6_C_Y_MIN..=G6_C_Y_MAX).contains(&y);
+            let in_d =
+                (G6_D_X_MIN..=G6_D_X_MAX).contains(&x) && (G6_D_Y_MIN..=G6_D_Y_MAX).contains(&y);
+
+            if in_a {
+                if is_matter {
+                    a_matter += 1;
+                }
+                if is_invalid {
+                    a_invalid += 1;
+                }
+            }
+            if in_b {
+                if is_matter {
+                    b_matter += 1;
+                    // Live seam activity at the 64×64 chunk boundary (x 191/192
+                    // seam columns, y 63/64 seam rows within panel B).
+                    if x == 191 || x == 192 || y == 63 || y == 64 {
+                        b_crossings += 1;
+                    }
+                }
+                if is_invalid {
+                    b_invalid += 1;
+                }
+            }
+            if in_c {
+                if is_invalid {
+                    c_invalid += 1;
+                }
+                if temp.is_nan() || temp.is_infinite() {
+                    c_nan_inf_t += 1;
+                }
+                if p.is_nan() || p.is_infinite() {
+                    c_nan_inf_p += 1;
+                }
+                if mat == MATERIAL_EMPTY {
+                    if temp != 0.0 {
+                        c_empty_t += 1;
+                    }
+                    if f != 0 {
+                        c_empty_f += 1;
+                    }
+                    if p != 0.0 {
+                        c_empty_p += 1;
+                    }
+                }
+                // One-tick instrument: read the fixture cells directly.
+                if let Some(si) = EXP_SOURCES.iter().position(|&s| s == (x, y)) {
+                    if mat == MATERIAL_STEAM {
+                        exp_steam_sources += 1;
+                    }
+                    exp_source_pressures[si] = p;
+                }
+                if (x, y) == EXP_TARGET {
+                    exp_target_steam = mat == MATERIAL_STEAM;
+                }
+                if SMOKE_SOURCES.contains(&(x, y)) {
+                    if (f & FLAG_COMBUSTING) != 0 {
+                        smoke_candidates += 1;
+                    }
+                    if mat == MATERIAL_WOOD {
+                        smoke_wood_preserved += 1;
+                    }
+                }
+                if (x, y) == SMOKE_TARGET {
+                    smoke_target_smoke = mat == MATERIAL_SMOKE;
+                    smoke_age = (f & FLAG_DECAY_AGE_MASK) >> FLAG_DECAY_AGE_SHIFT;
+                }
+                if (x, y) == MOVE_SRC {
+                    move_src_empty = mat == MATERIAL_EMPTY;
+                }
+                if (x, y) == MOVE_DST {
+                    move_dst_sand = mat == MATERIAL_SAND;
+                }
+            }
+            if in_d {
+                if is_matter {
+                    d_matter += 1;
+                }
+                if is_invalid {
+                    d_invalid += 1;
+                }
+                if temp.is_nan() || temp.is_infinite() {
+                    d_nan_inf_t += 1;
+                }
+                if p.is_nan() || p.is_infinite() {
+                    d_nan_inf_p += 1;
+                }
+                if p < 0.0 {
+                    d_neg_p += 1;
+                }
+                if mat == MATERIAL_EMPTY {
+                    if temp != 0.0 {
+                        d_empty_t += 1;
+                    }
+                    if f != 0 {
+                        d_empty_f += 1;
+                    }
+                    if p != 0.0 {
+                        d_empty_p += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    // Latch the pristine staged scene (tick 0) as the closed-fixture baseline.
+    if tick == 0 {
+        metrics.a_initial_matter = a_matter;
+        metrics.b_initial_matter = b_matter;
+    }
+
+    let move_done = move_src_empty && move_dst_sand;
+
+    // Confinement losers = sources whose pressure exceeds the minimum source
+    // pressure (the claim winner, which carries only diffused pressure).
+    let min_exp_pressure = exp_source_pressures
+        .iter()
+        .copied()
+        .fold(f32::INFINITY, f32::min);
+    let exp_pressure_losers = if min_exp_pressure.is_finite() {
+        exp_source_pressures
+            .iter()
+            .filter(|&&p| p > min_exp_pressure)
+            .count() as u32
+    } else {
+        0
+    };
+
+    // Live A/B/D numbers.
+    metrics.a_matter_count = a_matter;
+    metrics.a_invalid = a_invalid;
+    metrics.a_matter_delta = (a_matter as i64 - metrics.a_initial_matter as i64) as i32;
+
+    metrics.b_cross_chunk_matter = b_matter;
+    metrics.b_invalid_material = b_invalid;
+    metrics.b_crossings = b_crossings;
+    metrics.b_matter_delta = (b_matter as i64 - metrics.b_initial_matter as i64) as i32;
+
+    metrics.d_total_matter = d_matter;
+    metrics.d_invalid_material_ids = d_invalid;
+    metrics.d_nan_inf_temperature = d_nan_inf_t;
+    metrics.d_nan_inf_pressure = d_nan_inf_p;
+    metrics.d_negative_pressure = d_neg_p;
+    metrics.d_empty_temp_violations = d_empty_t;
+    metrics.d_empty_flag_violations = d_empty_f;
+    metrics.d_empty_pressure_violations = d_empty_p;
+
+    // Panel C: latch the FIRST post-tick snapshot (tick >= 1) and preserve it.
+    if !metrics.c_latched && tick >= 1 {
+        let exp_winners = u32::from(exp_target_steam);
+        let smoke_winners = u32::from(smoke_target_smoke);
+        let hygiene_ok = c_invalid == 0
+            && c_nan_inf_t == 0
+            && c_nan_inf_p == 0
+            && c_empty_t == 0
+            && c_empty_f == 0
+            && c_empty_p == 0;
+        let scratch_reuse = move_done
+            && exp_target_steam
+            && smoke_target_smoke
+            && smoke_wood_preserved == SMOKE_SOURCES.len() as u32
+            && hygiene_ok;
+        let result = exp_steam_sources == EXP_SOURCES.len() as u32
+            && exp_winners == 1
+            && exp_pressure_losers >= 2
+            && smoke_candidates == SMOKE_SOURCES.len() as u32
+            && smoke_wood_preserved == SMOKE_SOURCES.len() as u32
+            && smoke_winners == 1
+            && smoke_age == 0
+            && move_done
+            && scratch_reuse;
+
+        metrics.c_exp_candidates = exp_steam_sources;
+        metrics.c_exp_winners = exp_winners;
+        metrics.c_exp_steam_sources = exp_steam_sources;
+        metrics.c_exp_pressure_losers = exp_pressure_losers;
+        metrics.c_exp_target_steam = exp_target_steam;
+        metrics.c_smoke_candidates = smoke_candidates;
+        metrics.c_smoke_winners = smoke_winners;
+        metrics.c_smoke_wood_preserved = smoke_wood_preserved;
+        metrics.c_smoke_age = smoke_age;
+        metrics.c_smoke_target_smoke = smoke_target_smoke;
+        metrics.c_move_done = move_done;
+        metrics.c_scratch_reuse = scratch_reuse;
+        metrics.c_result = result;
+        metrics.c_latched = true;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use powdergame_core::MATERIAL_OIL;
+    use powdergame_core::{MATERIAL_OIL, MATERIAL_STONE};
 
     #[test]
     fn test_panel_classification_and_metrics_accumulation() {
@@ -1394,5 +1970,243 @@ mod tests {
         assert_eq!(metrics.br_breach_local_pressure, 84.5);
         assert_eq!(metrics.br_first_vent_tick, Some(80));
         assert_eq!(metrics.br_exterior_steam_count, 1);
+    }
+
+    #[test]
+    fn test_integrity_a_b_conservation_and_initial_latch() {
+        let width = 256u32;
+        let height = 256u32;
+        let cell_count = (width * height) as usize;
+
+        let mut materials = vec![MATERIAL_EMPTY; cell_count];
+        let temperatures = vec![0.0f32; cell_count];
+        let flags = vec![0u32; cell_count];
+        let pressures = vec![0.0f32; cell_count];
+
+        // Panel A: 20 Sand, Panel B: 15 Water, one invalid id in each.
+        for x in 10..30 {
+            let idx = (50 * width + x) as usize;
+            materials[idx] = MATERIAL_SAND;
+        }
+        for x in 140..155 {
+            let idx = (50 * width + x) as usize;
+            materials[idx] = MATERIAL_WATER;
+        }
+        materials[(60 * width + 5) as usize] = 42; // invalid in A
+        materials[(60 * width + 200) as usize] = 42; // invalid in B
+
+        let mut metrics = IntegrityMetrics::default();
+
+        evaluate_integrity_state(
+            &materials,
+            &temperatures,
+            &flags,
+            &pressures,
+            width,
+            height,
+            0,
+            &mut metrics,
+        );
+        assert_eq!(metrics.a_initial_matter, 20);
+        assert_eq!(metrics.b_initial_matter, 15);
+        assert_eq!(metrics.a_invalid, 1);
+        assert_eq!(metrics.b_invalid_material, 1);
+        assert_eq!(metrics.a_matter_delta, 0);
+        assert_eq!(metrics.b_matter_delta, 0);
+        assert!(!metrics.c_latched, "C must not latch at tick 0");
+
+        // Tick 5: one A cell left for B (crossed) — conservation per panel
+        // would show -1/+1, but A/B are independent closed panels here, so
+        // simulate genuine loss to prove the delta is readback-derived.
+        materials[(50 * width + 10) as usize] = MATERIAL_EMPTY;
+        evaluate_integrity_state(
+            &materials,
+            &temperatures,
+            &flags,
+            &pressures,
+            width,
+            height,
+            5,
+            &mut metrics,
+        );
+        assert_eq!(metrics.a_matter_count, 19);
+        assert_eq!(metrics.a_matter_delta, -1);
+    }
+
+    #[test]
+    fn test_integrity_d_hygiene_violations() {
+        let width = 256u32;
+        let height = 256u32;
+        let cell_count = (width * height) as usize;
+
+        let mut materials = vec![MATERIAL_EMPTY; cell_count];
+        let mut temperatures = vec![0.0f32; cell_count];
+        let mut flags = vec![0u32; cell_count];
+        let mut pressures = vec![0.0f32; cell_count];
+
+        // D region (bottom-right) violations:
+        //   invalid id, NaN temperature, infinite pressure, negative pressure,
+        //   EMPTY with T!=0, EMPTY with flags!=0, EMPTY with pressure!=0
+        // NaN/Inf/negative fixtures sit on STONE so they do not double-count
+        // into the EMPTY-hygiene categories.
+        let d_x = 200u32;
+        let d_y = 200u32;
+        materials[(d_y * width + d_x) as usize] = 99; // invalid
+        let nan_t = (210 * width + 150) as usize;
+        materials[nan_t] = MATERIAL_STONE;
+        temperatures[nan_t] = f32::NAN;
+        let inf_p = (210 * width + 160) as usize;
+        materials[inf_p] = MATERIAL_STONE;
+        pressures[inf_p] = f32::INFINITY;
+        let neg_p = (210 * width + 170) as usize;
+        materials[neg_p] = MATERIAL_STONE;
+        pressures[neg_p] = -5.0;
+        let e1 = (220 * width + 150) as usize;
+        temperatures[e1] = 3.0; // EMPTY with T != 0
+        let e2 = (220 * width + 160) as usize;
+        flags[e2] = 0x1234; // EMPTY with flags != 0
+        let e3 = (220 * width + 170) as usize;
+        pressures[e3] = 2.0; // EMPTY with pressure != 0
+
+        let mut metrics = IntegrityMetrics::default();
+        evaluate_integrity_state(
+            &materials,
+            &temperatures,
+            &flags,
+            &pressures,
+            width,
+            height,
+            0,
+            &mut metrics,
+        );
+        assert_eq!(metrics.d_invalid_material_ids, 1);
+        assert_eq!(metrics.d_nan_inf_temperature, 1);
+        assert_eq!(metrics.d_nan_inf_pressure, 1);
+        assert_eq!(metrics.d_negative_pressure, 1);
+        assert_eq!(metrics.d_empty_temp_violations, 1);
+        assert_eq!(metrics.d_empty_flag_violations, 1);
+        assert_eq!(metrics.d_empty_pressure_violations, 1);
+    }
+
+    #[test]
+    fn test_integrity_c_one_tick_latch_and_permanence() {
+        let width = 256u32;
+        let height = 256u32;
+        let cell_count = (width * height) as usize;
+
+        let mut materials = vec![MATERIAL_EMPTY; cell_count];
+        let mut temperatures = vec![0.0f32; cell_count];
+        let mut flags = vec![0u32; cell_count];
+        let mut pressures = vec![0.0f32; cell_count];
+
+        let set_mat = |m: &mut Vec<u32>, x: u32, y: u32, v: u32| {
+            m[(y * width + x) as usize] = v;
+        };
+
+        // Tick-0 fixture state (pre-tick): sources still Water / Wood.
+        for &(sx, sy) in &EXP_SOURCES {
+            set_mat(&mut materials, sx, sy, MATERIAL_WATER);
+            temperatures[(sy * width + sx) as usize] = 100.0;
+        }
+        set_mat(&mut materials, EXP_TARGET.0, EXP_TARGET.1, MATERIAL_EMPTY);
+        for &(sx, sy) in &SMOKE_SOURCES {
+            set_mat(&mut materials, sx, sy, MATERIAL_WOOD);
+            temperatures[(sy * width + sx) as usize] = 100.0;
+        }
+        set_mat(
+            &mut materials,
+            SMOKE_TARGET.0,
+            SMOKE_TARGET.1,
+            MATERIAL_EMPTY,
+        );
+        set_mat(&mut materials, MOVE_SRC.0, MOVE_SRC.1, MATERIAL_SAND);
+        set_mat(&mut materials, MOVE_DST.0, MOVE_DST.1, MATERIAL_EMPTY);
+
+        let mut metrics = IntegrityMetrics::default();
+        evaluate_integrity_state(
+            &materials,
+            &temperatures,
+            &flags,
+            &pressures,
+            width,
+            height,
+            0,
+            &mut metrics,
+        );
+        assert!(!metrics.c_latched);
+
+        // Tick-1 expected post-tick state:
+        //   - 3 sources -> Steam, winner spawned Steam at EXP_TARGET
+        //   - 2 losers carry confinement pressure (100)
+        //   - 3 Woods burning (COMBUSTING), winner spawned Smoke at SMOKE_TARGET (age 0)
+        //   - Sand moved MOVE_SRC -> MOVE_DST
+        for &(sx, sy) in &EXP_SOURCES {
+            set_mat(&mut materials, sx, sy, MATERIAL_STEAM);
+        }
+        set_mat(&mut materials, EXP_TARGET.0, EXP_TARGET.1, MATERIAL_STEAM);
+        pressures[(EXP_SOURCES[0].1 * width + EXP_SOURCES[0].0) as usize] = 100.0;
+        pressures[(EXP_SOURCES[2].1 * width + EXP_SOURCES[2].0) as usize] = 100.0;
+        for &(sx, sy) in &SMOKE_SOURCES {
+            set_mat(&mut materials, sx, sy, MATERIAL_WOOD);
+            flags[(sy * width + sx) as usize] = FLAG_COMBUSTING;
+        }
+        set_mat(
+            &mut materials,
+            SMOKE_TARGET.0,
+            SMOKE_TARGET.1,
+            MATERIAL_SMOKE,
+        );
+        set_mat(&mut materials, MOVE_SRC.0, MOVE_SRC.1, MATERIAL_EMPTY);
+        set_mat(&mut materials, MOVE_DST.0, MOVE_DST.1, MATERIAL_SAND);
+
+        evaluate_integrity_state(
+            &materials,
+            &temperatures,
+            &flags,
+            &pressures,
+            width,
+            height,
+            1,
+            &mut metrics,
+        );
+        assert!(metrics.c_latched);
+        assert_eq!(metrics.c_exp_candidates, 3);
+        assert_eq!(metrics.c_exp_winners, 1);
+        assert_eq!(metrics.c_exp_steam_sources, 3);
+        assert_eq!(metrics.c_exp_pressure_losers, 2);
+        assert!(metrics.c_exp_target_steam);
+        assert_eq!(metrics.c_smoke_candidates, 3);
+        assert_eq!(metrics.c_smoke_winners, 1);
+        assert_eq!(metrics.c_smoke_wood_preserved, 3);
+        assert_eq!(metrics.c_smoke_age, 0);
+        assert!(metrics.c_smoke_target_smoke);
+        assert!(metrics.c_move_done);
+        assert!(metrics.c_scratch_reuse);
+        assert!(metrics.c_result);
+
+        // The latch must be preserved on later snapshots even if the live
+        // fixture has moved on (Steam rose, Smoke decayed).
+        set_mat(&mut materials, EXP_TARGET.0, EXP_TARGET.1, MATERIAL_EMPTY);
+        set_mat(
+            &mut materials,
+            SMOKE_TARGET.0,
+            SMOKE_TARGET.1,
+            MATERIAL_EMPTY,
+        );
+        evaluate_integrity_state(
+            &materials,
+            &temperatures,
+            &flags,
+            &pressures,
+            width,
+            height,
+            50,
+            &mut metrics,
+        );
+        assert!(metrics.c_latched);
+        assert_eq!(metrics.c_exp_winners, 1);
+        assert_eq!(metrics.c_smoke_winners, 1);
+        assert_eq!(metrics.c_exp_steam_sources, 3);
+        assert_eq!(metrics.c_smoke_wood_preserved, 3);
     }
 }

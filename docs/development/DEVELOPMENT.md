@@ -279,7 +279,50 @@ Simulation Core를 Lab 때문에 복잡하게 만들지 말고 다음 hook 정�
 
 ---
 
-## 11. Definition of Done
+## 11. Validation Policy
+
+반복 개발 단계에서 매 수정마다 performance benchmark와 전체 smoke matrix를
+반복 실행하지 않는다. 검증은 세 단계로 나눈다.
+
+### FAST ITERATION (매 수정 기본)
+
+```text
+cargo fmt --all -- --check
+cargo check --workspace --all-targets
+```
+
+그리고 변경 관련 targeted tests만 실행한다. 예:
+
+```text
+cargo test -p powdergame-gpu --test parallel_integrity -- --test-threads=1
+cargo test -p powdergame-windows
+```
+
+### FULL CHECKPOINT (기능 라운드 종료 시 1회)
+
+```text
+cargo test --workspace -- --test-threads=1
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+그리고 runtime smoke matrix (G0 smoke-frames 60, G2 movement 120, G3 density
+180, G4 thermal 360, G6 parallel-integrity 300 등).
+
+### PERFORMANCE (명시적 요청 또는 Performance Gate에서만)
+
+```text
+cargo test --release -p powdergame-gpu --test movement \
+  coarse_reference_world_perf -- --ignored --nocapture
+```
+
+controlled benchmark 역시 명시 실행만 한다. `coarse_reference_world_perf`는
+기본 test loop에서 제외된 manual performance sanity observation이다
+(`#[ignore = "manual performance sanity..."]`). G8 Performance Gate 이전에
+매 iteration마다 성능 측정을 강제하지 않는다.
+
+---
+
+## 12. Definition of Done
 
 개별 task의 `done`과 Milestone `ACHIEVED`를 구분한다.
 

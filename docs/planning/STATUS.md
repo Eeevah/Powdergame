@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16). G6 (Parallel Integrity) IN_PROGRESS — G6-A (GPU Write Ownership Audit) TECHNICAL PASS, G6-B (Ownership Contention Integrity) TECHNICAL PASS, G6-C1 (Arbitration Quality Measurement) COMPLETE, G6-C2 (Stateless Edge Hash Integration) TECHNICAL PASS; G6 overall VALIDATION READY / AWAITING USER APPROVAL (NOT CLOSED). Next Gate: G6 User Approval → G7 Active/Sleep.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16; G6-A TECHNICAL PASS / FROZEN, G6-B TECHNICAL PASS / FROZEN, G6-C1 COMPLETE / FROZEN, G6-C2 TECHNICAL PASS / FROZEN). Next Gate: G7 Active/Sleep.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: IN_PROGRESS (G6-A TECHNICAL PASS; G6-B TECHNICAL PASS; G6-C1 COMPLETE; G6-C2 TECHNICAL PASS; G6 overall AWAITING USER APPROVAL / NOT CLOSED).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED (User Validation APPROVED 2026-08-16). G5 — Pressure Chain: PASS / CLOSED (2×2 Multi-Boiler Stress Lab User Validation APPROVED 2026-08-16). G6 — Parallel Integrity: PASS / CLOSED (G6-A TECHNICAL PASS / FROZEN; G6-B TECHNICAL PASS / FROZEN; G6-C1 COMPLETE / FROZEN; G6-C2 TECHNICAL PASS / FROZEN; G6 User Validation APPROVED 2026-08-16).**
 
 ### Current Summary
 
@@ -44,14 +44,15 @@
 - approximate, non-bit-exact determinism
 - M0 Evidence Gates G0~G9
 
-2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**, **G4 (Thermal / Phase / Combustion)**, **G5 (Pressure Chain)**가 구현·검증·사용자 검증 승인 완료되어 **PASS / CLOSED** 되었다.
+2026-08-16 기준 **G0 (Runtime)**, **G1 (World Integrity)**, **G2 (Local Movement)**, **G3 (Density / Displacement)**, **G4 (Thermal / Phase / Combustion)**, **G5 (Pressure Chain)**, **G6 (Parallel Integrity)**가 구현·검증·사용자 검증 승인 완료되어 **PASS / CLOSED** 되었다.
 
-현재 **G6 — Parallel Integrity**의 모든 기술적 게이트(G6-A, G6-B, G6-C1, G6-C2)가 완료되었으며:
-- **G6-A (GPU Write Ownership Audit)**: **TECHNICAL PASS**
-- **G6-B (Ownership Contention Integrity)**: **TECHNICAL PASS**
-- **G6-C1 (Arbitration Quality Measurement)**: **COMPLETE**
-- **G6-C2 (Stateless Edge Hash Production Integration)**: **TECHNICAL PASS** (프로덕션 edge-hash 도입 완료, 0 atomics / 0 writable storage aliases 유지, 방향 편향 제거, RTX 5090 성능 오버헤드 0.0% 검증 완료).
-- **G6 전체**: **VALIDATION READY / AWAITING USER APPROVAL** (사용자 최종 승인 전까지 PASS/CLOSED 하지 않음).
+**G6 — Parallel Integrity** 최종 상태:
+- **G6-A (GPU Write Ownership Audit)**: **TECHNICAL PASS / FROZEN**
+- **G6-B (Ownership Contention Integrity)**: **TECHNICAL PASS / FROZEN**
+- **G6-C1 (Arbitration Quality Measurement)**: **COMPLETE / FROZEN**
+- **G6-C2 (Stateless Edge Hash Production Integration)**: **TECHNICAL PASS / FROZEN** (프로덕션 edge-hash 도입 완료, 0 atomics / 0 writable storage aliases 유지, 방향 편향 제거, RTX 5090 성능 오버헤드 0.0% 검증 완료).
+- **G6 User Validation**: **APPROVED — 2026-08-16** (사용자가 G6 Parallel Integrity Lab을 tick 0 / ~161 / ~501 / ~1016 / 36724(FAST x16)까지 직접 관찰 후 최종 승인)
+- **G6 전체**: **PASS / CLOSED**
 
 ---
 
@@ -200,7 +201,7 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 - **Heavy Mixed Integrity Stress**:
   - 5개 상이한 물리 구역(Sand/Water hopper, Oil/Water density, Burning Wood/Smoke, Boiling Boiler, Melting Ice)을 포함하는 64×64 월드에서 300틱 연속 병렬 스트레스 실행 (`test_mixed_integrity_stress_long_run`). 모든 셀 ID 유효, EMPTY 위생 완벽 유지, $T/P$ 유한성 확인, 디바이스 손실 0건 (`PASS`).
 
-#### G6-C1 Arbitration Quality Measurement — MEASUREMENT COMPLETE / DECISION PENDING
+#### G6-C1 Arbitration Quality Measurement — MEASUREMENT COMPLETE / FROZEN
 - **측정 대상**: Frozen Fixed-Index Baseline vs Test-Only Stateless Edge-Hash Candidate (`edge_priority(source, target_cell, tick)`).
 - **편향(Bias) 비교 결과 (2,048 Contests per orientation)**:
   - 수평 충돌 (Left vs Right): Baseline 100% Left vs 0% Right $\to$ Candidate **49.3% Left vs 50.7% Right** (편향 완전 해소).
@@ -232,24 +233,24 @@ Conservation:     Matter identity and count strictly conserved across all swaps
 
 ---
 
-### Automated Test Evidence Summary (Total 297 Tests)
+### Automated Test Evidence Summary (Total 299 Tests)
 
 ```text
-cargo test --workspace -- --test-threads=1 전체 PASS (297 passed, 0 failed, 1 ignored controlled benchmark)
+cargo test --workspace -- --test-threads=1 전체 PASS (299 passed, 0 failed, 2 ignored performance benchmarks)
   - Core unit tests: 130 passed
   - GPU arbitration quality tests (G6-C1): 6 passed
   - GPU combustion & decay tests: 56 passed
   - GPU density displacement tests: 15 passed
   - GPU expansion tests: 5 passed
   - GPU headless smoke test: 1 passed
-  - GPU local movement tests: 16 passed (1 perf benchmark ignored)
+  - GPU local movement tests: 15 passed (2 perf benchmarks ignored — coarse + controlled, manual runs only)
   - GPU parallel integrity tests (G6-A/B/C2): 12 passed
   - GPU phase transition tests: 16 passed
   - GPU scalar pressure tests: 8 passed
   - GPU rupture & 2x2 multi-boiler stress lab tests: 7 passed
   - GPU thermal conduction tests: 13 passed
   - GPU world integrity tests: 7 passed
-  - Windows observatory & pressure lab unit tests: 4 passed
+  - Windows observatory & pressure lab unit tests: 7 passed
   - WGSL syntax parse tests: 1 passed
 
 Runtime Smoke Test Suite (RTX 5090 / DX12):
@@ -275,12 +276,29 @@ Static Analysis & Formatting:
 
 ---
 
+#### G6 Observation Hardening — `--parallel-integrity-demo` (2026-08-16)
+
+사용자 1차 관찰(tick 0/62/347/552/1015/2193) 후 관찰 fixture를 수정했다.
+
+- **C 패널 재설계 — one-tick ownership instrument**: 좌=EXPANSION CONTENTION (3 boiling Water sources → 공유 EMPTY 1개, 다른 후보 전부 Stone 차단), 중앙=movement fixture (Sand 1셀 낙하), 우=SMOKE CONTENTION (3 burning Wood sources → 공유 EMPTY Smoke target 1개). 첫 tick 후 **실제 GPU readback**으로 latch: `candidates=3 / winners=1 / steam_sources=3/3 / pressure_losers=2 / target=STEAM` (expansion), `candidates=3 / winners=1 / wood_preserved=3/3 / smoke_age=0 / target=SMOKE` (smoke), `movement_done=true / scratch_reuse=true / result=PASS` (`[powdergame][G6-C] latch @tick 1` 로 stdout 증거). latch는 첫 post-tick blocking snapshot으로 정확히 tick 1 상태를 보존 (async readback latency로 smear되지 않음).
+- **A/B/D HUD — 실제 readback 기반**: A(closed) initial/live/delta + invalid IDs, B(closed) 동일 + seam crossings observed(x 191/192, y 63/64), D는 **count-delta를 loss로 오표기하지 않고** integrity violations만 표시 (invalid IDs, NaN/Inf T/P, negative P, EMPTY T/flags/P hygiene). 더미/하드코딩 PASS 제거.
+- **G3 legacy overlay 제거**: `PresentationPalette::Integrity` 신설 — Lab-style cell colors + screen-space font HUD만 (procedural G3 lab text 없음).
+- **Fast-forward**: F key 1x/4x/16x 순환 (G6 전용), N은 항상 정확히 1 tick (multiplier 무관), R은 world+metrics reset + 1x 복귀. title/HUD에 `FAST xN` + measured sim TPS 표시. readback cadence는 fast multiplier에 따라 5→12→30 tick으로 확대.
+- **Test loop 최적화**: `coarse_reference_world_perf`(2048×2048 + PollType::Wait)를 `#[ignore = "manual performance sanity..."]`로 전환 — 반복 개발 validation에서 제외. `controlled_reference_world_perf`는 기존대로 ignored 유지.
+- **Validation policy 명문화** (`docs/development/DEVELOPMENT.md` §11): FAST ITERATION(fmt+check+targeted tests) / FULL CHECKPOINT(기능 라운드 종료 1회: `cargo test --workspace -- --test-threads=1` + clippy + smoke matrix) / PERFORMANCE(명시 요청 또는 G8 Gate에서만).
+- FAST validation PASS: fmt, `cargo check --workspace --all-targets`, `parallel_integrity` 12 passed, `powdergame-windows` 7 passed, `--parallel-integrity-demo --smoke-frames 300` exit 0 + G0/G2/G3/G4 smoke regressions exit 0. **Physics/engine 파일 변경 0건.**
+- **G6 최종 User Validation — APPROVED (2026-08-16)**: 사용자가 G6 Parallel Integrity Lab을 tick 0 / ~161 / ~501 / ~1016 / **36724 (FAST x16)** 까지 직접 관찰하고 최종 결과에 만족하여 진행/승인 명시.
+  - **Panel A — Movement Contention**: Matter live=562 / initial=562 / Δ=+0, winner exactly-one PASS, losers valid (DELTA 0), invalid IDs=0 — tick 36724 장기 실행에서도 유지.
+  - **Panel B — Chunk Boundary**: Matter live=1712 / initial=1712 / Δ=+0, invalid IDs=0 — 사용자 직접 관찰 "경계선에서도 없어지지 않아". crossings observed는 시점별 live diagnostic (대표 ~36 / ~30 / ~28, 누적 monotonic counter로 과장하지 않음).
+  - **Panel C — Expansion + Smoke Ownership**: one-tick instrument latched 실 GPU readback — Expansion candidates=3 / winners=1 / steam_sources=3/3 / pressure_losers=2 / target=STEAM; Smoke candidates=3 / winners=1 / wood_preserved=3/3 / smoke_age=0 / target=SMOKE; movement ran (1 cell) / scratch reuse / result=PASS.
+  - **Panel D — Heavy Mixed Long-Run Stress**: FAST x16 tick≈36724 — invalid IDs=0, NaN/Inf T=0, NaN/Inf P=0, negative P=0, EMPTY T/flags/P hygiene violations=0 → **ALL INTEGRITY OK**. Matter live 6096→5696 변화는 의도된 생성/소멸(expansion / combustion→EMPTY / smoke spawn/decay)로 failure가 아님 — D는 count-conservation fixture가 아니라 heterogeneous long-run state-integrity fixture (A/B가 closed conservation 담당).
+  - **FAST x16**: RTX 5090에서 원활, tick 36724까지 장기 stress 관찰 가능. observed sim rate ≈ 960 TPS는 **G6 demo fast-forward 동작 관찰값** — G8 공식 performance benchmark가 아니며 성능 claim으로 확대하지 않음.
+  - 최종 화면: SIM TICK ≈ 36724 / DIAGNOSTIC SAMPLE ≈ 36708 / FAST x16.
+
 ### Next Action
 
-1. **G6-A & G6-B**: **TECHNICAL PASS**
-2. **G6-C1**: **MEASUREMENT COMPLETE**
-3. **G6-C2**: **TECHNICAL PASS** (Stateless Edge Hash Production Integration Complete, 0.0% regression verified on RTX 5090)
-4. **Next Gate: G6 User Approval** (사용자 최종 승인 전까지 G6 PASS / CLOSED 하지 않음 → 승인 후 G7 Active/Sleep 착수).
+1. **G6 — Parallel Integrity**: **PASS / CLOSED** (G6-A/B/C1/C2 FROZEN, G6 User Validation APPROVED 2026-08-16)
+2. **G7 — Active / Sleep 준비** (G6 설명에 Active Chunk를 섞지 않음; G7 구현은 G6 closure 이후 별도 지시에 따라 착수)
 
 ---
 
@@ -294,7 +312,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5 PASS / CLOSED (G2/G3/G4/G5 User Validation APPROVED); G6 IN_PROGRESS (G6-A/B/C2 TECHNICAL PASS, G6-C1 COMPLETE; AWAITING USER APPROVAL).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6 PASS / CLOSED (G2/G3/G4/G5/G6 User Validation APPROVED 2026-08-16); Next Gate: **G7 Active/Sleep**.
 
 M0 `ACHIEVED`: **NO**
 
@@ -310,7 +328,7 @@ primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
 build: passed (cargo build --workspace)
-tests: passed (130 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 16 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 4 windows observatory + 1 wgsl parse = 297 total, ignored 1 controlled benchmark)
+tests: passed (130 core + 6 GPU arbitration + 56 GPU combustion/decay + 15 GPU density + 5 GPU expansion + 1 GPU headless smoke + 15 GPU movement + 12 GPU parallel integrity + 16 GPU phase + 8 GPU pressure + 7 GPU rupture/stress-lab + 13 GPU thermal + 7 GPU world integrity + 7 windows observatory + 1 wgsl parse = 299 total, ignored 2 performance benchmarks [coarse + controlled])
 benchmarks: G6-C2 full-tick 2048x2048: median 0.8426 ms/tick (1186.8 TPS, RTX 5090/DX12). G2 controlled baseline: median ~0.146 ms/tick.
-m0_status: IN_PROGRESS (G0-G5 PASS/CLOSED User Validation APPROVED 2026-08-16; G6 IN_PROGRESS [G6-A/B/C2 TECHNICAL PASS, G6-C1 COMPLETE; AWAITING USER APPROVAL]; G7-G9 pending)
+m0_status: IN_PROGRESS (G0-G6 PASS/CLOSED User Validation APPROVED 2026-08-16; Next Gate G7 Active/Sleep; G8/G9 pending)
 ```

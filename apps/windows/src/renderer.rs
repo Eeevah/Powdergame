@@ -53,6 +53,10 @@ pub enum PresentationPalette {
     Lab = 1,
     /// G4 thermal lab demo: Stone neutral, + thermal tint + flame overlay.
     ThermalLab = 2,
+    /// G6 parallel-integrity lab: neutral Lab-style cell colors with NO
+    /// procedural G3 HUD overlay (the G6 HUD is drawn by the screen-space
+    /// text renderer so panel titles + readback metrics stay legible).
+    Integrity = 3,
 }
 
 /// Read-only view spec for presenting the material world (G2/G3/G4).
@@ -162,6 +166,7 @@ const ICE: u32 = 8u;
 const WOOD: u32 = 9u;
 const PALETTE_LAB: u32 = 1u;
 const PALETTE_THERMAL: u32 = 2u;
+const PALETTE_INTEGRITY: u32 = 3u;
 const FLAG_COMBUSTING: u32 = 1u;
 const FLAG_FLAME_EVENT: u32 = 2u;
 
@@ -305,9 +310,9 @@ fn temp_hit(px: f32, py: f32, origin_x: f32, origin_y: f32, cell: f32, spacing: 
 }
 
 // Presentation-only debug palette (material IDs never change).
-// Forest: Stone is green terrain/trees. Lab/ThermalLab: Stone is neutral.
+// Forest: Stone is green terrain/trees. Lab/ThermalLab/Integrity: Stone is neutral.
 fn debug_color(id: u32, palette: u32) -> vec4<f32> {
-    if (palette == PALETTE_LAB || palette == PALETTE_THERMAL) {
+    if (palette == PALETTE_LAB || palette == PALETTE_THERMAL || palette == PALETTE_INTEGRITY) {
         if (id == EMPTY) { return vec4<f32>(0.05, 0.055, 0.07, 1.0); }
         if (id == BOUNDARY) { return vec4<f32>(0.22, 0.23, 0.25, 1.0); }
         if (id == STONE) { return vec4<f32>(0.46, 0.47, 0.50, 1.0); }
@@ -424,6 +429,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let wh = f32(params.height);
     let lab = params.palette == PALETTE_LAB;
     let thermal = params.palette == PALETTE_THERMAL;
+    let integrity = params.palette == PALETTE_INTEGRITY;
     var scale = min(fw / ww, fh / wh);
     var off_x = (fw - ww * scale) * 0.5;
     var off_y = (fh - wh * scale) * 0.5;
@@ -441,6 +447,15 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         scale = min(avail_w / ww, avail_h / wh);
         off_x = (fw - ww * scale) * 0.5;
         off_y = 65.0 + (avail_h - wh * scale) * 0.5;
+    } else if (integrity) {
+        // G6: leave the left/right HUD cards (340 px) and the top banner /
+        // bottom controls bar clear of the world view.
+        let sidebar_w = 400.0;
+        let avail_w = max(fw - sidebar_w * 2.0, 1.0);
+        let avail_h = max(fh - 140.0, 1.0);
+        scale = min(avail_w / ww, avail_h / wh);
+        off_x = (fw - ww * scale) * 0.5;
+        off_y = 60.0 + (avail_h - wh * scale) * 0.5;
     }
     let px = frag.x;
     let py = frag.y;
@@ -469,6 +484,18 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         if (hud.a > 0.0) {
             return hud;
         }
+        let border_t = 1.0;
+        let on_border = (px >= off_x - border_t && px <= off_x + ww * scale + border_t &&
+                         py >= off_y - border_t && py <= off_y + wh * scale + border_t) &&
+                        (px < off_x || px > off_x + ww * scale || py < off_y || py > off_y + wh * scale);
+        if (on_border) {
+            return vec4<f32>(0.24, 0.28, 0.38, 1.0);
+        }
+        return vec4<f32>(0.07, 0.08, 0.11, 1.0);
+    }
+    if (integrity) {
+        // No procedural G3 HUD here — the G6 HUD is the screen-space text
+        // renderer. Just a crisp viewport border over the dark lab backdrop.
         let border_t = 1.0;
         let on_border = (px >= off_x - border_t && px <= off_x + ww * scale + border_t &&
                          py >= off_y - border_t && py <= off_y + wh * scale + border_t) &&
@@ -627,11 +654,16 @@ impl Renderer {
         };
         surface.configure(device, &config);
 
-        let is_thermal = world_view
+        let needs_text_hud = world_view
             .as_ref()
-            .map(|s| s.palette == PresentationPalette::ThermalLab)
+            .map(|s| {
+                matches!(
+                    s.palette,
+                    PresentationPalette::ThermalLab | PresentationPalette::Integrity
+                )
+            })
             .unwrap_or(false);
-        let text_renderer = if is_thermal {
+        let text_renderer = if needs_text_hud {
             Some(crate::text_renderer::TextRenderer::new(
                 device, queue, format,
             )?)
@@ -676,6 +708,7 @@ impl Renderer {
 pub enum HudData<'a> {
     Thermal(&'a crate::observatory::ObservatoryMetrics, u64),
     Pressure(&'a crate::observatory::PressureObservatoryMetrics, u64),
+    ParallelIntegrity(&'a crate::observatory::IntegrityMetrics, u64),
 }
 
 impl Renderer {
@@ -731,6 +764,17 @@ impl Renderer {
                     }
                     HudData::Pressure(metrics, sim_ticks) => {
                         tr.render_pressure_hud(
+                            &self.device,
+                            &self.queue,
+                            &mut render_pass,
+                            self.config.width,
+                            self.config.height,
+                            metrics,
+                            sim_ticks,
+                        );
+                    }
+                    HudData::ParallelIntegrity(metrics, sim_ticks) => {
+                        tr.render_parallel_integrity_hud(
                             &self.device,
                             &self.queue,
                             &mut render_pass,

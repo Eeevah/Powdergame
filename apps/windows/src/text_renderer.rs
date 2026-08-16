@@ -10,7 +10,7 @@ use bytemuck::{Pod, Zeroable};
 use fontdue::{Font, FontSettings};
 use powdergame_gpu::GpuError;
 
-use crate::observatory::{ObservatoryMetrics, PressureObservatoryMetrics};
+use crate::observatory::{IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics};
 
 /// Single vertex for the text / UI quad batcher.
 #[repr(C)]
@@ -1864,6 +1864,997 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         self.batch.draw_text(&self.atlas, 24.0, bot_bar_y, 15, "SPACE Play / Pause (60 TPS)   |   N Single Step   |   R Reset World & Metrics   |   ESC Quit", col_label);
 
         // Upload and Draw
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// Renders the diagnostic HUD overlay for the G6 Parallel Integrity Lab.
+    ///
+    /// Every number comes from `IntegrityMetrics`, which is computed from real
+    /// GPU readbacks of the authoritative Current buffers — nothing is a
+    /// hardcoded expectation. Panel C is the one-tick ownership instrument:
+    /// its first post-tick result is latched and preserved for the session.
+    /// Panel D reports integrity violations only (spawn/despawn is intended in
+    /// D, so a raw matter-count delta is never labeled as loss).
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_parallel_integrity_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        metrics: &IntegrityMetrics,
+        sim_ticks: u64,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+
+        self.batch.clear();
+        let white_uv = self.atlas.solid_white_uv;
+
+        let col_title = [0.95, 0.96, 0.98, 1.0];
+        let col_header = [0.85, 0.90, 0.96, 1.0];
+        let col_label = [0.65, 0.70, 0.78, 1.0];
+        let col_val_white = [0.98, 0.98, 0.98, 1.0];
+        let col_green = [0.35, 0.95, 0.60, 1.0];
+        let col_warn = [1.0, 0.65, 0.20, 1.0];
+        let col_red = [1.0, 0.35, 0.30, 1.0];
+        let col_dim = [0.45, 0.48, 0.56, 1.0];
+
+        let col_card_bg = [0.07, 0.09, 0.13, 0.90];
+        let col_card_border = [0.18, 0.22, 0.30, 1.0];
+        let col_divider = [0.14, 0.17, 0.24, 1.0];
+
+        // 1. Top global banner.
+        self.batch.draw_text(
+            &self.atlas,
+            24.0,
+            16.0,
+            24,
+            "G6 PARALLEL INTEGRITY LAB | [A] MOVEMENT | [B] CHUNK | [C] OWNERSHIP | [D] STRESS",
+            col_title,
+        );
+        let sim_text = format!("SIM TICK: {:>6}", sim_ticks);
+        let sample_text = format!("DIAGNOSTIC SAMPLE: {:>6}", metrics.tick);
+        let full_tick_str = format!("{sim_text}   |   {sample_text}");
+        self.batch
+            .draw_text_right(&self.atlas, sw - 24.0, 22.0, 15, &full_tick_str, col_header);
+
+        let sidebar_w = 340.0f32;
+        let card_w = sidebar_w - 20.0;
+        let left_x = 20.0;
+        let right_x = sw - sidebar_w + 10.0;
+
+        let card_top_y = 65.0;
+        let card_h = 380.0;
+        let card_bot_y = card_top_y + card_h + 18.0;
+
+        // 2. Panel A card (top-left): [A] MOVEMENT CONTENTION (closed fixture).
+        self.batch
+            .draw_rect(left_x, card_top_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            left_x,
+            card_top_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+        let mut y = card_top_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            18,
+            "[A] MOVEMENT CONTENTION",
+            col_header,
+        );
+        y += 24.0;
+        self.batch
+            .draw_rect(left_x + 16.0, y, card_w - 32.0, 1.0, col_divider, white_uv);
+        y += 12.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            13,
+            "Closed fixture — conservation from GPU readback",
+            col_dim,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Matter Count (live):",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.a_matter_count),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Initial Matter:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.a_initial_matter),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch
+            .draw_text(&self.atlas, left_x + 16.0, y, 15, "Count Delta:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{:+}", metrics.a_matter_delta),
+            if metrics.a_matter_delta == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Winner exactly one/dest:",
+            col_label,
+        );
+        let a_winner_ok = metrics.a_matter_delta == 0 && metrics.a_invalid == 0;
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            if a_winner_ok { "PASS" } else { "FAIL" },
+            if a_winner_ok { col_green } else { col_red },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Losers Valid:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            if a_winner_ok { "YES (DELTA 0)" } else { "NO" },
+            if a_winner_ok { col_green } else { col_red },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            15,
+            "Invalid Material IDs:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.a_invalid),
+            if metrics.a_invalid == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 26.0;
+
+        self.batch
+            .draw_text(&self.atlas, left_x + 16.0, y, 15, "State:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            left_x + card_w - 16.0,
+            y,
+            15,
+            if a_winner_ok {
+                "INTEGRITY OK"
+            } else {
+                "INTEGRITY FAIL"
+            },
+            if a_winner_ok { col_green } else { col_red },
+        );
+
+        // 3. Panel B card (top-right): [B] CHUNK BOUNDARY (closed fixture).
+        self.batch
+            .draw_rect(right_x, card_top_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            right_x,
+            card_top_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+        let mut y = card_top_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            18,
+            "[B] CHUNK BOUNDARY",
+            col_header,
+        );
+        y += 24.0;
+        self.batch
+            .draw_rect(right_x + 16.0, y, card_w - 32.0, 1.0, col_divider, white_uv);
+        y += 12.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            13,
+            "Closed fixture — seam at x=191/192, y=63/64",
+            col_dim,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Boundary Matter (live):",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.b_cross_chunk_matter),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Initial Matter:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.b_initial_matter),
+            col_val_white,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Count Delta:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{:+}", metrics.b_matter_delta),
+            if metrics.b_matter_delta == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Crossings Observed:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.b_crossings),
+            if metrics.b_crossings > 0 {
+                col_green
+            } else {
+                col_warn
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Invalid Material IDs:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.b_invalid_material),
+            if metrics.b_invalid_material == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 26.0;
+
+        let b_ok = metrics.b_matter_delta == 0 && metrics.b_invalid_material == 0;
+        self.batch
+            .draw_text(&self.atlas, right_x + 16.0, y, 15, "State:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            if b_ok {
+                "INTEGRITY OK"
+            } else {
+                "INTEGRITY FAIL"
+            },
+            if b_ok { col_green } else { col_red },
+        );
+
+        // 4. Panel C card (bottom-left): one-tick ownership instrument.
+        self.batch
+            .draw_rect(left_x, card_bot_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            left_x,
+            card_bot_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+        let mut y = card_bot_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            18,
+            "[C] EXPANSION + SMOKE OWNERSHIP",
+            col_header,
+        );
+        y += 24.0;
+        self.batch
+            .draw_rect(left_x + 16.0, y, card_w - 32.0, 1.0, col_divider, white_uv);
+        y += 12.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 16.0,
+            y,
+            13,
+            "One-tick instrument — latched after the first tick",
+            col_dim,
+        );
+        y += 22.0;
+
+        if !metrics.c_latched {
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "PENDING — press N once (or play at 1x)",
+                col_warn,
+            );
+        } else {
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Expansion Candidates:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}", metrics.c_exp_candidates),
+                col_val_white,
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Expansion Winners:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}", metrics.c_exp_winners),
+                if metrics.c_exp_winners == 1 {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Steam Sources:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}/3", metrics.c_exp_steam_sources),
+                if metrics.c_exp_steam_sources == 3 {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Pressure Losers:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}", metrics.c_exp_pressure_losers),
+                if metrics.c_exp_pressure_losers >= 2 {
+                    col_green
+                } else {
+                    col_warn
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Expansion Target:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                if metrics.c_exp_target_steam {
+                    "STEAM"
+                } else {
+                    "?"
+                },
+                if metrics.c_exp_target_steam {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Smoke Candidates:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}", metrics.c_smoke_candidates),
+                col_val_white,
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Smoke Winners:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}", metrics.c_smoke_winners),
+                if metrics.c_smoke_winners == 1 {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Wood Preserved:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}/3", metrics.c_smoke_wood_preserved),
+                if metrics.c_smoke_wood_preserved == 3 {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "New Smoke Age:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                &format!("{}", metrics.c_smoke_age),
+                if metrics.c_smoke_age == 0 {
+                    col_green
+                } else {
+                    col_warn
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Smoke Target:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                if metrics.c_smoke_target_smoke {
+                    "SMOKE"
+                } else {
+                    "?"
+                },
+                if metrics.c_smoke_target_smoke {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Movement Ran (1 cell):",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                if metrics.c_move_done { "YES" } else { "NO" },
+                if metrics.c_move_done {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 22.0;
+
+            self.batch.draw_text(
+                &self.atlas,
+                left_x + 16.0,
+                y,
+                15,
+                "Scratch Reuse:",
+                col_label,
+            );
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                if metrics.c_scratch_reuse {
+                    "PASS"
+                } else {
+                    "FAIL"
+                },
+                if metrics.c_scratch_reuse {
+                    col_green
+                } else {
+                    col_red
+                },
+            );
+            y += 26.0;
+
+            self.batch
+                .draw_text(&self.atlas, left_x + 16.0, y, 15, "Result:", col_label);
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 16.0,
+                y,
+                15,
+                if metrics.c_result { "PASS" } else { "FAIL" },
+                if metrics.c_result { col_green } else { col_red },
+            );
+        }
+
+        // 5. Panel D card (bottom-right): integrity violations only.
+        self.batch
+            .draw_rect(right_x, card_bot_y, card_w, card_h, col_card_bg, white_uv);
+        self.batch.draw_outline(
+            right_x,
+            card_bot_y,
+            card_w,
+            card_h,
+            1.0,
+            col_card_border,
+            white_uv,
+        );
+        let mut y = card_bot_y + 14.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            18,
+            "[D] HEAVY MIXED STRESS",
+            col_header,
+        );
+        y += 24.0;
+        self.batch
+            .draw_rect(right_x + 16.0, y, card_w - 32.0, 1.0, col_divider, white_uv);
+        y += 12.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            13,
+            "Integrity violations only (spawn/despawn is intended)",
+            col_dim,
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Invalid Material IDs:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_invalid_material_ids),
+            if metrics.d_invalid_material_ids == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "NaN/Inf Temperature:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_nan_inf_temperature),
+            if metrics.d_nan_inf_temperature == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "NaN/Inf Pressure:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_nan_inf_pressure),
+            if metrics.d_nan_inf_pressure == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Negative Pressure:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_negative_pressure),
+            if metrics.d_negative_pressure == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "EMPTY Temp Violations:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_empty_temp_violations),
+            if metrics.d_empty_temp_violations == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "EMPTY Flag Violations:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_empty_flag_violations),
+            if metrics.d_empty_flag_violations == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "EMPTY Pressure Violations:",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_empty_pressure_violations),
+            if metrics.d_empty_pressure_violations == 0 {
+                col_green
+            } else {
+                col_red
+            },
+        );
+        y += 22.0;
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 16.0,
+            y,
+            15,
+            "Matter (live, informational):",
+            col_label,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            &format!("{}", metrics.d_total_matter),
+            col_val_white,
+        );
+        y += 26.0;
+
+        let d_ok = metrics.d_invalid_material_ids == 0
+            && metrics.d_nan_inf_temperature == 0
+            && metrics.d_nan_inf_pressure == 0
+            && metrics.d_negative_pressure == 0
+            && metrics.d_empty_temp_violations == 0
+            && metrics.d_empty_flag_violations == 0
+            && metrics.d_empty_pressure_violations == 0;
+        self.batch
+            .draw_text(&self.atlas, right_x + 16.0, y, 15, "State:", col_label);
+        self.batch.draw_text_right(
+            &self.atlas,
+            right_x + card_w - 16.0,
+            y,
+            15,
+            if d_ok {
+                "ALL INTEGRITY OK"
+            } else {
+                "INTEGRITY FAIL"
+            },
+            if d_ok { col_green } else { col_red },
+        );
+
+        // 6. Bottom controls bar.
+        let bot_bar_y = sh - 32.0;
+        self.batch.draw_text(
+            &self.atlas,
+            24.0,
+            bot_bar_y,
+            15,
+            "SPACE Play / Pause   |   F Fast-Forward x1/x4/x16   |   N Single Step (1 tick)   |   R Reset World & Metrics   |   ESC Quit",
+            col_label,
+        );
+
+        // Upload and draw.
         if self.batch.vertices.is_empty() {
             return;
         }

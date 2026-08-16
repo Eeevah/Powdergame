@@ -486,8 +486,20 @@ fn g2_tick_preserves_g1_contracts() {
 
 // ── Performance ────────────────────────────────────────────────────────
 
-/// Coarse sanity observation (runs in normal `cargo test`; 30 ticks only).
+/// Coarse sanity observation of the 2048×2048 movement pipeline (30 ticks).
+///
+/// Deliberately ignored by the default test loop: it runs a full
+/// `WorldConfig::reference()` (2048×2048) simulation with a GPU
+/// `PollType::Wait`, which makes every iterative development validation
+/// noticeably slower for near-zero coverage value. Run it explicitly at a
+/// performance checkpoint:
+///
+/// ```text
+/// cargo test -p powdergame-gpu --test movement \
+///   coarse_reference_world_perf -- --ignored --nocapture
+/// ```
 #[test]
+#[ignore = "manual performance sanity; run only at explicit performance checkpoint"]
 fn coarse_reference_world_perf() {
     let mut sim = make_sim(WorldConfig::reference());
     const TICKS: u32 = 30;

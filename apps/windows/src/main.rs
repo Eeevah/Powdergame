@@ -64,6 +64,7 @@ const MOVEMENT_DEMO_TPS: u32 = 15;
 const DENSITY_DEMO_TPS: u32 = 15;
 const THERMAL_DEMO_TPS: u32 = 60;
 const PRESSURE_DEMO_TPS: u32 = 60;
+const PARALLEL_INTEGRITY_DEMO_TPS: u32 = 60;
 
 const MOVEMENT_DEMO_TITLE: &str = "Powdergame G2 Demo | SAND | WATER | OIL | STEAM | SMOKE";
 const DENSITY_DEMO_TITLE: &str =
@@ -72,6 +73,8 @@ const THERMAL_DEMO_TITLE: &str =
     "Powdergame G4 Thermal Observatory | 4 Large Panels + Live Metrics";
 const PRESSURE_DEMO_TITLE: &str =
     "Powdergame G5 Pressure Multi-Boiler Lab | 2x2 Standard vs Extreme Overdrive | Heat → Steam → Confinement → Rupture → Vent";
+const PARALLEL_INTEGRITY_DEMO_TITLE: &str =
+    "Powdergame G6 Parallel Integrity Lab | Contention + Chunk Boundary + Ownership Stress";
 
 /// Which demo fixture (if any) the app presents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,6 +84,7 @@ enum DemoMode {
     Density,
     Thermal,
     Pressure,
+    ParallelIntegrity,
 }
 
 impl DemoMode {
@@ -94,6 +98,7 @@ impl DemoMode {
             DemoMode::Density => DENSITY_DEMO_TPS,
             DemoMode::Thermal => THERMAL_DEMO_TPS,
             DemoMode::Pressure => PRESSURE_DEMO_TPS,
+            DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TPS,
         }
     }
 
@@ -111,6 +116,13 @@ struct DemoState {
     last_tick: Option<Instant>,
     step_pending: bool,
     reset_pending: bool,
+    /// G6-only fast-forward multiplier (1 / 4 / 16). N always steps exactly
+    /// one tick; F cycles the play multiplier; R resets it to 1.
+    fast: u32,
+    /// Tick counter for the measured simulation-TPS estimate (reset when play
+    /// starts or the world resets).
+    rate_ticks: u64,
+    rate_started: Option<Instant>,
 }
 
 impl DemoState {
@@ -123,17 +135,51 @@ impl DemoState {
             last_tick: None,
             step_pending: false,
             reset_pending: false,
+            fast: 1,
+            rate_ticks: 0,
+            rate_started: None,
         }
     }
 
     /// Human-readable state for the window title.
     fn title(&self) -> String {
-        let state = if self.playing {
-            format!("[PLAY {} TPS] SPACE Pause", self.tps)
+        let mut state = if self.playing {
+            let fast_suffix = if self.fast > 1 {
+                format!(" | FAST x{}", self.fast)
+            } else {
+                String::new()
+            };
+            format!("[PLAY {} TPS{fast_suffix}]", self.tps)
         } else {
-            "[PAUSED] SPACE Play | N Step | R Reset".to_string()
+            let fast_suffix = if self.fast > 1 {
+                format!(" | FAST x{}", self.fast)
+            } else {
+                String::new()
+            };
+            format!("[PAUSED{fast_suffix}]",)
         };
-        format!("{} | {state} | tick {}", self.base_title, self.ticks)
+        // Measured actual simulation throughput while playing (coarse wall-
+        // clock estimate, not a GPU timestamp benchmark).
+        if self.playing {
+            if let (Some(start), Some(elapsed)) =
+                (self.rate_started, self.rate_started.map(|s| s.elapsed()))
+            {
+                let _ = start;
+                if elapsed.as_secs_f64() >= 0.5 && self.rate_ticks > 0 {
+                    let measured = self.rate_ticks as f64 / elapsed.as_secs_f64();
+                    state.push_str(&format!(" | sim ~{measured:.0} TPS"));
+                }
+            }
+        }
+        let controls = if self.playing {
+            "SPACE Pause".to_string()
+        } else {
+            "SPACE Play | N Step | R Reset".to_string()
+        };
+        format!(
+            "{} | {state} | {controls} | tick {}",
+            self.base_title, self.ticks
+        )
     }
 }
 
@@ -170,16 +216,19 @@ impl App {
             DemoMode::Density => DENSITY_DEMO_TITLE,
             DemoMode::Thermal => THERMAL_DEMO_TITLE,
             DemoMode::Pressure => PRESSURE_DEMO_TITLE,
+            DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TITLE,
             DemoMode::None => "Powdergame — G0 Runtime",
         };
         // The thermal and pressure observatories use a larger world (320×192 / 256×256),
         // so they get a 1600×900 window; the G2/G3 fixtures keep 1280×720.
-        let (window_w, window_h) =
-            if self.demo_mode == DemoMode::Thermal || self.demo_mode == DemoMode::Pressure {
-                (1600.0, 900.0)
-            } else {
-                (1280.0, 720.0)
-            };
+        let (window_w, window_h) = if self.demo_mode == DemoMode::Thermal
+            || self.demo_mode == DemoMode::Pressure
+            || self.demo_mode == DemoMode::ParallelIntegrity
+        {
+            (1600.0, 900.0)
+        } else {
+            (1280.0, 720.0)
+        };
         let window = Arc::new(
             event_loop
                 .create_window(
@@ -213,6 +262,7 @@ impl App {
             let (w, h) = match self.demo_mode {
                 DemoMode::Thermal => (320, 192),
                 DemoMode::Pressure => (256, 256),
+                DemoMode::ParallelIntegrity => (256, 256),
                 _ => (128, 128),
             };
             WorldConfig::new(w, h, 64).expect("demo world config")
@@ -222,12 +272,17 @@ impl App {
         println!("[powdergame] {}", simulation.world.allocation);
         println!("[powdergame] allocation: success");
 
-        let observatory_collector =
-            if self.demo_mode == DemoMode::Thermal || self.demo_mode == DemoMode::Pressure {
-                Some(ObservatoryCollector::new(&simulation))
-            } else {
-                None
-            };
+        let observatory_collector = if self.demo_mode == DemoMode::Thermal
+            || self.demo_mode == DemoMode::Pressure
+            || self.demo_mode == DemoMode::ParallelIntegrity
+        {
+            Some(ObservatoryCollector::new(
+                &simulation,
+                self.demo_mode == DemoMode::ParallelIntegrity,
+            ))
+        } else {
+            None
+        };
 
         match self.demo_mode {
             DemoMode::None => {
@@ -254,6 +309,10 @@ impl App {
                 stage_pressure_demo(&simulation)?;
                 println!("[powdergame] pressure demo: 2x2 multi-boiler lab staged (Standard vs Extreme Overdrive)");
             }
+            DemoMode::ParallelIntegrity => {
+                stage_parallel_integrity_demo(&simulation)?;
+                println!("[powdergame] parallel integrity demo: 2x2 contention lab staged");
+            }
         }
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
@@ -265,6 +324,7 @@ impl App {
             palette: match self.demo_mode {
                 DemoMode::Density => PresentationPalette::Lab,
                 DemoMode::Thermal | DemoMode::Pressure => PresentationPalette::ThermalLab,
+                DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
                 _ => PresentationPalette::Forest,
             },
         });
@@ -308,11 +368,15 @@ impl App {
             demo.playing = !demo.playing;
             if demo.playing {
                 demo.last_tick = None; // restart the tick clock on resume
+                demo.rate_ticks = 0;
+                demo.rate_started = Some(Instant::now());
                 println!("[powdergame] demo: PLAY ({} TPS)", demo.tps);
             } else {
                 println!("[powdergame] demo: PAUSED");
+                demo.rate_started = None;
             }
             window.set_title(&demo.title());
+            window.request_redraw();
         }
     }
 
@@ -329,12 +393,38 @@ impl App {
         }
     }
 
+    fn request_fast_forward(&mut self, window: &Window) {
+        // G6 demo only: cycles 1x -> 4x -> 16x -> 1x. `Simulation::tick`
+        // semantics are unchanged — the multiplier just runs more sequential
+        // ticks per update opportunity. N always steps exactly one tick.
+        if self.demo_mode != DemoMode::ParallelIntegrity {
+            return;
+        }
+        if let Some(demo) = &mut self.demo {
+            demo.fast = match demo.fast {
+                1 => 4,
+                4 => 16,
+                _ => 1,
+            };
+            if demo.playing {
+                demo.rate_ticks = 0;
+                demo.rate_started = Some(Instant::now());
+            }
+            println!("[powdergame] demo: fast-forward x{}", demo.fast);
+            window.set_title(&demo.title());
+            window.request_redraw();
+        }
+    }
+
     fn request_reset(&mut self, window: &Window) {
         if let Some(demo) = &mut self.demo {
             demo.reset_pending = true;
             demo.playing = false;
             demo.last_tick = None;
             demo.ticks = 0;
+            demo.fast = 1;
+            demo.rate_ticks = 0;
+            demo.rate_started = None;
             if let Some(collector) = &mut self.observatory_collector {
                 collector.reset();
             }
@@ -957,6 +1047,226 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     Ok(())
 }
 
+fn stage_parallel_integrity_demo(simulation: &Simulation) -> Result<(), GpuError> {
+    let q = &simulation.context.queue;
+    let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
+    let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
+    let stone = MATERIAL_STONE;
+
+    // Central cross dividers (same as pressure demo)
+    // Vertical: x 127..128
+    for y in 1..=254 {
+        set(127, y, stone)?;
+        set(128, y, stone)?;
+    }
+    // Horizontal: y 127..128
+    for x in 1..=254 {
+        set(x, 127, stone)?;
+        set(x, 128, stone)?;
+    }
+
+    // [A] MOVEMENT CONTENTION (top-left: x 1..126, y 1..126)
+    // Dense falling columns of Sand + Water + Oil competing for the same landing zones
+    // Multiple columns dumping into narrow funnels to force contention
+    for col in 0..6 {
+        let cx = 10 + col * 20;
+        // Alternating material columns
+        let mat = match col % 3 {
+            0 => MATERIAL_SAND,
+            1 => MATERIAL_WATER,
+            _ => MATERIAL_OIL,
+        };
+        // Tall source column (height 30)
+        for y in 5..35 {
+            set(cx, y, mat)?;
+            set(cx + 1, y, mat)?;
+        }
+    }
+    // Stone shelf with narrow gaps to create landing contention
+    for x in 2..126 {
+        set(x, 60, stone)?;
+    }
+    // Gaps every 10 cells
+    for gap in 0..12 {
+        let gx = 8 + gap * 10;
+        set(gx, 60, MATERIAL_EMPTY)?;
+    }
+    // Second batch below shelf
+    for col in 0..6 {
+        let cx = 15 + col * 18;
+        let mat = match col % 3 {
+            0 => MATERIAL_OIL,
+            1 => MATERIAL_SAND,
+            _ => MATERIAL_WATER,
+        };
+        for y in 65..80 {
+            set(cx, y, mat)?;
+        }
+    }
+
+    // [B] CHUNK BOUNDARY CONTENTION (top-right: x 129..254, y 1..126)
+    // Place matter exactly at chunk boundaries (x=192 is boundary between chunk 2 and 3)
+    // Vertical columns straddling x=192
+    for y in 5..50 {
+        set(191, y, MATERIAL_SAND)?;
+        set(192, y, MATERIAL_SAND)?;
+        set(193, y, MATERIAL_WATER)?;
+        set(194, y, MATERIAL_WATER)?;
+    }
+    // Horizontal layer straddling y=64 (chunk boundary)
+    for x in 135..250 {
+        set(x, 62, MATERIAL_WATER)?;
+        set(x, 63, MATERIAL_WATER)?;
+        set(x, 64, MATERIAL_WATER)?;
+        set(x, 65, MATERIAL_WATER)?;
+    }
+    // Falling sand onto boundary region
+    for x in 140..200 {
+        set(x, 10, MATERIAL_SAND)?;
+        set(x, 11, MATERIAL_SAND)?;
+    }
+    // Oil pool crossing boundary
+    for x in 200..248 {
+        for y in 90..110 {
+            set(x, y, MATERIAL_OIL)?;
+        }
+    }
+
+    // [C] EXPANSION + SMOKE OWNERSHIP (bottom-left: x 1..126, y 129..254)
+    // One-tick ownership instrument (latched by `evaluate_integrity_state` on
+    // the first post-tick readback). Three sub-fixtures run in the SAME tick
+    // so the movement -> expansion -> smoke proposal/claim scratch reuse is
+    // exercised together:
+    //   LEFT   EXPANSION CONTENTION — 3 boiling Water sources with exactly one
+    //          shared EMPTY destination (every other neighbor is Stone). Each
+    //          source proposes the target; the claim pass picks exactly one
+    //          winner (target -> Steam) and the 2 losers receive confinement
+    //          Pressure. No staged Steam, no staged Pressure.
+    //   CENTER MOVEMENT FIXTURE — one Sand cell above EMPTY (falls 1 cell on
+    //          tick 1) so the movement pass provably ran in the same tick.
+    //   RIGHT  SMOKE CONTENTION — 3 burning Wood sources with exactly one
+    //          shared EMPTY Smoke target (all other neighbors Stone). One
+    //          winner spawns Smoke (decay age 0); all 3 Woods are preserved.
+
+    // --- Expansion contention (LEFT) ---
+    let (x0, y0, x1, y1) = observatory::EXP_REGION;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            set(i64::from(x), i64::from(y), stone)?;
+            set_t(i64::from(x), i64::from(y), 100.0)?;
+        }
+    }
+    set(
+        i64::from(observatory::EXP_TARGET.0),
+        i64::from(observatory::EXP_TARGET.1),
+        MATERIAL_EMPTY,
+    )?;
+    for &(sx, sy) in &observatory::EXP_SOURCES {
+        set(i64::from(sx), i64::from(sy), MATERIAL_WATER)?;
+        set_t(i64::from(sx), i64::from(sy), 100.0)?;
+    }
+
+    // --- Movement fixture (CENTER) ---
+    let (mx0, my0, mx1, my1) = observatory::MOVE_REGION;
+    for y in my0..=my1 {
+        for x in mx0..=mx1 {
+            set(i64::from(x), i64::from(y), stone)?;
+        }
+    }
+    set(
+        i64::from(observatory::MOVE_SRC.0),
+        i64::from(observatory::MOVE_SRC.1),
+        MATERIAL_SAND,
+    )?;
+    set(
+        i64::from(observatory::MOVE_DST.0),
+        i64::from(observatory::MOVE_DST.1),
+        MATERIAL_EMPTY,
+    )?;
+
+    // --- Smoke contention (RIGHT) ---
+    let (qx0, qy0, qx1, qy1) = observatory::SMOKE_REGION;
+    for y in qy0..=qy1 {
+        for x in qx0..=qx1 {
+            set(i64::from(x), i64::from(y), stone)?;
+            set_t(i64::from(x), i64::from(y), 110.0)?;
+        }
+    }
+    set(
+        i64::from(observatory::SMOKE_TARGET.0),
+        i64::from(observatory::SMOKE_TARGET.1),
+        MATERIAL_EMPTY,
+    )?;
+    for &(wx, wy) in &observatory::SMOKE_SOURCES {
+        set(i64::from(wx), i64::from(wy), MATERIAL_WOOD)?;
+        set_t(i64::from(wx), i64::from(wy), 100.0)?;
+    }
+
+    // [D] HEAVY MIXED PARALLEL STRESS (bottom-right: x 129..254, y 129..254)
+    // Everything at once: sand, water, oil, steam, smoke, hot/cold, wood combustion, pressure
+
+    // Sand heap
+    for x in 135..165 {
+        for y in 135..160 {
+            set(x, y, MATERIAL_SAND)?;
+        }
+    }
+    // Water body
+    for x in 170..210 {
+        for y in 180..220 {
+            set(x, y, MATERIAL_WATER)?;
+        }
+    }
+    // Oil body
+    for x in 215..245 {
+        for y in 180..220 {
+            set(x, y, MATERIAL_OIL)?;
+        }
+    }
+    // Steam pocket (hot)
+    for x in 135..160 {
+        for y in 165..180 {
+            set(x, y, MATERIAL_STEAM)?;
+            set_t(x, y, 120.0)?;
+        }
+    }
+    // Smoke wisps
+    for x in 165..185 {
+        for y in 135..155 {
+            set(x, y, MATERIAL_SMOKE)?;
+        }
+    }
+    // Hot stone plate (heater for phase transitions)
+    for x in 170..240 {
+        set(x, 225, stone)?;
+        set_t(x, 225, 180.0)?;
+    }
+    // Wood with igniter (combustion)
+    for x in 200..240 {
+        for y in 135..160 {
+            set(x, y, MATERIAL_WOOD)?;
+        }
+    }
+    set(199, 147, stone)?;
+    set_t(199, 147, 250.0)?; // Igniter
+                             // Cold region (ice)
+    for x in 135..155 {
+        for y in 230..250 {
+            set(x, y, MATERIAL_ICE)?;
+            set_t(x, y, -30.0)?;
+        }
+    }
+    // Water near cold region (will freeze)
+    for x in 155..175 {
+        for y in 235..250 {
+            set(x, y, MATERIAL_WATER)?;
+            set_t(x, y, 5.0)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Resets the demo world to its pristine boundary-ring state and re-stages
 /// the active demo scene, using only the validated edit hook.
 fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuError> {
@@ -989,6 +1299,7 @@ fn reset_demo_world(simulation: &Simulation, mode: DemoMode) -> Result<(), GpuEr
         DemoMode::Density => stage_density_demo(simulation),
         DemoMode::Thermal => stage_thermal_demo(simulation),
         DemoMode::Pressure => stage_pressure_demo(simulation),
+        DemoMode::ParallelIntegrity => stage_parallel_integrity_demo(simulation),
         DemoMode::None => Ok(()),
     }
 }
@@ -1017,9 +1328,15 @@ fn step_demo(
     if demo.step_pending {
         demo.step_pending = false;
         if !demo.playing {
+            // N always advances EXACTLY ONE tick — unaffected by the
+            // fast-forward multiplier.
             match simulation.tick() {
                 Ok(()) => {
                     demo.ticks += 1;
+                    demo.rate_ticks += 1;
+                    if let Some(col) = collector {
+                        col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast);
+                    }
                     println!("[powdergame] demo: stepped to tick {}", demo.ticks);
                 }
                 Err(e) => eprintln!("[powdergame] demo step error: {e}"),
@@ -1032,16 +1349,26 @@ fn step_demo(
         let prev = demo.last_tick.unwrap_or(now);
         let mut acc = now.duration_since(prev);
         while acc >= interval {
-            match simulation.tick() {
-                Ok(()) => demo.ticks += 1,
-                Err(e) => eprintln!("[powdergame] demo tick error: {e}"),
+            // Fast-forward runs the production tick sequentially `fast` times
+            // per beat — identical ticks, just more of them per opportunity.
+            for _ in 0..demo.fast {
+                match simulation.tick() {
+                    Ok(()) => {
+                        demo.ticks += 1;
+                        demo.rate_ticks += 1;
+                        if let Some(col) = collector {
+                            col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast);
+                        }
+                    }
+                    Err(e) => eprintln!("[powdergame] demo tick error: {e}"),
+                }
             }
             acc -= interval;
         }
         demo.last_tick = Some(now - acc);
     }
     if let Some(col) = collector {
-        col.update(simulation, demo.ticks);
+        col.update(simulation, demo.ticks, demo.fast);
     }
 }
 
@@ -1091,6 +1418,9 @@ impl ApplicationHandler for App {
                     Key::Character(ref c) if c.eq_ignore_ascii_case("n") => {
                         self.request_step(&window);
                     }
+                    Key::Character(ref c) if c.eq_ignore_ascii_case("f") => {
+                        self.request_fast_forward(&window);
+                    }
                     Key::Character(ref c) if c.eq_ignore_ascii_case("r") => {
                         self.request_reset(&window);
                     }
@@ -1130,6 +1460,14 @@ impl ApplicationHandler for App {
                                 self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
                             )
                         }),
+                        DemoMode::ParallelIntegrity => {
+                            self.observatory_collector.as_ref().map(|c| {
+                                renderer::HudData::ParallelIntegrity(
+                                    c.integrity_metrics(),
+                                    self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
+                                )
+                            })
+                        }
                         _ => None,
                     };
                     if let Err(e) = renderer.render(hud_data) {
@@ -1186,6 +1524,7 @@ fn parse_demo_mode() -> DemoMode {
             "--density-demo" => return DemoMode::Density,
             "--thermal-demo" => return DemoMode::Thermal,
             "--pressure-demo" => return DemoMode::Pressure,
+            "--parallel-integrity-demo" => return DemoMode::ParallelIntegrity,
             _ => {}
         }
     }
@@ -1232,6 +1571,10 @@ fn main() {
             "[powdergame] pressure demo: 128×128 twin boilers, 60 TPS. \
              LEFT Wood relief plug should rupture/vent; RIGHT Stone control stays sealed. \
              Starts PAUSED (SPACE play | N step | R reset | ESC quit)"
+        ),
+        DemoMode::ParallelIntegrity => println!(
+            "[powdergame] parallel integrity demo: 256x256 2x2 contention lab, 60 TPS. \
+             Starts PAUSED (SPACE play | F fast x1/x4/x16 | N step | R reset | ESC quit)"
         ),
         DemoMode::None => {}
     }

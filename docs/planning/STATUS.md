@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. G8-B Scenario 1 Sand Fall은 사용자 승인되었고 immutable Harness pilot은 automatic `PASS` / review `APPROVED`다. Scenario 2 first Water candidate는 `d12edbf` source에서 automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`로 immutable/superseded되었고 fixture-only remediation candidate가 진행 중이다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 Fire / Heat, Pressure Burst, Heavy Mixed World와 G8-C는 이번 범위 밖이다.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. G8-B Scenario 1 Sand Fall은 사용자 승인되었고 immutable Harness pilot은 automatic `PASS` / review `APPROVED`다. Scenario 2 Water remediation candidate는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 Fire / Heat, Pressure Burst, Heavy Mixed World와 G8-C가 남아 있다.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A VERIFIED V5 EVIDENCE CANDIDATE, USER VISUAL VALIDATION PENDING; G8-B SCENARIO 1 USER ACCEPTED / SAND HARNESS PILOT PASS-APPROVED, SCENARIO 2 FIRST WATER CANDIDATE SUPERSEDED / FIXTURE REMEDIATION PENDING, SCENARIO 3–5 PENDING, OVERALL NOT CLOSED; G8-C PENDING).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A VERIFIED V5 EVIDENCE CANDIDATE, USER VISUAL VALIDATION PENDING; G8-B SCENARIO 1 USER ACCEPTED / SAND HARNESS PILOT PASS-APPROVED, SCENARIO 2 WATER USER ACCEPTED WITH KNOWN FOLLOW-UP / AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED, SCENARIO 3–5 PENDING, OVERALL NOT CLOSED; G8-C PENDING).**
 
 ### Current Summary
 
@@ -394,13 +394,13 @@ Static Analysis & Formatting:
   - No production optimization performed; G7-C not implemented. G8-A calibration facts remain separate from the later G8-B fixture candidate and G8-C matrix.
   - Evidence: `docs/evidence/G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md`
 
-- **G8-B (Benchmark Scenario Suite)**: **IMPLEMENTATION CANDIDATE; USER ACCEPTANCE PENDING / NOT CLOSED**
+- **G8-B (Benchmark Scenario Suite)**: **SCENARIOS 1–2 USER ACCEPTED; SCENARIOS 3–5 PENDING / NOT CLOSED**
   - Candidate and next work line: `feature/m0-g8b-scenario-suite`, based on local canonical recovery commit `ca79bb20b27041758ab4d4a224e491c171189393`; accepted Sand Fall scenario-suite checkpoint `e77d102febb1e3c497c2b669efe0140408bd99d7`. At docs closure it is ff-only aligned with the retained Harness branch.
   - Shared crate/API: `apps/scenarios` / `powdergame-scenarios::{ScenarioId, ScenarioFixture, validate_scenario_config, reset_and_stage_scenario}`.
   - Official fixtures: Sand Fall, Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World.
   - Scenario 1 Sand Fall: **USER ACCEPTED (2026-08-17)**. 사용자는 Sand가 완전히 정착하고 모든 chunk가 sleep 상태로 수렴하는 것을 성공으로 승인했다. benchmark identity를 위해 activity를 영구 유지하도록 source/geometry/sleep behavior를 retune하지 않는다.
-  - Scenario 2 Water Flow: **FIRST CANDIDATE SUPERSEDED / FIXTURE REMEDIATION CANDIDATE / NOT YET USER ACCEPTED**. Run `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`는 automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`로 보존한다. Remediation은 side walls만 `y=90 → 14`로 연장하고 production physics와 liquid/internal geometry를 보존한다.
-  - Scenario 3 Fire / Heat, Scenario 4 Pressure Burst, Scenario 5 Heavy Mixed World: **PENDING / NOT YET USER ACCEPTED / OUT OF CURRENT TASK**.
+  - Scenario 2 Water Flow: **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-17)**. Sealed run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 유지한다. Side-wall remediation 뒤 outer-basin Water max/final은 `0 / 0`, conservation/movement/cross-chunk/destination/integrity/reset은 pass했고, 마지막 active `64` cells는 Water/EMPTY `51`, Water/Oil `1`, other `12`였다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. 기존 first candidate는 immutable/superseded 상태로 보존한다.
+  - Scenario 3 Fire / Heat, Scenario 4 Pressure Burst, Scenario 5 Heavy Mixed World: **PENDING / NOT YET USER ACCEPTED**.
   - Sixth Gallery slot: exact `active-sleep-g7` 256×256×64 regression fixture. It is not a sixth official matrix workload.
   - Shared staging resets production `Simulation`, uploads authored Material/Temperature/Pressure/Flags to Current and Next plus `chunk_edit_wake`, and completes transfer work before measurement or inspection continues.
   - Windows `--benchmark-gallery` / `run_g8_benchmark_gallery.bat` starts paused and provides `1-6`, `SPACE`, `N`, `F`, `R`, `ESC` controls. Scenario selection and reset commit their new attribution only after shared reset/staging succeeds; failure is explicit and suppresses advancement/readback until recovery.
@@ -409,7 +409,7 @@ Static Analysis & Formatting:
   - Gallery rendering, HUD, wall-clock TPS, and sampled activity census are out-of-band inspection diagnostics. They are excluded from official timing and do not establish G8-C.
   - Scope exclusions: no production physics/shader/pass-graph change, no new Material, no G9 implementation, no performance optimization.
   - Recorded targeted checks in this implementation round: scenarios library 6/6; scenarios GPU reset 1/1; benchmark package 27/27; Windows Gallery-filtered tests 7/7; changed-package all-target clippy and workspace fmt passed; the final bounded 60-frame release Gallery launch exited cleanly on RTX 5090 / DX12 while remaining paused at tick 0 and reporting build-bound provenance.
-  - No official five-scenario performance matrix, benchmark result, or broad demo matrix is claimed by the scenario-suite checkpoint. The later Sand Fall-only Harness pilot is recorded separately below. User acceptance currently applies only to Scenario 1 Sand Fall.
+  - No official five-scenario performance matrix, benchmark result, or broad demo matrix is claimed by the scenario-suite checkpoint. The later Sand Fall-only Harness pilot and Water Flow candidate are recorded separately below. User acceptance currently applies to Scenarios 1–2 only.
   - Evidence: `docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`
 
 - **G8-B Sand Fall Experiment Harness v0**: **PILOT PASS; HARNESS REVIEW OUTPUT APPROVED; G8-B NOT CLOSED**
@@ -423,31 +423,33 @@ Static Analysis & Formatting:
   - Review Packet SHA-256: `feffc180f81d36558b8139f5436a2a0eed6422617dd9a3207153b1cb62af1323`; Receipt SHA-256: `42bbacf77ca80356996a53fb2d0a56a5aba18215b5b85bda637350522c95e033`.
   - Evidence contract: `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`
 
-- **G8-B Water Flow Experiment Harness v2 remediation**: **FIRST CANDIDATE SUPERSEDED; REMEDIATION CANDIDATE/VERDICT/USER ACCEPTANCE PENDING; G8-B NOT CLOSED**
-  - Active line/base: `feature/m0-g8b-scenario-suite` from `d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268`; remediation source SHA is assigned only after source/test/docs validation and seal.
+- **G8-B Water Flow Experiment Harness v2 remediation**: **USER ACCEPTED WITH KNOWN FOLLOW-UP; AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED; G8-B NOT CLOSED**
+  - Active line/base: `feature/m0-g8b-scenario-suite` from `d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268`; sealed remediation source SHA `5af031f1a04af866127616d4f1b0faa6c85e4d8e`.
   - Preserved candidate: `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`; automatic `NEEDS_HUMAN_REVIEW`; human `FIX REQUIRED — fixture_representativeness_issue`; no production-physics defect established.
   - The finite remediated fixture remains Water 15,244 / Oil 2,240 and keeps its 6,216-cell destination. Side walls become `[10,18) × [14,238)` and `[238,246) × [14,238)`; Stone is 8,104 and Empty 38,928.
-  - One fresh `run_experiment.bat water-flow` candidate follows the FULL checkpoint and source seal. Existing Run ID/artifacts remain untouched; unique external create-new/no-overwrite, failure preservation, hashes, and receipt-last publication remain mandatory.
+  - Exactly one fresh candidate was generated after the FULL checkpoint and source seal: Run ID `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`. Existing Run IDs/artifacts remain untouched; unique external create-new/no-overwrite, failure preservation, hashes, and receipt-last publication remain mandatory.
   - Water telemetry/analysis/report/receipt are v2; manifest v1 and frames v0 remain. The tenth predicate `water_outside_outer_basin_cells` requires a maximum of zero outside `[18,238) × [14,230)`. All-sleep and plateau policy are unchanged.
   - FAST recorded: workspace fmt/check PASS; scenarios library 7/7; shared GPU reset 1/1; bounded Water destination/conservation/leak/reset 1/1; Windows Sand/Water experiment 16/16; Python coordinator/analyzer 23/23.
   - Final checkpoint recorded: workspace tests PASS; workspace all-target clippy PASS; diff-check PASS; one 60-frame RTX 5090/DX12 Gallery release smoke PASS.
-  - PENDING: clean source SHA, one fresh candidate, automatic verdict, artifact paths/hashes, and direct user inspection/acceptance.
-  - Sand fixture/pilot/artifacts remain immutable. No production physics, Fire/Pressure/Mixed, G8-C, optimization, main merge, or PR is included.
+  - Candidate result: automatic `NEEDS_HUMAN_REVIEW` retained; human `ACCEPTED WITH KNOWN FOLLOW-UP`. Outer-basin Water max/final `0 / 0`; Matter/Water/Oil conservation, movement, cross-chunk, destination, invalid/non-finite integrity, and exact reset passed. Final active cells `64` = Water/EMPTY `51` + Water/Oil `1` + other `12`.
+  - Review Packet SHA-256 `83783025ee6bdac8f6dedbf25edfec1dd75040d533c9fc563157cc699b5caec5`; Receipt SHA-256 `96f60b465dbfa4f7a4cacd7f78f475cad9af7c2e6d1754aba4dddc186d497c1b`.
+  - Known follow-up: M0 local-liquid free-surface minority-cell persistent rearrangement. No production-physics defect evidence is established. The automatic verdict, all-sleep policy, fixture, liquid physics, Sleep/Wake semantics, Oil, Run ID, and generated artifacts remain unchanged.
+  - Sand fixture/pilot/artifacts remain immutable. No production physics, Pressure/Mixed, G8-C, optimization, main merge, or PR is included.
   - Evidence contract: `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`
 
 ---
 
 ### Next Action
 
-1. **Seal and push**: source/test/docs만 commit하여 clean attached SHA를 만들고 named upstream으로 fast-forward push한다.
-2. **Publish once and stop**: fresh Run ID로 remediation candidate를 정확히 한 번 생성한 뒤 즉시 중단한다. automatic verdict는 Water 또는 G8-B user acceptance를 대신하지 않는다.
-3. **Scope stop**: Fire / Heat, Pressure Burst, Heavy Mixed World, G8-C, G9, optimization, `main`/PR은 시작하지 않는다.
+1. **Record Water closure**: automatic `NEEDS_HUMAN_REVIEW`와 immutable artifact를 유지한 채 docs-only user acceptance closure를 기록한다.
+2. **Next scenario**: 같은 branch/worktree에서 Scenario 3 Fire / Heat fixture를 먼저 변경 없이 감사하고 Harness candidate를 준비한다.
+3. **Scope stop**: Fire / Heat candidate 뒤 즉시 중단하며 Pressure Burst, Heavy Mixed World, G8-C, G9, optimization, `main`/PR은 시작하지 않는다.
 
 ---
 
 ### Blockers
 
-Canonical Recovery, v5 technical evidence, Sand Fall behavior, Sand Fall Harness pilot에는 확인된 기술 blocker가 없다. First Water candidate의 fixture representativeness finding은 remediation 대상으로 명시되었지만 FULL/smoke와 fresh candidate 결과가 아직 없으므로 remediation verdict를 선언할 수 없다. G8-B closure에는 Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World의 사용자 acceptance가 남아 있다. G8-A의 same-SHA visual validation, `main` 승격과 G8-C/G9 진입은 별도 사용자 결정이다.
+Canonical Recovery, v5 technical evidence, Sand Fall behavior, Sand Fall Harness pilot, Water Flow user acceptance에는 확인된 기술 blocker가 없다. Water의 automatic `NEEDS_HUMAN_REVIEW`와 M0 local-liquid free-surface의 소수 셀 지속 재배열은 알려진 후속 과제로 남지만 production-physics defect 증거는 없다. G8-B closure에는 Fire / Heat, Pressure Burst, Heavy Mixed World의 사용자 acceptance가 남아 있다. G8-A의 same-SHA visual validation, `main` 승격과 G8-C/G9 진입은 별도 사용자 결정이다.
 
 Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical Recovery Evidence](../evidence/CANONICAL_RECOVERY_2026-08-17.md)에 기록한다.
 
@@ -457,7 +459,7 @@ Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical 
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenario 1 user accepted, Sand Fall Harness pilot PASS / review APPROVED, Scenario 2–5 pending, overall NOT CLOSED; G8-C PENDING).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenarios 1–2 user accepted, Water automatic `NEEDS_HUMAN_REVIEW` unchanged with known follow-up, Scenarios 3–5 pending, overall NOT CLOSED; G8-C PENDING).
 
 M0 `ACHIEVED`: **NO**
 
@@ -481,7 +483,8 @@ g8b_candidate_base: ca79bb20b27041758ab4d4a224e491c171189393
 g8b_candidate_status: USER ACCEPTANCE PENDING / NOT CLOSED
 g8b_official_scenarios: sand-fall, water-flow, fire-heat, pressure-burst, heavy-mixed-world
 g8b_scenario_1_acceptance: sand-fall USER ACCEPTED; complete settling and all chunks sleeping are success; no activity-retuning
-g8b_remaining_acceptance: water-flow, fire-heat, pressure-burst, heavy-mixed-world PENDING; first water candidate superseded, remediation candidate active but not accepted
+g8b_scenario_2_acceptance: water-flow USER ACCEPTED WITH KNOWN FOLLOW-UP; automatic NEEDS_HUMAN_REVIEW unchanged
+g8b_remaining_acceptance: fire-heat, pressure-burst, heavy-mixed-world PENDING
 g8b_regression_only_scenario: active-sleep-g7 (exact 256x256x64; not official matrix)
 g8b_shared_staging: powdergame-scenarios::reset_and_stage_scenario
 evidence_writer_schema: calibration=powdergame-g8a-v5; shared fixture=powdergame-g8b-fixture-v1
@@ -494,10 +497,19 @@ g8b_harness_review_output: HARNESS REVIEW OUTPUT APPROVED
 g8b_harness_review_packet_sha256: feffc180f81d36558b8139f5436a2a0eed6422617dd9a3207153b1cb62af1323
 g8b_harness_receipt_sha256: 42bbacf77ca80356996a53fb2d0a56a5aba18215b5b85bda637350522c95e033
 g8b_water_harness_base_sha: d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268
-g8b_water_harness_source_sha: PENDING
+g8b_water_harness_source_sha: 5af031f1a04af866127616d4f1b0faa6c85e4d8e
 g8b_water_harness_schema: manifest v1; telemetry/analysis/report/receipt v2; frames v0
 g8b_water_harness_fast: workspace fmt/check PASS; scenarios 7/7; shared GPU reset 1/1; bounded Water GPU 1/1; windows Sand/Water experiment 16/16; Python 23/23; FULL workspace test/clippy/diff PASS; Gallery release smoke PASS
-g8b_water_harness_runs: first candidate immutable/superseded; remediation candidate PENDING; verdict PENDING; user acceptance PENDING
+g8b_water_harness_run_id: g8b-water-flow-v0-20260817T110906547252Z-8b808e66
+g8b_water_harness_automatic_verdict: NEEDS_HUMAN_REVIEW
+g8b_water_harness_human_verdict: ACCEPTED WITH KNOWN FOLLOW-UP
+g8b_water_harness_review_packet_sha256: 83783025ee6bdac8f6dedbf25edfec1dd75040d533c9fc563157cc699b5caec5
+g8b_water_harness_receipt_sha256: 96f60b465dbfa4f7a4cacd7f78f475cad9af7c2e6d1754aba4dddc186d497c1b
+g8b_water_harness_outer_basin_water_max_final: 0 / 0
+g8b_water_harness_conservation_movement_cross_destination_integrity_reset: PASS
+g8b_water_harness_final_active_partition: total 64; Water/EMPTY 51; Water/Oil 1; other 12
+g8b_water_harness_known_follow_up: M0 local-liquid free-surface minority-cell persistent rearrangement; no production-physics defect evidence
+g8b_water_harness_runs: first candidate immutable/superseded; remediation candidate immutable/user accepted with known follow-up; automatic verdict unchanged
 official_capture_completion_marker: CAPTURE_RECEIPT.json (must be written last)
 official_capture_package_hash: ZIP-external PACKAGE_SHA256.txt
 official_capture_id: g8a-v5-9abec9e-20260817T032827206Z

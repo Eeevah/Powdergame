@@ -1,10 +1,10 @@
 # G8-B Scenario 2 — Water Flow Harness Candidate and Fixture Remediation
 
 Date: 2026-08-17
-Status: **FIRST CANDIDATE SUPERSEDED — FIXTURE REMEDIATION CANDIDATE / USER ACCEPTANCE PENDING**
+Status: **REMEDIATION CANDIDATE USER ACCEPTED WITH KNOWN FOLLOW-UP — AUTOMATIC NEEDS_HUMAN_REVIEW / G8-B NOT CLOSED**
 Branch: `feature/m0-g8b-scenario-suite`
 Remediation starting SHA: `d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268`
-Candidate source SHA: **PENDING SOURCE SEAL**
+Candidate source SHA: `5af031f1a04af866127616d4f1b0faa6c85e4d8e`
 
 ## 1. Scope and frozen baseline
 
@@ -35,17 +35,18 @@ Current execution state:
 | Item | State |
 |---|---|
 | First Water candidate | IMMUTABLE / SUPERSEDED; automatic `NEEDS_HUMAN_REVIEW` |
-| Human review | `FIX REQUIRED — fixture_representativeness_issue` |
-| Fixture remediation | IMPLEMENTED CANDIDATE; unsealed |
+| First-candidate human review | `FIX REQUIRED — fixture_representativeness_issue` |
+| Fixture remediation | SEALED at `5af031f1a04af866127616d4f1b0faa6c85e4d8e` |
 | Targeted Rust/Python/Harness tests | FAST PASS recorded |
 | Sand Harness regression | FAST PASS recorded; published Sand run unchanged |
 | Full workspace checkpoint | PASS |
 | Windows release smoke | PASS; 60 frames, RTX 5090 / DX12 |
-| Remediation candidate run | PENDING; exactly one new Run ID after seal |
-| Remediation automatic verdict | PENDING |
-| User acceptance | PENDING |
+| Remediation candidate run | `g8b-water-flow-v0-20260817T110906547252Z-8b808e66` |
+| Remediation automatic verdict | `NEEDS_HUMAN_REVIEW` — unchanged |
+| User acceptance | `ACCEPTED WITH KNOWN FOLLOW-UP` |
 
-No verdict is assigned to the remediation candidate before its run.
+The human acceptance does not rewrite the automatic verdict to `PASS`, relax
+the all-sleep contract, or modify the immutable candidate artifacts.
 
 ## 2. Audited finite fixture
 
@@ -212,7 +213,7 @@ repaired or reused. `EXPERIMENT_RECEIPT.json` is the final filesystem write and
 the only structural completion marker. Generated artifacts must not be
 committed to Git.
 
-## 6. Remediation checks and pending checkpoint
+## 6. Remediation checks and source seal
 
 | Check | Recorded result |
 |---|---:|
@@ -228,10 +229,10 @@ committed to Git.
 | `git diff --check` | PASS; line-ending advisories only |
 | `cargo run --locked --release -p powdergame-windows -- --benchmark-gallery --smoke-frames 60` | PASS; paused tick 0; exit 0 |
 
-These are implementation checks, not Water evidence or user acceptance. The
-remediation source seal/push, candidate run, artifact hashes, and automatic
-verdict remain pending. No remediation artifact has been generated or
-committed.
+These implementation checks preceded the clean source seal at
+`5af031f1a04af866127616d4f1b0faa6c85e4d8e`. Exactly one remediation candidate
+was then generated with a fresh Run ID. Generated artifacts remain outside Git
+and are not modified by this approval record.
 
 ## 7. Candidate verdict and anomaly classification
 
@@ -248,5 +249,27 @@ candidate category:
 
 If outer-basin leakage is zero but all-sleep still fails, the run remains
 `NEEDS_HUMAN_REVIEW`; its final active-cell partition is reported without
-altering production physics or the all-sleep policy. This document does not
-declare Water Flow or G8-B accepted or closed.
+altering production physics or the all-sleep policy.
+
+### 7.1 Sealed remediation candidate result
+
+- Source SHA: `5af031f1a04af866127616d4f1b0faa6c85e4d8e`
+- Run ID: `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`
+- Automatic verdict: `NEEDS_HUMAN_REVIEW`
+- Human verdict: `ACCEPTED WITH KNOWN FOLLOW-UP`
+- Review Packet SHA-256: `83783025ee6bdac8f6dedbf25edfec1dd75040d533c9fc563157cc699b5caec5`
+- Receipt SHA-256: `96f60b465dbfa4f7a4cacd7f78f475cad9af7c2e6d1754aba4dddc186d497c1b`
+- Outer-basin Water maximum/final: `0 / 0`
+- Matter/Water/Oil conservation: `PASS`
+- Movement / cross-chunk flow / destination arrival: `PASS / PASS / PASS`
+- Invalid Material IDs / non-finite Temperature / non-finite Pressure: `0 / 0 / 0`
+- Exact reset: `PASS`
+- Final active cells: `64` — Water/EMPTY interface `51`, Water/Oil interface
+  `1`, other `12`
+
+The accepted known follow-up is minority-cell persistent rearrangement at the
+M0 local-liquid free surface. This candidate establishes no evidence of a
+production-physics defect. The automatic `NEEDS_HUMAN_REVIEW` remains the
+artifact verdict, all-sleep remains unchanged, and the candidate Run ID and
+artifacts are immutable. Water Flow is user accepted with that known follow-up;
+G8-B remains **NOT CLOSED** because Scenarios 3–5 still require acceptance.

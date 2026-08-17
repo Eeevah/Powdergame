@@ -16,10 +16,15 @@ use powdergame_gpu::{
     TrackedMemoryReport, PASS_NAMES,
 };
 
-use crate::config::BenchmarkCliConfig;
+use crate::config::{BenchmarkCliConfig, BenchmarkScenario};
+#[cfg(test)]
+use crate::config::{G8A_EVIDENCE_SCHEMA_VERSION, G8B_EVIDENCE_SCHEMA_VERSION};
 use crate::stats::{grouped_values, ProfiledStatistics, StatSummary, GROUP_NAMES};
 
-pub const EVIDENCE_SCHEMA_VERSION: &str = "powdergame-g8a-v5";
+#[cfg(test)]
+pub const EVIDENCE_SCHEMA_VERSION: &str = G8A_EVIDENCE_SCHEMA_VERSION;
+#[cfg(test)]
+pub const FIXTURE_EVIDENCE_SCHEMA_VERSION: &str = G8B_EVIDENCE_SCHEMA_VERSION;
 
 const GROUP_DEFINITION: &str = "matter_movement=movement_propose+movement_commit;ownership_claim=movement_claim+expansion_claim+smoke_claim;thermal_conduction=thermal;reaction_phase=phase_transition+expansion_spawn_commit+expansion_pressure+decay+combustion+smoke_commit;pressure_structure=pressure+rupture;active_sleep_management=activity_wake+activity_propose+activity_reduce";
 
@@ -67,11 +72,23 @@ pub struct RunProvenance {
 
 impl RunProvenance {
     pub fn capture() -> Self {
+        Self::capture_with_prefix("g8a")
+    }
+
+    pub fn capture_for_scenario(scenario: BenchmarkScenario) -> Self {
+        if scenario.is_calibration() {
+            Self::capture()
+        } else {
+            Self::capture_with_prefix(&scenario.run_id_prefix())
+        }
+    }
+
+    fn capture_with_prefix(prefix: &str) -> Self {
         let epoch_millis = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |duration| duration.as_millis());
         Self {
-            run_id: format!("g8a-{epoch_millis}"),
+            run_id: format!("{prefix}-{epoch_millis}"),
             git: GitProvenance::detect(),
             build_profile: if cfg!(debug_assertions) {
                 "debug"
@@ -195,7 +212,7 @@ fn common_values(
     measurement_mode: &str,
 ) -> Vec<String> {
     vec![
-        EVIDENCE_SCHEMA_VERSION.into(),
+        bundle.config.scenario.evidence_schema_version().into(),
         bundle.provenance.run_id.clone(),
         bundle.provenance.git.commit_sha.clone(),
         bundle.provenance.git.state.clone(),
@@ -300,10 +317,19 @@ struct SummaryRecord<'a> {
     method_note: &'a str,
 }
 
+fn scenario_method_note(scenario: BenchmarkScenario, method_note: &str) -> String {
+    if scenario.is_calibration() {
+        method_note.to_string()
+    } else {
+        format!("{method_note}; scenario={}", scenario.slug())
+    }
+}
+
 fn write_summary_record<W: Write>(
     writer: &mut W,
     common: &[String],
     record: SummaryRecord<'_>,
+    scenario: BenchmarkScenario,
 ) -> std::io::Result<()> {
     let mut row = common.to_vec();
     let stats = record.stats;
@@ -324,7 +350,7 @@ fn write_summary_record<W: Write>(
         stats.map_or_else(String::new, |value| format!("{:.9}", value.min)),
         stats.map_or_else(String::new, |value| format!("{:.9}", value.max)),
         record.unit.to_string(),
-        record.method_note.to_string(),
+        scenario_method_note(scenario, record.method_note),
     ]);
     write_csv_row(
         writer,
@@ -369,6 +395,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                     method_note:
                         "batch-submitted; one completion wait after the measured tick window",
                 },
+                bundle.config.scenario,
             )?;
         }
     }
@@ -391,6 +418,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                 unit,
                 method_note: "statistics across independent reset/restage trials",
             },
+            bundle.config.scenario,
         )?;
     }
 
@@ -425,6 +453,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                     unit: "ms",
                     method_note: "GPU timestamp duration for one production compute pass",
                 },
+                bundle.config.scenario,
             )?;
         }
         for (group_index, group_name) in GROUP_NAMES.iter().enumerate() {
@@ -444,6 +473,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                     method_note:
                         "percentile of per-tick grouped sums; never a sum of pass percentiles",
                 },
+                bundle.config.scenario,
             )?;
             write_summary_record(
                 writer,
@@ -460,6 +490,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                     unit: "percent",
                     method_note: "percentile of each tick's group/envelope ratio",
                 },
+                bundle.config.scenario,
             )?;
         }
         for (name, stats) in [
@@ -482,6 +513,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                     unit: "ms",
                     method_note: "isolated fully synchronized profiled-tick cadence",
                 },
+                bundle.config.scenario,
             )?;
         }
     }
@@ -516,6 +548,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                 unit: "bytes",
                 method_note: "persistent application-requested buffers; not resident VRAM; transient readbacks and opaque query storage excluded",
             },
+            bundle.config.scenario,
         )?;
     }
 
@@ -568,6 +601,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                 unit: "count",
                 method_note: "active overlaps runnable/sleeping; chunk categories are not all mutually exclusive",
             },
+            bundle.config.scenario,
         )?;
     }
 
@@ -625,6 +659,7 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
                 unit,
                 method_note: note,
             },
+            bundle.config.scenario,
         )?;
     }
 
@@ -696,9 +731,13 @@ const RAW_CHUNK_HEADER: [&str; 8] = [
     "chunk_state",
 ];
 
-fn census_common_values(provenance: &RunProvenance, census_tick: u64) -> [String; 5] {
+fn census_common_values(
+    provenance: &RunProvenance,
+    census_tick: u64,
+    scenario: BenchmarkScenario,
+) -> [String; 5] {
     [
-        EVIDENCE_SCHEMA_VERSION.into(),
+        scenario.evidence_schema_version().into(),
         provenance.run_id.clone(),
         provenance.git.commit_sha.clone(),
         provenance.git.state.clone(),
@@ -711,10 +750,11 @@ fn write_raw_cells<W: Write>(
     provenance: &RunProvenance,
     census_tick: u64,
     census: &ActivityCensusSnapshot,
+    scenario: BenchmarkScenario,
 ) -> io::Result<()> {
     let header = RAW_CELL_HEADER.map(str::to_string);
     write_csv_row(writer, &header, header.len())?;
-    let common = census_common_values(provenance, census_tick);
+    let common = census_common_values(provenance, census_tick, scenario);
     for (index, &activity_mask) in census.cell_activity.iter().enumerate() {
         let mut row = common.to_vec();
         row.extend([index.to_string(), activity_mask.to_string()]);
@@ -728,6 +768,7 @@ fn write_raw_chunks<W: Write>(
     provenance: &RunProvenance,
     census_tick: u64,
     census: &ActivityCensusSnapshot,
+    scenario: BenchmarkScenario,
 ) -> io::Result<()> {
     if census.chunk_activity.len() != census.chunk_state.len() {
         return Err(io::Error::new(
@@ -742,7 +783,7 @@ fn write_raw_chunks<W: Write>(
 
     let header = RAW_CHUNK_HEADER.map(str::to_string);
     write_csv_row(writer, &header, header.len())?;
-    let common = census_common_values(provenance, census_tick);
+    let common = census_common_values(provenance, census_tick, scenario);
     for (index, (&activity_mask, &chunk_state)) in census
         .chunk_activity
         .iter()
@@ -1140,8 +1181,24 @@ pub fn write_evidence(bundle: &EvidenceBundle<'_>) -> Result<EvidencePaths, Stri
         &bundle.config.csv_output,
         |writer| write_summary(writer, bundle),
         |writer| write_raw(writer, bundle),
-        |writer| write_raw_cells(writer, bundle.provenance, bundle.census_tick, bundle.census),
-        |writer| write_raw_chunks(writer, bundle.provenance, bundle.census_tick, bundle.census),
+        |writer| {
+            write_raw_cells(
+                writer,
+                bundle.provenance,
+                bundle.census_tick,
+                bundle.census,
+                bundle.config.scenario,
+            )
+        },
+        |writer| {
+            write_raw_chunks(
+                writer,
+                bundle.provenance,
+                bundle.census_tick,
+                bundle.census,
+                bundle.config.scenario,
+            )
+        },
     )
 }
 
@@ -1217,6 +1274,33 @@ mod tests {
         for pass_name in PASS_NAMES {
             assert!(GROUP_DEFINITION.contains(pass_name));
         }
+    }
+
+    #[test]
+    fn scenario_identity_preserves_calibration_and_scopes_shared_fixtures() {
+        let calibration = BenchmarkScenario::Calibration;
+        let sand: BenchmarkScenario = "sand-fall".parse().unwrap();
+
+        assert_eq!(
+            calibration.evidence_schema_version(),
+            EVIDENCE_SCHEMA_VERSION
+        );
+        assert_eq!(
+            sand.evidence_schema_version(),
+            FIXTURE_EVIDENCE_SCHEMA_VERSION
+        );
+        assert_eq!(scenario_method_note(calibration, "base note"), "base note");
+        assert_eq!(
+            scenario_method_note(sand, "base note"),
+            "base note; scenario=sand-fall"
+        );
+
+        assert!(RunProvenance::capture_for_scenario(calibration)
+            .run_id
+            .starts_with("g8a-"));
+        assert!(RunProvenance::capture_for_scenario(sand)
+            .run_id
+            .starts_with("g8b-sand-fall-"));
     }
 
     #[test]
@@ -1385,8 +1469,22 @@ mod tests {
         let mut cells = Vec::new();
         let mut chunks = Vec::new();
 
-        write_raw_cells(&mut cells, &provenance, 42, &census).unwrap();
-        write_raw_chunks(&mut chunks, &provenance, 42, &census).unwrap();
+        write_raw_cells(
+            &mut cells,
+            &provenance,
+            42,
+            &census,
+            BenchmarkScenario::Calibration,
+        )
+        .unwrap();
+        write_raw_chunks(
+            &mut chunks,
+            &provenance,
+            42,
+            &census,
+            BenchmarkScenario::Calibration,
+        )
+        .unwrap();
 
         assert_eq!(
             String::from_utf8(cells).unwrap(),
@@ -1404,6 +1502,22 @@ mod tests {
                 "powdergame-g8a-v5,test-run,deadbeef,dirty,42,1,0,1\n",
             )
         );
+
+        let mut shared_cells = Vec::new();
+        write_raw_cells(
+            &mut shared_cells,
+            &provenance,
+            42,
+            &census,
+            "sand-fall".parse().unwrap(),
+        )
+        .unwrap();
+        assert!(String::from_utf8(shared_cells)
+            .unwrap()
+            .lines()
+            .nth(1)
+            .unwrap()
+            .starts_with("powdergame-g8b-fixture-v1,"));
     }
 
     #[test]

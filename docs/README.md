@@ -50,6 +50,10 @@ docs/
 ├─ adversarial-reviews/
 │  ├─ README.md                       # 선택적 적대적 리뷰 및 보존 규칙
 │  └─ YYYY-MM-DD_<GATE_OR_SCOPE>.md   # 명시적으로 요청된 리뷰 기록
+├─ evidence/
+│  ├─ G5_*.md / G6_*.md / G7_*.md    # 이전 Gate evidence와 사용자 승인 기록
+│  ├─ G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md
+│  └─ G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md
 ├─ architecture/
 │  ├─ ARCHITECTURE.md
 │  └─ decisions/
@@ -127,6 +131,10 @@ SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않
 ### Development
 
 개발/테스트/성능 문서는 구현 절차와 측정 철학을 고정한다. 특히 성능 최적화는 추측이 아니라 실제 benchmark 증거를 기반으로 한다.
+
+### Evidence
+
+`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Scenario 1 Sand Fall은 사용자 승인되었고 Scenario 2~5는 미승인이라 전체 기록은 **USER ACCEPTANCE PENDING / NOT CLOSED** 상태다. Gallery diagnostics나 targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
 
 ### Adversarial Reviews
 

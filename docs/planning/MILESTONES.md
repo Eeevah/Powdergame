@@ -108,7 +108,7 @@ M0의 목적은 콘텐츠를 많이 넣는 것이 아니다.
 - G0-G7: PASS / CLOSED
 - G8: IN_PROGRESS
   - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite: PENDING
+  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2–5 UNACCEPTED; overall USER ACCEPTANCE PENDING / NOT CLOSED
   - G8-C Official Matrix Measurement: PENDING
 - G9: PENDING
 - M0 `ACHIEVED`: NO
@@ -400,6 +400,23 @@ Required repeatable fixtures:
 
 각 fixture는 동일 config에서 자동 staging 가능하고, scenario-specific benchmark code가 production physics를 변경하지 않아야 한다.
 
+Current implementation candidate:
+
+- `powdergame-scenarios`가 다섯 official fixture의 deterministic CPU image와 production `Simulation` reset/staging을 공유한다.
+- Windows `--benchmark-gallery`는 동일 fixture를 1~5 slot에서 paused inspection할 수 있다.
+- headless `powdergame-benchmark -- --scenario <slug>`는 동일 fixture를 각 prewarm/trial/overhead window 전에 pristine reset/stage한다.
+- 여섯 번째 `active-sleep-g7`은 official G8-B workload가 아니라 exact 256×256×64 G7 regression fixture다.
+- Gallery rendering/HUD/wall-clock TPS/bounded census는 official timing에서 제외한다.
+- production physics, Material, G9, optimization은 이 candidate의 범위가 아니다.
+
+Acceptance boundary:
+
+- targeted automated checks는 fixture/staging/selection contract를 검증할 수 있지만 사용자 수용을 대신하지 않는다.
+- Scenario 1 Sand Fall은 사용자 승인되었다. 완전 정착과 모든 chunk의 sleep 수렴이 성공이며, activity를 계속 보이게 만들기 위한 retuning은 금지한다.
+- Scenario 2~5는 미승인이다. Water Flow는 현재 checkpoint task 범위 밖이며 자동으로 이어서 작업하지 않는다.
+- 남은 official fixture의 identity, pristine reset, pause/step/play 동작을 사용자가 각각 확인하고 승인하기 전까지 G8-B는 **USER ACCEPTANCE PENDING / NOT CLOSED**다.
+- G8-C official matrix measurement와 G8-B closure를 혼동하지 않는다.
+
 ### G8-C — Official Matrix Measurement
 
 Required metrics:
@@ -573,7 +590,7 @@ Strong success signals:
 ## M0 Closure Order
 
 ```text
-G8-B Benchmark Fixtures
+G8-B Benchmark Fixtures + User Acceptance
 → G8-C Official Matrix and Bottleneck Decision
 → G9-A Sandbox Interaction
 → G9-B Open Emergence

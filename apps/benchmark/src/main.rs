@@ -1,4 +1,8 @@
-//! G8-A headless performance measurement harness.
+//! G8 headless performance measurement harness.
+//!
+//! The default calibration path preserves the G8-A v5 evidence contract. G8-B
+//! fixture selections use the shared scenario crate without entering gallery
+//! rendering or readback code.
 //!
 //! Mode A uses a normal production context and batch-submitted `tick()` calls.
 //! Mode B uses a separately created profiling context and isolated synchronized
@@ -12,7 +16,7 @@ mod stats;
 
 use std::time::Instant;
 
-use config::{parse_cli_args, BenchmarkCliConfig};
+use config::{parse_cli_args, BenchmarkCliConfig, BenchmarkScenario};
 use evidence::{
     validate_evidence_output_paths, write_evidence, EvidenceBundle, OverheadReport, ProfiledSample,
     ProfiledTrialResult, RunProvenance, ThroughputTrialResult,
@@ -21,6 +25,7 @@ use fixture::{stage_calibration_fixture, validate_calibration_fixture_config};
 use pollster::block_on;
 use powdergame_core::{chunks_x, chunks_y, WorldConfig};
 use powdergame_gpu::{AdapterReport, GpuContext, GpuProfiler, Simulation, PASS_NAMES};
+use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
 use stats::{summarize_profiled_reports, StatSummary, GROUP_LABELS};
 
 fn main() {
@@ -33,9 +38,11 @@ fn main() {
 fn run() -> Result<(), String> {
     let cli = parse_cli_args()?;
     let world_config = cli.world_config()?;
-    validate_calibration_fixture_config(&world_config).map_err(|error| error.to_string())?;
+    if cli.scenario.is_calibration() {
+        validate_calibration_fixture_config(&world_config).map_err(|error| error.to_string())?;
+    }
     validate_evidence_output_paths(&cli.csv_output)?;
-    let provenance = RunProvenance::capture();
+    let provenance = RunProvenance::capture_for_scenario(cli.scenario);
 
     print_header(&cli, &world_config, &provenance);
 
@@ -58,7 +65,7 @@ fn run() -> Result<(), String> {
         "\n--- Mode A Pre-warm ({:.1}s requested) ---",
         cli.prewarm_secs
     );
-    let production_prewarm_ticks = prewarm(&mut production_sim, cli.prewarm_secs)?;
+    let production_prewarm_ticks = prewarm(&mut production_sim, cli.prewarm_secs, cli.scenario)?;
     println!("Mode A pre-warm completed: {production_prewarm_ticks} ticks");
 
     println!("\n================================================================================");
@@ -119,7 +126,7 @@ fn run() -> Result<(), String> {
         "\n--- Mode B Pre-warm ({:.1}s requested) ---",
         cli.prewarm_secs
     );
-    let profiling_prewarm_ticks = prewarm(&mut profiling_sim, cli.prewarm_secs)?;
+    let profiling_prewarm_ticks = prewarm(&mut profiling_sim, cli.prewarm_secs, cli.scenario)?;
     println!("Mode B pre-warm completed: {profiling_prewarm_ticks} ordinary ticks");
 
     println!("\n================================================================================");
@@ -144,8 +151,12 @@ fn run() -> Result<(), String> {
         .map_err(|error| format!("activity census failed: {error}"))?;
     print_census(&census.report, census_tick);
 
-    let overhead =
-        measure_profiled_path_overhead(&mut profiling_sim, &mut profiler, cli.overhead_ticks)?;
+    let overhead = measure_profiled_path_overhead(
+        &mut profiling_sim,
+        &mut profiler,
+        cli.overhead_ticks,
+        cli.scenario,
+    )?;
     print_overhead(&overhead);
 
     let evidence = EvidenceBundle {
@@ -186,9 +197,13 @@ fn run() -> Result<(), String> {
     );
 
     println!("\n================================================================================");
-    println!(
-        "G8-A correction-candidate artifact set written; bind it to a capture receipt before use"
-    );
+    if cli.scenario.is_calibration() {
+        println!(
+            "G8-A correction-candidate artifact set written; bind it to a capture receipt before use"
+        );
+    } else {
+        println!("G8-B fixture measurement artifact set written; this is not a G8-C result");
+    }
     println!("================================================================================");
     Ok(())
 }
@@ -198,12 +213,26 @@ fn print_header(cli: &BenchmarkCliConfig, world: &WorldConfig, provenance: &RunP
     let chunk_rows = chunks_y(world.height, world.chunk_size);
     let cell_count = u64::from(world.width) * u64::from(world.height);
     println!("================================================================================");
-    println!("Powdergame G8-A Headless Performance Measurement Substrate");
+    if cli.scenario.is_calibration() {
+        println!("Powdergame G8-A Headless Performance Measurement Substrate");
+    } else {
+        println!("Powdergame G8-B Headless Benchmark Fixture");
+    }
     println!("================================================================================");
     println!(
         "Evidence schema:       {}",
-        evidence::EVIDENCE_SCHEMA_VERSION
+        cli.scenario.evidence_schema_version()
     );
+    if !cli.scenario.is_calibration() {
+        if let Some(number) = cli.scenario.number() {
+            println!("Scenario number:       {number}");
+        }
+        println!("Scenario:              {}", cli.scenario.slug());
+        println!("Scenario name:         {}", cli.scenario.name());
+        println!("Scenario description:  {}", cli.scenario.description());
+        println!("Scenario source:       powdergame-scenarios shared staging API");
+        println!("Execution surface:     headless simulation only; no gallery rendering/readback");
+    }
     println!("Run ID:                {}", provenance.run_id);
     println!("Commit SHA:            {}", provenance.git.commit_sha);
     println!("Git state:             {}", provenance.git.state);
@@ -241,10 +270,24 @@ fn configure_simulation(sim: &mut Simulation, cli: &BenchmarkCliConfig) {
     sim.update_uniforms();
 }
 
-fn reset_and_stage(sim: &mut Simulation) -> Result<(), String> {
-    sim.reset()
-        .map_err(|error| format!("simulation reset failed: {error}"))?;
-    stage_calibration_fixture(sim).map_err(|error| error.to_string())
+fn reset_and_stage(sim: &mut Simulation, scenario: BenchmarkScenario) -> Result<(), String> {
+    match shared_staging_scenario(scenario) {
+        None => {
+            sim.reset()
+                .map_err(|error| format!("simulation reset failed: {error}"))?;
+            stage_calibration_fixture(sim).map_err(|error| error.to_string())
+        }
+        Some(scenario) => {
+            reset_and_stage_scenario(sim, scenario).map_err(|error| error.to_string())
+        }
+    }
+}
+
+const fn shared_staging_scenario(scenario: BenchmarkScenario) -> Option<ScenarioId> {
+    match scenario {
+        BenchmarkScenario::Calibration => None,
+        BenchmarkScenario::Shared(scenario) => Some(scenario),
+    }
 }
 
 fn wait_for_gpu(sim: &Simulation, label: &str) -> Result<(), String> {
@@ -255,16 +298,24 @@ fn wait_for_gpu(sim: &Simulation, label: &str) -> Result<(), String> {
         .map_err(|error| format!("GPU wait failed during {label}: {error}"))
 }
 
-fn reset_stage_and_wait(sim: &mut Simulation, label: &str) -> Result<(), String> {
-    reset_and_stage(sim)?;
+fn reset_stage_and_wait(
+    sim: &mut Simulation,
+    label: &str,
+    scenario: BenchmarkScenario,
+) -> Result<(), String> {
+    reset_and_stage(sim, scenario)?;
     // Queue writes are scheduled until the next submission; flush them before
     // the wait so fixture uploads cannot enter the measured tick window.
     sim.context.queue.submit([]);
     wait_for_gpu(sim, label)
 }
 
-fn prewarm(sim: &mut Simulation, requested_seconds: f64) -> Result<u64, String> {
-    reset_stage_and_wait(sim, "pre-warm fixture staging")?;
+fn prewarm(
+    sim: &mut Simulation,
+    requested_seconds: f64,
+    scenario: BenchmarkScenario,
+) -> Result<u64, String> {
+    reset_stage_and_wait(sim, "pre-warm fixture staging", scenario)?;
     let start = Instant::now();
     let mut ticks = 0u64;
     while start.elapsed().as_secs_f64() < requested_seconds {
@@ -284,7 +335,11 @@ fn measure_throughput(
 ) -> Result<Vec<ThroughputTrialResult>, String> {
     let mut results = Vec::with_capacity(cli.trials as usize);
     for trial in 1..=cli.trials {
-        reset_stage_and_wait(sim, &format!("Mode A trial {trial} fixture staging"))?;
+        reset_stage_and_wait(
+            sim,
+            &format!("Mode A trial {trial} fixture staging"),
+            cli.scenario,
+        )?;
         let start = Instant::now();
         for _ in 0..cli.throughput_ticks {
             sim.tick()
@@ -318,7 +373,11 @@ fn measure_profiled(
     let mut trials = Vec::with_capacity(cli.trials as usize);
     let mut samples = Vec::with_capacity((cli.trials * cli.profile_ticks) as usize);
     for trial in 1..=cli.trials {
-        reset_stage_and_wait(sim, &format!("Mode B trial {trial} fixture staging"))?;
+        reset_stage_and_wait(
+            sim,
+            &format!("Mode B trial {trial} fixture staging"),
+            cli.scenario,
+        )?;
         let mut reports = Vec::with_capacity(cli.profile_ticks as usize);
         for sample_id in 0..cli.profile_ticks {
             let report = sim.tick_profiled(profiler).map_err(|error| {
@@ -453,10 +512,11 @@ fn measure_profiled_path_overhead(
     sim: &mut Simulation,
     profiler: &mut GpuProfiler,
     ticks: u32,
+    scenario: BenchmarkScenario,
 ) -> Result<OverheadReport, String> {
     println!("\n--- Profiling Cadence Controls ({ticks} ticks each) ---");
 
-    reset_stage_and_wait(sim, "batched overhead control fixture staging")?;
+    reset_stage_and_wait(sim, "batched overhead control fixture staging", scenario)?;
     let start = Instant::now();
     for _ in 0..ticks {
         sim.tick()
@@ -465,7 +525,11 @@ fn measure_profiled_path_overhead(
     wait_for_gpu(sim, "batched overhead control")?;
     let batched_unprofiled_ms = start.elapsed().as_secs_f64() * 1000.0;
 
-    reset_stage_and_wait(sim, "synchronized overhead control fixture staging")?;
+    reset_stage_and_wait(
+        sim,
+        "synchronized overhead control fixture staging",
+        scenario,
+    )?;
     let start = Instant::now();
     for _ in 0..ticks {
         sim.tick()
@@ -474,7 +538,7 @@ fn measure_profiled_path_overhead(
     }
     let synchronized_unprofiled_ms = start.elapsed().as_secs_f64() * 1000.0;
 
-    reset_stage_and_wait(sim, "profiled overhead control fixture staging")?;
+    reset_stage_and_wait(sim, "profiled overhead control fixture staging", scenario)?;
     let start = Instant::now();
     for _ in 0..ticks {
         sim.tick_profiled(profiler)
@@ -552,5 +616,33 @@ fn verify_same_adapter(
             profiling.vendor,
             profiling.device
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calibration_stays_legacy_and_all_scenario_slugs_use_shared_staging() {
+        assert_eq!(
+            shared_staging_scenario(BenchmarkScenario::Calibration),
+            None
+        );
+
+        for slug in [
+            "sand-fall",
+            "water-flow",
+            "fire-heat",
+            "pressure-burst",
+            "heavy-mixed-world",
+            "active-sleep-g7",
+        ] {
+            let scenario: BenchmarkScenario = slug.parse().unwrap();
+            assert_eq!(
+                shared_staging_scenario(scenario).map(ScenarioId::slug),
+                Some(slug)
+            );
+        }
     }
 }

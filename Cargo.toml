@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "engine/core",
     "engine/gpu",
+    "apps/scenarios",
     "apps/windows",
     "apps/benchmark",
 ]
@@ -15,6 +16,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 powdergame-core = { path = "engine/core" }
 powdergame-gpu = { path = "engine/gpu" }
+powdergame-scenarios = { path = "apps/scenarios" }
 wgpu = "26"
 winit = "0.30"
 pollster = "0.4"

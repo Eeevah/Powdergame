@@ -16,17 +16,22 @@
 //!   `--pressure-demo` — G5 twin-boiler user-validation scene: identical
 //!                       heated Water chambers, weak Wood relief plug on the
 //!                       left and unbreakable Stone control on the right.
+//!   `--benchmark-gallery` — G8-B paused six-scenario inspection Gallery,
+//!                           sharing deterministic staging with the headless
+//!                           benchmark harness.
 //! Forest scene is unused by the G3/G4/G5 demos.
 //!
 //! Demos start PAUSED so the untouched initial scene can be inspected:
 //!   SPACE  play/pause toggle
 //!   N      single simulation tick while paused
 //!   R      reset the demo scene (re-staged through the validated edit hook)
+//!   F      x1 / x4 / x16 sequential tick multiplier (G6/G7/G8 Gallery)
+//!   1-6    select and pristine-reset a Gallery scenario
 //!   ESC    exit
 //! Each demo runs at its own fixed observation rate, decoupled from the
 //! render rate: Movement/Density = 15 TPS (approved fixtures, unchanged),
-//! Thermal = 60 TPS. Bounded smoke runs start PLAYING so they exercise
-//! ticks + presentation.
+//! Thermal = 60 TPS. Existing demo smoke runs start PLAYING so they exercise
+//! ticks + presentation; the Gallery remains PAUSED by contract.
 //!
 //! G4-B note: Steam now condenses below 40.0, so demo Steam is staged at a
 //! stable hot temperature (T = 80.0). G4-C note: Wood/Oil combustion is
@@ -35,6 +40,7 @@
 //!
 //! The Simulation runs headless; the Renderer only reads/presents.
 
+mod gallery;
 mod observatory;
 mod renderer;
 mod text_renderer;
@@ -48,12 +54,16 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
+use gallery::{
+    GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
+};
 use observatory::ObservatoryCollector;
 use powdergame_core::{
-    WorldConfig, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL,
-    MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
+    WorldConfig, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL, MATERIAL_SAND, MATERIAL_SMOKE,
+    MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
 };
 use powdergame_gpu::{verify_target_hardware, AdapterReport, GpuError, Simulation};
+use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
 
 use renderer::{PresentationPalette, Renderer, WorldViewSpec};
 
@@ -66,6 +76,7 @@ const THERMAL_DEMO_TPS: u32 = 60;
 const PRESSURE_DEMO_TPS: u32 = 60;
 const PARALLEL_INTEGRITY_DEMO_TPS: u32 = 60;
 const ACTIVITY_DEMO_TPS: u32 = 60;
+const GALLERY_TPS: u32 = 60;
 
 const MOVEMENT_DEMO_TITLE: &str = "Powdergame G2 Demo | SAND | WATER | OIL | STEAM | SMOKE";
 const DENSITY_DEMO_TITLE: &str =
@@ -78,6 +89,7 @@ const PARALLEL_INTEGRITY_DEMO_TITLE: &str =
     "Powdergame G6 Parallel Integrity Lab | Contention + Chunk Boundary + Ownership Stress";
 const ACTIVITY_DEMO_TITLE: &str =
     "Powdergame G7 Active/Sleep Observatory | Stable Bulk vs Active Frontier";
+const GALLERY_TITLE: &str = "Powdergame G8-B Benchmark Scenario Gallery";
 
 /// Which demo fixture (if any) the app presents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,6 +101,7 @@ enum DemoMode {
     Pressure,
     ParallelIntegrity,
     Activity,
+    Gallery,
 }
 
 impl DemoMode {
@@ -104,6 +117,7 @@ impl DemoMode {
             DemoMode::Pressure => PRESSURE_DEMO_TPS,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TPS,
             DemoMode::Activity => ACTIVITY_DEMO_TPS,
+            DemoMode::Gallery => GALLERY_TPS,
         }
     }
 
@@ -129,10 +143,18 @@ struct DemoState {
     /// starts or the world resets).
     rate_ticks: u64,
     rate_started: Option<Instant>,
+    /// Present only for G8-B. Scenario selection and diagnostic sample state
+    /// are presentation/runtime concerns; physics remains in Simulation.
+    gallery: Option<GalleryState>,
 }
 
 impl DemoState {
-    fn new(base_title: &'static str, tps: u32, start_playing: bool) -> Self {
+    fn new(
+        base_title: &'static str,
+        tps: u32,
+        start_playing: bool,
+        gallery: Option<GalleryState>,
+    ) -> Self {
         Self {
             base_title,
             tps,
@@ -144,6 +166,48 @@ impl DemoState {
             fast: 1,
             rate_ticks: 0,
             rate_started: None,
+            gallery,
+        }
+    }
+
+    /// Queues a reset without changing committed tick/sample attribution.
+    /// Those values are committed only after shared reset/staging succeeds.
+    fn queue_pristine_reset(&mut self) {
+        self.reset_pending = true;
+        self.step_pending = false;
+        self.playing = false;
+        self.last_tick = None;
+        self.fast = 1;
+        self.rate_ticks = 0;
+        self.rate_started = None;
+    }
+
+    fn commit_pristine_reset(&mut self) {
+        self.ticks = 0;
+        self.last_tick = None;
+    }
+
+    fn gallery_ready_to_advance(&self) -> bool {
+        self.gallery.as_ref().is_none_or(GalleryState::is_ready)
+    }
+
+    fn queue_single_step(&mut self) -> bool {
+        if self.playing || !self.gallery_ready_to_advance() {
+            return false;
+        }
+        self.step_pending = true;
+        true
+    }
+
+    fn cycle_fast(&mut self) {
+        self.fast = match self.fast {
+            1 => 4,
+            4 => 16,
+            _ => 1,
+        };
+        if self.playing {
+            self.rate_ticks = 0;
+            self.rate_started = Some(Instant::now());
         }
     }
 
@@ -182,9 +246,33 @@ impl DemoState {
         } else {
             "SPACE Play | N Step | R Reset".to_string()
         };
+        let gallery_label = self.gallery.as_ref().map_or_else(String::new, |gallery| {
+            let transition = match gallery.transition() {
+                GalleryTransition::Ready => String::new(),
+                GalleryTransition::Pending { requested } => {
+                    format!(
+                        " | RESET PENDING -> {}/6 {}",
+                        requested.number(),
+                        requested.name()
+                    )
+                }
+                GalleryTransition::Failed { requested, .. } => {
+                    format!(
+                        " | RESET FAILED -> {}/6 {}",
+                        requested.number(),
+                        requested.name()
+                    )
+                }
+            };
+            format!(
+                " | {}/6 {}",
+                gallery.scenario_number(),
+                gallery.scenario().name()
+            ) + &transition
+        });
         format!(
-            "{} | {state} | {controls} | tick {}",
-            self.base_title, self.ticks
+            "{}{} | {state} | {controls} | tick {}",
+            self.base_title, gallery_label, self.ticks
         )
     }
 }
@@ -200,6 +288,7 @@ struct App {
     smoke_frames: Option<u32>,
     demo_mode: DemoMode,
     demo: Option<DemoState>,
+    gallery_provenance: Option<RuntimeProvenance>,
 }
 
 impl App {
@@ -213,6 +302,7 @@ impl App {
             smoke_frames,
             demo_mode,
             demo: None,
+            gallery_provenance: None,
         }
     }
 
@@ -224,6 +314,7 @@ impl App {
             DemoMode::Pressure => PRESSURE_DEMO_TITLE,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TITLE,
             DemoMode::Activity => ACTIVITY_DEMO_TITLE,
+            DemoMode::Gallery => GALLERY_TITLE,
             DemoMode::None => "Powdergame — G0 Runtime",
         };
         // The thermal and pressure observatories use a larger world (320×192 / 256×256),
@@ -232,6 +323,7 @@ impl App {
             || self.demo_mode == DemoMode::Pressure
             || self.demo_mode == DemoMode::ParallelIntegrity
             || self.demo_mode == DemoMode::Activity
+            || self.demo_mode == DemoMode::Gallery
         {
             (1600.0, 900.0)
         } else {
@@ -272,6 +364,7 @@ impl App {
                 DemoMode::Pressure => (256, 256),
                 DemoMode::ParallelIntegrity => (256, 256),
                 DemoMode::Activity => (256, 256),
+                DemoMode::Gallery => (256, 256),
                 _ => (128, 128),
             };
             WorldConfig::new(w, h, 64).expect("demo world config")
@@ -325,14 +418,29 @@ impl App {
                 println!("[powdergame] parallel integrity demo: 2x2 contention lab staged");
             }
             DemoMode::Activity => {
-                stage_activity_demo(&simulation)?;
-                println!("[powdergame] activity demo: 4-panel active/sleep observatory staged");
+                reset_and_stage_scenario(&mut simulation, ScenarioId::ActiveSleepG7).map_err(
+                    |error| {
+                        GpuError::Other(format!("shared ActiveSleepG7 staging failed: {error}"))
+                    },
+                )?;
+                println!("[powdergame] activity demo: shared ActiveSleepG7 fixture staged");
+            }
+            DemoMode::Gallery => {
+                let initial = GalleryState::new().scenario();
+                reset_and_stage_scenario(&mut simulation, initial).map_err(|error| {
+                    GpuError::Other(format!("shared Gallery staging failed: {error}"))
+                })?;
+                println!(
+                    "[powdergame] G8-B Gallery: scenario 1/6 {} staged through shared benchmark fixture",
+                    initial.name()
+                );
             }
         }
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
             material_buffer: &simulation.world.material_current,
             temperature_buffer: Some(&simulation.world.temperature_current),
+            pressure_buffer: Some(&simulation.world.pressure_current),
             flags_buffer: Some(&simulation.world.flags_current),
             width: simulation.world.config.width,
             height: simulation.world.config.height,
@@ -341,6 +449,7 @@ impl App {
                 DemoMode::Thermal | DemoMode::Pressure => PresentationPalette::ThermalLab,
                 DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
                 DemoMode::Activity => PresentationPalette::Activity,
+                DemoMode::Gallery => PresentationPalette::Gallery,
                 _ => PresentationPalette::Forest,
             },
             chunk_activity_buffer: (self.demo_mode == DemoMode::Activity)
@@ -359,9 +468,23 @@ impl App {
         if self.demo_mode != DemoMode::None {
             // Interactive sessions start PAUSED so the initial scene is fully
             // visible; bounded smoke runs start PLAYING to exercise ticks.
-            let start_playing = self.smoke_frames.is_some();
-            let demo = DemoState::new(base_title, self.demo_mode.ticks_per_second(), start_playing);
+            // Gallery is an inspection surface and always starts PAUSED, even
+            // when a bounded presentation run is requested.
+            let start_playing = self.smoke_frames.is_some() && self.demo_mode != DemoMode::Gallery;
+            let gallery = (self.demo_mode == DemoMode::Gallery).then(GalleryState::new);
+            let demo = DemoState::new(
+                base_title,
+                self.demo_mode.ticks_per_second(),
+                start_playing,
+                gallery,
+            );
             window.set_title(&demo.title());
+            if self.demo_mode == DemoMode::Gallery {
+                let provenance = RuntimeProvenance::from_build();
+                let scenario = demo.gallery.as_ref().expect("Gallery state").scenario();
+                print_gallery_runtime_context(&simulation, &demo, &provenance, scenario);
+                self.gallery_provenance = Some(provenance);
+            }
             self.demo = Some(demo);
             println!(
                 "[powdergame] window + world view ready; demo {}",
@@ -384,6 +507,12 @@ impl App {
 
     fn toggle_play(&mut self, window: &Window) {
         if let Some(demo) = &mut self.demo {
+            if !demo.gallery_ready_to_advance() {
+                println!(
+                    "[powdergame][gallery] SPACE ignored until the pending/failed reset is recovered with R or 1-6"
+                );
+                return;
+            }
             demo.playing = !demo.playing;
             if demo.playing {
                 demo.last_tick = None; // restart the tick clock on resume
@@ -401,11 +530,12 @@ impl App {
 
     fn request_step(&mut self, window: &Window) {
         if let Some(demo) = &mut self.demo {
-            if demo.playing {
-                println!("[powdergame] demo: N ignored while playing (SPACE to pause)");
+            if !demo.queue_single_step() {
+                println!(
+                    "[powdergame] demo: N ignored while playing or while Gallery reset is not ready"
+                );
                 return;
             }
-            demo.step_pending = true;
             println!("[powdergame] demo: single step requested");
             window.set_title(&demo.title());
             window.request_redraw();
@@ -413,26 +543,18 @@ impl App {
     }
 
     fn request_fast_forward(&mut self, window: &Window) {
-        // G6/G7 observatory demos: cycles 1x -> 4x -> 16x -> 1x.
+        // G6/G7/G8 observatory demos: cycles 1x -> 4x -> 16x -> 1x.
         // `Simulation::tick` semantics are unchanged — the multiplier just
         // runs more sequential ticks per update opportunity. N always steps
         // exactly one tick.
         if !matches!(
             self.demo_mode,
-            DemoMode::ParallelIntegrity | DemoMode::Activity
+            DemoMode::ParallelIntegrity | DemoMode::Activity | DemoMode::Gallery
         ) {
             return;
         }
         if let Some(demo) = &mut self.demo {
-            demo.fast = match demo.fast {
-                1 => 4,
-                4 => 16,
-                _ => 1,
-            };
-            if demo.playing {
-                demo.rate_ticks = 0;
-                demo.rate_started = Some(Instant::now());
-            }
+            demo.cycle_fast();
             println!("[powdergame] demo: fast-forward x{}", demo.fast);
             window.set_title(&demo.title());
             window.request_redraw();
@@ -441,14 +563,15 @@ impl App {
 
     fn request_reset(&mut self, window: &Window) {
         if let Some(demo) = &mut self.demo {
-            demo.reset_pending = true;
-            demo.step_pending = false;
-            demo.playing = false;
-            demo.last_tick = None;
-            demo.ticks = 0;
-            demo.fast = 1;
-            demo.rate_ticks = 0;
-            demo.rate_started = None;
+            if let Some(gallery) = &mut demo.gallery {
+                let scenario = gallery.request_current_reset();
+                println!(
+                    "[powdergame][gallery] transactional reset requested for committed {}/6 {}",
+                    scenario.number(),
+                    scenario.name()
+                );
+            }
+            demo.queue_pristine_reset();
             if let Some(collector) = &mut self.observatory_collector {
                 collector.reset();
             }
@@ -456,6 +579,33 @@ impl App {
             window.set_title(&demo.title());
             window.request_redraw();
         }
+    }
+
+    fn select_gallery_scenario(&mut self, number: u8, window: &Window) {
+        if self.demo_mode != DemoMode::Gallery {
+            return;
+        }
+        let Some(demo) = &mut self.demo else {
+            return;
+        };
+        let Some(gallery) = &mut demo.gallery else {
+            return;
+        };
+        let Some(requested) = gallery.request_number(number) else {
+            return;
+        };
+        let committed = gallery.scenario();
+        demo.queue_pristine_reset();
+        println!(
+            "[powdergame][gallery] requested {}/6 {} ({}) — PAUSED; committed attribution remains {}/6 {} until shared reset succeeds",
+            requested.number(),
+            requested.name(),
+            requested.slug(),
+            committed.number(),
+            committed.name()
+        );
+        window.set_title(&demo.title());
+        window.request_redraw();
     }
 
     fn toggle_sleep(&mut self, window: &Window) {
@@ -1317,122 +1467,29 @@ fn stage_parallel_integrity_demo(simulation: &Simulation) -> Result<(), GpuError
     Ok(())
 }
 
-/// G7-A activity observatory: 256×256 (4×4 chunks), 2×2 panel layout with
-/// Boundary-Block dividers at x 127..128 / y 127..128. Boundary Block has
-/// conductivity 0, so the four experiments are thermally isolated — heat
-/// cannot cross a zero-conductivity edge, and the corrected detector never
-/// reports a THERMAL frontier across it.
-///
-///   [A] STABLE WATER BULK     — sealed tank (no EMPTY interface → no
-///       movement frontier) beside a draining Water column in a sealed
-///       shaft: MATTER frontier while falling/settling, fully contained in
-///       chunk (1,1) so it can never contaminate panel C below.
-///   [B] STABLE STEAM / GAS     — TRUE stable control: sealed Stone shell
-///       AND Steam both at T=80 — no initial interface gradient, no EMPTY
-///       interface, no staged pressure/reaction, Steam on the stable side
-///       of its 40 condense threshold. Gas existence != Activity.
-///   [C] STABLE DURATION / WAKE CANDIDATE — Sand source entirely in the
-///       upper-right C chunk (cx=1, cy=2); the lower-right C chunk (cx=1,
-///       cy=3) is stable first, then the real Sand frontier crosses the
-///       y=192 seam through ordinary movement and resets its stable
-///       counter. This is a wake-candidate observation — G7-A has no
-///       sleeping chunk and no dedicated wake propagation (G7-B).
-///   [D] SLOW ACTIVE WORLD      — Wood strip ignited by a hot Stone end
-///       (reaction + heat front) + a boiling Water pot (pressure + steam).
-///
-/// Staging uses only the validated edit hook (material + temperature +
-/// flags); everything after the first tick is the production GPU
-/// simulation.
-fn stage_activity_demo(simulation: &Simulation) -> Result<(), GpuError> {
-    let q = &simulation.context.queue;
-    let set = |x: i64, y: i64, id: u32| simulation.world.write_material(q, x, y, id);
-    let set_t = |x: i64, y: i64, t: f32| simulation.world.write_temperature(q, x, y, t);
-    let stone = MATERIAL_STONE;
-    let fill = |x0: i64, y0: i64, x1: i64, y1: i64, id: u32| -> Result<(), GpuError> {
-        for y in y0..=y1 {
-            for x in x0..=x1 {
-                set(x, y, id)?;
-            }
-        }
-        Ok(())
-    };
-    let fill_t = |x0: i64, y0: i64, x1: i64, y1: i64, t: f32| -> Result<(), GpuError> {
-        for y in y0..=y1 {
-            for x in x0..=x1 {
-                set_t(x, y, t)?;
-            }
-        }
-        Ok(())
-    };
-
-    // Central cross dividers: MATERIAL_BOUNDARY_BLOCK (K=0), so the four
-    // panels are thermally isolated — heat cannot cross a zero-conductivity
-    // edge, and the corrected detector never reports THERMAL across it.
-    // (G5/G6 fixtures keep their Stone crosses.)
-    for y in 1..=254 {
-        set(127, y, MATERIAL_BOUNDARY_BLOCK)?;
-        set(128, y, MATERIAL_BOUNDARY_BLOCK)?;
-    }
-    for x in 1..=254 {
-        set(x, 127, MATERIAL_BOUNDARY_BLOCK)?;
-        set(x, 128, MATERIAL_BOUNDARY_BLOCK)?;
-    }
-
-    // [A] STABLE WATER BULK (top-left: x 1..126, y 1..126).
-    // Sealed tank: water has no EMPTY interface on any stencil stage → the
-    // bulk chunks report no movement frontier (existence != activity).
-    fill(30, 40, 91, 105, stone)?; // tank shell
-    fill(32, 42, 89, 103, MATERIAL_WATER)?;
-    // Draining column in a SEALED stone shaft: it falls and settles in the
-    // sealed basin — a genuine MATTER frontier while falling, contained
-    // entirely in chunk (1,1) so it can never contaminate panel C below.
-    fill(94, 44, 95, 121, stone)?; // shaft left wall
-    fill(108, 44, 109, 121, stone)?; // shaft right wall
-    fill(94, 119, 109, 121, stone)?; // sealed basin floor
-    fill(100, 70, 103, 80, MATERIAL_WATER)?; // column inside the shaft
-
-    // [B] STABLE STEAM / GAS BULK (top-right: x 129..254, y 1..126).
-    // TRUE stable control: Stone shell AND Steam both at T=80 — no initial
-    // interface gradient, no EMPTY interface, no staged pressure/reaction,
-    // Steam on the stable side of its 40 condense threshold. Large Steam
-    // existence alone must never be activity.
-    fill(140, 40, 231, 92, stone)?; // chamber shell
-    fill(143, 43, 228, 88, MATERIAL_STEAM)?;
-    fill_t(140, 40, 231, 92, 80.0)?; // shell + steam uniform at 80
-
-    // [C] STABLE DURATION / WAKE CANDIDATE (bottom-left: x 1..126, y 129..254).
-    // Sand source sits ENTIRELY in the upper-right C chunk (cx=1, cy=2:
-    // x 64..127, y 128..191) at tick 0; the lower-right C chunk (cx=1,
-    // cy=3: x 64..127, y 192..255) starts empty except a distant landing
-    // floor, accumulates stable ticks first, then the real Sand frontier
-    // crosses the y=192 chunk seam through ordinary movement and resets its
-    // stable counter. No timer/script — production movement only.
-    fill(96, 245, 110, 247, stone)?; // distant landing floor (target chunk)
-    fill(100, 150, 106, 165, MATERIAL_SAND)?; // source in upper-right chunk only
-
-    // [D] SLOW ACTIVE WORLD (bottom-right: x 129..254, y 129..254).
-    // Wood strip ignited at one end by a hot Stone reservoir.
-    fill(140, 174, 149, 179, stone)?;
-    fill_t(140, 174, 149, 179, 200.0)?;
-    fill(150, 175, 200, 178, MATERIAL_WOOD)?;
-    // Boiling Water pot (hot Stone under a lidded cup with a vent):
-    // expansion steam rises; confinement pressure forms when the vent is
-    // occupied — a genuine PRESSURE frontier source.
-    fill(210, 231, 245, 236, stone)?;
-    fill_t(210, 231, 245, 236, 200.0)?;
-    fill(214, 229, 240, 230, stone)?; // cup floor
-    fill(214, 210, 240, 211, stone)?; // lid
-    fill(226, 210, 229, 211, MATERIAL_EMPTY)?; // vent
-    fill(214, 212, 215, 228, stone)?; // cup wall L
-    fill(239, 212, 240, 228, stone)?; // cup wall R
-    fill(217, 216, 238, 228, MATERIAL_WATER)?;
-
-    Ok(())
-}
-
 /// Resets the demo world to its pristine boundary-ring state and re-stages
 /// the active demo scene, using bulk initialization and validated edit hooks.
-fn reset_demo_world(simulation: &mut Simulation, mode: DemoMode) -> Result<(), GpuError> {
+fn reset_demo_world(
+    simulation: &mut Simulation,
+    mode: DemoMode,
+    gallery_scenario: Option<ScenarioId>,
+) -> Result<(), GpuError> {
+    if mode == DemoMode::Activity {
+        return reset_and_stage_scenario(simulation, ScenarioId::ActiveSleepG7).map_err(|error| {
+            GpuError::Other(format!(
+                "shared ActiveSleepG7 reset/staging failed: {error}"
+            ))
+        });
+    }
+    if mode == DemoMode::Gallery {
+        let scenario = gallery_scenario.ok_or_else(|| {
+            GpuError::Other("Gallery reset requested without a selected scenario".to_string())
+        })?;
+        return reset_and_stage_scenario(simulation, scenario).map_err(|error| {
+            GpuError::Other(format!("shared Gallery reset/staging failed: {error}"))
+        });
+    }
+
     simulation.reset()?;
     match mode {
         DemoMode::Movement => stage_movement_demo(simulation),
@@ -1440,7 +1497,7 @@ fn reset_demo_world(simulation: &mut Simulation, mode: DemoMode) -> Result<(), G
         DemoMode::Thermal => stage_thermal_demo(simulation),
         DemoMode::Pressure => stage_pressure_demo(simulation),
         DemoMode::ParallelIntegrity => stage_parallel_integrity_demo(simulation),
-        DemoMode::Activity => stage_activity_demo(simulation),
+        DemoMode::Activity | DemoMode::Gallery => unreachable!("handled above"),
         DemoMode::None => Ok(()),
     }
 }
@@ -1456,16 +1513,40 @@ fn step_demo(
     if demo.reset_pending {
         demo.reset_pending = false;
         demo.step_pending = false;
-        if let Err(e) = reset_demo_world(simulation, mode) {
-            eprintln!("[powdergame] demo reset error: {e}");
-        } else {
-            println!("[powdergame] demo: scene reset to initial state");
+        let gallery_scenario = demo.gallery.as_ref().and_then(GalleryState::reset_target);
+        match reset_demo_world(simulation, mode, gallery_scenario) {
+            Ok(()) => {
+                let committed_gallery = demo
+                    .gallery
+                    .as_mut()
+                    .and_then(GalleryState::commit_reset_success);
+                demo.commit_pristine_reset();
+                if let Some(scenario) = committed_gallery {
+                    println!(
+                        "[powdergame][gallery] transactional shared reset committed: {}/6 {} | SIM TICK 0 | DIAGNOSTIC SAMPLE pending",
+                        scenario.number(),
+                        scenario.name()
+                    );
+                } else {
+                    println!("[powdergame] demo: scene reset to initial state");
+                }
+                if let Some(col) = collector {
+                    col.reset();
+                }
+            }
+            Err(error) => {
+                if let Some(gallery) = &mut demo.gallery {
+                    let requested = gallery.commit_reset_failure(error.to_string());
+                    eprintln!(
+                        "[powdergame][gallery] RESET FAILED for requested {}/6 {}: {error}; prior scenario/tick/sample attribution retained; diagnostic sampling suppressed",
+                        requested.number(),
+                        requested.name()
+                    );
+                } else {
+                    eprintln!("[powdergame] demo reset error: {error}");
+                }
+            }
         }
-        if let Some(col) = collector {
-            col.reset();
-        }
-        demo.ticks = 0;
-        demo.last_tick = None;
     }
     if demo.step_pending {
         demo.step_pending = false;
@@ -1512,6 +1593,133 @@ fn step_demo(
     if let Some(col) = collector {
         col.update(simulation, demo.ticks, demo.fast);
     }
+    if mode == DemoMode::Gallery {
+        sample_gallery_diagnostics(simulation, demo);
+    }
+}
+
+fn sample_gallery_diagnostics(simulation: &Simulation, demo: &mut DemoState) {
+    let source_tick = simulation.tick_count;
+    let Some(gallery) = &mut demo.gallery else {
+        return;
+    };
+    if !gallery.should_sample(source_tick) {
+        return;
+    }
+    match simulation.activity_census() {
+        Ok(census) => {
+            gallery.record_sample(source_tick, census);
+            let sample = gallery
+                .diagnostic_sample()
+                .expect("sample was just recorded");
+            println!(
+                "[powdergame][gallery][diagnostic] SAMPLE #{} | SOURCE TICK {} | active cells {}/{} (M {} T {} P {} R {}) | active chunks {}/{} | runnable {} | sleeping {} | out-of-band readback",
+                sample.sequence,
+                sample.source_tick,
+                sample.census.any_active_cells,
+                sample.census.total_cells,
+                sample.census.matter_active_cells,
+                sample.census.thermal_active_cells,
+                sample.census.pressure_active_cells,
+                sample.census.reaction_active_cells,
+                sample.census.active_chunks,
+                sample.census.total_chunks,
+                sample.census.runnable_chunks,
+                sample.census.sleeping_chunks,
+            );
+        }
+        Err(error) => {
+            gallery.defer_failed_sample(source_tick);
+            eprintln!(
+                "[powdergame][gallery][diagnostic] census failed at SOURCE TICK {source_tick}: {error}"
+            );
+        }
+    }
+}
+
+fn print_gallery_runtime_context(
+    simulation: &Simulation,
+    demo: &DemoState,
+    provenance: &RuntimeProvenance,
+    scenario: ScenarioId,
+) {
+    let config = &simulation.world.config;
+    println!("[powdergame][gallery] === build-bound provenance ===");
+    println!(
+        "[powdergame][gallery] Build source SHA: {}",
+        provenance.source_sha
+    );
+    println!(
+        "[powdergame][gallery] Build Git state:  {}",
+        provenance.git_state.as_str()
+    );
+    println!(
+        "[powdergame][gallery] Build profile: {}",
+        provenance.build_profile
+    );
+    println!(
+        "[powdergame][gallery] Scenario:      {}/6 {} ({})",
+        scenario.number(),
+        scenario.name(),
+        scenario.slug()
+    );
+    println!(
+        "[powdergame][gallery] WorldConfig:   {}x{} | chunk size {}",
+        config.width, config.height, config.chunk_size
+    );
+    println!(
+        "[powdergame][gallery] Sleep:         {} | threshold {}",
+        if simulation.sleep_enabled {
+            "ON"
+        } else {
+            "OFF"
+        },
+        simulation.sleep_threshold
+    );
+    println!(
+        "[powdergame][gallery] SIM TICK:      {}",
+        simulation.tick_count
+    );
+    let sample = demo
+        .gallery
+        .as_ref()
+        .and_then(GalleryState::diagnostic_sample);
+    match sample {
+        Some(sample) => println!(
+            "[powdergame][gallery] DIAGNOSTIC SAMPLE #{} | SOURCE TICK {}",
+            sample.sequence, sample.source_tick
+        ),
+        None => println!("[powdergame][gallery] DIAGNOSTIC SAMPLE: pending"),
+    }
+    println!("[powdergame][gallery] Controls:      {GALLERY_CONTROLS}");
+    println!("[powdergame][gallery] Starts PAUSED; diagnostics are outside timed benchmark paths");
+}
+
+fn gallery_hud_data(
+    simulation: &Simulation,
+    demo: &DemoState,
+    provenance: &RuntimeProvenance,
+) -> Option<GalleryHudData> {
+    let gallery = demo.gallery.as_ref()?;
+    let scenario = gallery.scenario();
+    Some(GalleryHudData {
+        source_sha: provenance.source_sha.clone(),
+        git_state: provenance.git_state.as_str(),
+        build_profile: provenance.build_profile,
+        scenario_number: gallery.scenario_number(),
+        scenario_name: scenario.name(),
+        scenario_description: scenario.description(),
+        world_width: simulation.world.config.width,
+        world_height: simulation.world.config.height,
+        chunk_size: simulation.world.config.chunk_size,
+        sleep_enabled: simulation.sleep_enabled,
+        sleep_threshold: simulation.sleep_threshold,
+        playing: demo.playing,
+        fast: demo.fast,
+        simulation_tick: gallery.is_ready().then_some(simulation.tick_count),
+        diagnostic_sample: gallery.diagnostic_sample().cloned(),
+        transition: gallery.transition().clone(),
+    })
 }
 
 impl ApplicationHandler for App {
@@ -1557,13 +1765,22 @@ impl ApplicationHandler for App {
                         println!("[powdergame] ESC pressed; exiting");
                         event_loop.exit();
                     }
-                    Key::Character(ref c) if c.eq_ignore_ascii_case("s") => {
+                    Key::Character(ref c)
+                        if self.demo_mode == DemoMode::Gallery
+                            && matches!(c.as_str(), "1" | "2" | "3" | "4" | "5" | "6") =>
+                    {
+                        let number = c.as_bytes()[0] - b'0';
+                        self.select_gallery_scenario(number, &window);
+                    }
+                    Key::Character(ref c)
+                        if self.demo_mode != DemoMode::Gallery && c.eq_ignore_ascii_case("s") =>
+                    {
                         self.toggle_sleep(&window);
                     }
-                    Key::Character(ref c) if c == "[" => {
+                    Key::Character(ref c) if self.demo_mode != DemoMode::Gallery && c == "[" => {
                         self.adjust_sleep_threshold(-1, &window);
                     }
-                    Key::Character(ref c) if c == "]" => {
+                    Key::Character(ref c) if self.demo_mode != DemoMode::Gallery && c == "]" => {
                         self.adjust_sleep_threshold(1, &window);
                     }
                     Key::Character(ref c) if c.eq_ignore_ascii_case("n") => {
@@ -1597,6 +1814,17 @@ impl ApplicationHandler for App {
                         eprintln!("[powdergame] tick error: {e}");
                     }
                 }
+                let gallery_hud = if self.demo_mode == DemoMode::Gallery {
+                    self.simulation.as_ref().and_then(|simulation| {
+                        self.demo.as_ref().and_then(|demo| {
+                            self.gallery_provenance.as_ref().and_then(|provenance| {
+                                gallery_hud_data(simulation, demo, provenance)
+                            })
+                        })
+                    })
+                } else {
+                    None
+                };
                 if let Some(renderer) = &mut self.renderer {
                     let hud_data = match self.demo_mode {
                         DemoMode::Thermal => self.observatory_collector.as_ref().map(|c| {
@@ -1625,6 +1853,7 @@ impl ApplicationHandler for App {
                                 self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
                             )
                         }),
+                        DemoMode::Gallery => gallery_hud.as_ref().map(renderer::HudData::Gallery),
                         _ => None,
                     };
                     if let Err(e) = renderer.render(hud_data) {
@@ -1675,16 +1904,9 @@ fn parse_smoke_frames() -> Option<u32> {
 /// Parses the demo mode: `--movement-demo` / `--density-demo` /
 /// `--thermal-demo` / `--pressure-demo` (or their `POWDERGAME_*_DEMO=1` env equivalents).
 fn parse_demo_mode() -> DemoMode {
-    for arg in std::env::args().skip(1) {
-        match arg.as_str() {
-            "--movement-demo" => return DemoMode::Movement,
-            "--density-demo" => return DemoMode::Density,
-            "--thermal-demo" => return DemoMode::Thermal,
-            "--pressure-demo" => return DemoMode::Pressure,
-            "--parallel-integrity-demo" => return DemoMode::ParallelIntegrity,
-            "--activity-demo" => return DemoMode::Activity,
-            _ => {}
-        }
+    let cli_mode = demo_mode_from_args(std::env::args().skip(1));
+    if cli_mode != DemoMode::None {
+        return cli_mode;
     }
     if std::env::var("POWDERGAME_MOVEMENT_DEMO").as_deref() == Ok("1") {
         return DemoMode::Movement;
@@ -1697,6 +1919,26 @@ fn parse_demo_mode() -> DemoMode {
     }
     if std::env::var("POWDERGAME_PRESSURE_DEMO").as_deref() == Ok("1") {
         return DemoMode::Pressure;
+    }
+    DemoMode::None
+}
+
+fn demo_mode_from_args<I, S>(args: I) -> DemoMode
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    for arg in args {
+        match arg.as_ref() {
+            "--movement-demo" => return DemoMode::Movement,
+            "--density-demo" => return DemoMode::Density,
+            "--thermal-demo" => return DemoMode::Thermal,
+            "--pressure-demo" => return DemoMode::Pressure,
+            "--parallel-integrity-demo" => return DemoMode::ParallelIntegrity,
+            "--activity-demo" => return DemoMode::Activity,
+            "--benchmark-gallery" => return DemoMode::Gallery,
+            _ => {}
+        }
     }
     DemoMode::None
 }
@@ -1739,6 +1981,10 @@ fn main() {
             "[powdergame] parallel integrity demo: 256x256 2x2 contention lab, 60 TPS. \
              Starts PAUSED (SPACE play | F fast x1/x4/x16 | N step | R reset | ESC quit)"
         ),
+        DemoMode::Gallery => println!(
+            "[powdergame] G8-B benchmark scenario Gallery: 256x256, six shared headless fixtures. \
+             Starts PAUSED ({GALLERY_CONTROLS}). Diagnostic census is bounded and outside timed benchmark paths."
+        ),
         DemoMode::None => {}
     }
 
@@ -1750,12 +1996,13 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::stage_activity_demo;
+    use super::{demo_mode_from_args, DemoMode, DemoState};
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
-    use powdergame_gpu::Simulation;
+    use powdergame_gpu::{ActivityCensusReport, Simulation};
+    use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
 
     /// G7-A actual-fixture long-run correctness validation (RTX 5090 / DX12).
-    /// Uses the real `stage_activity_demo` geometry with 3000+ production
+    /// Uses the shared `ActiveSleepG7` geometry with 3000+ production
     /// `Simulation::tick()` calls. This is correctness evidence — NOT a
     /// performance benchmark (see G8).
     #[test]
@@ -1768,7 +2015,8 @@ mod tests {
             WorldConfig::new(256, 256, 64).expect("world config"),
         )
         .expect("simulation init");
-        stage_activity_demo(&sim).expect("stage activity demo");
+        reset_and_stage_scenario(&mut sim, ScenarioId::ActiveSleepG7)
+            .expect("stage shared activity demo");
 
         let cidx = |cx: u32, cy: u32| -> usize { (cy * 4 + cx) as usize };
         // Panel B (top-right quadrant): all four chunks.
@@ -1878,7 +2126,8 @@ mod tests {
         .expect("simulation init");
         sim_reset.set_sleep_enabled(true);
         sim_reset.set_sleep_threshold(7);
-        stage_activity_demo(&sim_reset).expect("stage activity demo");
+        reset_and_stage_scenario(&mut sim_reset, ScenarioId::ActiveSleepG7)
+            .expect("stage shared activity demo");
 
         let context2 =
             pollster::block_on(powdergame_gpu::GpuContext::new()).expect("DX12 GPU context");
@@ -1889,7 +2138,8 @@ mod tests {
         .expect("simulation init");
         sim_fresh.set_sleep_enabled(true);
         sim_fresh.set_sleep_threshold(7);
-        stage_activity_demo(&sim_fresh).expect("stage fresh demo");
+        reset_and_stage_scenario(&mut sim_fresh, ScenarioId::ActiveSleepG7)
+            .expect("stage shared fresh demo");
 
         // Run sim_reset for 50 ticks to diverge all physics, combustion, movement, and activity state
         for _ in 0..50 {
@@ -1898,7 +2148,7 @@ mod tests {
         assert_eq!(sim_reset.tick_count, 50);
 
         // Reset sim_reset
-        super::reset_demo_world(&mut sim_reset, super::DemoMode::Activity)
+        super::reset_demo_world(&mut sim_reset, super::DemoMode::Activity, None)
             .expect("reset demo world");
 
         // 1. tick_count == 0
@@ -2005,7 +2255,8 @@ mod tests {
         for _ in 0..20 {
             sim_reset.tick().expect("tick");
         }
-        super::reset_demo_world(&mut sim_reset, super::DemoMode::Activity).expect("repeat reset");
+        super::reset_demo_world(&mut sim_reset, super::DemoMode::Activity, None)
+            .expect("repeat reset");
         assert_eq!(sim_reset.tick_count, 0);
         let m_r2 = sim_reset
             .world
@@ -2028,6 +2279,95 @@ mod tests {
         assert_eq!(
             m_r_t1, m_f_t1,
             "tick 1 material outcome mismatch between reset and fresh"
+        );
+    }
+
+    #[test]
+    fn benchmark_gallery_argument_selects_gallery_mode() {
+        assert_eq!(
+            demo_mode_from_args(["--benchmark-gallery"]),
+            DemoMode::Gallery
+        );
+    }
+
+    #[test]
+    fn gallery_control_state_preserves_one_tick_and_pristine_reset_contracts() {
+        let mut demo = DemoState::new(
+            super::GALLERY_TITLE,
+            super::GALLERY_TPS,
+            false,
+            Some(super::GalleryState::new()),
+        );
+        assert!(!demo.playing, "Gallery must start paused");
+        assert!(demo.queue_single_step());
+        assert!(demo.step_pending);
+
+        demo.step_pending = false;
+        demo.playing = true;
+        assert!(!demo.queue_single_step(), "N is ignored while playing");
+        assert!(!demo.step_pending);
+
+        demo.cycle_fast();
+        assert_eq!(demo.fast, 4);
+        demo.cycle_fast();
+        assert_eq!(demo.fast, 16);
+        demo.cycle_fast();
+        assert_eq!(demo.fast, 1);
+
+        demo.ticks = 42;
+        demo.fast = 16;
+        demo.playing = true;
+        demo.gallery.as_mut().unwrap().record_sample(
+            42,
+            ActivityCensusReport {
+                total_cells: 1,
+                any_active_cells: 0,
+                matter_active_cells: 0,
+                thermal_active_cells: 0,
+                pressure_active_cells: 0,
+                reaction_active_cells: 0,
+                total_chunks: 1,
+                active_chunks: 0,
+                runnable_chunks: 1,
+                sleeping_chunks: 0,
+            },
+        );
+        assert!(demo.gallery.as_ref().unwrap().diagnostic_sample().is_some());
+        let committed = demo.gallery.as_ref().unwrap().scenario();
+        assert_eq!(
+            demo.gallery.as_mut().unwrap().request_number(6),
+            Some(ScenarioId::ActiveSleepG7)
+        );
+        demo.queue_pristine_reset();
+        assert!(!demo.playing);
+        assert_eq!(demo.ticks, 42, "tick attribution is not committed early");
+        assert_eq!(demo.fast, 1);
+        assert!(demo.reset_pending);
+        assert!(demo.gallery.as_ref().unwrap().diagnostic_sample().is_some());
+        assert_eq!(demo.gallery.as_ref().unwrap().scenario(), committed);
+        assert!(!demo.gallery_ready_to_advance());
+        assert!(!demo.queue_single_step());
+
+        demo.gallery
+            .as_mut()
+            .unwrap()
+            .commit_reset_failure("injected".to_string());
+        assert!(!demo.gallery_ready_to_advance());
+        assert_eq!(demo.ticks, 42);
+        assert!(demo.gallery.as_ref().unwrap().diagnostic_sample().is_some());
+
+        demo.gallery.as_mut().unwrap().request_number(6);
+        assert_eq!(
+            demo.gallery.as_mut().unwrap().commit_reset_success(),
+            Some(ScenarioId::ActiveSleepG7)
+        );
+        demo.commit_pristine_reset();
+        assert_eq!(demo.ticks, 0);
+        assert!(demo.gallery.as_ref().unwrap().diagnostic_sample().is_none());
+        assert!(demo.gallery_ready_to_advance());
+        assert_eq!(
+            demo.gallery.as_ref().unwrap().scenario(),
+            ScenarioId::ActiveSleepG7
         );
     }
 }

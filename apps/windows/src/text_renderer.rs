@@ -10,6 +10,7 @@ use bytemuck::{Pod, Zeroable};
 use fontdue::{Font, FontSettings};
 use powdergame_gpu::GpuError;
 
+use crate::gallery::{GalleryHudData, GalleryTransition, GALLERY_CONTROLS};
 use crate::observatory::{
     ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
     ACTIVITY_PANEL_NAMES,
@@ -3199,6 +3200,317 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             bytemuck::cast_slice(&self.batch.indices),
         );
 
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// G8-B benchmark scenario Gallery HUD. All simulation counts come from
+    /// an explicitly labeled, bounded out-of-band activity census; provenance
+    /// and runtime state are kept visually separate from those samples.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_gallery_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        data: &GalleryHudData,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+        self.batch.clear();
+        let white_uv = self.atlas.solid_white_uv;
+
+        let title = [0.95, 0.97, 1.0, 1.0];
+        let header = [0.70, 0.85, 1.0, 1.0];
+        let label = [0.62, 0.68, 0.78, 1.0];
+        let value = [0.96, 0.97, 0.99, 1.0];
+        let green = [0.35, 0.95, 0.60, 1.0];
+        let orange = [1.0, 0.62, 0.24, 1.0];
+        let card_bg = [0.055, 0.075, 0.11, 0.94];
+        let card_border = [0.20, 0.28, 0.40, 1.0];
+
+        self.batch.draw_text(
+            &self.atlas,
+            24.0,
+            14.0,
+            24,
+            "G8-B BENCHMARK SCENARIO GALLERY",
+            title,
+        );
+        let scenario_line = format!(
+            "SCENARIO {}/6: {} | {}",
+            data.scenario_number, data.scenario_name, data.scenario_description
+        );
+        self.batch
+            .draw_text(&self.atlas, 24.0, 42.0, 14, &scenario_line, header);
+
+        let sidebar_w = 390.0f32;
+        let card_w = sidebar_w - 28.0;
+        let left_x = 18.0;
+        let right_x = sw - sidebar_w + 10.0;
+        let top_y = 72.0;
+        let card_h = (sh - top_y - 58.0).max(300.0);
+
+        for x in [left_x, right_x] {
+            self.batch
+                .draw_rect(x, top_y, card_w, card_h, card_bg, white_uv);
+            self.batch
+                .draw_outline(x, top_y, card_w, card_h, 1.0, card_border, white_uv);
+        }
+
+        let mut y = top_y + 16.0;
+        self.batch.draw_text(
+            &self.atlas,
+            left_x + 14.0,
+            y,
+            17,
+            "RUNTIME PROVENANCE",
+            header,
+        );
+        y += 31.0;
+        let provenance_rows = [
+            ("Build source SHA", data.source_sha.clone()),
+            ("Build Git state", data.git_state.to_string()),
+            ("Build profile", data.build_profile.to_string()),
+            (
+                "WorldConfig",
+                format!("{} x {}", data.world_width, data.world_height),
+            ),
+            ("Chunk size", data.chunk_size.to_string()),
+            (
+                "Sleep",
+                format!(
+                    "{} | threshold {}",
+                    if data.sleep_enabled { "ON" } else { "OFF" },
+                    data.sleep_threshold
+                ),
+            ),
+        ];
+        for (row_label, row_value) in provenance_rows {
+            self.batch
+                .draw_text(&self.atlas, left_x + 14.0, y, 13, row_label, label);
+            y += 18.0;
+            self.batch
+                .draw_text(&self.atlas, left_x + 22.0, y, 13, &row_value, value);
+            y += 27.0;
+        }
+
+        y += 8.0;
+        self.batch
+            .draw_text(&self.atlas, left_x + 14.0, y, 17, "RUNTIME STATE", header);
+        y += 31.0;
+        let run_state = if data.playing { "PLAY" } else { "PAUSED" };
+        let runtime_rows = [
+            ("State", run_state.to_string()),
+            ("Fast multiplier", format!("x{}", data.fast)),
+            (
+                "SIM TICK",
+                data.simulation_tick
+                    .map_or_else(|| "UNAVAILABLE".to_string(), |tick| tick.to_string()),
+            ),
+        ];
+        for (row_label, row_value) in runtime_rows {
+            self.batch
+                .draw_text(&self.atlas, left_x + 14.0, y, 14, row_label, label);
+            self.batch.draw_text_right(
+                &self.atlas,
+                left_x + card_w - 14.0,
+                y,
+                14,
+                &row_value,
+                value,
+            );
+            y += 26.0;
+        }
+
+        let mut ry = top_y + 16.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            ry,
+            17,
+            "OUT-OF-BAND DIAGNOSTIC",
+            header,
+        );
+        ry += 26.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            ry,
+            12,
+            "Bounded readback; never part of timed benchmark loops",
+            orange,
+        );
+        ry += 32.0;
+
+        match &data.transition {
+            GalleryTransition::Ready => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    right_x + 14.0,
+                    ry,
+                    13,
+                    "RESET STATE: READY",
+                    green,
+                );
+            }
+            GalleryTransition::Pending { requested } => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    right_x + 14.0,
+                    ry,
+                    13,
+                    &format!(
+                        "RESET PENDING -> {}/6 {}",
+                        requested.number(),
+                        requested.name()
+                    ),
+                    orange,
+                );
+            }
+            GalleryTransition::Failed { requested, .. } => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    right_x + 14.0,
+                    ry,
+                    13,
+                    &format!(
+                        "RESET FAILED -> {}/6 {}",
+                        requested.number(),
+                        requested.name()
+                    ),
+                    [1.0, 0.35, 0.30, 1.0],
+                );
+                self.batch.draw_text(
+                    &self.atlas,
+                    right_x + 14.0,
+                    ry + 20.0,
+                    12,
+                    "SIM TICK unavailable; diagnostic sampling suppressed",
+                    orange,
+                );
+            }
+        }
+        ry += if matches!(&data.transition, GalleryTransition::Failed { .. }) {
+            48.0
+        } else {
+            30.0
+        };
+
+        if let Some(sample) = &data.diagnostic_sample {
+            let census = &sample.census;
+            let rows = [
+                (
+                    if matches!(&data.transition, GalleryTransition::Ready) {
+                        "DIAGNOSTIC SAMPLE"
+                    } else {
+                        "LAST COMMITTED SAMPLE"
+                    },
+                    format!("#{}", sample.sequence),
+                ),
+                ("SOURCE TICK", sample.source_tick.to_string()),
+                (
+                    "Any active cells",
+                    format!("{} / {}", census.any_active_cells, census.total_cells),
+                ),
+                ("Matter active", census.matter_active_cells.to_string()),
+                ("Thermal active", census.thermal_active_cells.to_string()),
+                ("Pressure active", census.pressure_active_cells.to_string()),
+                ("Reaction active", census.reaction_active_cells.to_string()),
+                (
+                    "Active chunks",
+                    format!("{} / {}", census.active_chunks, census.total_chunks),
+                ),
+                ("Runnable chunks", census.runnable_chunks.to_string()),
+                ("Sleeping chunks", census.sleeping_chunks.to_string()),
+            ];
+            for (row_label, row_value) in rows {
+                self.batch
+                    .draw_text(&self.atlas, right_x + 14.0, ry, 14, row_label, label);
+                self.batch.draw_text_right(
+                    &self.atlas,
+                    right_x + card_w - 14.0,
+                    ry,
+                    14,
+                    &row_value,
+                    value,
+                );
+                ry += 27.0;
+            }
+        } else {
+            self.batch.draw_text(
+                &self.atlas,
+                right_x + 14.0,
+                ry,
+                15,
+                "DIAGNOSTIC SAMPLE: pending",
+                orange,
+            );
+        }
+
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            top_y + card_h - 70.0,
+            13,
+            "Cell view: material + temperature + pressure + flags",
+            green,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            top_y + card_h - 46.0,
+            12,
+            "Presentation bindings are read-only; physics tick is unchanged",
+            label,
+        );
+
+        self.batch
+            .draw_text(&self.atlas, 24.0, sh - 32.0, 14, GALLERY_CONTROLS, label);
+
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("gallery_text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("gallery_text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

@@ -499,18 +499,20 @@ Activity reason census의 Matter / Thermal / Pressure / Reaction category는 서
 
 ## 19. Benchmark Scenarios
 
-M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 현재 **NOT STARTED**이며, 이름과 측정 의도만 정의된 상태다.
+M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 shared deterministic fixture, Windows inspection Gallery, headless `--scenario` selection까지 구현 candidate가 존재한다. Scenario 1 Sand Fall은 사용자 승인되었고 Scenario 2~5는 미승인이다. G8-B 전체 상태는 **USER ACCEPTANCE PENDING / NOT CLOSED**이며, 아직 G8-C official matrix 결과가 아니다.
 
 ### Sand Fall
 
 - Powder movement
 - collision/arbitration
+- **USER ACCEPTED (2026-08-17)**: Sand가 완전히 정착하고 모든 chunk가 sleep에 들어가는 것이 성공이다. 지속 activity를 만들기 위한 source/geometry/sleep retuning은 하지 않는다.
 
 ### Water Flow
 
 - Liquid movement
 - density displacement
 - stable bulk
+- **UNACCEPTED**: inspection/correction은 현재 checkpoint task 범위 밖이다.
 
 ### Fire / Heat
 
@@ -530,6 +532,26 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - worst-case에 가까운 실제 플레이 workload
 
 각 scenario는 가능하면 자동으로 초기 상태를 만들 수 있어야 한다.
+
+### Shared staging contract
+
+- `apps/scenarios`의 `powdergame-scenarios` crate가 `ScenarioId`, pure CPU `ScenarioFixture`, `validate_scenario_config`, `reset_and_stage_scenario`를 소유한다.
+- official 5종은 동일한 2048×2048×64 headless default에서 자동 staging 가능하다. 256×256 이상의 rectangular config도 허용하지만 official matrix config를 바꾸었다는 뜻은 아니다.
+- `reset_and_stage_scenario`는 production `Simulation`을 reset하고 Material/Temperature/Pressure/Flags의 Current와 Next, 그리고 authored `chunk_edit_wake`를 같은 tick-0 image로 staging한 뒤 transfer completion을 기다린다.
+- benchmark는 모든 prewarm, production-throughput trial, profiled trial, overhead control 직전에 이 shared reset/stage 경로를 사용한다.
+- crate는 production pass graph, shader, physics Rule, Material registry를 변경하지 않는다. fixture-specific code는 authored initial state만 만든다.
+
+### Sixth Gallery regression fixture
+
+`active-sleep-g7`은 official G8-B matrix의 여섯 번째 workload가 아니다. 기존 G7 Activity/Sleep observatory의 256×256×64 geometry와 edit-wake snapshot을 정확히 재사용하는 회귀 fixture이며, 다른 config는 pre-GPU validation에서 거부한다.
+
+### Windows inspection and headless timing separation
+
+- Windows `--benchmark-gallery` / `run_g8_benchmark_gallery.bat`은 1~6 선택, play/pause, one-tick step, x1/x4/x16, pristine reset을 제공하고 항상 paused 상태에서 시작한다.
+- Gallery의 rendering, HUD, wall-clock TPS, sampled activity census는 시각적·진단용 surface다. bounded census도 out-of-band readback이며 official timed loop에 들어가지 않는다.
+- headless harness는 `--scenario calibration|sand-fall|water-flow|fire-heat|pressure-burst|heavy-mixed-world|active-sleep-g7`을 받는다. Gallery crate/window/renderer를 통과하지 않는다.
+- 기본 `calibration`은 기존 `powdergame-g8a-v5`, `g8a-*`, `target/calibration_report.csv` 계약을 유지한다. shared fixture는 같은 CSV column shape에서 `powdergame-g8b-fixture-v1`, `g8b-<slug>-*`, `target/<slug>_report.csv`로 identity와 기본 output을 분리한다.
+- 이 구현은 scenario 반복 가능성과 관찰 surface를 제공할 뿐이다. official G8-C throughput/render/coexistence matrix, bottleneck 결정, 숫자 budget은 별도 단계다.
 
 ---
 

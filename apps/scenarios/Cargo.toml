@@ -1,16 +1,14 @@
 [package]
-name = "powdergame-benchmark"
+name = "powdergame-scenarios"
+description = "Shared deterministic staging for Powdergame benchmark and regression scenarios."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[[bin]]
-name = "powdergame-benchmark"
-path = "src/main.rs"
-
 [dependencies]
 powdergame-core = { workspace = true }
 powdergame-gpu = { workspace = true }
-powdergame-scenarios = { workspace = true }
 wgpu = { workspace = true }
+
+[dev-dependencies]
 pollster = { workspace = true }

@@ -61,6 +61,9 @@ pub enum PresentationPalette {
     /// G7 activity observatory: Lab-style base colors + per-chunk activity
     /// heatmap overlay (read-only chunk_activity storage binding).
     Activity = 4,
+    /// G8-B benchmark Gallery: neutral material identity plus generic,
+    /// coordinate-independent temperature, pressure, and reaction tinting.
+    Gallery = 5,
 }
 
 /// Read-only view spec for presenting the material world (G2/G3/G4).
@@ -71,6 +74,7 @@ pub enum PresentationPalette {
 pub struct WorldViewSpec<'a> {
     pub material_buffer: &'a wgpu::Buffer,
     pub temperature_buffer: Option<&'a wgpu::Buffer>,
+    pub pressure_buffer: Option<&'a wgpu::Buffer>,
     pub flags_buffer: Option<&'a wgpu::Buffer>,
     /// G7-A per-chunk activity masks (presentation read-only; the Activity
     /// palette heatmap overlay). None for other palettes.
@@ -163,6 +167,7 @@ struct Metrics {
 @group(0) @binding(3) var<storage, read> flags: array<u32>;
 @group(0) @binding(4) var<uniform> metrics: Metrics;
 @group(0) @binding(5) var<storage, read> chunk_activity: array<u32>;
+@group(0) @binding(6) var<storage, read> pressures: array<f32>;
 
 const EMPTY: u32 = 0u;
 const BOUNDARY: u32 = 1u;
@@ -178,6 +183,7 @@ const PALETTE_LAB: u32 = 1u;
 const PALETTE_THERMAL: u32 = 2u;
 const PALETTE_INTEGRITY: u32 = 3u;
 const PALETTE_ACTIVITY: u32 = 4u;
+const PALETTE_GALLERY: u32 = 5u;
 
 const ACT_MATTER: u32 = 1u << 0u;
 const ACT_THERMAL: u32 = 1u << 1u;
@@ -331,7 +337,8 @@ fn debug_color(id: u32, palette: u32) -> vec4<f32> {
     if (palette == PALETTE_LAB
         || palette == PALETTE_THERMAL
         || palette == PALETTE_INTEGRITY
-        || palette == PALETTE_ACTIVITY) {
+        || palette == PALETTE_ACTIVITY
+        || palette == PALETTE_GALLERY) {
         if (id == EMPTY) { return vec4<f32>(0.05, 0.055, 0.07, 1.0); }
         if (id == BOUNDARY) { return vec4<f32>(0.22, 0.23, 0.25, 1.0); }
         if (id == STONE) { return vec4<f32>(0.46, 0.47, 0.50, 1.0); }
@@ -430,6 +437,33 @@ fn thermal_lab_color(cx: u32, cy: u32, id: u32, t: f32, f: u32) -> vec4<f32> {
     return c;
 }
 
+// G8-B Gallery presentation is deliberately coordinate-independent. Every
+// tint comes from the authoritative per-cell fields bound above; no expected
+// outcome or fixture coordinate is encoded in this renderer.
+fn gallery_color(id: u32, t: f32, p: f32, f: u32) -> vec4<f32> {
+    var c = debug_color(id, PALETTE_GALLERY);
+    if (id == EMPTY || id == BOUNDARY) {
+        return c;
+    }
+
+    let cold = clamp(-t / 50.0, 0.0, 1.0);
+    let hot = clamp(t / 180.0, 0.0, 1.0);
+    c = mix(c, vec4<f32>(0.18, 0.42, 1.0, 1.0), cold * 0.32);
+    c = mix(c, vec4<f32>(1.0, 0.34, 0.10, 1.0), hot * 0.42);
+
+    if (id == WATER || id == OIL || id == STEAM || id == SMOKE) {
+        let pressure = clamp(max(p, 0.0) / 20.0, 0.0, 1.0);
+        c = mix(c, vec4<f32>(0.75, 0.28, 1.0, 1.0), pressure * 0.55);
+    }
+    if ((f & FLAG_COMBUSTING) != 0u) {
+        c = mix(c, vec4<f32>(1.0, 0.30, 0.04, 1.0), 0.75);
+    }
+    if ((f & FLAG_FLAME_EVENT) != 0u) {
+        c = mix(c, vec4<f32>(1.0, 0.90, 0.20, 1.0), 0.55);
+    }
+    return c;
+}
+
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4<f32> {
     var pos = array<vec2<f32>, 3>(
@@ -472,6 +506,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let thermal = params.palette == PALETTE_THERMAL;
     let integrity = params.palette == PALETTE_INTEGRITY;
     let activity = params.palette == PALETTE_ACTIVITY;
+    let gallery = params.palette == PALETTE_GALLERY;
     var scale = min(fw / ww, fh / wh);
     var off_x = (fw - ww * scale) * 0.5;
     var off_y = (fh - wh * scale) * 0.5;
@@ -489,7 +524,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         scale = min(avail_w / ww, avail_h / wh);
         off_x = (fw - ww * scale) * 0.5;
         off_y = 65.0 + (avail_h - wh * scale) * 0.5;
-    } else if (integrity) {
+    } else if (integrity || gallery) {
         // G6: leave the left/right HUD cards (340 px) and the top banner /
         // bottom controls bar clear of the world view.
         let sidebar_w = 400.0;
@@ -520,6 +555,11 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
                 cell_x, cell_y, materials[idx], temperatures[idx], flags[idx]
             );
         }
+        if (gallery) {
+            return gallery_color(
+                materials[idx], temperatures[idx], pressures[idx], flags[idx]
+            );
+        }
         let base = debug_color(materials[idx], params.palette);
         if (activity) {
             return activity_overlay(cell_x, cell_y, base);
@@ -547,7 +587,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         }
         return vec4<f32>(0.07, 0.08, 0.11, 1.0);
     }
-    if (integrity) {
+    if (integrity || gallery) {
         // No procedural G3 HUD here — the G6 HUD is the screen-space text
         // renderer. Just a crisp viewport border over the dark lab backdrop.
         let border_t = 1.0;
@@ -716,6 +756,7 @@ impl Renderer {
                     PresentationPalette::ThermalLab
                         | PresentationPalette::Integrity
                         | PresentationPalette::Activity
+                        | PresentationPalette::Gallery
                 )
             })
             .unwrap_or(false);
@@ -766,6 +807,7 @@ pub enum HudData<'a> {
     Pressure(&'a crate::observatory::PressureObservatoryMetrics, u64),
     ParallelIntegrity(&'a crate::observatory::IntegrityMetrics, u64),
     Activity(&'a crate::observatory::ActivityMetrics, u64),
+    Gallery(&'a crate::gallery::GalleryHudData),
 }
 
 impl Renderer {
@@ -850,6 +892,16 @@ impl Renderer {
                             self.config.height,
                             metrics,
                             sim_ticks,
+                        );
+                    }
+                    HudData::Gallery(data) => {
+                        tr.render_gallery_hud(
+                            &self.device,
+                            &self.queue,
+                            &mut render_pass,
+                            self.config.width,
+                            self.config.height,
+                            data,
                         );
                     }
                 }
@@ -944,6 +996,12 @@ fn build_world_view(
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: storage,
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 6,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: storage,
                 count: None,
@@ -1044,6 +1102,13 @@ fn build_world_view(
             wgpu::BindGroupEntry {
                 binding: 5,
                 resource: chunk_activity.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: spec
+                    .pressure_buffer
+                    .unwrap_or(spec.material_buffer)
+                    .as_entire_binding(),
             },
         ],
     });

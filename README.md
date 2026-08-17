@@ -16,7 +16,7 @@ Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder
 
 G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`의 official capture와 독립 검증을 완료한 verified evidence candidate다. 같은 SHA의 user visual validation은 아직 pending이며, 기존 v4 timing CSV는 source/binary 실행 연결과 raw census가 없는 historical data로만 보존한다.
 
-`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. recovery branch push/recovery PR/`main` 승격은 하지 않았으며, G8-B/G8-C, G9, M0 이후 P1 중 어느 작업을 진행할지는 사용자가 별도로 결정한다.
+`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했지만 Scenario 2~5는 아직 승인되지 않았다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 G8-C official matrix는 시작하지 않았다. 이 candidate는 production physics, Material, G9, 최적화를 추가하지 않는다.
 
 ## 현재 공식 개발 경로
 
@@ -33,6 +33,26 @@ Target:        60 simulation TPS baseline
 ```
 
 현재는 Browser/macOS/범용 GPU 호환을 위해 구조와 성능을 희생하지 않는다. 이 프로젝트는 우선 사용자의 Windows + RTX 5090 환경에서 **큰 세계와 많은 상호작용을 가능한 한 싸게 병렬 실행하는 것**을 최우선으로 한다.
+
+## G8-B Benchmark Scenario Gallery
+
+Windows inspection Gallery:
+
+```bat
+run_g8_benchmark_gallery.bat
+```
+
+Gallery slot `1`~`5`는 Sand Fall, Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World의 official G8-B fixture다. Slot `6`은 official matrix workload가 아니라 기존 G7 Active/Sleep geometry와 edit-wake 의미를 보존하는 회귀 fixture다. Gallery는 paused 상태로 시작하며 `1-6` scenario 선택, `SPACE` play/pause, `N` one tick, `F` x1/x4/x16, `R` pristine reset, `ESC` quit을 제공한다.
+
+Scenario 1 Sand Fall의 승인 계약은 완전 정착과 모든 chunk의 sleep 수렴을 성공으로 보는 것이다. 계속 움직이는 화면을 만들기 위해 source/geometry/sleep behavior를 retune하지 않는다. Scenario 2~5는 미승인이며 Water Flow는 현재 checkpoint task 범위 밖이다.
+
+같은 fixture를 headless harness에서 선택할 수 있다.
+
+```bat
+cargo run --release -p powdergame-benchmark -- --scenario sand-fall
+```
+
+Windows Gallery의 렌더링, HUD, wall-clock TPS, bounded diagnostic census/readback은 사람이 fixture를 관찰하기 위한 정보다. 이 값은 official benchmark timing이 아니며 G8-C evidence로 사용하지 않는다. 세부 계약과 현재 미완료 항목은 [`docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`](docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md)를 따른다.
 
 ## 핵심 엔진 철학
 

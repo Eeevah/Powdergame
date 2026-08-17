@@ -31,6 +31,7 @@
 17. `docs/planning/MILESTONES.md`
 18. `docs/planning/STATUS.md`
 19. `docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`
+20. `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`
 
 `README.md`, `00_USER_VISION.md`, `01_MASTER_DESIGN_REPORT.md`는 위 문서들과 맞춰 최신화되지만 세부 구현 판단은 위 authoritative 문서를 우선한다.
 
@@ -46,6 +47,7 @@
 - G8: Performance Evidence — IN_PROGRESS
   - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
   - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2–5 UNACCEPTED; overall USER ACCEPTANCE PENDING / NOT CLOSED
+  - G8-B Sand Fall Experiment Harness v0: stacked implementation candidate; pilot and final checkpoint validation PENDING
   - G8-C Official Matrix: PENDING
 - G9: Playable First World / Product Validation — PENDING
 
@@ -78,7 +80,7 @@ G8-A의 clean source publish, official capture, independent verification은 끝�
 
 Canonical Recovery는 local integration branch에서 구현선과 research/Material Wiki를 결합했다. 이 branch는 push되지 않았고 recovery PR도 생성되지 않았으며 `main`도 갱신되지 않았다. Draft PR #1은 open/draft 상태로 보존한다.
 
-사용자 지시에 따라 G8-B 구현 candidate는 `feature/m0-g8b-scenario-suite`에서 시작했다. Scenario 1 Sand Fall은 승인되었지만 이 승인은 Scenario 2~5, G8-B closure, G8-C, G9, P1 identity/descriptor 등록, 새 Material, 최적화, branch 게시 또는 `main` 승격을 자동 승인하지 않는다.
+사용자 지시에 따라 G8-B 구현 candidate는 `feature/m0-g8b-scenario-suite`에서 시작했고 Scenario 1 Sand Fall checkpoint는 `e77d102febb1e3c497c2b669efe0140408bd99d7`로 고정되었다. Sand Fall Experiment Harness v0는 그 checkpoint 위의 `feature/g8b-experiment-harness-v0`에서 작업 중이며 아직 pilot run이나 final validation 결과를 갖지 않는다. Scenario 1 승인은 Scenario 2~5, G8-B closure, G8-C, G9, P1 identity/descriptor 등록, 새 Material, 최적화, branch 게시 또는 `main` 승격을 자동 승인하지 않는다.
 
 ---
 
@@ -209,17 +211,18 @@ G9는 신규 Matter 수를 늘리는 단계가 아니다. 현재 세트로 먼�
 15. Active/Sleep — G7 Completed / Frozen
 16. Measurement substrate — v5 clean source, official capture, and independent verification complete; verified evidence candidate
 17. Canonical Recovery — verified runtime/evidence line + latest research/Foundation Material Wiki merged into a tested local integration branch
-18. G8-B implementation candidate — five official shared fixtures + exact G7 regression fixture, Windows Gallery, headless scenario selection
+18. G8-B scenario-suite checkpoint `e77d102` — five official shared fixtures + exact G7 regression fixture, Windows Gallery, headless scenario selection
 
 현재 이후 순서:
 
-19. G8-B source review와 candidate source seal (integrated checks recorded; commit authority required)
-20. G8-B Windows Gallery user acceptance — Scenario 1 Sand Fall **ACCEPTED**; Scenario 2~5 **PENDING**; overall **NOT CLOSED**
-21. 같은 source SHA의 G8-A user visual validation
-22. 사용자 결정 A: G8-C official performance matrix 계속
-23. 사용자 결정 B: G9 Playable First World 진행
-24. 사용자 결정 C: M0 승인 이후에만 P1 identity/descriptor 등록 검토
-25. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
+19. stacked `feature/g8b-experiment-harness-v0` source/docs seal과 narrow final checkpoint checks
+20. clean committed Harness source에서 `run_experiment.bat sand-fall` pilot을 정확히 한 번 실행하고 external receipt-last artifact 검증
+21. G8-B Windows Gallery user acceptance — Scenario 1 Sand Fall **ACCEPTED**; Scenario 2~5 **PENDING**; overall **NOT CLOSED**
+22. 같은 source SHA의 G8-A user visual validation
+23. 사용자 결정 A: G8-C official performance matrix 계속
+24. 사용자 결정 B: G9 Playable First World 진행
+25. 사용자 결정 C: M0 승인 이후에만 P1 identity/descriptor 등록 검토
+26. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
 
 Do not start with aggressive packing/f16/indirect dispatch.
 
@@ -260,6 +263,20 @@ Include rendering and simulation+rendering coexistence evidence; calibration-onl
 Do not set arbitrary M0 maximum-TPS pass/fail before the official matrix exists.
 
 Current boundary: fixture/staging/selection implementation candidate exists and Scenario 1 is accepted. Scenario 2~5 remain unaccepted, Water Flow is out of the current checkpoint task, and **G8-B is NOT CLOSED**. Do not retune accepted Sand Fall to avoid its successful settled/all-sleep terminal state. No physics/Material/G9/optimization addition belongs to this candidate.
+
+### Sand Fall Experiment Harness v0
+
+One-command pilot entry:
+
+```bat
+run_experiment.bat sand-fall
+```
+
+The runner is Sand Fall only and writes a unique immutable run directly below `C:\Users\mdkap\source\Powdergame-artifacts`. It preserves raw stdout/stderr, telemetry samples/events, worker analysis/frame manifests, 6–10 semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert ChatGPT review prompt, review packet, and hashes. `EXPERIMENT_RECEIPT.json` is written last; no receipt means incomplete, and a failed run ID is never repaired or reused. Generated artifacts never enter Git.
+
+The lifecycle records tick 0, tick 1, peak active, first sleeping chunk, late settling, first observed all sleep in a confirmed three-sample streak, 180 post-sleep ticks, and programmatic `R`-equivalent exact reset. Simulation tick and diagnostic sample sequence remain distinct. Automatic `PASS` requires all seven hard Sand Fall predicates, but does not close G8-B or establish Water Flow/G8-C evidence.
+
+Current Harness state: implementation candidate only. Pilot run ID, receipt, verdict, and final checkpoint results are **PENDING**. Follow `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`; do not infer completion from the runner's presence.
 
 ---
 

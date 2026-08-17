@@ -10,9 +10,10 @@ Read this first when entering the repo.
 - G7-B: PASS / CLOSED / FROZEN
 - G8: Performance Evidence (IN_PROGRESS; historical v4 remains unbound historical data)
 - G8-A: v5 official capture + independent verification complete / verified evidence candidate; same-SHA user visual validation pending
-- G8-B: five-scenario shared fixture + Windows Gallery + headless selection implementation candidate; Scenario 1 Sand Fall USER ACCEPTED, Scenario 2–5 UNACCEPTED; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
+- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenario 1 Sand Fall USER ACCEPTED, Scenario 2–5 UNACCEPTED; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
+- Sand Fall Experiment Harness v0: stacked `feature/g8b-experiment-harness-v0` implementation candidate; pilot run and final checkpoint checks **PENDING**
 - G8-C: official matrix measurement not started
-- Current repository line: `feature/m0-g8b-scenario-suite`, based on tested local `integration/canonical-recovery`; publication/promotion and Gate closure require explicit user direction
+- Current repository line: `feature/g8b-experiment-harness-v0`, stacked on `feature/m0-g8b-scenario-suite` checkpoint `e77d102`; publication/promotion and Gate closure require explicit user direction
 
 ## Windows
 
@@ -44,6 +45,20 @@ The Gallery uses one shared scenario source with the headless harness and starts
 Gallery rendering, HUD, wall-clock TPS, and bounded activity-census readback are inspection diagnostics outside official timing. They are not G8-C performance evidence.
 
 Scenario 1 Sand Fall is user accepted. Complete settling followed by all chunks sleeping is its intended successful outcome; do not retune it to manufacture perpetual activity. Scenario 2–5 remain unaccepted. Water Flow inspection or modification is outside the current checkpoint task.
+
+## Run the pending Sand Fall experiment pilot
+
+From a clean named Harness source branch:
+
+```bat
+run_experiment.bat sand-fall
+```
+
+The runner accepts only Sand Fall and writes each unique run beneath `C:\Users\mdkap\source\Powdergame-artifacts`. It refuses dirty/detached source and existing output paths. `EXPERIMENT_RECEIPT.json` is written last; its absence means the preserved run is incomplete and must not be repaired or reused.
+
+The run records raw stdout/stderr, telemetry samples/events, worker analysis, 6–10 semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert ChatGPT review prompt, review packet, and SHA-256 inventory outside Git. An automatic `PASS` means the seven hard Sand Fall predicates passed for that run; it does not close G8-B or establish Water Flow/G8-C evidence.
+
+This command has not yet produced the documented pilot. Do not claim a run ID, receipt, verdict, or final checkpoint result until the external artifacts exist and are checked. See `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`.
 
 ## Select a headless fixture
 

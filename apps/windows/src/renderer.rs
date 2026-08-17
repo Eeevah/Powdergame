@@ -96,6 +96,112 @@ pub struct Renderer {
     text_renderer: Option<crate::text_renderer::TextRenderer>,
 }
 
+/// CPU-owned RGBA8 pixels captured from the exact renderer draw path.
+#[allow(dead_code)] // Used by the automated capture worker when that mode is linked.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CapturedFrame {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CaptureChannelOrder {
+    Rgba,
+    Bgra,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct CaptureLayout {
+    unpadded_bytes_per_row: u32,
+    padded_bytes_per_row: u32,
+    buffer_size: u64,
+    channel_order: CaptureChannelOrder,
+}
+
+fn capture_layout(width: u32, height: u32, format: TextureFormat) -> Result<CaptureLayout, String> {
+    if width == 0 || height == 0 {
+        return Err(format!(
+            "capture dimensions must be nonzero, got {width}x{height}"
+        ));
+    }
+    let channel_order = match format {
+        TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => CaptureChannelOrder::Rgba,
+        TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => CaptureChannelOrder::Bgra,
+        _ => return Err(format!("unsupported capture texture format: {format:?}")),
+    };
+    let unpadded_bytes_per_row = width
+        .checked_mul(4)
+        .ok_or_else(|| format!("capture row byte count overflows for width {width}"))?;
+    let alignment = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let padded_bytes_per_row = unpadded_bytes_per_row
+        .checked_add(alignment - 1)
+        .ok_or_else(|| format!("capture row alignment overflows for width {width}"))?
+        / alignment
+        * alignment;
+    let buffer_size = u64::from(padded_bytes_per_row)
+        .checked_mul(u64::from(height))
+        .ok_or_else(|| format!("capture buffer size overflows for {width}x{height}"))?;
+    Ok(CaptureLayout {
+        unpadded_bytes_per_row,
+        padded_bytes_per_row,
+        buffer_size,
+        channel_order,
+    })
+}
+
+fn captured_bytes_to_rgba(
+    mapped: &[u8],
+    width: u32,
+    height: u32,
+    layout: CaptureLayout,
+) -> Result<Vec<u8>, String> {
+    let expected_mapped_len = usize::try_from(layout.buffer_size)
+        .map_err(|_| "capture buffer is too large for this platform".to_string())?;
+    if mapped.len() < expected_mapped_len {
+        return Err(format!(
+            "capture buffer is truncated: expected at least {expected_mapped_len} bytes, got {}",
+            mapped.len()
+        ));
+    }
+    let rgba_len = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .and_then(|bytes| usize::try_from(bytes).ok())
+        .ok_or_else(|| format!("capture RGBA size overflows for {width}x{height}"))?;
+    let row_bytes = usize::try_from(layout.unpadded_bytes_per_row)
+        .map_err(|_| "capture row is too large for this platform".to_string())?;
+    let padded_row_bytes = usize::try_from(layout.padded_bytes_per_row)
+        .map_err(|_| "padded capture row is too large for this platform".to_string())?;
+    let mut rgba = Vec::with_capacity(rgba_len);
+    for row in 0..height as usize {
+        let start = row
+            .checked_mul(padded_row_bytes)
+            .ok_or_else(|| "capture row offset overflows".to_string())?;
+        let end = start
+            .checked_add(row_bytes)
+            .ok_or_else(|| "capture row end overflows".to_string())?;
+        let source = mapped
+            .get(start..end)
+            .ok_or_else(|| format!("capture row {row} is outside the mapped buffer"))?;
+        match layout.channel_order {
+            CaptureChannelOrder::Rgba => rgba.extend_from_slice(source),
+            CaptureChannelOrder::Bgra => {
+                for pixel in source.chunks_exact(4) {
+                    rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+                }
+            }
+        }
+    }
+    if rgba.len() != rgba_len {
+        return Err(format!(
+            "capture RGBA length mismatch: expected {rgba_len}, got {}",
+            rgba.len()
+        ));
+    }
+    Ok(rgba)
+}
+
 /// Clear color for the empty G0 world frame (a dim slate blue).
 const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     r: 0.02,
@@ -827,91 +933,185 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("powdergame-render-encoder"),
             });
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("powdergame-present-pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(CLEAR_COLOR),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            if let Some(wv) = &self.world_view {
-                render_pass.set_pipeline(&wv.pipeline);
-                render_pass.set_bind_group(0, &wv.bind_group, &[]);
-                render_pass.draw(0..3, 0..1);
-            }
-            if let (Some(tr), Some(hud)) = (&mut self.text_renderer, hud_data) {
-                match hud {
-                    HudData::Thermal(metrics, sim_ticks) => {
-                        tr.render_thermal_hud(
-                            &self.device,
-                            &self.queue,
-                            &mut render_pass,
-                            self.config.width,
-                            self.config.height,
-                            metrics,
-                            sim_ticks,
-                        );
-                    }
-                    HudData::Pressure(metrics, sim_ticks) => {
-                        tr.render_pressure_hud(
-                            &self.device,
-                            &self.queue,
-                            &mut render_pass,
-                            self.config.width,
-                            self.config.height,
-                            metrics,
-                            sim_ticks,
-                        );
-                    }
-                    HudData::ParallelIntegrity(metrics, sim_ticks) => {
-                        tr.render_parallel_integrity_hud(
-                            &self.device,
-                            &self.queue,
-                            &mut render_pass,
-                            self.config.width,
-                            self.config.height,
-                            metrics,
-                            sim_ticks,
-                        );
-                    }
-                    HudData::Activity(metrics, sim_ticks) => {
-                        tr.render_activity_hud(
-                            &self.device,
-                            &self.queue,
-                            &mut render_pass,
-                            self.config.width,
-                            self.config.height,
-                            metrics,
-                            sim_ticks,
-                        );
-                    }
-                    HudData::Gallery(data) => {
-                        tr.render_gallery_hud(
-                            &self.device,
-                            &self.queue,
-                            &mut render_pass,
-                            self.config.width,
-                            self.config.height,
-                            data,
-                        );
-                    }
-                }
-            }
-            drop(render_pass);
-        }
+        self.encode_frame(&mut encoder, &view, hud_data);
 
         self.queue.submit([encoder.finish()]);
         frame.present();
         Ok(())
+    }
+
+    /// Draws the complete renderer frame into an offscreen texture and reads
+    /// it back as tightly packed, top-to-bottom RGBA8 pixels. The surface
+    /// configuration and usage remain unchanged.
+    #[allow(dead_code)] // Public integration point for the capture worker.
+    pub fn capture_full_frame(
+        &mut self,
+        hud_data: Option<HudData<'_>>,
+    ) -> Result<CapturedFrame, GpuError> {
+        let width = self.config.width;
+        let height = self.config.height;
+        let format = self.config.format;
+        let layout = capture_layout(width, height, format).map_err(GpuError::ReadbackFailed)?;
+        let extent = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("powdergame-full-frame-capture-texture"),
+            size: extent,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("powdergame-full-frame-capture-readback"),
+            size: layout.buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("powdergame-full-frame-capture-encoder"),
+            });
+        self.encode_frame(&mut encoder, &view, hud_data);
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(layout.padded_bytes_per_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            extent,
+        );
+        self.queue.submit([encoder.finish()]);
+
+        let slice = readback.slice(..);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+        self.device.poll(wgpu::PollType::Wait).map_err(|error| {
+            GpuError::ReadbackFailed(format!("capture GPU wait failed: {error}"))
+        })?;
+        receiver
+            .recv()
+            .map_err(|error| {
+                GpuError::ReadbackFailed(format!("capture map callback lost: {error}"))
+            })?
+            .map_err(|error| GpuError::ReadbackFailed(error.to_string()))?;
+
+        let mapped = slice.get_mapped_range();
+        let rgba_result = captured_bytes_to_rgba(&mapped, width, height, layout);
+        drop(mapped);
+        readback.unmap();
+        let rgba = rgba_result.map_err(GpuError::ReadbackFailed)?;
+        Ok(CapturedFrame {
+            width,
+            height,
+            rgba,
+        })
+    }
+
+    /// Encodes the one authoritative presentation draw body shared by the
+    /// window surface and offscreen full-frame capture.
+    fn encode_frame(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        hud_data: Option<HudData<'_>>,
+    ) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("powdergame-present-pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        if let Some(wv) = &self.world_view {
+            render_pass.set_pipeline(&wv.pipeline);
+            render_pass.set_bind_group(0, &wv.bind_group, &[]);
+            render_pass.draw(0..3, 0..1);
+        }
+        if let (Some(tr), Some(hud)) = (&mut self.text_renderer, hud_data) {
+            match hud {
+                HudData::Thermal(metrics, sim_ticks) => {
+                    tr.render_thermal_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        metrics,
+                        sim_ticks,
+                    );
+                }
+                HudData::Pressure(metrics, sim_ticks) => {
+                    tr.render_pressure_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        metrics,
+                        sim_ticks,
+                    );
+                }
+                HudData::ParallelIntegrity(metrics, sim_ticks) => {
+                    tr.render_parallel_integrity_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        metrics,
+                        sim_ticks,
+                    );
+                }
+                HudData::Activity(metrics, sim_ticks) => {
+                    tr.render_activity_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        metrics,
+                        sim_ticks,
+                    );
+                }
+                HudData::Gallery(data) => {
+                    tr.render_gallery_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        data,
+                    );
+                }
+            }
+        }
     }
 
     /// The surface format in use (useful for diagnostics).
@@ -1148,4 +1348,53 @@ fn write_world_view_params(
     };
     data[24..28].copy_from_slice(&chunks_x.to_ne_bytes());
     queue.write_buffer(&wv.params, 0, &data);
+}
+
+#[cfg(test)]
+mod capture_tests {
+    use super::*;
+
+    #[test]
+    fn renderer_capture_unpads_rgba_rows() {
+        let layout = capture_layout(3, 2, TextureFormat::Rgba8Unorm).unwrap();
+        assert_eq!(layout.unpadded_bytes_per_row, 12);
+        assert_eq!(layout.padded_bytes_per_row, 256);
+        assert_eq!(layout.buffer_size, 512);
+
+        let mut mapped = vec![0xEE; layout.buffer_size as usize];
+        mapped[..12].copy_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        mapped[256..268].copy_from_slice(&[21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]);
+
+        let rgba = captured_bytes_to_rgba(&mapped, 3, 2, layout).unwrap();
+        assert_eq!(
+            rgba,
+            [
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                32,
+            ]
+        );
+    }
+
+    #[test]
+    fn renderer_capture_swizzles_bgra_to_rgba() {
+        let layout = capture_layout(2, 1, TextureFormat::Bgra8UnormSrgb).unwrap();
+        let mut mapped = vec![0; layout.buffer_size as usize];
+        mapped[..8].copy_from_slice(&[3, 2, 1, 4, 30, 20, 10, 40]);
+
+        assert_eq!(
+            captured_bytes_to_rgba(&mapped, 2, 1, layout).unwrap(),
+            [1, 2, 3, 4, 10, 20, 30, 40]
+        );
+    }
+
+    #[test]
+    fn renderer_capture_rejects_invalid_layouts_and_truncated_input() {
+        assert!(capture_layout(0, 1, TextureFormat::Rgba8Unorm).is_err());
+        assert!(capture_layout(1, 0, TextureFormat::Rgba8Unorm).is_err());
+        assert!(capture_layout(u32::MAX, 1, TextureFormat::Rgba8Unorm).is_err());
+        assert!(capture_layout(1, 1, TextureFormat::R8Unorm).is_err());
+
+        let layout = capture_layout(1, 2, TextureFormat::Rgba8UnormSrgb).unwrap();
+        assert!(captured_bytes_to_rgba(&[0; 511], 1, 2, layout).is_err());
+    }
 }

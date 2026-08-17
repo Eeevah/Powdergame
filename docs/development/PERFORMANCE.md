@@ -553,6 +553,27 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - 기본 `calibration`은 기존 `powdergame-g8a-v5`, `g8a-*`, `target/calibration_report.csv` 계약을 유지한다. shared fixture는 같은 CSV column shape에서 `powdergame-g8b-fixture-v1`, `g8b-<slug>-*`, `target/<slug>_report.csv`로 identity와 기본 output을 분리한다.
 - 이 구현은 scenario 반복 가능성과 관찰 surface를 제공할 뿐이다. official G8-C throughput/render/coexistence matrix, bottleneck 결정, 숫자 budget은 별도 단계다.
 
+### Sand Fall Experiment Evidence Harness v0
+
+`feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 사용자 승인된 Sand Fall을 대상으로, `feature/g8b-experiment-harness-v0`가 lifecycle evidence runner를 제공한다. 이 runner는 performance benchmark가 아니라 accepted fixture의 실제 낙하, Matter/field integrity, sleep convergence, post-sleep stability, exact reset을 기록하는 out-of-band experiment다.
+
+```bat
+run_experiment.bat sand-fall
+```
+
+- only `sand-fall`; 256×256×64; production `Simulation::tick`; shared pristine staging
+- diagnostic simulation tick과 sample sequence를 별도 기록
+- all-sleep 조건을 3회 연속 sample에서 확인하고 이후 180 production tick 동안 change/wake를 매 tick 검사
+- renderer와 같은 draw path에서 6–10 semantic full frames를 캡처하고 crop/contact sheet는 full PNG에서만 파생
+- `C:\Users\mdkap\source\Powdergame-artifacts\<unique-run-id>` create-new/no-overwrite publication
+- raw stdout/stderr, samples/events JSONL, analysis/frame manifests, raw RGBA, PNG, report, prompt, packet, SHA-256 inventory 보존
+- `EXPERIMENT_RECEIPT.json` final write; receipt absence = incomplete preserved run; failed ID reuse 금지
+- 모든 generated artifact는 Git 밖에 유지
+
+Automatic `PASS`는 actual fall, Matter conservation, zero invalid Material, zero non-finite field, sleep before max, zero post-sleep change/wake, exact reset의 일곱 hard predicate가 모두 참이라는 run-local 판정이다. Scenario 2–5 user acceptance, G8-B closure, official G8-C performance, bottleneck decision을 의미하지 않는다.
+
+현재 Harness는 implementation candidate이며 pilot과 final checkpoint checks는 pending이다. 따라서 run ID, receipt, verdict, performance 결과를 아직 기록하지 않는다. 자세한 lifecycle과 artifact 계약은 `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`를 따른다.
+
 ---
 
 ## 20. M0 Performance Gate

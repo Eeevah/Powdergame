@@ -16,7 +16,7 @@ Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder
 
 G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`의 official capture와 독립 검증을 완료한 verified evidence candidate다. 같은 SHA의 user visual validation은 아직 pending이며, 기존 v4 timing CSV는 source/binary 실행 연결과 raw census가 없는 historical data로만 보존한다.
 
-`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했지만 Scenario 2~5는 아직 승인되지 않았다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 G8-C official matrix는 시작하지 않았다. 이 candidate는 production physics, Material, G9, 최적화를 추가하지 않는다.
+`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했지만 Scenario 2~5는 아직 승인되지 않았다. Sand Fall Experiment Harness v0는 `feature/g8b-experiment-harness-v0`에 stacked된 implementation candidate이며 pilot과 final checkpoint 검증은 아직 pending이다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 G8-C official matrix는 시작하지 않았다. 이 candidate는 production physics, Material, G9, 최적화를 추가하지 않는다.
 
 ## 현재 공식 개발 경로
 
@@ -53,6 +53,18 @@ cargo run --release -p powdergame-benchmark -- --scenario sand-fall
 ```
 
 Windows Gallery의 렌더링, HUD, wall-clock TPS, bounded diagnostic census/readback은 사람이 fixture를 관찰하기 위한 정보다. 이 값은 official benchmark timing이 아니며 G8-C evidence로 사용하지 않는다. 세부 계약과 현재 미완료 항목은 [`docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`](docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md)를 따른다.
+
+## Sand Fall Experiment Harness v0
+
+승인된 Sand Fall의 낙하 → 정착 → all-sleep → post-sleep 안정 → exact reset lifecycle을 하나의 외부 evidence run으로 기록하는 one-command runner가 implementation candidate로 준비되어 있다.
+
+```bat
+run_experiment.bat sand-fall
+```
+
+각 run은 `C:\Users\mdkap\source\Powdergame-artifacts\<unique-run-id>`에만 생성된다. 기존 경로를 덮어쓰지 않으며 `EXPERIMENT_RECEIPT.json`이 마지막에 생성된 run만 structurally complete하다. 로그, telemetry JSONL, raw RGBA, full/crop PNG, report, contact sheet, local review prompt, review packet, hash manifest는 모두 저장소 밖에 남고 Git에 추가하지 않는다.
+
+일곱 hard predicate가 모두 참이면 runner는 자동 `PASS`를 기록한다. 이것은 Sand Fall run의 자동 판정일 뿐 G8-B closure, 남은 Scenario 2–5 승인, Water Flow, 또는 G8-C 성능 증거가 아니다. 현재 pilot run과 final checkpoint 검증은 **PENDING**이다. 전체 계약은 [`docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`](docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md)에 기록한다.
 
 ## 핵심 엔진 철학
 

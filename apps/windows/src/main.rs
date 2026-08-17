@@ -40,6 +40,7 @@
 //!
 //! The Simulation runs headless; the Renderer only reads/presents.
 
+mod experiment;
 mod gallery;
 mod observatory;
 mod renderer;
@@ -47,6 +48,7 @@ mod text_renderer;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::{path::PathBuf, process};
 
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
@@ -54,6 +56,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
+use experiment::{run_sand_fall_experiment, ExperimentWorkerConfig, EXPERIMENT_ID};
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
 };
@@ -289,10 +292,16 @@ struct App {
     demo_mode: DemoMode,
     demo: Option<DemoState>,
     gallery_provenance: Option<RuntimeProvenance>,
+    experiment: Option<ExperimentWorkerConfig>,
+    fatal_error: Option<String>,
 }
 
 impl App {
-    fn new(smoke_frames: Option<u32>, demo_mode: DemoMode) -> Self {
+    fn new(
+        smoke_frames: Option<u32>,
+        demo_mode: DemoMode,
+        experiment: Option<ExperimentWorkerConfig>,
+    ) -> Self {
         Self {
             window: None,
             simulation: None,
@@ -303,6 +312,8 @@ impl App {
             demo_mode,
             demo: None,
             gallery_provenance: None,
+            experiment,
+            fatal_error: None,
         }
     }
 
@@ -329,13 +340,19 @@ impl App {
         } else {
             (1280.0, 720.0)
         };
+        let window_attributes = if self.experiment.is_some() {
+            winit::window::WindowAttributes::default()
+                .with_title(base_title)
+                .with_inner_size(winit::dpi::PhysicalSize::new(1600, 900))
+                .with_visible(false)
+        } else {
+            winit::window::WindowAttributes::default()
+                .with_title(base_title)
+                .with_inner_size(winit::dpi::LogicalSize::new(window_w, window_h))
+        };
         let window = Arc::new(
             event_loop
-                .create_window(
-                    winit::window::WindowAttributes::default()
-                        .with_title(base_title)
-                        .with_inner_size(winit::dpi::LogicalSize::new(window_w, window_h)),
-                )
+                .create_window(window_attributes)
                 .map_err(|e| GpuError::Other(format!("window create failed: {e}")))?,
         );
 
@@ -426,14 +443,20 @@ impl App {
                 println!("[powdergame] activity demo: shared ActiveSleepG7 fixture staged");
             }
             DemoMode::Gallery => {
-                let initial = GalleryState::new().scenario();
-                reset_and_stage_scenario(&mut simulation, initial).map_err(|error| {
-                    GpuError::Other(format!("shared Gallery staging failed: {error}"))
-                })?;
-                println!(
-                    "[powdergame] G8-B Gallery: scenario 1/6 {} staged through shared benchmark fixture",
-                    initial.name()
-                );
+                if self.experiment.is_none() {
+                    let initial = GalleryState::new().scenario();
+                    reset_and_stage_scenario(&mut simulation, initial).map_err(|error| {
+                        GpuError::Other(format!("shared Gallery staging failed: {error}"))
+                    })?;
+                    println!(
+                        "[powdergame] G8-B Gallery: scenario 1/6 {} staged through shared benchmark fixture",
+                        initial.name()
+                    );
+                } else {
+                    println!(
+                        "[powdergame][experiment] worker owns the pristine shared Sand Fall reset/stage"
+                    );
+                }
             }
         }
 
@@ -456,7 +479,7 @@ impl App {
                 .then_some(&simulation.world.chunk_activity),
             chunk_size: simulation.world.config.chunk_size,
         });
-        let renderer = Renderer::new(
+        let mut renderer = Renderer::new(
             &simulation.context.instance,
             &simulation.context.adapter,
             &simulation.context.device,
@@ -465,6 +488,43 @@ impl App {
             world_view,
         )?;
         println!("[powdergame] surface format: {:?}", renderer.format());
+
+        if let Some(config) = self.experiment.as_ref() {
+            let provenance = RuntimeProvenance::from_build();
+            println!(
+                "[powdergame][experiment] starting experiment_id={} run_id={} source_sha={} git_state={} build_profile={}",
+                config.experiment_id,
+                config.run_id,
+                provenance.source_sha,
+                provenance.git_state.as_str(),
+                provenance.build_profile
+            );
+            let outcome =
+                run_sand_fall_experiment(&mut simulation, &mut renderer, &provenance, config)
+                    .map_err(|error| {
+                        GpuError::Other(format!("experiment worker failed: {error}"))
+                    })?;
+            println!(
+                "[powdergame][experiment] completed run_id={} verdict={} samples={} raw_frames={} first_all_sleep_sim_tick={} first_all_sleep_diagnostic_sample_tick={}",
+                outcome.run_id,
+                outcome.verdict.as_str(),
+                outcome.sample_count,
+                outcome.raw_frame_count,
+                outcome
+                    .first_all_sleep_sim_tick
+                    .map_or_else(|| "null".to_string(), |value| value.to_string()),
+                outcome
+                    .first_all_sleep_sample_sequence
+                    .map_or_else(|| "null".to_string(), |value| value.to_string())
+            );
+            self.window = Some(window);
+            self.simulation = Some(simulation);
+            self.renderer = Some(renderer);
+            self.observatory_collector = observatory_collector;
+            event_loop.exit();
+            return Ok(());
+        }
+
         if self.demo_mode != DemoMode::None {
             // Interactive sessions start PAUSED so the initial scene is fully
             // visible; bounded smoke runs start PLAYING to exercise ticks.
@@ -1729,7 +1789,11 @@ impl ApplicationHandler for App {
         }
         if let Err(e) = self.init(event_loop) {
             eprintln!("[powdergame] FATAL: {e}");
+            self.fatal_error = Some(e.to_string());
             event_loop.exit();
+            return;
+        }
+        if self.experiment.is_some() {
             return;
         }
         if let Some(window) = &self.window {
@@ -1943,15 +2007,167 @@ where
     DemoMode::None
 }
 
+fn experiment_worker_from_args<I, S>(args: I) -> Result<Option<ExperimentWorkerConfig>, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let args: Vec<String> = args
+        .into_iter()
+        .map(|value| value.as_ref().to_string())
+        .collect();
+    let worker_requested = args.iter().any(|arg| arg == "--experiment-worker");
+    let experiment_option_present = args.iter().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--experiment-run-dir"
+                | "--experiment-run-id"
+                | "--binary-sha256"
+                | "--max-ticks"
+                | "--diagnostic-interval"
+                | "--consecutive-all-sleep"
+                | "--post-sleep-ticks"
+        )
+    });
+    if !worker_requested {
+        if experiment_option_present {
+            return Err("experiment options require '--experiment-worker sand-fall'".to_string());
+        }
+        return Ok(None);
+    }
+
+    let mut scenario = None;
+    let mut run_dir = None;
+    let mut run_id = None;
+    let mut binary_sha256 = None;
+    let mut max_ticks = None;
+    let mut diagnostic_interval_ticks = None;
+    let mut consecutive_all_sleep = None;
+    let mut post_sleep_ticks = None;
+    let mut index = 0usize;
+    while index < args.len() {
+        let option = &args[index];
+        index += 1;
+        let value = |index: &mut usize| -> Result<String, String> {
+            let value = args
+                .get(*index)
+                .ok_or_else(|| format!("missing value for {option}"))?
+                .clone();
+            *index += 1;
+            Ok(value)
+        };
+        match option.as_str() {
+            "--experiment-worker" => {
+                if scenario.is_some() {
+                    return Err("duplicate --experiment-worker".to_string());
+                }
+                let selected = value(&mut index)?;
+                if selected != "sand-fall" {
+                    return Err(format!(
+                        "experiment worker supports only 'sand-fall', got '{selected}'"
+                    ));
+                }
+                scenario = Some(ScenarioId::SandFall);
+            }
+            "--experiment-run-dir" => {
+                if run_dir.is_some() {
+                    return Err("duplicate --experiment-run-dir".to_string());
+                }
+                run_dir = Some(PathBuf::from(value(&mut index)?));
+            }
+            "--experiment-run-id" => {
+                if run_id.is_some() {
+                    return Err("duplicate --experiment-run-id".to_string());
+                }
+                run_id = Some(value(&mut index)?);
+            }
+            "--binary-sha256" => {
+                if binary_sha256.is_some() {
+                    return Err("duplicate --binary-sha256".to_string());
+                }
+                binary_sha256 = Some(value(&mut index)?);
+            }
+            "--max-ticks" => {
+                if max_ticks.is_some() {
+                    return Err("duplicate --max-ticks".to_string());
+                }
+                let raw = value(&mut index)?;
+                max_ticks = Some(
+                    raw.parse::<u64>()
+                        .map_err(|error| format!("invalid --max-ticks '{raw}': {error}"))?,
+                );
+            }
+            "--diagnostic-interval" => {
+                if diagnostic_interval_ticks.is_some() {
+                    return Err("duplicate --diagnostic-interval".to_string());
+                }
+                let raw = value(&mut index)?;
+                diagnostic_interval_ticks =
+                    Some(raw.parse::<u64>().map_err(|error| {
+                        format!("invalid --diagnostic-interval '{raw}': {error}")
+                    })?);
+            }
+            "--consecutive-all-sleep" => {
+                if consecutive_all_sleep.is_some() {
+                    return Err("duplicate --consecutive-all-sleep".to_string());
+                }
+                let raw = value(&mut index)?;
+                consecutive_all_sleep = Some(raw.parse::<u32>().map_err(|error| {
+                    format!("invalid --consecutive-all-sleep '{raw}': {error}")
+                })?);
+            }
+            "--post-sleep-ticks" => {
+                if post_sleep_ticks.is_some() {
+                    return Err("duplicate --post-sleep-ticks".to_string());
+                }
+                let raw = value(&mut index)?;
+                post_sleep_ticks = Some(
+                    raw.parse::<u32>()
+                        .map_err(|error| format!("invalid --post-sleep-ticks '{raw}': {error}"))?,
+                );
+            }
+            _ => {
+                return Err(format!("unknown experiment worker argument '{option}'"));
+            }
+        }
+    }
+
+    Ok(Some(ExperimentWorkerConfig {
+        experiment_id: EXPERIMENT_ID.to_string(),
+        run_id: run_id.ok_or_else(|| "missing --experiment-run-id".to_string())?,
+        run_dir: run_dir.ok_or_else(|| "missing --experiment-run-dir".to_string())?,
+        scenario: scenario.expect("worker marker was observed"),
+        binary_sha256: binary_sha256.ok_or_else(|| "missing --binary-sha256".to_string())?,
+        max_ticks: max_ticks.ok_or_else(|| "missing --max-ticks".to_string())?,
+        diagnostic_interval_ticks: diagnostic_interval_ticks
+            .ok_or_else(|| "missing --diagnostic-interval".to_string())?,
+        consecutive_all_sleep: consecutive_all_sleep
+            .ok_or_else(|| "missing --consecutive-all-sleep".to_string())?,
+        post_sleep_ticks: post_sleep_ticks
+            .ok_or_else(|| "missing --post-sleep-ticks".to_string())?,
+    }))
+}
+
 fn main() {
     let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .try_init();
 
+    let experiment = match experiment_worker_from_args(std::env::args().skip(1)) {
+        Ok(experiment) => experiment,
+        Err(error) => {
+            eprintln!("[powdergame][experiment] argument error: {error}");
+            process::exit(2);
+        }
+    };
     let smoke_frames = parse_smoke_frames();
     if let Some(n) = smoke_frames {
         println!("[powdergame] smoke run: will exit after {n} frames");
     }
-    let demo_mode = parse_demo_mode();
+    let demo_mode = if experiment.is_some() {
+        DemoMode::Gallery
+    } else {
+        parse_demo_mode()
+    };
     match demo_mode {
         DemoMode::Movement => println!(
             "[powdergame] movement demo: 128×128 stylized-forest scene, \
@@ -1989,17 +2205,71 @@ fn main() {
     }
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
-    let mut app = App::new(smoke_frames, demo_mode);
-    event_loop.run_app(&mut app).expect("event loop failed");
+    let mut app = App::new(smoke_frames, demo_mode, experiment);
+    if let Err(error) = event_loop.run_app(&mut app) {
+        eprintln!("[powdergame] event loop failed: {error}");
+        process::exit(1);
+    }
+    if let Some(error) = app.fatal_error {
+        eprintln!("[powdergame] incomplete run: {error}");
+        process::exit(1);
+    }
     println!("[powdergame] exited cleanly");
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{demo_mode_from_args, DemoMode, DemoState};
+    use super::{demo_mode_from_args, experiment_worker_from_args, DemoMode, DemoState};
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
     use powdergame_gpu::{ActivityCensusReport, Simulation};
     use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
+
+    #[test]
+    fn experiment_worker_cli_is_strict_and_complete() {
+        let run_dir = r"C:\outside\sand-run";
+        let hash = "a".repeat(64);
+        let args = vec![
+            "--experiment-worker".to_string(),
+            "sand-fall".to_string(),
+            "--experiment-run-dir".to_string(),
+            run_dir.to_string(),
+            "--experiment-run-id".to_string(),
+            "g8b-sand-fall-v0-test".to_string(),
+            "--binary-sha256".to_string(),
+            hash.clone(),
+            "--max-ticks".to_string(),
+            "20000".to_string(),
+            "--diagnostic-interval".to_string(),
+            "8".to_string(),
+            "--consecutive-all-sleep".to_string(),
+            "3".to_string(),
+            "--post-sleep-ticks".to_string(),
+            "180".to_string(),
+        ];
+        let parsed = experiment_worker_from_args(args)
+            .expect("valid worker arguments")
+            .expect("worker selected");
+        assert_eq!(parsed.scenario, ScenarioId::SandFall);
+        assert_eq!(parsed.run_dir.to_string_lossy(), run_dir);
+        assert_eq!(parsed.run_id, "g8b-sand-fall-v0-test");
+        assert_eq!(parsed.binary_sha256, hash);
+        assert_eq!(parsed.max_ticks, 20_000);
+        assert_eq!(parsed.diagnostic_interval_ticks, 8);
+        assert_eq!(parsed.consecutive_all_sleep, 3);
+        assert_eq!(parsed.post_sleep_ticks, 180);
+    }
+
+    #[test]
+    fn experiment_worker_cli_rejects_missing_unknown_and_non_sand_modes() {
+        assert!(experiment_worker_from_args(["--experiment-run-id", "orphan"]).is_err());
+        assert!(experiment_worker_from_args(["--experiment-worker", "water-flow"]).is_err());
+        assert!(
+            experiment_worker_from_args(["--experiment-worker", "sand-fall", "--unknown"]).is_err()
+        );
+        assert!(experiment_worker_from_args(["--benchmark-gallery"])
+            .expect("non-worker arguments are unchanged")
+            .is_none());
+    }
 
     /// G7-A actual-fixture long-run correctness validation (RTX 5090 / DX12).
     /// Uses the shared `ActiveSleepG7` geometry with 3000+ production

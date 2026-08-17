@@ -754,14 +754,18 @@ impl Simulation {
         let params = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g3/movement/params"),
             size: PARAMS_SIZE,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let wake_params = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g7b/activity/wake-params"),
             size: WAKE_PARAMS_SIZE,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
@@ -985,7 +989,9 @@ impl Simulation {
         let arbitration_params = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g6/arbitration/params"),
             size: ARBITRATION_PARAMS_SIZE,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 

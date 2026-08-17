@@ -272,13 +272,17 @@ impl GpuWorld {
             device,
             "world/proposal",
             layout.material_bytes,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
         )?;
         let claim = create_zeroed_buffer(
             device,
             "world/claim",
             layout.material_bytes,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
         )?;
 
         // G7-A activity diagnostics (measurement baseline; no dispatch is

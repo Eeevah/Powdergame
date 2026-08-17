@@ -842,15 +842,295 @@ pub fn evaluate_pressure_observatory_state(
     }
 }
 
+const WORLD_READBACK_IDS: [ReadbackBufferId; 4] = [
+    ReadbackBufferId::Material,
+    ReadbackBufferId::Temperature,
+    ReadbackBufferId::Flags,
+    ReadbackBufferId::Pressure,
+];
+
+const ACTIVITY_READBACK_IDS: [ReadbackBufferId; 5] = [
+    ReadbackBufferId::ChunkActivity,
+    ReadbackBufferId::ChunkChanged,
+    ReadbackBufferId::ChunkStable,
+    ReadbackBufferId::ChunkState,
+    ReadbackBufferId::ChunkWakeReason,
+];
+
+const ALL_ASYNC_READBACK_IDS: [ReadbackBufferId; 9] = [
+    ReadbackBufferId::Material,
+    ReadbackBufferId::Temperature,
+    ReadbackBufferId::Flags,
+    ReadbackBufferId::Pressure,
+    ReadbackBufferId::ChunkActivity,
+    ReadbackBufferId::ChunkChanged,
+    ReadbackBufferId::ChunkStable,
+    ReadbackBufferId::ChunkState,
+    ReadbackBufferId::ChunkWakeReason,
+];
+
+/// Stable identity for every buffer participating in an Observatory readback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReadbackBufferId {
+    Material,
+    Temperature,
+    Flags,
+    Pressure,
+    ChunkActivity,
+    ChunkChanged,
+    ChunkStable,
+    ChunkState,
+    ChunkWakeReason,
+}
+
+impl ReadbackBufferId {
+    const fn bit(self) -> u16 {
+        1 << (self as u16)
+    }
+}
+
+impl std::fmt::Display for ReadbackBufferId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::Material => "material",
+            Self::Temperature => "temperature",
+            Self::Flags => "flags",
+            Self::Pressure => "pressure",
+            Self::ChunkActivity => "chunk-activity",
+            Self::ChunkChanged => "chunk-changed",
+            Self::ChunkStable => "chunk-stable",
+            Self::ChunkState => "chunk-state",
+            Self::ChunkWakeReason => "chunk-wake-reason",
+        };
+        formatter.write_str(name)
+    }
+}
+
+/// Structured error returned to the demo runtime when a diagnostic readback
+/// cannot be completed without risking a partial or stale mapped snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ObservatoryReadbackError {
+    DuplicateCallback {
+        operation: &'static str,
+        buffer: ReadbackBufferId,
+    },
+    UnknownBuffer {
+        operation: &'static str,
+        buffer: ReadbackBufferId,
+    },
+    MapFailed {
+        operation: &'static str,
+        buffer: ReadbackBufferId,
+        message: String,
+    },
+    CallbackChannelDisconnected {
+        operation: &'static str,
+        missing: Vec<ReadbackBufferId>,
+    },
+    IncompleteAfterPoll {
+        operation: &'static str,
+        missing: Vec<ReadbackBufferId>,
+    },
+    DevicePollFailed {
+        operation: &'static str,
+        message: String,
+    },
+    ReadbackAlreadyPending {
+        operation: &'static str,
+    },
+}
+
+impl std::fmt::Display for ObservatoryReadbackError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DuplicateCallback { operation, buffer } => {
+                write!(formatter, "{operation}: duplicate callback for {buffer}")
+            }
+            Self::UnknownBuffer { operation, buffer } => {
+                write!(
+                    formatter,
+                    "{operation}: callback for unknown buffer {buffer}"
+                )
+            }
+            Self::MapFailed {
+                operation,
+                buffer,
+                message,
+            } => write!(formatter, "{operation}: map failed for {buffer}: {message}"),
+            Self::CallbackChannelDisconnected { operation, missing } => write!(
+                formatter,
+                "{operation}: callback channel disconnected with buffers still missing: {missing:?}"
+            ),
+            Self::IncompleteAfterPoll { operation, missing } => write!(
+                formatter,
+                "{operation}: blocking poll returned before callbacks completed: {missing:?}"
+            ),
+            Self::DevicePollFailed { operation, message } => {
+                write!(formatter, "{operation}: device poll failed: {message}")
+            }
+            Self::ReadbackAlreadyPending { operation } => {
+                write!(
+                    formatter,
+                    "{operation}: a readback batch is already pending"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ObservatoryReadbackError {}
+
+#[derive(Debug)]
+struct ReadbackCallback {
+    buffer: ReadbackBufferId,
+    result: Result<(), String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReadbackBatchProgress {
+    Pending,
+    Ready,
+}
+
+/// Tracks one exact set of callbacks. A batch is readable only after every
+/// expected buffer has returned one successful callback.
+#[derive(Debug)]
+struct PendingReadbackBatch {
+    operation: &'static str,
+    tick: u64,
+    expected_mask: u16,
+    completed_mask: u16,
+    receiver: std::sync::mpsc::Receiver<ReadbackCallback>,
+}
+
+impl PendingReadbackBatch {
+    fn new(
+        operation: &'static str,
+        tick: u64,
+        expected: &[ReadbackBufferId],
+        receiver: std::sync::mpsc::Receiver<ReadbackCallback>,
+    ) -> Self {
+        let expected_mask = expected
+            .iter()
+            .fold(0u16, |mask, buffer| mask | buffer.bit());
+        Self {
+            operation,
+            tick,
+            expected_mask,
+            completed_mask: 0,
+            receiver,
+        }
+    }
+
+    fn expected_count(&self) -> u32 {
+        self.expected_mask.count_ones()
+    }
+
+    fn missing(&self) -> Vec<ReadbackBufferId> {
+        ALL_ASYNC_READBACK_IDS
+            .iter()
+            .copied()
+            .filter(|buffer| {
+                let bit = buffer.bit();
+                self.expected_mask & bit != 0 && self.completed_mask & bit == 0
+            })
+            .collect()
+    }
+
+    fn record(&mut self, callback: ReadbackCallback) -> Result<(), ObservatoryReadbackError> {
+        let bit = callback.buffer.bit();
+        if self.expected_mask & bit == 0 {
+            return Err(ObservatoryReadbackError::UnknownBuffer {
+                operation: self.operation,
+                buffer: callback.buffer,
+            });
+        }
+        if self.completed_mask & bit != 0 {
+            return Err(ObservatoryReadbackError::DuplicateCallback {
+                operation: self.operation,
+                buffer: callback.buffer,
+            });
+        }
+        callback
+            .result
+            .map_err(|message| ObservatoryReadbackError::MapFailed {
+                operation: self.operation,
+                buffer: callback.buffer,
+                message,
+            })?;
+        self.completed_mask |= bit;
+        Ok(())
+    }
+
+    fn drain_available(&mut self) -> Result<ReadbackBatchProgress, ObservatoryReadbackError> {
+        loop {
+            match self.receiver.try_recv() {
+                Ok(callback) => self.record(callback)?,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    return Ok(if self.completed_mask == self.expected_mask {
+                        ReadbackBatchProgress::Ready
+                    } else {
+                        ReadbackBatchProgress::Pending
+                    });
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    return if self.completed_mask == self.expected_mask {
+                        Ok(ReadbackBatchProgress::Ready)
+                    } else {
+                        Err(ObservatoryReadbackError::CallbackChannelDisconnected {
+                            operation: self.operation,
+                            missing: self.missing(),
+                        })
+                    };
+                }
+            }
+        }
+    }
+
+    fn finish_after_blocking_poll(&mut self) -> Result<(), ObservatoryReadbackError> {
+        match self.drain_available()? {
+            ReadbackBatchProgress::Ready => Ok(()),
+            ReadbackBatchProgress::Pending => Err(ObservatoryReadbackError::IncompleteAfterPoll {
+                operation: self.operation,
+                missing: self.missing(),
+            }),
+        }
+    }
+
+    fn discard_queued_callbacks(self) {
+        while self.receiver.try_recv().is_ok() {}
+    }
+}
+
+fn send_map_callback(
+    sender: std::sync::mpsc::Sender<ReadbackCallback>,
+    buffer: ReadbackBufferId,
+    result: Result<(), wgpu::BufferAsyncError>,
+) {
+    let _ = sender.send(ReadbackCallback {
+        buffer,
+        result: result.map_err(|error| error.to_string()),
+    });
+}
+
+fn finish_synchronous_batch(
+    batch: &mut PendingReadbackBatch,
+    poll_result: Result<(), String>,
+) -> Result<(), ObservatoryReadbackError> {
+    poll_result.map_err(|message| ObservatoryReadbackError::DevicePollFailed {
+        operation: batch.operation,
+        message,
+    })?;
+    batch.finish_after_blocking_poll()
+}
+
 /// Asynchronous GPU diagnostic readback collector.
 pub struct ObservatoryCollector {
     staging_material: wgpu::Buffer,
     staging_temperature: wgpu::Buffer,
     staging_flags: wgpu::Buffer,
     staging_pressure: wgpu::Buffer,
-    pending: bool,
-    pending_tick: u64,
-    receiver: Option<std::sync::mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>>,
+    pending_readback: Option<PendingReadbackBatch>,
     metrics: ObservatoryMetrics,
     pressure_metrics: PressureObservatoryMetrics,
     integrity_metrics: IntegrityMetrics,
@@ -961,9 +1241,7 @@ impl ObservatoryCollector {
             staging_temperature,
             staging_flags,
             staging_pressure,
-            pending: false,
-            pending_tick: 0,
-            receiver: None,
+            pending_readback: None,
             metrics: ObservatoryMetrics::default(),
             pressure_metrics: PressureObservatoryMetrics::default(),
             integrity_metrics: IntegrityMetrics::default(),
@@ -1006,15 +1284,7 @@ impl ObservatoryCollector {
         self.last_request_tick = 0;
         self.c_latch_reported = false;
         self.initial_latched = false;
-        // Clear pending async states
-        if self.pending {
-            self.staging_material.unmap();
-            self.staging_temperature.unmap();
-            self.staging_flags.unmap();
-            self.staging_pressure.unmap();
-            self.pending = false;
-            self.receiver = None;
-        }
+        self.cancel_pending_readback();
     }
 
     /// Current live metrics snapshot.
@@ -1045,11 +1315,16 @@ impl ObservatoryCollector {
     /// the latched values are never smeared by async readback latency:
     ///   - tick 0 (pristine staged scene): Panel A/B conservation baseline
     ///   - tick 1 (first post-tick state): Panel C ownership latch
-    pub fn update(&mut self, simulation: &Simulation, current_tick: u64, fast: u32) {
+    pub fn update(
+        &mut self,
+        simulation: &Simulation,
+        current_tick: u64,
+        fast: u32,
+    ) -> Result<(), ObservatoryReadbackError> {
         let device = &simulation.context.device;
 
         if self.g6_mode && fast == 1 && !self.initial_latched && current_tick == 0 {
-            self.snapshot_integrity_sync(simulation, 0);
+            self.snapshot_integrity_sync(simulation, 0)?;
             self.initial_latched = true;
         }
         // The exact tick-1 ownership latch is taken by
@@ -1057,143 +1332,44 @@ impl ObservatoryCollector {
         // first tick) so the accumulator can never skip past tick 1.
 
         // 1. Check if previous map request finished
-        if self.pending {
-            let ready = if let Some(rx) = &self.receiver {
-                match rx.try_recv() {
-                    Ok(Ok(())) => true,
-                    Ok(Err(_)) => {
-                        self.pending = false;
-                        self.receiver = None;
-                        false
-                    }
-                    Err(std::sync::mpsc::TryRecvError::Empty) => {
-                        // Poll device non-blocking
-                        let _ = device.poll(wgpu::PollType::Poll);
-                        false
-                    }
-                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                        self.pending = false;
-                        self.receiver = None;
-                        false
-                    }
+        if self.pending_readback.is_some() {
+            let mut progress = self
+                .pending_readback
+                .as_mut()
+                .expect("pending batch checked above")
+                .drain_available();
+
+            if matches!(progress, Ok(ReadbackBatchProgress::Pending)) {
+                progress = match device.poll(wgpu::PollType::Poll) {
+                    Ok(_) => self
+                        .pending_readback
+                        .as_mut()
+                        .expect("pending batch remains while polling")
+                        .drain_available(),
+                    Err(error) => Err(ObservatoryReadbackError::DevicePollFailed {
+                        operation: "observatory async readback",
+                        message: error.to_string(),
+                    }),
+                };
+            }
+
+            match progress {
+                Ok(ReadbackBatchProgress::Pending) => {}
+                Ok(ReadbackBatchProgress::Ready) => {
+                    let batch = self
+                        .pending_readback
+                        .take()
+                        .expect("ready batch must still be present");
+                    let pending_tick = batch.tick;
+                    let expected_mask = batch.expected_mask;
+                    batch.discard_queued_callbacks();
+                    self.consume_mapped_readback(simulation, pending_tick, expected_mask);
+                    self.report_c_latch();
                 }
-            } else {
-                false
-            };
-
-            if ready {
-                // Read mapped slices
-                let mat_slice = self.staging_material.slice(..).get_mapped_range();
-                let temp_slice = self.staging_temperature.slice(..).get_mapped_range();
-                let flag_slice = self.staging_flags.slice(..).get_mapped_range();
-                let press_slice = self.staging_pressure.slice(..).get_mapped_range();
-
-                let width = simulation.world.config.width;
-                let height = simulation.world.config.height;
-                let cell_count = (width * height) as usize;
-
-                let materials = bytemuck_u32_slice(&mat_slice, cell_count);
-                let temperatures = bytemuck_f32_slice(&temp_slice, cell_count);
-                let flags = bytemuck_u32_slice(&flag_slice, cell_count);
-                let pressures = bytemuck_f32_slice(&press_slice, cell_count);
-
-                evaluate_observatory_state(
-                    materials,
-                    temperatures,
-                    flags,
-                    width,
-                    height,
-                    self.pending_tick,
-                    &mut self.metrics,
-                    &mut self.initial_a_ice,
-                    &mut self.initial_b_steam,
-                    &mut self.initial_wood_set,
-                );
-
-                evaluate_pressure_observatory_state(
-                    materials,
-                    temperatures,
-                    pressures,
-                    width,
-                    height,
-                    self.pending_tick,
-                    &mut self.pressure_metrics,
-                );
-
-                evaluate_integrity_state(
-                    materials,
-                    temperatures,
-                    flags,
-                    pressures,
-                    width,
-                    height,
-                    self.pending_tick,
-                    &mut self.integrity_metrics,
-                );
-
-                if self.activity_mode {
-                    // G7 chunk-activity and sleep/wake readbacks (small per-chunk arrays).
-                    let act_slice = self.staging_chunk_activity.slice(..).get_mapped_range();
-                    let chg_slice = self.staging_chunk_changed.slice(..).get_mapped_range();
-                    let stb_slice = self.staging_chunk_stable.slice(..).get_mapped_range();
-                    let state_slice = self.staging_chunk_state.slice(..).get_mapped_range();
-                    let rsn_slice = self.staging_chunk_wake_reason.slice(..).get_mapped_range();
-
-                    let chunks_x = chunks_x(
-                        simulation.world.config.width,
-                        simulation.world.config.chunk_size,
-                    );
-                    let chunks_y = chunks_y(
-                        simulation.world.config.height,
-                        simulation.world.config.chunk_size,
-                    );
-                    let n_chunks = (chunks_x * chunks_y) as usize;
-                    let chunk_act = bytemuck_u32_slice(&act_slice, n_chunks);
-                    let chunk_stb = bytemuck_u32_slice(&stb_slice, n_chunks);
-                    let chunk_state = bytemuck_u32_slice(&state_slice, n_chunks);
-                    let chunk_rsn = bytemuck_u32_slice(&rsn_slice, n_chunks);
-
-                    evaluate_activity_state(
-                        chunk_act,
-                        chunk_stb,
-                        chunk_state,
-                        chunk_rsn,
-                        chunks_x,
-                        chunks_y,
-                        simulation.world.config.chunk_size,
-                        simulation.sleep_enabled,
-                        simulation.sleep_threshold,
-                        self.pending_tick,
-                        &mut self.activity_metrics,
-                        &mut self.activity_prev_masks,
-                    );
-                    let _ = chg_slice;
-                    drop(act_slice);
-                    drop(chg_slice);
-                    drop(stb_slice);
-                    drop(state_slice);
-                    drop(rsn_slice);
-                    self.staging_chunk_activity.unmap();
-                    self.staging_chunk_changed.unmap();
-                    self.staging_chunk_stable.unmap();
-                    self.staging_chunk_state.unmap();
-                    self.staging_chunk_wake_reason.unmap();
+                Err(error) => {
+                    self.cancel_pending_readback();
+                    return Err(error);
                 }
-
-                drop(mat_slice);
-                drop(temp_slice);
-                drop(flag_slice);
-                drop(press_slice);
-
-                self.staging_material.unmap();
-                self.staging_temperature.unmap();
-                self.staging_flags.unmap();
-                self.staging_pressure.unmap();
-
-                self.pending = false;
-                self.receiver = None;
-
-                self.report_c_latch();
             }
         }
 
@@ -1211,19 +1387,180 @@ impl ObservatoryCollector {
             5
         };
         let need_tick0 = current_tick == 0 && !(self.g6_mode && self.initial_latched);
-        if !self.pending && (need_tick0 || current_tick >= self.last_request_tick + cadence) {
-            self.request_readback(simulation, current_tick);
+        if self.pending_readback.is_none()
+            && (need_tick0 || current_tick >= self.last_request_tick + cadence)
+        {
+            self.request_readback(simulation, current_tick)?;
         }
+        Ok(())
     }
 
     /// G6 instrument: called by the demo loop immediately after every tick.
     /// The exact tick-1 snapshot (first post-tick state) is taken right here —
     /// before any later tick can run — so the ownership latch is never
     /// smeared by frame accumulation or async readback latency.
-    pub fn latch_first_tick_if_g6(&mut self, simulation: &Simulation, tick: u64, fast: u32) {
+    pub fn latch_first_tick_if_g6(
+        &mut self,
+        simulation: &Simulation,
+        tick: u64,
+        fast: u32,
+    ) -> Result<(), ObservatoryReadbackError> {
         if self.g6_mode && fast == 1 && !self.integrity_metrics.c_latched && tick == 1 {
-            self.snapshot_integrity_sync(simulation, 1);
+            self.snapshot_integrity_sync(simulation, 1)?;
         }
+        Ok(())
+    }
+
+    fn consume_mapped_readback(
+        &mut self,
+        simulation: &Simulation,
+        pending_tick: u64,
+        mapped_mask: u16,
+    ) {
+        let mat_slice = self.staging_material.slice(..).get_mapped_range();
+        let temp_slice = self.staging_temperature.slice(..).get_mapped_range();
+        let flag_slice = self.staging_flags.slice(..).get_mapped_range();
+        let press_slice = self.staging_pressure.slice(..).get_mapped_range();
+
+        let width = simulation.world.config.width;
+        let height = simulation.world.config.height;
+        let cell_count = (width * height) as usize;
+
+        let materials = bytemuck_u32_slice(&mat_slice, cell_count);
+        let temperatures = bytemuck_f32_slice(&temp_slice, cell_count);
+        let flags = bytemuck_u32_slice(&flag_slice, cell_count);
+        let pressures = bytemuck_f32_slice(&press_slice, cell_count);
+
+        evaluate_observatory_state(
+            materials,
+            temperatures,
+            flags,
+            width,
+            height,
+            pending_tick,
+            &mut self.metrics,
+            &mut self.initial_a_ice,
+            &mut self.initial_b_steam,
+            &mut self.initial_wood_set,
+        );
+
+        evaluate_pressure_observatory_state(
+            materials,
+            temperatures,
+            pressures,
+            width,
+            height,
+            pending_tick,
+            &mut self.pressure_metrics,
+        );
+
+        evaluate_integrity_state(
+            materials,
+            temperatures,
+            flags,
+            pressures,
+            width,
+            height,
+            pending_tick,
+            &mut self.integrity_metrics,
+        );
+
+        if self.activity_mode {
+            let act_slice = self.staging_chunk_activity.slice(..).get_mapped_range();
+            let chg_slice = self.staging_chunk_changed.slice(..).get_mapped_range();
+            let stb_slice = self.staging_chunk_stable.slice(..).get_mapped_range();
+            let state_slice = self.staging_chunk_state.slice(..).get_mapped_range();
+            let rsn_slice = self.staging_chunk_wake_reason.slice(..).get_mapped_range();
+
+            let chunks_x = chunks_x(
+                simulation.world.config.width,
+                simulation.world.config.chunk_size,
+            );
+            let chunks_y = chunks_y(
+                simulation.world.config.height,
+                simulation.world.config.chunk_size,
+            );
+            let n_chunks = (chunks_x * chunks_y) as usize;
+            let chunk_act = bytemuck_u32_slice(&act_slice, n_chunks);
+            let chunk_stb = bytemuck_u32_slice(&stb_slice, n_chunks);
+            let chunk_state = bytemuck_u32_slice(&state_slice, n_chunks);
+            let chunk_rsn = bytemuck_u32_slice(&rsn_slice, n_chunks);
+
+            evaluate_activity_state(
+                chunk_act,
+                chunk_stb,
+                chunk_state,
+                chunk_rsn,
+                chunks_x,
+                chunks_y,
+                simulation.world.config.chunk_size,
+                simulation.sleep_enabled,
+                simulation.sleep_threshold,
+                pending_tick,
+                &mut self.activity_metrics,
+                &mut self.activity_prev_masks,
+            );
+
+            drop(act_slice);
+            drop(chg_slice);
+            drop(stb_slice);
+            drop(state_slice);
+            drop(rsn_slice);
+        }
+
+        drop(mat_slice);
+        drop(temp_slice);
+        drop(flag_slice);
+        drop(press_slice);
+        self.unmap_async_staging_buffers(mapped_mask);
+    }
+
+    /// Cancels the one in-flight async batch, discards any already queued
+    /// callbacks, and terminates maps for all reusable world/activity staging
+    /// buffers. Calling this repeatedly is intentionally safe.
+    fn cancel_pending_readback(&mut self) {
+        if let Some(batch) = self.pending_readback.take() {
+            let mapped_mask = batch.expected_mask;
+            batch.discard_queued_callbacks();
+            self.unmap_async_staging_buffers(mapped_mask);
+        }
+    }
+
+    fn unmap_async_staging_buffers(&self, mapped_mask: u16) {
+        if mapped_mask & ReadbackBufferId::Material.bit() != 0 {
+            self.staging_material.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::Temperature.bit() != 0 {
+            self.staging_temperature.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::Flags.bit() != 0 {
+            self.staging_flags.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::Pressure.bit() != 0 {
+            self.staging_pressure.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::ChunkActivity.bit() != 0 {
+            self.staging_chunk_activity.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::ChunkChanged.bit() != 0 {
+            self.staging_chunk_changed.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::ChunkStable.bit() != 0 {
+            self.staging_chunk_stable.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::ChunkState.bit() != 0 {
+            self.staging_chunk_state.unmap();
+        }
+        if mapped_mask & ReadbackBufferId::ChunkWakeReason.bit() != 0 {
+            self.staging_chunk_wake_reason.unmap();
+        }
+    }
+
+    fn unmap_sync_staging_buffers(&self) {
+        self.c_staging_material.unmap();
+        self.c_staging_temperature.unmap();
+        self.c_staging_flags.unmap();
+        self.c_staging_pressure.unmap();
     }
 
     /// Blocking one-shot GPU snapshot for the G6 instrument: copies the
@@ -1231,7 +1568,11 @@ impl ObservatoryCollector {
     /// exactly `tick`. Used for the pristine tick-0 baseline and the tick-1
     /// ownership latch so async readback latency never smears the latched
     /// values (one-shot, a few ms each).
-    fn snapshot_integrity_sync(&mut self, simulation: &Simulation, tick: u64) {
+    fn snapshot_integrity_sync(
+        &mut self,
+        simulation: &Simulation,
+        tick: u64,
+    ) -> Result<(), ObservatoryReadbackError> {
         let device = &simulation.context.device;
         let queue = &simulation.context.queue;
 
@@ -1268,15 +1609,48 @@ impl ObservatoryCollector {
         );
         queue.submit([encoder.finish()]);
 
-        for b in [
-            &self.c_staging_material,
-            &self.c_staging_temperature,
-            &self.c_staging_flags,
-            &self.c_staging_pressure,
-        ] {
-            b.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let temperature_sender = sender.clone();
+        let flags_sender = sender.clone();
+        let pressure_sender = sender.clone();
+        self.c_staging_material
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(sender, ReadbackBufferId::Material, result);
+            });
+        self.c_staging_temperature
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(temperature_sender, ReadbackBufferId::Temperature, result);
+            });
+        self.c_staging_flags
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(flags_sender, ReadbackBufferId::Flags, result);
+            });
+        self.c_staging_pressure
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(pressure_sender, ReadbackBufferId::Pressure, result);
+            });
+
+        let mut batch = PendingReadbackBatch::new(
+            "G6 synchronous integrity snapshot",
+            tick,
+            &WORLD_READBACK_IDS,
+            receiver,
+        );
+        debug_assert_eq!(batch.expected_count(), WORLD_READBACK_IDS.len() as u32);
+        let poll_result = device
+            .poll(wgpu::PollType::Wait)
+            .map(|_| ())
+            .map_err(|error| error.to_string());
+        if let Err(error) = finish_synchronous_batch(&mut batch, poll_result) {
+            batch.discard_queued_callbacks();
+            self.unmap_sync_staging_buffers();
+            return Err(error);
         }
-        let _ = device.poll(wgpu::PollType::Wait); // blocking map completion
+        batch.discard_queued_callbacks();
 
         let mat_slice = self.c_staging_material.slice(..).get_mapped_range();
         let temp_slice = self.c_staging_temperature.slice(..).get_mapped_range();
@@ -1306,12 +1680,10 @@ impl ObservatoryCollector {
         drop(temp_slice);
         drop(flag_slice);
         drop(press_slice);
-        self.c_staging_material.unmap();
-        self.c_staging_temperature.unmap();
-        self.c_staging_flags.unmap();
-        self.c_staging_pressure.unmap();
+        self.unmap_sync_staging_buffers();
 
         self.report_c_latch();
+        Ok(())
     }
 
     /// Prints the latched G6-C ownership evidence once (actual GPU readback
@@ -1344,7 +1716,16 @@ impl ObservatoryCollector {
         );
     }
 
-    fn request_readback(&mut self, simulation: &Simulation, current_tick: u64) {
+    fn request_readback(
+        &mut self,
+        simulation: &Simulation,
+        current_tick: u64,
+    ) -> Result<(), ObservatoryReadbackError> {
+        if self.pending_readback.is_some() {
+            return Err(ObservatoryReadbackError::ReadbackAlreadyPending {
+                operation: "observatory async readback",
+            });
+        }
         let device = &simulation.context.device;
         let queue = &simulation.context.queue;
 
@@ -1420,69 +1801,92 @@ impl ObservatoryCollector {
 
         queue.submit([encoder.finish()]);
 
-        let (tx, rx) = std::sync::mpsc::channel();
-        let tx_temp = tx.clone();
-        let tx_flag = tx.clone();
-        let tx_press = tx.clone();
-        let tx_act = tx.clone();
-        let tx_chg = tx.clone();
-        let tx_stb = tx.clone();
-        let tx_state = tx.clone();
-        let tx_rsn = tx.clone();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let material_sender = sender.clone();
+        let temperature_sender = sender.clone();
+        let flags_sender = sender.clone();
+        let pressure_sender = sender.clone();
 
         // Async mapping on all 4 world buffers
         self.staging_material
             .slice(..)
-            .map_async(wgpu::MapMode::Read, move |res| {
-                let _ = tx.send(res);
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(material_sender, ReadbackBufferId::Material, result);
             });
         self.staging_temperature
             .slice(..)
-            .map_async(wgpu::MapMode::Read, move |res| {
-                let _ = tx_temp.send(res);
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(temperature_sender, ReadbackBufferId::Temperature, result);
             });
         self.staging_flags
             .slice(..)
-            .map_async(wgpu::MapMode::Read, move |res| {
-                let _ = tx_flag.send(res);
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(flags_sender, ReadbackBufferId::Flags, result);
             });
         self.staging_pressure
             .slice(..)
-            .map_async(wgpu::MapMode::Read, move |res| {
-                let _ = tx_press.send(res);
+            .map_async(wgpu::MapMode::Read, move |result| {
+                send_map_callback(pressure_sender, ReadbackBufferId::Pressure, result);
             });
         if self.activity_mode {
+            let activity_sender = sender.clone();
+            let changed_sender = sender.clone();
+            let stable_sender = sender.clone();
+            let state_sender = sender.clone();
+            let wake_reason_sender = sender.clone();
             self.staging_chunk_activity
                 .slice(..)
-                .map_async(wgpu::MapMode::Read, move |res| {
-                    let _ = tx_act.send(res);
+                .map_async(wgpu::MapMode::Read, move |result| {
+                    send_map_callback(activity_sender, ReadbackBufferId::ChunkActivity, result);
                 });
             self.staging_chunk_changed
                 .slice(..)
-                .map_async(wgpu::MapMode::Read, move |res| {
-                    let _ = tx_chg.send(res);
+                .map_async(wgpu::MapMode::Read, move |result| {
+                    send_map_callback(changed_sender, ReadbackBufferId::ChunkChanged, result);
                 });
             self.staging_chunk_stable
                 .slice(..)
-                .map_async(wgpu::MapMode::Read, move |res| {
-                    let _ = tx_stb.send(res);
+                .map_async(wgpu::MapMode::Read, move |result| {
+                    send_map_callback(stable_sender, ReadbackBufferId::ChunkStable, result);
                 });
             self.staging_chunk_state
                 .slice(..)
-                .map_async(wgpu::MapMode::Read, move |res| {
-                    let _ = tx_state.send(res);
+                .map_async(wgpu::MapMode::Read, move |result| {
+                    send_map_callback(state_sender, ReadbackBufferId::ChunkState, result);
                 });
-            self.staging_chunk_wake_reason
-                .slice(..)
-                .map_async(wgpu::MapMode::Read, move |res| {
-                    let _ = tx_rsn.send(res);
-                });
+            self.staging_chunk_wake_reason.slice(..).map_async(
+                wgpu::MapMode::Read,
+                move |result| {
+                    send_map_callback(
+                        wake_reason_sender,
+                        ReadbackBufferId::ChunkWakeReason,
+                        result,
+                    );
+                },
+            );
         }
 
-        self.pending = true;
-        self.pending_tick = current_tick;
+        drop(sender);
+        let expected = if self.activity_mode {
+            &ALL_ASYNC_READBACK_IDS[..]
+        } else {
+            &WORLD_READBACK_IDS[..]
+        };
+        let batch = PendingReadbackBatch::new(
+            "observatory async readback",
+            current_tick,
+            expected,
+            receiver,
+        );
+        let expected_count = if self.activity_mode {
+            WORLD_READBACK_IDS.len() + ACTIVITY_READBACK_IDS.len()
+        } else {
+            WORLD_READBACK_IDS.len()
+        };
+        debug_assert_eq!(batch.expected_count(), expected_count as u32);
+        self.pending_readback = Some(batch);
         self.last_request_tick = current_tick;
-        self.receiver = Some(rx);
+        Ok(())
     }
 }
 
@@ -1990,7 +2394,257 @@ pub fn evaluate_integrity_state(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use powdergame_core::{MATERIAL_OIL, MATERIAL_STONE};
+    use powdergame_core::{WorldConfig, MATERIAL_OIL, MATERIAL_STONE};
+
+    fn pending_batch(
+        operation: &'static str,
+        expected: &[ReadbackBufferId],
+    ) -> (
+        std::sync::mpsc::Sender<ReadbackCallback>,
+        PendingReadbackBatch,
+    ) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        (
+            sender,
+            PendingReadbackBatch::new(operation, 17, expected, receiver),
+        )
+    }
+
+    fn send_callback(
+        sender: &std::sync::mpsc::Sender<ReadbackCallback>,
+        buffer: ReadbackBufferId,
+        result: Result<(), &str>,
+    ) {
+        sender
+            .send(ReadbackCallback {
+                buffer,
+                result: result.map_err(str::to_owned),
+            })
+            .expect("test callback receiver");
+    }
+
+    #[test]
+    fn readback_batch_random_callback_order_requires_all_four_world_buffers() {
+        for seed in 1..=32u64 {
+            let (sender, mut batch) = pending_batch("world", &WORLD_READBACK_IDS);
+            let mut order = WORLD_READBACK_IDS;
+            let mut random = seed;
+            for index in (1..order.len()).rev() {
+                random = random
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1);
+                order.swap(index, (random as usize) % (index + 1));
+            }
+            for buffer in order {
+                send_callback(&sender, buffer, Ok(()));
+            }
+            drop(sender);
+
+            assert_eq!(batch.expected_count(), 4);
+            assert_eq!(batch.drain_available(), Ok(ReadbackBatchProgress::Ready));
+            assert!(batch.missing().is_empty());
+        }
+    }
+
+    #[test]
+    fn readback_batch_first_success_is_not_ready() {
+        let (sender, mut batch) = pending_batch("world", &WORLD_READBACK_IDS);
+        send_callback(&sender, ReadbackBufferId::Material, Ok(()));
+
+        assert_eq!(batch.drain_available(), Ok(ReadbackBatchProgress::Pending));
+        assert_eq!(batch.missing().len(), 3);
+    }
+
+    #[test]
+    fn readback_batch_accepts_exactly_nine_activity_mode_callbacks() {
+        let (sender, mut batch) = pending_batch("activity", &ALL_ASYNC_READBACK_IDS);
+        for buffer in ALL_ASYNC_READBACK_IDS.into_iter().rev() {
+            send_callback(&sender, buffer, Ok(()));
+        }
+        drop(sender);
+
+        assert_eq!(batch.expected_count(), 9);
+        assert_eq!(batch.drain_available(), Ok(ReadbackBatchProgress::Ready));
+    }
+
+    #[test]
+    fn readback_batch_rejects_partial_success_then_map_failure() {
+        let (sender, mut batch) = pending_batch("world", &WORLD_READBACK_IDS);
+        send_callback(&sender, ReadbackBufferId::Material, Ok(()));
+        send_callback(
+            &sender,
+            ReadbackBufferId::Temperature,
+            Err("injected map failure"),
+        );
+
+        assert_eq!(
+            batch.drain_available(),
+            Err(ObservatoryReadbackError::MapFailed {
+                operation: "world",
+                buffer: ReadbackBufferId::Temperature,
+                message: "injected map failure".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn readback_batch_rejects_duplicate_and_unknown_callbacks() {
+        let (sender, mut duplicate_batch) = pending_batch("world", &WORLD_READBACK_IDS);
+        send_callback(&sender, ReadbackBufferId::Material, Ok(()));
+        send_callback(&sender, ReadbackBufferId::Material, Ok(()));
+        assert_eq!(
+            duplicate_batch.drain_available(),
+            Err(ObservatoryReadbackError::DuplicateCallback {
+                operation: "world",
+                buffer: ReadbackBufferId::Material,
+            })
+        );
+
+        let (sender, mut unknown_batch) = pending_batch("world", &WORLD_READBACK_IDS);
+        send_callback(&sender, ReadbackBufferId::ChunkActivity, Ok(()));
+        assert_eq!(
+            unknown_batch.drain_available(),
+            Err(ObservatoryReadbackError::UnknownBuffer {
+                operation: "world",
+                buffer: ReadbackBufferId::ChunkActivity,
+            })
+        );
+    }
+
+    #[test]
+    fn readback_batch_reports_disconnected_channel_with_missing_buffers() {
+        let (sender, mut batch) = pending_batch("world", &WORLD_READBACK_IDS);
+        send_callback(&sender, ReadbackBufferId::Flags, Ok(()));
+        drop(sender);
+
+        assert_eq!(
+            batch.drain_available(),
+            Err(ObservatoryReadbackError::CallbackChannelDisconnected {
+                operation: "world",
+                missing: vec![
+                    ReadbackBufferId::Material,
+                    ReadbackBufferId::Temperature,
+                    ReadbackBufferId::Pressure,
+                ],
+            })
+        );
+    }
+
+    #[test]
+    fn synchronous_snapshot_callback_validation_success() {
+        let (sender, mut batch) = pending_batch("sync", &WORLD_READBACK_IDS);
+        for buffer in WORLD_READBACK_IDS {
+            send_callback(&sender, buffer, Ok(()));
+        }
+        drop(sender);
+
+        assert_eq!(finish_synchronous_batch(&mut batch, Ok(())), Ok(()));
+    }
+
+    #[test]
+    fn synchronous_snapshot_callback_validation_map_failure() {
+        let (sender, mut batch) = pending_batch("sync", &WORLD_READBACK_IDS);
+        send_callback(&sender, ReadbackBufferId::Material, Ok(()));
+        send_callback(
+            &sender,
+            ReadbackBufferId::Temperature,
+            Err("injected map failure"),
+        );
+        drop(sender);
+
+        assert_eq!(
+            finish_synchronous_batch(&mut batch, Ok(())),
+            Err(ObservatoryReadbackError::MapFailed {
+                operation: "sync",
+                buffer: ReadbackBufferId::Temperature,
+                message: "injected map failure".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn synchronous_snapshot_does_not_read_after_partial_callback_success() {
+        let (sender, mut batch) = pending_batch("sync", &WORLD_READBACK_IDS);
+        send_callback(&sender, ReadbackBufferId::Material, Ok(()));
+
+        assert_eq!(
+            finish_synchronous_batch(&mut batch, Ok(())),
+            Err(ObservatoryReadbackError::IncompleteAfterPoll {
+                operation: "sync",
+                missing: vec![
+                    ReadbackBufferId::Temperature,
+                    ReadbackBufferId::Flags,
+                    ReadbackBufferId::Pressure,
+                ],
+            })
+        );
+    }
+
+    #[test]
+    fn synchronous_snapshot_callback_validation_poll_failure() {
+        let (_sender, mut batch) = pending_batch("sync", &WORLD_READBACK_IDS);
+        assert_eq!(
+            finish_synchronous_batch(&mut batch, Err("injected poll failure".to_string())),
+            Err(ObservatoryReadbackError::DevicePollFailed {
+                operation: "sync",
+                message: "injected poll failure".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn collector_reset_cancels_pending_maps_and_reuses_all_staging_buffers() {
+        let context = pollster::block_on(powdergame_gpu::GpuContext::new()).expect("GPU context");
+        let simulation = Simulation::with_context(
+            context,
+            WorldConfig::new(256, 256, 64).expect("world config"),
+        )
+        .expect("simulation");
+
+        for activity_mode in [false, true] {
+            let mut collector = ObservatoryCollector::new(&simulation, false, activity_mode);
+            collector
+                .request_readback(&simulation, 0)
+                .expect("initial readback request");
+            assert_eq!(
+                collector
+                    .pending_readback
+                    .as_ref()
+                    .expect("pending batch")
+                    .expected_count(),
+                if activity_mode { 9 } else { 4 }
+            );
+
+            collector.reset();
+            assert!(collector.pending_readback.is_none());
+            collector.reset();
+            assert!(collector.pending_readback.is_none());
+
+            collector
+                .request_readback(&simulation, 1)
+                .expect("immediate post-reset request");
+            simulation
+                .context
+                .device
+                .poll(wgpu::PollType::Wait)
+                .expect("blocking poll");
+            collector
+                .update(&simulation, 1, 1)
+                .expect("post-reset readback completion");
+            assert!(collector.pending_readback.is_none());
+
+            collector.reset();
+            collector.reset();
+        }
+
+        let mut g6_collector = ObservatoryCollector::new(&simulation, true, false);
+        g6_collector
+            .snapshot_integrity_sync(&simulation, 0)
+            .expect("four-buffer synchronous snapshot");
+        g6_collector
+            .snapshot_integrity_sync(&simulation, 0)
+            .expect("synchronous staging buffers reusable after success");
+    }
 
     #[test]
     fn test_panel_classification_and_metrics_accumulation() {

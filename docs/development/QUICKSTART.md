@@ -2,6 +2,11 @@
 
 Read this first when entering the repo.
 
+Executable, launcher, worktree, and artifact-copy rules are defined in
+[`WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md`](WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md).
+Use `run_powdergame.bat` for the user application and `run_experiment.bat` for
+automated scenario evidence; do not add a Gate-specific executable or launcher.
+
 ## Current gate
 
 - M0: IN_PROGRESS
@@ -95,6 +100,10 @@ it does not require whole-world all-sleep and does not fail merely because heat
 remains after reaction work ends. It records genuine post-tick Wood/Oil
 combustion, Smoke, heat propagation, phase inventory change, finite fuel use,
 reaction-zero, post-reaction restart/tail, field integrity, and exact reset.
+Candidate mode freezes the executed binary in the unique Run directory and
+publishes a sibling `AUDIT_BUNDLE.zip` plus SHA-256 sidecar after the receipt.
+The ordinary `REVIEW_PACKET.zip` remains a lightweight human-review packet and
+is not presented as a complete source/binary forensic bundle.
 See `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`.
 
 ## Select a headless fixture

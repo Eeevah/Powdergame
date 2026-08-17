@@ -58,7 +58,8 @@ use winit::window::{Window, WindowId};
 
 use experiment::{
     run_fire_heat_experiment, run_sand_fall_experiment, run_water_flow_experiment,
-    ExperimentWorkerConfig, EXPERIMENT_ID, FIRE_EXPERIMENT_ID, WATER_EXPERIMENT_ID,
+    verify_current_executable_sha256, ExperimentWorkerConfig, EXPERIMENT_ID, FIRE_EXPERIMENT_ID,
+    WATER_EXPERIMENT_ID,
 };
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
@@ -1656,7 +1657,16 @@ fn step_demo(
                     demo.ticks += 1;
                     demo.rate_ticks += 1;
                     if let Some(col) = collector {
-                        col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast);
+                        if let Err(error) =
+                            col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast)
+                        {
+                            eprintln!(
+                                "[powdergame] observatory synchronous readback error: {error}; demo paused and collector reset"
+                            );
+                            demo.playing = false;
+                            col.reset();
+                            return;
+                        }
                     }
                     println!("[powdergame] demo: stepped to tick {}", demo.ticks);
                 }
@@ -1678,7 +1688,16 @@ fn step_demo(
                         demo.ticks += 1;
                         demo.rate_ticks += 1;
                         if let Some(col) = collector {
-                            col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast);
+                            if let Err(error) =
+                                col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast)
+                            {
+                                eprintln!(
+                                    "[powdergame] observatory synchronous readback error: {error}; demo paused and collector reset"
+                                );
+                                demo.playing = false;
+                                col.reset();
+                                return;
+                            }
                         }
                     }
                     Err(e) => eprintln!("[powdergame] demo tick error: {e}"),
@@ -1689,7 +1708,13 @@ fn step_demo(
         demo.last_tick = Some(now - acc);
     }
     if let Some(col) = collector {
-        col.update(simulation, demo.ticks, demo.fast);
+        if let Err(error) = col.update(simulation, demo.ticks, demo.fast) {
+            eprintln!(
+                "[powdergame] observatory asynchronous readback error: {error}; demo paused and collector reset"
+            );
+            demo.playing = false;
+            col.reset();
+        }
     }
     if mode == DemoMode::Gallery {
         sample_gallery_diagnostics(simulation, demo);
@@ -1989,18 +2014,71 @@ impl ApplicationHandler for App {
     }
 }
 
-/// Parses `--smoke-frames N` (or `POWDERGAME_SMOKE_FRAMES`) for bounded runs.
-fn parse_smoke_frames() -> Option<u32> {
-    let mut frames = std::env::var("POWDERGAME_SMOKE_FRAMES")
-        .ok()
-        .and_then(|v| v.parse().ok());
-    let mut args = std::env::args().skip(1);
-    while let Some(arg) = args.next() {
-        if arg == "--smoke-frames" {
-            frames = args.next().and_then(|v| v.parse().ok());
+/// Strictly parses `--smoke-frames N` or `POWDERGAME_SMOKE_FRAMES`.
+///
+/// CLI and environment configuration are mutually exclusive so a bounded
+/// validation run cannot silently inherit or override a different limit.
+fn smoke_frames_from_args<I, S>(
+    args: I,
+    environment_value: Option<&str>,
+) -> Result<Option<u32>, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    fn positive_frames(value: &str, source: &str) -> Result<u32, String> {
+        let parsed = value
+            .parse::<u32>()
+            .map_err(|error| format!("invalid {source} value '{value}': {error}"))?;
+        if parsed == 0 {
+            return Err(format!("{source} must be greater than zero"));
         }
+        Ok(parsed)
     }
-    frames
+
+    let args = args
+        .into_iter()
+        .map(|value| value.as_ref().to_string())
+        .collect::<Vec<_>>();
+    let mut cli_value = None;
+    let mut index = 0usize;
+    while index < args.len() {
+        if args[index] == "--smoke-frames" {
+            if cli_value.is_some() {
+                return Err("duplicate --smoke-frames option".to_string());
+            }
+            let raw = args
+                .get(index + 1)
+                .filter(|value| !value.starts_with("--"))
+                .ok_or_else(|| "missing value after --smoke-frames".to_string())?;
+            cli_value = Some(positive_frames(raw, "--smoke-frames")?);
+            index += 2;
+            continue;
+        }
+        index += 1;
+    }
+
+    let environment_value = environment_value
+        .map(|value| positive_frames(value, "POWDERGAME_SMOKE_FRAMES"))
+        .transpose()?;
+    match (cli_value, environment_value) {
+        (Some(_), Some(_)) => Err(
+            "--smoke-frames conflicts with POWDERGAME_SMOKE_FRAMES; set exactly one".to_string(),
+        ),
+        (Some(value), None) | (None, Some(value)) => Ok(Some(value)),
+        (None, None) => Ok(None),
+    }
+}
+
+fn parse_smoke_frames() -> Result<Option<u32>, String> {
+    let environment_value = match std::env::var("POWDERGAME_SMOKE_FRAMES") {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => {
+            return Err("POWDERGAME_SMOKE_FRAMES must be a Unicode positive integer".to_string());
+        }
+    };
+    smoke_frames_from_args(std::env::args().skip(1), environment_value.as_deref())
 }
 
 /// Parses the demo mode: `--movement-demo` / `--density-demo` /
@@ -2269,7 +2347,19 @@ fn main() {
             process::exit(2);
         }
     };
-    let smoke_frames = parse_smoke_frames();
+    if let Some(config) = experiment.as_ref() {
+        if let Err(error) = verify_current_executable_sha256(&config.binary_sha256) {
+            eprintln!("[powdergame][experiment] binary authentication error: {error}");
+            process::exit(2);
+        }
+    }
+    let smoke_frames = match parse_smoke_frames() {
+        Ok(frames) => frames,
+        Err(error) => {
+            eprintln!("[powdergame][smoke] argument error: {error}");
+            process::exit(2);
+        }
+    };
     if let Some(n) = smoke_frames {
         println!("[powdergame] smoke run: will exit after {n} frames");
     }
@@ -2329,10 +2419,51 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{demo_mode_from_args, experiment_worker_from_args, DemoMode, DemoState};
+    use super::{
+        demo_mode_from_args, experiment_worker_from_args, smoke_frames_from_args, DemoMode,
+        DemoState,
+    };
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
     use powdergame_gpu::{ActivityCensusReport, Simulation};
     use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
+
+    #[test]
+    fn smoke_frames_accepts_exactly_one_positive_cli_or_environment_value() {
+        assert_eq!(
+            smoke_frames_from_args(["--smoke-frames", "60"], None).unwrap(),
+            Some(60)
+        );
+        assert_eq!(
+            smoke_frames_from_args(["--benchmark-gallery"], Some("120")).unwrap(),
+            Some(120)
+        );
+        assert_eq!(
+            smoke_frames_from_args(["--benchmark-gallery"], None).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn smoke_frames_rejects_missing_invalid_overflow_zero_and_duplicate_values() {
+        assert!(smoke_frames_from_args(["--smoke-frames"], None).is_err());
+        assert!(smoke_frames_from_args(["--smoke-frames", "--benchmark-gallery"], None).is_err());
+        assert!(smoke_frames_from_args(["--smoke-frames", "many"], None).is_err());
+        assert!(smoke_frames_from_args(["--smoke-frames", "4294967296"], None).is_err());
+        assert!(smoke_frames_from_args(["--smoke-frames", "0"], None).is_err());
+        assert!(
+            smoke_frames_from_args(["--smoke-frames", "1", "--smoke-frames", "2"], None).is_err()
+        );
+        assert!(smoke_frames_from_args(["--benchmark-gallery"], Some("many")).is_err());
+        assert!(smoke_frames_from_args(["--benchmark-gallery"], Some("4294967296")).is_err());
+        assert!(smoke_frames_from_args(["--benchmark-gallery"], Some("0")).is_err());
+    }
+
+    #[test]
+    fn smoke_frames_rejects_cli_environment_conflict() {
+        let error = smoke_frames_from_args(["--smoke-frames", "60"], Some("60"))
+            .expect_err("CLI and environment must not silently override one another");
+        assert!(error.contains("conflicts"));
+    }
 
     #[test]
     fn experiment_worker_cli_is_strict_and_complete() {

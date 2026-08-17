@@ -206,6 +206,21 @@ receipt_sha256: 42bbacf77ca80356996a53fb2d0a56a5aba18215b5b85bda637350522c95e033
 harness_review_output: HARNESS REVIEW OUTPUT APPROVED
 ```
 
+### Field-name erratum
+
+The preserved v0 artifact field `first_all_sleep_diagnostic_sample_tick=139`
+contains a diagnostic **sample sequence**, not a simulation tick. The correct
+first observed all-sleep simulation tick is `1096`; the three-sample streak is
+confirmed at simulation tick `1112`. This naming erratum does not change the
+immutable artifact, Run ID, raw telemetry, automatic `PASS`, or review approval.
+
+The v0 parser remains supported and requires the legacy alias to equal
+`first_all_sleep_sample_sequence`. New schemas must use the unambiguous pair
+`first_all_sleep_sim_tick` and
+`first_all_sleep_diagnostic_sample_sequence`; removing or changing the legacy
+alias requires a schema-version bump. Do not reinterpret or rewrite published
+v0 bytes.
+
 Contact Sheet review approved the keyframe selection. The all-sleep-related frames that look the same are retained because they prove distinct semantic milestones: the observation immediately before the confirmed streak, the first observed all-sleep sample within that streak, and completion of the 180-tick post-sleep stability window. The exact-reset frame separately proves restoration of the pristine tick-0 state. Compact per-tile metric captions are a non-blocking future improvement.
 
 The documentation closure commit is the later docs-only commit that first contains this result and is distinct from experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`; report its exact SHA after that commit exists. Sand Fall and the Harness pilot must not be rerun for this closure.

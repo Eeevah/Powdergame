@@ -72,7 +72,8 @@ docs/
 ├─ development/
 │  ├─ DEVELOPMENT.md
 │  ├─ TESTING.md
-│  └─ PERFORMANCE.md
+│  ├─ PERFORMANCE.md
+│  └─ WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md
 ├─ research/
 │  ├─ README.md                        # research authority/index
 │  ├─ raw/                             # 원문 보존

@@ -420,6 +420,7 @@ Static Analysis & Formatting:
   - The coordinator uses unique/no-overwrite run directories and publishes telemetry, semantic renderer frames, derived screenshots/crops, reports, contact sheet, inert review prompt, packet, and hashes before writing `EXPERIMENT_RECEIPT.json` last. Generated artifacts never belong in Git.
   - Automatic `PASS` is restricted to the seven hard Sand Fall predicates. It does not close G8-B, approve Scenario 2–5, or establish G8-C.
   - Validated run: `g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505`; automatic `PASS`; Harness review output `APPROVED`; first all-sleep simulation tick 1096; diagnostic sample sequence 139; confirmed tick 1112; 180 stable post-sleep ticks; exact reset true.
+  - Erratum: preserved v0 field `first_all_sleep_diagnostic_sample_tick=139` is a deprecated-name alias for diagnostic sample sequence, not simulation tick. Correct simulation identities remain first `1096` / confirmed `1112`; artifact and verdict are unchanged.
   - Review Packet SHA-256: `feffc180f81d36558b8139f5436a2a0eed6422617dd9a3207153b1cb62af1323`; Receipt SHA-256: `42bbacf77ca80356996a53fb2d0a56a5aba18215b5b85bda637350522c95e033`.
   - Evidence contract: `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`
 

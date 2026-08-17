@@ -129,16 +129,37 @@ produce `NEEDS_HUMAN_REVIEW`; a residual thermal tail is not itself a failure.
 Ambiguous visual evidence also remains for human review. An automatic result
 does not accept Scenario 3 or close G8-B.
 
-## 6. Artifact and publication contract
+## 6. Source seal, artifact, and publication contract
 
 Artifacts are written outside Git under
 `C:\Users\mdkap\source\Powdergame-artifacts\<unique-run-id>`. Run IDs are never
 reused, existing files are never overwritten, failed runs remain without a
 receipt, and `EXPERIMENT_RECEIPT.json` is the final publication marker and final
-filesystem write. The packet includes logs, telemetry, report, full PNGs,
-crops, and Contact Sheet. Worker raw RGBA and analysis remain in the complete
-Run directory and hash inventory even when excluded from the curated packet.
+filesystem write inside the Run directory. The packet includes logs, telemetry,
+report, full PNGs, crops, and Contact Sheet. Worker raw RGBA and analysis remain
+in the complete Run directory and hash inventory even when excluded from the
+curated packet.
 No generated artifact is committed.
+
+Before the build, the coordinator records a source-input manifest binding the
+clean named branch/HEAD, tracked Cargo, Rust, WGSL, `build.rs`, scenario and
+runner inputs, plus the absolute `C:\Windows\Fonts\consola.ttf` build input by
+path, size, and SHA-256. It recomputes the same manifest after build,
+immediately before worker launch, and after worker exit. The release output is
+copied with
+create-new + flush/fsync into the unique Run directory, hashed there, and that
+frozen copy—not the mutable `target/release` path—is executed. The worker hashes
+its own `current_exe()` before creating a window/GPU and rejects a mismatch.
+Any source or binary drift leaves the Run incomplete without a receipt.
+
+`REVIEW_PACKET.zip` is a lightweight human-review packet. It does not claim to
+provide complete source/binary forensic verification. Candidate mode therefore
+creates sibling delivery artifacts only after the immutable run receipt exists:
+`<Run ID>.AUDIT_BUNDLE.zip` and `<Run ID>.AUDIT_BUNDLE_SHA256.txt`. The bundle
+contains the Review Packet, manifest, hashes, receipt, source-input manifest,
+frozen executed binary, and a commit-addressed Git archive when available.
+Sibling creation does not modify the receipted Run directory; scratch mode does
+not require an Audit Bundle.
 
 ## 7. Validation and result
 

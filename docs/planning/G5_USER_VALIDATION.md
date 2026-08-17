@@ -15,7 +15,7 @@ Technical prerequisites are frozen:
 ```powershell
 cargo run -p powdergame-windows -- --pressure-demo
 ```
-*(or run `run_g5_demo.bat`)*
+*(or run `run_powdergame.bat pressure`; the retired Gate-specific launcher is no longer required)*
 
 Controls:
 - `SPACE`: Play / Pause (starts paused at 60 TPS when played)

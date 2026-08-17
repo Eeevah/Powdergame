@@ -27,13 +27,14 @@
 13. `docs/development/PERFORMANCE.md`
 14. `docs/development/DEVELOPMENT.md`
 15. `docs/development/TESTING.md`
-16. `docs/planning/ROADMAP.md`
-17. `docs/planning/MILESTONES.md`
-18. `docs/planning/STATUS.md`
-19. `docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`
-20. `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`
-21. `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`
-22. `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`
+16. `docs/development/WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md`
+17. `docs/planning/ROADMAP.md`
+18. `docs/planning/MILESTONES.md`
+19. `docs/planning/STATUS.md`
+20. `docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`
+21. `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`
+22. `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`
+23. `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`
 
 `README.md`, `00_USER_VISION.md`, `01_MASTER_DESIGN_REPORT.md`는 위 문서들과 맞춰 최신화되지만 세부 구현 판단은 위 authoritative 문서를 우선한다.
 

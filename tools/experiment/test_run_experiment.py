@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import tempfile
 import tomllib
 import unittest
 import zipfile
 from contextlib import ExitStack
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -21,9 +23,19 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.source = self.base / "source"
         self.source.mkdir()
         self.artifacts = self.base / "artifacts"
+        self.external_font = self.base / "external-inputs" / "consola.ttf"
+        self.external_font.parent.mkdir()
+        self.external_font.write_bytes(b"temporary Consolas fixture bytes")
 
         self.contract_patches = ExitStack()
         self.addCleanup(self.contract_patches.close)
+        self.contract_patches.enter_context(
+            mock.patch.object(
+                experiment,
+                "SOURCE_EXTERNAL_BUILD_INPUTS",
+                (("windows-consolas-font", self.external_font),),
+            )
+        )
         for name, value in {
             "RENDERER_WIDTH": 32,
             "RENDERER_HEIGHT": 24,
@@ -34,13 +46,56 @@ class ExperimentRunnerTests(unittest.TestCase):
         }.items():
             self.contract_patches.enter_context(mock.patch.object(experiment, name, value))
 
+    def initialize_source_repository(self) -> None:
+        files = {
+            "Cargo.toml": "[workspace]\nmembers = []\n",
+            "Cargo.lock": "version = 4\n",
+            "apps/windows/Cargo.toml": "[package]\nname = \"sealed-test\"\n",
+            "apps/windows/build.rs": "fn main() {}\n",
+            "apps/windows/src/main.rs": "fn main() {}\n",
+            "apps/scenarios/src/fixture.rs": "pub fn fixture() {}\n",
+            "engine/gpu/src/test.wgsl": "@compute @workgroup_size(1) fn main() {}\n",
+            "run_experiment.bat": "@echo off\n",
+            "tools/experiment/run_experiment.py": "print('runner')\n",
+            "docs/ignored.md": "not a source input\n",
+        }
+        for relative, text in files.items():
+            path = self.source / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        commands = (
+            ("git", "init"),
+            ("git", "config", "user.email", "seal-test@example.invalid"),
+            ("git", "config", "user.name", "Seal Test"),
+            ("git", "checkout", "-b", "feature/source-seal-test"),
+            ("git", "add", "."),
+            ("git", "commit", "-m", "fixture"),
+        )
+        for command in commands:
+            completed = subprocess.run(
+                command,
+                cwd=self.source,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(
+                completed.returncode,
+                0,
+                completed.stderr.decode("utf-8", errors="replace"),
+            )
+
     def manifest_data(
         self,
         run_dir: Path,
         contract: experiment.ScenarioContract = experiment.SAND_CONTRACT,
         mode: str = "candidate",
     ) -> experiment.ManifestData:
-        binary = self.source / "target" / "release" / "powdergame-windows.exe"
+        binary = (
+            run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts)
+            if contract is experiment.FIRE_CONTRACT
+            else self.source / "target" / "release" / "powdergame-windows.exe"
+        )
         binary_sha256 = "b" * 64
         return experiment.ManifestData(
             run_id=run_dir.name,
@@ -87,6 +142,29 @@ class ExperimentRunnerTests(unittest.TestCase):
             experiment.render_manifest(self.manifest_data(run_dir, contract, mode)),
         )
         return run_dir, experiment.read_and_validate_manifest(manifest_path)
+
+    def create_sealed_delivery_fixture(
+        self, run_id: str, mode: str = "candidate"
+    ) -> Path:
+        run_dir = self.create_valid_fire_worker_fixture(run_id, mode=mode)
+        binary = run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts)
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b"frozen executable fixture")
+        binary_hash = experiment.sha256_file(binary)
+        old_binary_hash = "b" * 64
+        for path in run_dir.rglob("*"):
+            if path.is_file() and path.suffix in {".json", ".jsonl", ".toml"}:
+                text = path.read_text(encoding="utf-8")
+                path.write_text(
+                    text.replace(old_binary_hash, binary_hash), encoding="utf-8"
+                )
+        experiment.write_new_text(
+            run_dir / experiment.SOURCE_INPUT_MANIFEST_NAME,
+            json.dumps({"schema_version": experiment.SOURCE_INPUT_MANIFEST_SCHEMA})
+            + "\n",
+        )
+        experiment.postprocess_run(run_dir)
+        return run_dir
 
     def create_valid_worker_fixture(self, run_id: str = "g8b-sand-fall-v0-test-run") -> Path:
         run_dir, manifest = self.create_manifest(run_id)
@@ -1778,6 +1856,327 @@ class ExperimentRunnerTests(unittest.TestCase):
             check=False,
         )
 
+    def test_source_input_manifest_is_tracked_deterministic_and_detects_drift(self) -> None:
+        self.initialize_source_repository()
+        seal = experiment.capture_source_seal(self.source)
+        paths = [entry["path"] for entry in seal.manifest["files"]]
+        self.assertEqual(paths, sorted(paths))
+        self.assertIn("Cargo.toml", paths)
+        self.assertIn("Cargo.lock", paths)
+        self.assertIn("apps/windows/build.rs", paths)
+        self.assertIn("apps/scenarios/src/fixture.rs", paths)
+        self.assertIn("engine/gpu/src/test.wgsl", paths)
+        self.assertIn("tools/experiment/run_experiment.py", paths)
+        self.assertNotIn("docs/ignored.md", paths)
+        self.assertEqual(seal.manifest["file_count"], len(paths))
+        self.assertEqual(seal.manifest["external_file_count"], 1)
+        self.assertEqual(
+            seal.manifest["external_files"],
+            [
+                {
+                    "label": "windows-consolas-font",
+                    "path": str(self.external_font.resolve()),
+                    "sha256": experiment.sha256_file(self.external_font),
+                    "size_bytes": self.external_font.stat().st_size,
+                }
+            ],
+        )
+
+        manifest_path = self.artifacts / experiment.SOURCE_INPUT_MANIFEST_NAME
+        experiment.write_new_text(
+            manifest_path, experiment.render_source_input_manifest(seal)
+        )
+        experiment.assert_source_manifest_artifact_unchanged(manifest_path, seal)
+        (self.source / "apps/windows/src/main.rs").write_text(
+            "fn main() { panic!(\"drift\") }\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "post-build"):
+            experiment.assert_source_seal_unchanged(
+                self.source, seal, "post-build"
+            )
+
+    def test_source_seal_detects_external_font_drift_and_missing_input(self) -> None:
+        self.initialize_source_repository()
+        seal = experiment.capture_source_seal(self.source)
+        self.external_font.write_bytes(b"mutated Consolas fixture bytes")
+        with self.assertRaisesRegex(experiment.ExperimentError, "pre-worker"):
+            experiment.assert_source_seal_unchanged(
+                self.source, seal, "pre-worker"
+            )
+        self.external_font.unlink()
+        with self.assertRaisesRegex(experiment.ExperimentError, "missing"):
+            experiment.capture_source_seal(self.source)
+
+    def test_frozen_binary_is_create_new_hashed_and_rechecked(self) -> None:
+        release = self.source / "target" / "release" / "powdergame-windows.exe"
+        release.parent.mkdir(parents=True)
+        release.write_bytes(b"release executable bytes")
+        run_dir = experiment.create_run_directory(self.artifacts, "binary-freeze-test")
+        frozen, digest = experiment.copy_frozen_binary(release, run_dir)
+        self.assertEqual(
+            frozen,
+            run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts).resolve(),
+        )
+        self.assertEqual(frozen.read_bytes(), release.read_bytes())
+        self.assertEqual(digest, experiment.sha256_file(frozen))
+        experiment.assert_frozen_binary_unchanged(frozen, digest, "worker-launch")
+        with self.assertRaisesRegex(experiment.ExperimentError, "overwrite"):
+            experiment.copy_frozen_binary(release, run_dir)
+        frozen.write_bytes(b"mutated")
+        with self.assertRaisesRegex(experiment.ExperimentError, "post-worker"):
+            experiment.assert_frozen_binary_unchanged(frozen, digest, "post-worker")
+
+    def test_final_source_guard_failure_leaves_run_without_receipt(self) -> None:
+        run_dir = self.create_valid_worker_fixture("g8b-sand-fall-v0-guard-test")
+
+        def reject_drift() -> None:
+            raise experiment.ExperimentError("source drift at pre-receipt")
+
+        with self.assertRaisesRegex(experiment.ExperimentError, "source drift"):
+            experiment.postprocess_run(run_dir, final_guard=reject_drift)
+        self.assertFalse((run_dir / "EXPERIMENT_RECEIPT.json").exists())
+
+    def test_candidate_audit_bundle_is_sibling_complete_and_hashed(self) -> None:
+        run_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-audit-bundle-test"
+        )
+        before = {
+            path.relative_to(run_dir).as_posix(): experiment.sha256_file(path)
+            for path in run_dir.rglob("*")
+            if path.is_file()
+        }
+        receipt_sha256 = experiment.sha256_file(
+            run_dir / "EXPERIMENT_RECEIPT.json"
+        )
+        with mock.patch.object(
+            experiment, "git_archive_zip_bytes", return_value=b"git archive fixture"
+        ):
+            bundle, sidecar = experiment.create_audit_bundle(
+                run_dir, self.source, receipt_sha256
+            )
+        after = {
+            path.relative_to(run_dir).as_posix(): experiment.sha256_file(path)
+            for path in run_dir.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(before, after, "sibling bundle must not modify completed run")
+        self.assertEqual(bundle.parent, run_dir.parent)
+        self.assertEqual(sidecar.parent, run_dir.parent)
+        with zipfile.ZipFile(bundle) as archive:
+            self.assertEqual(
+                set(archive.namelist()),
+                {
+                    "REVIEW_PACKET.zip",
+                    "EXPERIMENT_MANIFEST.toml",
+                    "HASHES.sha256",
+                    "EXPERIMENT_RECEIPT.json",
+                    experiment.SOURCE_INPUT_MANIFEST_NAME,
+                    experiment.FROZEN_BINARY_RELATIVE_PATH.as_posix(),
+                    "SOURCE_ARCHIVE.zip",
+                },
+            )
+        self.assertEqual(
+            sidecar.read_text(encoding="utf-8"),
+            f"{experiment.sha256_file(bundle)}  {bundle.name}\n",
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "overwrite"):
+            experiment.create_audit_bundle(run_dir, self.source, receipt_sha256)
+
+    def test_audit_bundle_rejects_review_packet_mutation_after_receipt(self) -> None:
+        run_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-audit-mutation-test"
+        )
+        receipt_sha256 = experiment.sha256_file(
+            run_dir / "EXPERIMENT_RECEIPT.json"
+        )
+        packet = run_dir / "report" / "REVIEW_PACKET.zip"
+        with packet.open("ab") as handle:
+            handle.write(b"post-receipt mutation")
+        bundle = run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}"
+        sidecar = (
+            run_dir.parent
+            / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SHA256_SUFFIX}"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "digest mismatch"):
+            experiment.create_audit_bundle(run_dir, self.source, receipt_sha256)
+        self.assertFalse(bundle.exists())
+        self.assertFalse(sidecar.exists())
+
+    def test_audit_bundle_rejects_receipt_verdict_mutation_after_postprocess(self) -> None:
+        run_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-audit-receipt-verdict-test"
+        )
+        receipt_path = run_dir / "EXPERIMENT_RECEIPT.json"
+        receipt_sha256 = experiment.sha256_file(receipt_path)
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["automatic_verdict"] = "FAIL"
+        receipt_path.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        bundle = run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}"
+        sidecar = (
+            run_dir.parent
+            / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SHA256_SUFFIX}"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "receipt SHA-256 changed"):
+            experiment.create_audit_bundle(run_dir, self.source, receipt_sha256)
+        self.assertFalse(bundle.exists())
+        self.assertFalse(sidecar.exists())
+
+    def test_audit_bundle_rejects_valid_receipt_timestamp_byte_mutation(self) -> None:
+        run_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-audit-receipt-time-test"
+        )
+        receipt_path = run_dir / "EXPERIMENT_RECEIPT.json"
+        receipt_sha256 = experiment.sha256_file(receipt_path)
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["completed_utc"] = "2026-08-17T23:59:59.123456Z"
+        receipt_path.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        bundle = run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}"
+        sidecar = (
+            run_dir.parent
+            / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SHA256_SUFFIX}"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "receipt SHA-256 changed"):
+            experiment.create_audit_bundle(run_dir, self.source, receipt_sha256)
+        self.assertFalse(bundle.exists())
+        self.assertFalse(sidecar.exists())
+
+    def test_audit_bundle_rejects_numeric_receipt_final_marker(self) -> None:
+        run_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-audit-receipt-marker-type-test"
+        )
+        receipt_path = run_dir / "EXPERIMENT_RECEIPT.json"
+        receipt_sha256 = experiment.sha256_file(receipt_path)
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["receipt_is_final_publication_marker"] = 1
+        receipt_path.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        bundle = run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}"
+        sidecar = (
+            run_dir.parent
+            / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SHA256_SUFFIX}"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "receipt SHA-256 changed"):
+            experiment.create_audit_bundle(run_dir, self.source, receipt_sha256)
+        self.assertFalse(bundle.exists())
+        self.assertFalse(sidecar.exists())
+
+    def test_audit_bundle_rejects_inventory_and_receipt_binding_mismatches(self) -> None:
+        extra_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-audit-extra-file-test"
+        )
+        (extra_dir / "unhashed-after-receipt.txt").write_text(
+            "not in HASHES.sha256\n", encoding="utf-8"
+        )
+        extra_receipt_sha256 = experiment.sha256_file(
+            extra_dir / "EXPERIMENT_RECEIPT.json"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "inventory mismatch"):
+            experiment.create_audit_bundle(
+                extra_dir, self.source, extra_receipt_sha256
+            )
+
+        binding_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-audit-binding-test"
+        )
+        receipt_path = binding_dir / "EXPERIMENT_RECEIPT.json"
+        binding_receipt_sha256 = experiment.sha256_file(receipt_path)
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["manifest_sha256"] = "0" * 64
+        receipt_path.write_text(json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(experiment.ExperimentError, "receipt SHA-256 changed"):
+            experiment.create_audit_bundle(
+                binding_dir, self.source, binding_receipt_sha256
+            )
+
+    def test_scratch_run_is_not_eligible_for_audit_bundle(self) -> None:
+        run_dir = self.create_sealed_delivery_fixture(
+            "g8b-fire-heat-v0-scratch-audit-test", mode="scratch"
+        )
+        receipt_sha256 = experiment.sha256_file(
+            run_dir / "EXPERIMENT_RECEIPT.json"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "candidate-only"):
+            experiment.create_audit_bundle(run_dir, self.source, receipt_sha256)
+        self.assertFalse(
+            (run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}").exists()
+        )
+
+    def test_runner_executes_frozen_copy_and_rechecks_each_seal_phase(self) -> None:
+        release = self.source / "target" / "release" / "powdergame-windows.exe"
+        release.parent.mkdir(parents=True)
+        release.write_bytes(b"coordinator release binary")
+        source = experiment.SourceInfo(
+            root=self.source.resolve(),
+            branch="feature/m0-g8b-scenario-suite",
+            sha="a" * 40,
+        )
+        seal = experiment.SourceSeal(
+            source=source,
+            manifest={
+                "schema_version": experiment.SOURCE_INPUT_MANIFEST_SCHEMA,
+                "source": {
+                    "root": str(source.root),
+                    "branch": source.branch,
+                    "head_sha": source.sha,
+                    "git_state": "clean",
+                },
+                "selection": {"tracked_only": True, "rules": []},
+                "file_count": 0,
+                "files": [],
+            },
+        )
+        commands: list[tuple[str, ...]] = []
+
+        def fake_run_logged(command, cwd, stdout_path, stderr_path):
+            del cwd, stdout_path, stderr_path
+            command = tuple(command)
+            commands.append(command)
+            if command[0] != "cargo":
+                self.assertEqual(
+                    Path(command[0]).resolve(),
+                    (self.artifacts / "sealed-run").joinpath(
+                        *experiment.FROZEN_BINARY_RELATIVE_PATH.parts
+                    ).resolve(),
+                )
+            return 0
+
+        def fake_postprocess(run_dir, publication_log=None, final_guard=None):
+            del publication_log
+            self.assertIsNotNone(final_guard)
+            final_guard()
+            receipt = run_dir / "EXPERIMENT_RECEIPT.json"
+            receipt.write_text("{}\n", encoding="utf-8")
+            return receipt
+
+        with (
+            mock.patch.object(experiment, "capture_source_seal", return_value=seal),
+            mock.patch.object(experiment, "generate_run_id", return_value="sealed-run"),
+            mock.patch.object(experiment, "run_logged", side_effect=fake_run_logged),
+            mock.patch.object(experiment, "assert_source_seal_unchanged") as source_guard,
+            mock.patch.object(experiment, "postprocess_run", side_effect=fake_postprocess),
+            mock.patch.object(experiment, "create_audit_bundle") as create_bundle,
+        ):
+            receipt = experiment.run_experiment(
+                self.source, self.artifacts, "fire-heat", mode="candidate"
+            )
+        self.assertEqual(receipt, self.artifacts / "sealed-run" / "EXPERIMENT_RECEIPT.json")
+        self.assertEqual(len(commands), 2)
+        self.assertEqual(commands[0][0], "cargo")
+        self.assertEqual(
+            [call.args[2] for call in source_guard.call_args_list],
+            ["post-build", "pre-worker", "worker-launch", "post-worker", "pre-receipt"],
+        )
+        create_bundle.assert_called_once_with(
+            self.artifacts / "sealed-run",
+            self.source.resolve(),
+            experiment.sha256_file(receipt),
+        )
+
     def test_external_root_and_create_new_contracts(self) -> None:
         self.assertEqual(
             str(experiment.DEFAULT_ARTIFACT_ROOT),
@@ -2071,11 +2470,30 @@ class ExperimentRunnerTests(unittest.TestCase):
             },
         )
         command = manifest["commands"]["worker"]
-        self.assertEqual(command[0], str(self.source / "target" / "release" / "powdergame-windows.exe"))
+        expected_binary = run_dir.joinpath(
+            *experiment.FROZEN_BINARY_RELATIVE_PATH.parts
+        ).resolve()
+        self.assertEqual(command[0], str(expected_binary))
         self.assertIn("fire-heat", command)
         self.assertEqual(command[-4:], ["--consecutive-reaction-zero", "3", "--post-reaction-ticks", "180"])
         self.assertNotIn("--consecutive-all-sleep", command)
         self.assertNotIn("--post-sleep-ticks", command)
+        legacy_binary = (
+            self.source / "target" / "release" / "powdergame-windows.exe"
+        ).resolve()
+        legacy = replace(
+            self.manifest_data(run_dir, experiment.FIRE_CONTRACT),
+            binary_path=legacy_binary,
+            worker_command=experiment.worker_command(
+                legacy_binary,
+                run_dir.resolve(),
+                run_dir.name,
+                "b" * 64,
+                contract=experiment.FIRE_CONTRACT,
+            ),
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "run-local frozen"):
+            experiment.validate_manifest_dict(legacy.as_dict())
         scratch = experiment.generate_run_id(
             contract=experiment.FIRE_CONTRACT, run_mode="scratch"
         )
@@ -2207,6 +2625,28 @@ class ExperimentRunnerTests(unittest.TestCase):
         with self.assertRaises(experiment.ExperimentError):
             experiment.postprocess_run(run_dir)
         self.assertFalse((run_dir / "EXPERIMENT_RECEIPT.json").exists())
+
+    def test_sand_v0_deprecated_diagnostic_tick_alias_is_sample_sequence(self) -> None:
+        run_dir = self.create_valid_worker_fixture(
+            "g8b-sand-fall-v0-deprecated-alias-test"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        analysis_path = run_dir / "work" / "analysis.json"
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            analysis["lifecycle"]["first_all_sleep_diagnostic_sample_tick"],
+            analysis["lifecycle"]["first_all_sleep_sample_sequence"],
+        )
+        self.assertNotEqual(
+            analysis["lifecycle"]["first_all_sleep_diagnostic_sample_tick"],
+            analysis["lifecycle"]["first_all_sleep_sim_tick"],
+        )
+        analysis["lifecycle"]["first_all_sleep_diagnostic_sample_tick"] += 1
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        with self.assertRaisesRegex(experiment.ExperimentError, "deprecated"):
+            experiment.validate_telemetry(run_dir, manifest)
 
 
 if __name__ == "__main__":

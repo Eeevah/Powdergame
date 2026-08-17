@@ -21,10 +21,27 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 
 DEFAULT_ARTIFACT_ROOT = Path(r"C:\Users\mdkap\source\Powdergame-artifacts")
+
+SOURCE_INPUT_MANIFEST_SCHEMA = "powdergame-source-input-manifest-v0"
+SOURCE_INPUT_MANIFEST_NAME = "SOURCE_INPUT_MANIFEST.json"
+FROZEN_BINARY_RELATIVE_PATH = PurePosixPath(
+    "frozen-binary/powdergame-windows.exe"
+)
+AUDIT_BUNDLE_SUFFIX = ".AUDIT_BUNDLE.zip"
+AUDIT_BUNDLE_SHA256_SUFFIX = ".AUDIT_BUNDLE_SHA256.txt"
+SOURCE_INPUT_EXACT_PATHS = frozenset(
+    {
+        "run_experiment.bat",
+        "tools/experiment/run_experiment.py",
+    }
+)
+SOURCE_EXTERNAL_BUILD_INPUTS = (
+    ("windows-consolas-font", Path(r"C:\Windows\Fonts\consola.ttf")),
+)
 
 SAND_MANIFEST_SCHEMA = "powdergame-experiment-manifest-v0"
 SAND_ANALYSIS_SCHEMA = "powdergame-experiment-analysis-v0"
@@ -365,6 +382,12 @@ class SourceInfo:
 
 
 @dataclass(frozen=True)
+class SourceSeal:
+    source: SourceInfo
+    manifest: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class ManifestData:
     run_id: str
     created_utc: str
@@ -556,6 +579,214 @@ def inspect_clean_named_source(source_root: Path) -> SourceInfo:
     return SourceInfo(root=source, branch=branch, sha=sha)
 
 
+def git_bytes(source_root: Path, *args: str) -> bytes:
+    safe_root = str(source_root.resolve())
+    completed = subprocess.run(
+        ["git", "-c", f"safe.directory={safe_root}", *args],
+        cwd=source_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise ExperimentError(f"git {' '.join(args)} failed: {detail}")
+    return completed.stdout
+
+
+def is_source_input_path(relative: PurePosixPath) -> bool:
+    value = relative.as_posix()
+    return (
+        value in SOURCE_INPUT_EXACT_PATHS
+        or relative.name in {"Cargo.toml", "Cargo.lock", "build.rs"}
+        or relative.suffix.lower() in {".rs", ".wgsl"}
+    )
+
+
+def tracked_source_input_paths(source_root: Path) -> list[PurePosixPath]:
+    raw_paths = git_bytes(source_root, "ls-files", "-z", "--cached")
+    paths: list[PurePosixPath] = []
+    for raw_path in raw_paths.split(b"\0"):
+        if not raw_path:
+            continue
+        try:
+            text = raw_path.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as error:
+            raise ExperimentError("tracked source input path is not valid UTF-8") from error
+        relative = PurePosixPath(text)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ExperimentError(f"unsafe tracked source input path: {text!r}")
+        if is_source_input_path(relative):
+            paths.append(relative)
+    paths.sort(key=PurePosixPath.as_posix)
+    if not paths:
+        raise ExperimentError("source input manifest selection is empty")
+    required = {"Cargo.toml", "Cargo.lock", *SOURCE_INPUT_EXACT_PATHS}
+    selected = {path.as_posix() for path in paths}
+    missing = sorted(required - selected)
+    if missing:
+        raise ExperimentError(f"required source input paths are not tracked: {missing}")
+    return paths
+
+
+def capture_external_build_inputs() -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    labels: set[str] = set()
+    for label, configured_path in SOURCE_EXTERNAL_BUILD_INPUTS:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", label) or label in labels:
+            raise ExperimentError(f"invalid/duplicate external build input label: {label!r}")
+        labels.add(label)
+        path = Path(configured_path)
+        if not path.is_absolute():
+            raise ExperimentError(
+                f"external build input must use an absolute path: {label}={path}"
+            )
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as error:
+            raise ExperimentError(
+                f"required external build input is missing: {label}={path}"
+            ) from error
+        if not resolved.is_file():
+            raise ExperimentError(
+                f"required external build input is not a file: {label}={resolved}"
+            )
+        before = resolved.stat()
+        digest = sha256_file(resolved)
+        after = resolved.stat()
+        if (before.st_size, before.st_mtime_ns) != (
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise ExperimentError(
+                f"external build input changed while hashing: {label}={resolved}"
+            )
+        entries.append(
+            {
+                "label": label,
+                "path": str(resolved),
+                "sha256": digest,
+                "size_bytes": after.st_size,
+            }
+        )
+    entries.sort(key=lambda entry: entry["label"])
+    if not entries:
+        raise ExperimentError("external build input seal configuration is empty")
+    return entries
+
+
+def capture_source_seal(source_root: Path) -> SourceSeal:
+    before = inspect_clean_named_source(source_root)
+    entries: list[dict[str, Any]] = []
+    for relative in tracked_source_input_paths(before.root):
+        path = before.root.joinpath(*relative.parts)
+        if not path.is_file():
+            raise ExperimentError(
+                f"tracked source input is not a regular file: {relative.as_posix()}"
+            )
+        entries.append(
+            {
+                "path": relative.as_posix(),
+                "sha256": sha256_file(path),
+                "size_bytes": path.stat().st_size,
+            }
+        )
+    external_entries = capture_external_build_inputs()
+    after = inspect_clean_named_source(before.root)
+    if after != before:
+        raise ExperimentError("source identity changed while capturing input manifest")
+    manifest = {
+        "schema_version": SOURCE_INPUT_MANIFEST_SCHEMA,
+        "source": {
+            "root": str(after.root),
+            "branch": after.branch,
+            "head_sha": after.sha,
+            "git_state": after.git_state,
+        },
+        "selection": {
+            "tracked_only": True,
+            "rules": [
+                "Cargo.toml/Cargo.lock/build.rs",
+                "Rust (*.rs)",
+                "WGSL (*.wgsl)",
+                "run_experiment.bat",
+                "tools/experiment/run_experiment.py",
+            ],
+        },
+        "file_count": len(entries),
+        "files": entries,
+        "external_file_count": len(external_entries),
+        "external_files": external_entries,
+    }
+    return SourceSeal(source=after, manifest=manifest)
+
+
+def render_source_input_manifest(seal: SourceSeal) -> str:
+    return json.dumps(
+        seal.manifest, indent=2, ensure_ascii=False, sort_keys=True
+    ) + "\n"
+
+
+def assert_source_manifest_artifact_unchanged(path: Path, expected: SourceSeal) -> None:
+    try:
+        observed = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ExperimentError(f"source input manifest cannot be read: {error}") from error
+    if observed != render_source_input_manifest(expected):
+        raise ExperimentError(
+            "source input manifest artifact changed; run preserved without receipt"
+        )
+
+
+def assert_source_seal_unchanged(
+    source_root: Path, expected: SourceSeal, phase: str
+) -> None:
+    try:
+        observed = capture_source_seal(source_root)
+    except ExperimentError as error:
+        raise ExperimentError(f"source seal check failed at {phase}: {error}") from error
+    if observed != expected:
+        raise ExperimentError(
+            f"source input manifest drift detected at {phase}; "
+            "run preserved without receipt"
+        )
+
+
+def copy_frozen_binary(source_binary: Path, run_dir: Path) -> tuple[Path, str]:
+    destination = run_dir.joinpath(*FROZEN_BINARY_RELATIVE_PATH.parts)
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=False)
+        with source_binary.open("rb") as source_handle, destination.open("xb") as output:
+            for block in iter(lambda: source_handle.read(1024 * 1024), b""):
+                output.write(block)
+            output.flush()
+            os.fsync(output.fileno())
+    except FileExistsError as error:
+        raise ExperimentError(
+            f"refusing to overwrite frozen experiment binary: {destination}"
+        ) from error
+    except OSError as error:
+        raise ExperimentError(
+            f"failed to freeze experiment binary {source_binary}: {error}"
+        ) from error
+    source_hash = sha256_file(source_binary)
+    frozen_hash = sha256_file(destination)
+    if frozen_hash != source_hash:
+        raise ExperimentError("frozen experiment binary hash does not match release output")
+    return destination.resolve(), frozen_hash
+
+
+def assert_frozen_binary_unchanged(binary: Path, expected_sha256: str, phase: str) -> None:
+    if not binary.is_file():
+        raise ExperimentError(f"frozen experiment binary missing at {phase}: {binary}")
+    observed = sha256_file(binary)
+    if observed != expected_sha256:
+        raise ExperimentError(
+            f"frozen experiment binary drift detected at {phase}; "
+            "run preserved without receipt"
+        )
+
+
 def run_logged(
     command: Sequence[str], cwd: Path, stdout_path: Path, stderr_path: Path
 ) -> int:
@@ -735,9 +966,18 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
     if run_dir.resolve() != (artifact_root / data["run_id"]).resolve():
         raise ExperimentError("manifest run directory must be artifact_root/run_id")
     validate_external_artifact_root(source_root, artifact_root)
-    expected_binary = source_root / "target" / "release" / "powdergame-windows.exe"
-    if binary_path.resolve() != expected_binary.resolve():
-        raise ExperimentError("manifest binary path is not the locked release Windows binary")
+    legacy_binary = source_root / "target" / "release" / "powdergame-windows.exe"
+    frozen_binary = run_dir.joinpath(*FROZEN_BINARY_RELATIVE_PATH.parts)
+    if contract is FIRE_CONTRACT:
+        if binary_path.resolve() != frozen_binary.resolve():
+            raise ExperimentError(
+                "Fire manifest binary path must be the run-local frozen executable"
+            )
+    elif binary_path.resolve() not in {legacy_binary.resolve(), frozen_binary.resolve()}:
+        raise ExperimentError(
+            "Sand/Water manifest binary path is neither the historical release path "
+            "nor the run-local frozen executable"
+        )
     expected_build = [
         "cargo",
         "build",
@@ -899,11 +1139,18 @@ def validate_sand_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -
             require_nonnegative_int(lifecycle[key], f"analysis lifecycle {key}")
     for key in ("post_sleep_change_ticks", "post_sleep_wake_ticks", "sample_count"):
         require_nonnegative_int(lifecycle[key], f"analysis lifecycle {key}")
+    # Sand v0 historical compatibility only: despite its old name,
+    # first_all_sleep_diagnostic_sample_tick stores the diagnostic sample
+    # sequence, never a simulation tick. Keep it as a deprecated alias and
+    # reject any artifact in which it diverges from the explicit field.
     if (
         lifecycle["first_all_sleep_diagnostic_sample_tick"]
         != lifecycle["first_all_sleep_sample_sequence"]
     ):
-        raise ExperimentError("analysis first all-sleep sample identities disagree")
+        raise ExperimentError(
+            "analysis deprecated first_all_sleep_diagnostic_sample_tick alias "
+            "disagrees with first_all_sleep_sample_sequence"
+        )
 
     baseline = analysis["baseline"]
     if not isinstance(baseline, dict):
@@ -4103,6 +4350,10 @@ run `{manifest['run_id']}` in `{manifest['run_mode']}` mode, source
 automatic verdict is `{analysis['verdict']}`; treat it as a telemetry claim to check,
 not as acceptance or a product conclusion.
 
+`REVIEW_PACKET.zip` is a lightweight human-review packet. It does not contain the
+frozen executable or source snapshot and cannot independently establish source/binary
+forensic identity; use the candidate's sibling `AUDIT_BUNDLE.zip` for that purpose.
+
 Water remediation telemetry reports maximum/final outside-outer-basin cells as
 `{remediation['max_water_outside_outer_basin_cells']}` /
 `{remediation['final_water_outside_outer_basin_cells']}`. Final active-cell classes are
@@ -4134,6 +4385,10 @@ Review only `REVIEW_PACKET.zip` for experiment `{manifest['experiment_id']}`, ru
 `{manifest['source']['sha']}`, binary `{manifest['binary']['sha256']}`. Treat automatic
 verdict `{analysis['verdict']}` as a telemetry claim, not user acceptance or closure.
 
+`REVIEW_PACKET.zip` is a lightweight human-review packet. It does not contain the
+frozen executable or source snapshot and cannot independently establish source/binary
+forensic identity; use the candidate's sibling `AUDIT_BUNDLE.zip` for that purpose.
+
 Check the causal sequence in the full frames, crops, contact sheet, raw samples, and events:
 Wood/Oil production combustion, Smoke creation, heat propagation, Ice/Water/Steam phase
 inventory work, finite fuel consumption, three diagnostic Reaction-zero samples, and the
@@ -4155,6 +4410,10 @@ Review only the attached `REVIEW_PACKET.zip` for experiment `{manifest['experime
 run `{manifest['run_id']}`, source `{manifest['source']['sha']}`, binary
 `{manifest['binary']['sha256']}`. The worker automatic verdict is
 `{analysis['verdict']}`; treat it as a claim to check, not as a conclusion to repeat.
+
+`REVIEW_PACKET.zip` is a lightweight human-review packet. It does not contain the
+frozen executable or source snapshot and cannot independently establish source/binary
+forensic identity; use the candidate's sibling `AUDIT_BUNDLE.zip` for that purpose.
 
 Inspect the manifest, raw logs, telemetry JSONL, REPORT.md/REPORT.json, full screenshots,
 world crops, and contact sheet. Report concrete evidence, mismatches, missing data, and
@@ -4214,7 +4473,73 @@ def render_hashes(run_dir: Path) -> str:
     )
 
 
-def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> Path:
+def parse_hash_manifest(path: Path) -> dict[str, str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ExperimentError(f"cannot read HASHES.sha256: {error}") from error
+    if not text or not text.endswith("\n"):
+        raise ExperimentError("HASHES.sha256 must be non-empty and newline-terminated")
+
+    entries: dict[str, str] = {}
+    previous_path: str | None = None
+    for line_number, line in enumerate(text.splitlines(), 1):
+        match = re.fullmatch(r"([0-9a-f]{64})  ([^\r\n]+)", line)
+        if match is None:
+            raise ExperimentError(f"HASHES.sha256 line {line_number} is malformed")
+        digest, relative_text = match.groups()
+        relative = PurePosixPath(relative_text)
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or "\\" in relative_text
+            or relative.as_posix() != relative_text
+        ):
+            raise ExperimentError(
+                f"HASHES.sha256 line {line_number} has an unsafe/noncanonical path"
+            )
+        if relative_text in entries:
+            raise ExperimentError(
+                f"HASHES.sha256 contains duplicate path: {relative_text}"
+            )
+        if previous_path is not None and relative_text <= previous_path:
+            raise ExperimentError("HASHES.sha256 paths must be strictly sorted")
+        entries[relative_text] = digest
+        previous_path = relative_text
+    return entries
+
+
+def validate_hash_inventory(run_dir: Path, hashes_path: Path) -> dict[str, str]:
+    entries = parse_hash_manifest(hashes_path)
+    expected_files = hashable_files(run_dir)
+    expected = {
+        path.relative_to(run_dir).as_posix(): path for path in expected_files
+    }
+    actual_paths = set(entries)
+    expected_paths = set(expected)
+    if actual_paths != expected_paths:
+        missing = sorted(expected_paths - actual_paths)
+        extra = sorted(actual_paths - expected_paths)
+        raise ExperimentError(
+            f"HASHES.sha256 inventory mismatch; missing={missing}, extra={extra}"
+        )
+    for relative, path in expected.items():
+        if not path.is_file():
+            raise ExperimentError(f"hash inventory path is not a file: {relative}")
+        observed = sha256_file(path)
+        if entries[relative] != observed:
+            raise ExperimentError(
+                f"HASHES.sha256 digest mismatch for {relative}: "
+                f"recorded={entries[relative]}, observed={observed}"
+            )
+    return entries
+
+
+def postprocess_run(
+    run_dir: Path,
+    publication_log: list[str] | None = None,
+    final_guard: Callable[[], None] | None = None,
+) -> Path:
     log = publication_log if publication_log is not None else []
     receipt_path = run_dir / "EXPERIMENT_RECEIPT.json"
     if receipt_path.exists():
@@ -4259,6 +4584,9 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
             "water_flow": contract is WATER_CONTRACT,
             "g8c": False,
             "ai_contacted": False,
+            "review_packet_role": "lightweight_human_review",
+            "review_packet_supports_source_binary_forensics": False,
+            "candidate_forensics_delivery": "sibling AUDIT_BUNDLE",
         },
     }
     if contract is FIRE_CONTRACT:
@@ -4317,12 +4645,22 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
         "hash_entry_count": len(hashable_files(run_dir)),
         "receipt_is_final_publication_marker": True,
     }
+    source_input_manifest_path = run_dir / SOURCE_INPUT_MANIFEST_NAME
+    if source_input_manifest_path.is_file():
+        receipt["source_input_manifest_sha256"] = sha256_file(
+            source_input_manifest_path
+        )
+    binary_path = Path(manifest["binary"]["path"])
+    if is_path_within(binary_path, run_dir):
+        receipt["frozen_binary_path"] = binary_path.relative_to(run_dir).as_posix()
     if contract.records_run_mode:
         receipt["run_mode"] = manifest["run_mode"]
     if contract is WATER_CONTRACT:
         receipt["water_remediation"] = water_remediation_summary(analysis)
     elif contract is FIRE_CONTRACT:
         receipt["fire_heat"] = fire_heat_summary(analysis)
+    if final_guard is not None:
+        final_guard()
     write_new_text(
         receipt_path,
         json.dumps(receipt, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
@@ -4331,6 +4669,198 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
     # Publication invariant: this function performs no filesystem write after
     # the create-new receipt write above.
     return receipt_path
+
+
+def git_archive_zip_bytes(source_root: Path, source_sha: str) -> bytes:
+    if not GIT_OID.fullmatch(source_sha):
+        raise ExperimentError(f"cannot archive invalid source SHA: {source_sha!r}")
+    safe_root = str(source_root.resolve())
+    completed = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={safe_root}",
+            "archive",
+            "--format=zip",
+            "--prefix=source/",
+            source_sha,
+        ],
+        cwd=source_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise ExperimentError(f"git archive failed: {detail}")
+    return completed.stdout
+
+
+def exact_json_value_equal(recorded: Any, expected: Any) -> bool:
+    if type(recorded) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        return set(recorded) == set(expected) and all(
+            exact_json_value_equal(recorded[key], expected[key]) for key in expected
+        )
+    if isinstance(expected, list):
+        return len(recorded) == len(expected) and all(
+            exact_json_value_equal(left, right)
+            for left, right in zip(recorded, expected, strict=True)
+        )
+    return recorded == expected
+
+
+def validate_audit_receipt(
+    receipt: dict[str, Any],
+    manifest: dict[str, Any],
+    analysis: dict[str, Any],
+    *,
+    manifest_path: Path,
+    hashes_path: Path,
+    review_packet_path: Path,
+    source_inputs_path: Path,
+    binary_path: Path,
+    hash_entry_count: int,
+) -> None:
+    contract = contract_for_manifest(manifest)
+    expected: dict[str, Any] = {
+        "schema_version": contract.receipt_schema,
+        "experiment_id": manifest["experiment_id"],
+        "run_id": manifest["run_id"],
+        "scenario": manifest["scenario"],
+        "source_sha": manifest["source"]["sha"],
+        "binary_sha256": manifest["binary"]["sha256"],
+        "automatic_verdict": analysis["verdict"],
+        "manifest_sha256": sha256_file(manifest_path),
+        "review_packet_sha256": sha256_file(review_packet_path),
+        "hashes_sha256": sha256_file(hashes_path),
+        "hash_entry_count": hash_entry_count,
+        "receipt_is_final_publication_marker": True,
+        "source_input_manifest_sha256": sha256_file(source_inputs_path),
+        "frozen_binary_path": binary_path.relative_to(manifest_path.parent).as_posix(),
+    }
+    if contract.records_run_mode:
+        expected["run_mode"] = manifest["run_mode"]
+    if contract is WATER_CONTRACT:
+        expected["water_remediation"] = water_remediation_summary(analysis)
+    elif contract is FIRE_CONTRACT:
+        expected["fire_heat"] = fire_heat_summary(analysis)
+
+    require_exact_keys(
+        receipt, set(expected) | {"completed_utc"}, "experiment receipt"
+    )
+    completed_utc = receipt["completed_utc"]
+    if not isinstance(completed_utc, str):
+        raise ExperimentError("receipt completed_utc must be a string")
+    try:
+        completed = datetime.fromisoformat(completed_utc.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ExperimentError("receipt completed_utc must be an ISO-8601 timestamp") from error
+    if completed.tzinfo is None or completed.utcoffset() != timezone.utc.utcoffset(completed):
+        raise ExperimentError("receipt completed_utc must identify UTC")
+
+    for field, expected_value in expected.items():
+        recorded = receipt[field]
+        if not exact_json_value_equal(recorded, expected_value):
+            raise ExperimentError(
+                f"receipt {field} contract mismatch: "
+                f"recorded={recorded!r}, observed={expected_value!r}"
+            )
+
+
+def create_audit_bundle(
+    run_dir: Path, source_root: Path, expected_receipt_sha256: str
+) -> tuple[Path, Path]:
+    manifest_path = run_dir / "EXPERIMENT_MANIFEST.toml"
+    hashes_path = run_dir / "HASHES.sha256"
+    receipt_path = run_dir / "EXPERIMENT_RECEIPT.json"
+    source_inputs_path = run_dir / SOURCE_INPUT_MANIFEST_NAME
+    review_packet_path = run_dir / "report" / "REVIEW_PACKET.zip"
+    required = (
+        manifest_path,
+        hashes_path,
+        receipt_path,
+        source_inputs_path,
+        review_packet_path,
+    )
+    missing = [path.name for path in required if not path.is_file()]
+    if missing:
+        raise ExperimentError(f"audit bundle inputs are incomplete: {missing}")
+    if not HEX64.fullmatch(expected_receipt_sha256):
+        raise ExperimentError("expected receipt SHA-256 must be 64 hexadecimal characters")
+    observed_receipt_sha256 = sha256_file(receipt_path)
+    if observed_receipt_sha256 != expected_receipt_sha256.lower():
+        raise ExperimentError(
+            "receipt SHA-256 changed after final publication: "
+            f"expected={expected_receipt_sha256.lower()}, "
+            f"observed={observed_receipt_sha256}"
+        )
+
+    manifest = read_and_validate_manifest(manifest_path)
+    run_mode = manifest.get("run_mode", "candidate")
+    if run_mode != "candidate":
+        raise ExperimentError("AUDIT_BUNDLE is candidate-only")
+    binary_path = Path(manifest["binary"]["path"])
+    expected_binary = run_dir.joinpath(*FROZEN_BINARY_RELATIVE_PATH.parts).resolve()
+    if binary_path.resolve() != expected_binary or not binary_path.is_file():
+        raise ExperimentError("audit bundle requires the run-local frozen executable")
+    if sha256_file(binary_path) != manifest["binary"]["sha256"]:
+        raise ExperimentError("frozen executable hash changed before audit bundling")
+
+    analysis, _, _, _ = validate_telemetry(run_dir, manifest)
+    hash_entries = validate_hash_inventory(run_dir, hashes_path)
+    receipt = read_json(receipt_path, "experiment receipt")
+    validate_audit_receipt(
+        receipt,
+        manifest,
+        analysis,
+        manifest_path=manifest_path,
+        hashes_path=hashes_path,
+        review_packet_path=review_packet_path,
+        source_inputs_path=source_inputs_path,
+        binary_path=binary_path,
+        hash_entry_count=len(hash_entries),
+    )
+
+    bundle_path = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SUFFIX}"
+    sidecar_path = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SHA256_SUFFIX}"
+    members = (
+        (review_packet_path, "REVIEW_PACKET.zip"),
+        (manifest_path, "EXPERIMENT_MANIFEST.toml"),
+        (hashes_path, "HASHES.sha256"),
+        (receipt_path, "EXPERIMENT_RECEIPT.json"),
+        (source_inputs_path, SOURCE_INPUT_MANIFEST_NAME),
+        (binary_path, FROZEN_BINARY_RELATIVE_PATH.as_posix()),
+    )
+    try:
+        with bundle_path.open("xb") as output:
+            with zipfile.ZipFile(
+                output, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+            ) as archive:
+                for path, archive_name in members:
+                    archive.write(path, archive_name)
+                try:
+                    source_archive = git_archive_zip_bytes(
+                        source_root, manifest["source"]["sha"]
+                    )
+                except ExperimentError as error:
+                    archive.writestr(
+                        "SOURCE_ARCHIVE_UNAVAILABLE.txt",
+                        f"Git archive was unavailable: {error}\n",
+                    )
+                else:
+                    archive.writestr("SOURCE_ARCHIVE.zip", source_archive)
+            output.flush()
+            os.fsync(output.fileno())
+    except FileExistsError as error:
+        raise ExperimentError(f"refusing to overwrite audit bundle: {bundle_path}") from error
+    except OSError as error:
+        raise ExperimentError(f"failed to create audit bundle: {error}") from error
+
+    bundle_hash = sha256_file(bundle_path)
+    write_new_text(sidecar_path, f"{bundle_hash}  {bundle_path.name}\n")
+    return bundle_path, sidecar_path
 
 
 def worker_command(
@@ -4381,9 +4911,12 @@ def run_experiment(
     contract = contract_for_scenario(scenario)
     validate_run_mode(contract, mode)
     validate_external_artifact_root(source_root, artifact_root)
-    source = inspect_clean_named_source(source_root)
+    source_seal = capture_source_seal(source_root)
+    source = source_seal.source
     run_id = generate_run_id(contract=contract, run_mode=mode)
     run_dir = create_run_directory(artifact_root.resolve(), run_id)
+    source_manifest_path = run_dir / SOURCE_INPUT_MANIFEST_NAME
+    write_new_text(source_manifest_path, render_source_input_manifest(source_seal))
     logs = run_dir / "logs"
     logs.mkdir()
 
@@ -4394,13 +4927,18 @@ def run_experiment(
         logs / "build.stdout.log",
         logs / "build.stderr.log",
     )
+    assert_source_seal_unchanged(source.root, source_seal, "post-build")
+    assert_source_manifest_artifact_unchanged(source_manifest_path, source_seal)
     if build_exit != 0:
         raise ExperimentError(f"release build failed with exit code {build_exit}; run preserved")
 
-    binary = source.root / "target" / "release" / "powdergame-windows.exe"
-    if not binary.is_file():
-        raise ExperimentError(f"release binary was not produced: {binary}")
-    binary_hash = sha256_file(binary)
+    release_binary = source.root / "target" / "release" / "powdergame-windows.exe"
+    if not release_binary.is_file():
+        raise ExperimentError(f"release binary was not produced: {release_binary}")
+    binary, binary_hash = copy_frozen_binary(release_binary, run_dir)
+    assert_source_seal_unchanged(source.root, source_seal, "pre-worker")
+    assert_source_manifest_artifact_unchanged(source_manifest_path, source_seal)
+    assert_frozen_binary_unchanged(binary, binary_hash, "pre-worker")
     worker = worker_command(
         binary, run_dir, run_id, binary_hash, contract=contract, run_mode=mode
     )
@@ -4420,6 +4958,9 @@ def run_experiment(
     manifest_text = render_manifest(manifest)
     write_new_text(run_dir / "EXPERIMENT_MANIFEST.toml", manifest_text)
     read_and_validate_manifest(run_dir / "EXPERIMENT_MANIFEST.toml")
+    assert_source_seal_unchanged(source.root, source_seal, "worker-launch")
+    assert_source_manifest_artifact_unchanged(source_manifest_path, source_seal)
+    assert_frozen_binary_unchanged(binary, binary_hash, "worker-launch")
 
     worker_exit = run_logged(
         worker,
@@ -4427,12 +4968,25 @@ def run_experiment(
         run_dir / "stdout.log",
         run_dir / "stderr.log",
     )
+    assert_source_seal_unchanged(source.root, source_seal, "post-worker")
+    assert_source_manifest_artifact_unchanged(source_manifest_path, source_seal)
+    assert_frozen_binary_unchanged(binary, binary_hash, "post-worker")
     if worker_exit != 0:
         raise ExperimentError(
             f"experiment worker failed operationally with exit code {worker_exit}; "
             "run preserved without receipt"
         )
-    return postprocess_run(run_dir)
+
+    def final_publication_guard() -> None:
+        assert_source_seal_unchanged(source.root, source_seal, "pre-receipt")
+        assert_source_manifest_artifact_unchanged(source_manifest_path, source_seal)
+        assert_frozen_binary_unchanged(binary, binary_hash, "pre-receipt")
+
+    receipt = postprocess_run(run_dir, final_guard=final_publication_guard)
+    if mode == "candidate":
+        receipt_sha256 = sha256_file(receipt)
+        create_audit_bundle(run_dir, source.root, receipt_sha256)
+    return receipt
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -4473,6 +5027,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"FATAL: {error}", file=sys.stderr)
         return 1
     print(f"Experiment receipt: {receipt}")
+    if args.mode == "candidate":
+        run_dir = receipt.parent
+        bundle = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SUFFIX}"
+        sidecar = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SHA256_SUFFIX}"
+        print(f"Audit bundle: {bundle}")
+        print(f"Audit bundle SHA-256: {sha256_file(bundle)} ({sidecar})")
     return 0
 
 

@@ -7,7 +7,7 @@
 - **Accepted success interpretation**: Sand가 실제로 낙하한 뒤 완전히 정착하고 모든 chunk가 sleep 상태로 수렴하는 것
 - **G8-B checkpoint**: `feature/m0-g8b-scenario-suite` at `e77d102febb1e3c497c2b669efe0140408bd99d7`
 - **Harness development line**: `feature/g8b-experiment-harness-v0`, stacked on `e77d102`
-- **Harness state**: implementation candidate; **PILOT RUN PENDING**; final checkpoint validation pending
+- **Harness state**: validated pilot **PASS**; `HARNESS REVIEW OUTPUT APPROVED`; documentation closure follows the experiment source commit
 - **Gate state**: G8-B **USER ACCEPTANCE PENDING / NOT CLOSED**; G8-C not started
 
 The harness automates one immutable evidence run for the already accepted Sand Fall behavior. It does not redefine the fixture, add a new physics result, or substitute automated telemetry for the remaining Scenario 2–5 user acceptance.
@@ -53,7 +53,7 @@ C:\Users\mdkap\source\Powdergame-artifacts
 
 The runner requires a clean named source branch, creates a unique run ID and directory, performs a locked release build, records the executed binary SHA-256, launches the strict Windows experiment worker, validates the worker output, derives PNG/report artifacts, builds the review packet, hashes the run, and writes the receipt last.
 
-This command is documented for the pending pilot. No successful pilot, final run ID, receipt, automatic verdict, or final validation result is claimed by this document yet.
+The validated pilot was produced from clean experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`. The later docs-only closure commit records the result and must not be reported as experiment provenance. Sand Fall and the Harness pilot must not be rerun for this closure.
 
 ---
 
@@ -183,15 +183,31 @@ Generated run artifacts are external evidence and must never be added to Git. On
 
 ---
 
-## 9. Pending pilot and closure boundary
+## 9. Validated pilot and closure boundary
 
-The next Harness-specific checkpoint is one pilot from a clean committed source on `feature/g8b-experiment-harness-v0`, followed by narrow validation of the produced manifest, command logs, telemetry identities, frame inventory, reports, packet, hashes, and receipt-last invariant. Until that run exists, record:
+The Sand Fall pilot and its preserved external artifacts were validated without rerunning the experiment:
 
 ```text
-pilot_run: PENDING
-pilot_receipt: NONE
-pilot_verdict: NOT ESTABLISHED
-final_checkpoint_checks: PENDING
+run_id: g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505
+experiment_source_sha: 9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5
+automatic_verdict: PASS
+first_all_sleep_sim_tick: 1096
+first_all_sleep_diagnostic_sample_sequence: 139
+all_sleep_confirmed_sim_tick: 1112
+post_sleep_ticks: 180
+post_sleep_state_changes: 0
+post_sleep_wakes: 0
+matter_delta: 0
+invalid_material_ids: 0
+nan_or_inf_values: 0
+exact_reset: true
+review_packet_sha256: feffc180f81d36558b8139f5436a2a0eed6422617dd9a3207153b1cb62af1323
+receipt_sha256: 42bbacf77ca80356996a53fb2d0a56a5aba18215b5b85bda637350522c95e033
+harness_review_output: HARNESS REVIEW OUTPUT APPROVED
 ```
 
-Even if that pilot produces automatic `PASS`, G8-B remains open because Scenario 2–5 user acceptance is separate. Water Flow remains outside this Harness task, and G8-C must not begin from this run.
+Contact Sheet review approved the keyframe selection. The all-sleep-related frames that look the same are retained because they prove distinct semantic milestones: the observation immediately before the confirmed streak, the first observed all-sleep sample within that streak, and completion of the 180-tick post-sleep stability window. The exact-reset frame separately proves restoration of the pristine tick-0 state. Compact per-tile metric captions are a non-blocking future improvement.
+
+The documentation closure commit is the later docs-only commit that first contains this result and is distinct from experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`; report its exact SHA after that commit exists. Sand Fall and the Harness pilot must not be rerun for this closure.
+
+G8-B remains **USER ACCEPTANCE PENDING / NOT CLOSED** because Water Flow, Fire / Heat, Pressure Burst, and Heavy Mixed World remain pending. G8-C is also pending and must not begin from this closure.

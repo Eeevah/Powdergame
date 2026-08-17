@@ -135,7 +135,7 @@ SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않
 
 ### Evidence
 
-`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B Gallery 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Sand Fall Harness v0 문서는 승인된 Scenario 1 lifecycle을 저장소 밖의 immutable run으로 기록하는 runner, telemetry, verdict, artifact, receipt-last 계약을 설명하며 pilot/final validation은 pending으로 유지한다. Scenario 1 Sand Fall은 사용자 승인되었고 Scenario 2~5는 미승인이라 전체 기록은 **USER ACCEPTANCE PENDING / NOT CLOSED** 상태다. Gallery diagnostics, Harness 자동 `PASS`, targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
+`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B Gallery 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Sand Fall Harness v0의 experiment source `9e1fdac` pilot은 automatic `PASS`를 기록했고, Contact Sheet keyframe selection과 Harness review output은 `APPROVED`다. Scenario 1 Sand Fall은 사용자 승인되었지만 Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World는 pending이므로 전체 기록은 **USER ACCEPTANCE PENDING / NOT CLOSED** 상태다. Gallery diagnostics, Harness 자동 `PASS`, targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
 
 ### Adversarial Reviews
 

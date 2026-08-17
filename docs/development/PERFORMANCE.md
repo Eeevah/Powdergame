@@ -499,7 +499,7 @@ Activity reason census의 Matter / Thermal / Pressure / Reaction category는 서
 
 ## 19. Benchmark Scenarios
 
-M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 shared deterministic fixture, Windows inspection Gallery, headless `--scenario` selection까지 구현 candidate가 존재한다. Scenario 1 Sand Fall은 사용자 승인되었고 Scenario 2~5는 미승인이다. G8-B 전체 상태는 **USER ACCEPTANCE PENDING / NOT CLOSED**이며, 아직 G8-C official matrix 결과가 아니다.
+M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 shared deterministic fixture, Windows inspection Gallery, headless `--scenario` selection까지 구현 candidate가 존재한다. Scenario 1 Sand Fall은 사용자 승인되었고 Scenario 2~5는 **PENDING / NOT YET USER ACCEPTED**다. G8-B 전체 상태는 **USER ACCEPTANCE PENDING / NOT CLOSED**이며, 아직 G8-C official matrix 결과가 아니다.
 
 ### Sand Fall
 
@@ -512,24 +512,27 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - Liquid movement
 - density displacement
 - stable bulk
-- **UNACCEPTED**: inspection/correction은 현재 checkpoint task 범위 밖이다.
+- **PENDING / NOT YET USER ACCEPTED**: inspection/correction은 현재 checkpoint task 범위 밖이다.
 
 ### Fire / Heat
 
 - Thermal propagation
 - combustion
 - Smoke
+- **PENDING / NOT YET USER ACCEPTED**
 
 ### Pressure Burst
 
 - Steam expansion
 - pressure
 - rupture/vent
+- **PENDING / NOT YET USER ACCEPTED**
 
 ### Heavy Mixed World
 
 - 여러 subsystem 동시 active
 - worst-case에 가까운 실제 플레이 workload
+- **PENDING / NOT YET USER ACCEPTED**
 
 각 scenario는 가능하면 자동으로 초기 상태를 만들 수 있어야 한다.
 
@@ -572,7 +575,7 @@ run_experiment.bat sand-fall
 
 Automatic `PASS`는 actual fall, Matter conservation, zero invalid Material, zero non-finite field, sleep before max, zero post-sleep change/wake, exact reset의 일곱 hard predicate가 모두 참이라는 run-local 판정이다. Scenario 2–5 user acceptance, G8-B closure, official G8-C performance, bottleneck decision을 의미하지 않는다.
 
-현재 Harness는 implementation candidate이며 pilot과 final checkpoint checks는 pending이다. 따라서 run ID, receipt, verdict, performance 결과를 아직 기록하지 않는다. 자세한 lifecycle과 artifact 계약은 `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`를 따른다.
+Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic `PASS`, Harness review output `APPROVED`로 검증되었다. 이는 performance benchmark나 G8-C evidence가 아니며, 이후 docs-only closure commit과 experiment source provenance를 구분한다. 전체 lifecycle, 수치, artifact hash, review 경계는 `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`를 따른다.
 
 ---
 

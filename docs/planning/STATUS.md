@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. 그 위의 G8-B shared fixture/Windows Gallery/headless selection checkpoint `e77d102`에서 Scenario 1 Sand Fall은 사용자 승인되었으나 Scenario 2~5는 미승인이다. Sand Fall Experiment Harness v0는 stacked implementation candidate이며 pilot과 final checkpoint checks는 pending이다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 G8-C는 시작하지 않았다.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. 그 위의 G8-B shared fixture/Windows Gallery/headless selection checkpoint `e77d102`에서 Scenario 1 Sand Fall은 사용자 승인되었으나 Scenario 2~5는 미승인이다. Sand Fall Experiment Harness v0는 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 pilot automatic `PASS`와 `HARNESS REVIEW OUTPUT APPROVED`를 기록했으며, 이후 docs-only closure commit은 source provenance와 별도다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World와 G8-C는 pending이다.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A VERIFIED V5 EVIDENCE CANDIDATE, USER VISUAL VALIDATION PENDING; G8-B CHECKPOINT `e77d102`, SCENARIO 1 USER ACCEPTED, SCENARIO 2–5 UNACCEPTED, SAND FALL HARNESS PILOT PENDING, OVERALL NOT CLOSED; G8-C PENDING).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A VERIFIED V5 EVIDENCE CANDIDATE, USER VISUAL VALIDATION PENDING; G8-B CHECKPOINT `e77d102`, SCENARIO 1 USER ACCEPTED, SCENARIO 2–5 PENDING / NOT YET USER ACCEPTED, SAND FALL HARNESS PILOT PASS / REVIEW APPROVED, OVERALL NOT CLOSED; G8-C PENDING).**
 
 ### Current Summary
 
@@ -395,11 +395,11 @@ Static Analysis & Formatting:
   - Evidence: `docs/evidence/G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md`
 
 - **G8-B (Benchmark Scenario Suite)**: **IMPLEMENTATION CANDIDATE; USER ACCEPTANCE PENDING / NOT CLOSED**
-  - Candidate line: `feature/m0-g8b-scenario-suite`, based on local canonical recovery commit `ca79bb20b27041758ab4d4a224e491c171189393`; accepted Sand Fall scenario-suite checkpoint `e77d102febb1e3c497c2b669efe0140408bd99d7`.
+  - Candidate and next work line: `feature/m0-g8b-scenario-suite`, based on local canonical recovery commit `ca79bb20b27041758ab4d4a224e491c171189393`; accepted Sand Fall scenario-suite checkpoint `e77d102febb1e3c497c2b669efe0140408bd99d7`. At docs closure it is ff-only aligned with the retained Harness branch.
   - Shared crate/API: `apps/scenarios` / `powdergame-scenarios::{ScenarioId, ScenarioFixture, validate_scenario_config, reset_and_stage_scenario}`.
   - Official fixtures: Sand Fall, Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World.
   - Scenario 1 Sand Fall: **USER ACCEPTED (2026-08-17)**. 사용자는 Sand가 완전히 정착하고 모든 chunk가 sleep 상태로 수렴하는 것을 성공으로 승인했다. benchmark identity를 위해 activity를 영구 유지하도록 source/geometry/sleep behavior를 retune하지 않는다.
-  - Scenario 2 Water Flow, Scenario 3 Fire / Heat, Scenario 4 Pressure Burst, Scenario 5 Heavy Mixed World: **UNACCEPTED**. 특히 Water Flow 확인·수정은 현재 checkpoint task 범위 밖이며 자동으로 시작하지 않는다.
+  - Scenario 2 Water Flow, Scenario 3 Fire / Heat, Scenario 4 Pressure Burst, Scenario 5 Heavy Mixed World: **PENDING / NOT YET USER ACCEPTED**. 특히 Water Flow 확인·수정은 현재 checkpoint task 범위 밖이며 자동으로 시작하지 않는다.
   - Sixth Gallery slot: exact `active-sleep-g7` 256×256×64 regression fixture. It is not a sixth official matrix workload.
   - Shared staging resets production `Simulation`, uploads authored Material/Temperature/Pressure/Flags to Current and Next plus `chunk_edit_wake`, and completes transfer work before measurement or inspection continues.
   - Windows `--benchmark-gallery` / `run_g8_benchmark_gallery.bat` starts paused and provides `1-6`, `SPACE`, `N`, `F`, `R`, `ESC` controls. Scenario selection and reset commit their new attribution only after shared reset/staging succeeds; failure is explicit and suppresses advancement/readback until recovery.
@@ -408,33 +408,34 @@ Static Analysis & Formatting:
   - Gallery rendering, HUD, wall-clock TPS, and sampled activity census are out-of-band inspection diagnostics. They are excluded from official timing and do not establish G8-C.
   - Scope exclusions: no production physics/shader/pass-graph change, no new Material, no G9 implementation, no performance optimization.
   - Recorded targeted checks in this implementation round: scenarios library 6/6; scenarios GPU reset 1/1; benchmark package 27/27; Windows Gallery-filtered tests 7/7; changed-package all-target clippy and workspace fmt passed; the final bounded 60-frame release Gallery launch exited cleanly on RTX 5090 / DX12 while remaining paused at tick 0 and reporting build-bound provenance.
-  - No official five-scenario performance matrix, benchmark result, new evidence capture, or broad demo matrix is claimed. User acceptance currently applies only to Scenario 1 Sand Fall.
+  - No official five-scenario performance matrix, benchmark result, or broad demo matrix is claimed by the scenario-suite checkpoint. The later Sand Fall-only Harness pilot is recorded separately below. User acceptance currently applies only to Scenario 1 Sand Fall.
   - Evidence: `docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`
 
-- **G8-B Sand Fall Experiment Harness v0**: **IMPLEMENTATION CANDIDATE; PILOT PENDING**
+- **G8-B Sand Fall Experiment Harness v0**: **PILOT PASS; HARNESS REVIEW OUTPUT APPROVED; G8-B NOT CLOSED**
   - Development line: `feature/g8b-experiment-harness-v0`, stacked on scenario-suite checkpoint `e77d102`.
+  - Experiment source: `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`; the later docs-only closure commit is not experiment provenance.
   - One-command entry: `run_experiment.bat sand-fall`; external root: `C:\Users\mdkap\source\Powdergame-artifacts`.
   - The worker uses only shared pristine Sand Fall staging and production ticks, records separate simulation-tick/diagnostic-sample identities, requires three consecutive all-sleep samples, checks 180 post-sleep ticks, and compares a programmatic `R`-equivalent reset to tick 0.
   - The coordinator uses unique/no-overwrite run directories and publishes telemetry, semantic renderer frames, derived screenshots/crops, reports, contact sheet, inert review prompt, packet, and hashes before writing `EXPERIMENT_RECEIPT.json` last. Generated artifacts never belong in Git.
   - Automatic `PASS` is restricted to the seven hard Sand Fall predicates. It does not close G8-B, approve Scenario 2–5, or establish G8-C.
-  - No pilot run ID, receipt, verdict, or final checkpoint result exists yet. Do not infer completion from implementation or documentation alone.
+  - Validated run: `g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505`; automatic `PASS`; Harness review output `APPROVED`; first all-sleep simulation tick 1096; diagnostic sample sequence 139; confirmed tick 1112; 180 stable post-sleep ticks; exact reset true.
+  - Review Packet SHA-256: `feffc180f81d36558b8139f5436a2a0eed6422617dd9a3207153b1cb62af1323`; Receipt SHA-256: `42bbacf77ca80356996a53fb2d0a56a5aba18215b5b85bda637350522c95e033`.
   - Evidence contract: `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`
 
 ---
 
 ### Next Action
 
-1. **Sand Fall Harness seal and pilot**: stacked implementation/docs를 좁게 검증하고 clean committed source SHA를 확정한 뒤 `run_experiment.bat sand-fall`을 정확히 한 번 실행한다. 현재 pilot은 pending이다.
-2. **Pilot artifact validation**: 새 external run의 telemetry/frame/report/hash inventory와 receipt-last invariant를 확인한다. receipt가 없으면 failed/incomplete run으로 보존하고 같은 ID를 재사용하지 않는다.
-3. **Remaining G8-B user acceptance**: Scenario 1 Sand Fall은 승인되었다. Scenario 2~5는 미승인이며 각각 별도 사용자 지시가 필요하다. Water Flow는 현재 task 범위 밖이다.
-4. **Same-SHA user visual validation**: G8-A의 남은 human validation이며 official receipt나 automated smoke가 대신하지 않는다.
-5. **Publication / next-step decision**: branch push/main 승격 및 G8-C official matrix, G9, M0 이후 P1은 각각 별도 사용자 지시 전까지 자동 수행하지 않는다.
+1. **Stop at this closure**: 승인된 Sand Fall/Harness pilot을 다시 실행하지 않고, Water Flow 또는 G8-C를 시작하지 않는다.
+2. **Remaining G8-B user acceptance**: Scenario 1 Sand Fall은 승인되었다. Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World는 pending이며 각각 별도 사용자 지시가 필요하다.
+3. **Same-SHA user visual validation**: G8-A의 남은 human validation이며 official receipt나 automated smoke가 대신하지 않는다.
+4. **Publication / next-step decision**: `main` 승격 및 G8-C official matrix, G9, M0 이후 P1은 각각 별도 사용자 지시 전까지 자동 수행하지 않는다.
 
 ---
 
 ### Blockers
 
-Canonical Recovery와 v5 technical evidence에는 확인된 기술 blocker가 없다. Sand Fall Harness는 pilot과 final checkpoint 검증 전이므로 현재 결과를 주장할 수 없다. G8-B closure에는 Scenario 2–5 사용자 Gallery acceptance가 남아 있다. G8-A를 더 진전시키려면 같은 source SHA의 user visual validation이 필요하고, branch 게시와 G8-C/G9 진입에는 별도 사용자 결정이 필요하다.
+Canonical Recovery, v5 technical evidence, Sand Fall behavior, Sand Fall Harness pilot에는 확인된 기술 blocker가 없다. G8-B closure에는 Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World의 사용자 Gallery acceptance가 남아 있다. G8-A를 더 진전시키려면 같은 source SHA의 user visual validation이 필요하고, `main` 승격과 G8-C/G9 진입에는 별도 사용자 결정이 필요하다.
 
 Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical Recovery Evidence](../evidence/CANONICAL_RECOVERY_2026-08-17.md)에 기록한다.
 
@@ -444,7 +445,7 @@ Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical 
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenario 1 user accepted, Sand Fall Harness pilot pending, Scenario 2–5 unaccepted, overall NOT CLOSED; G8-C PENDING).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenario 1 user accepted, Sand Fall Harness pilot PASS / review APPROVED, Scenario 2–5 pending, overall NOT CLOSED; G8-C PENDING).
 
 M0 `ACHIEVED`: **NO**
 
@@ -468,10 +469,18 @@ g8b_candidate_base: ca79bb20b27041758ab4d4a224e491c171189393
 g8b_candidate_status: USER ACCEPTANCE PENDING / NOT CLOSED
 g8b_official_scenarios: sand-fall, water-flow, fire-heat, pressure-burst, heavy-mixed-world
 g8b_scenario_1_acceptance: sand-fall USER ACCEPTED; complete settling and all chunks sleeping are success; no activity-retuning
-g8b_remaining_acceptance: scenarios 2-5 UNACCEPTED; water-flow out of current task
+g8b_remaining_acceptance: water-flow, fire-heat, pressure-burst, heavy-mixed-world PENDING; water-flow out of current task
 g8b_regression_only_scenario: active-sleep-g7 (exact 256x256x64; not official matrix)
 g8b_shared_staging: powdergame-scenarios::reset_and_stage_scenario
 evidence_writer_schema: calibration=powdergame-g8a-v5; shared fixture=powdergame-g8b-fixture-v1
+g8b_harness_experiment_source_sha: 9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5
+g8b_harness_docs_closure: later docs-only commit; distinct from experiment source
+g8b_harness_branch_retention: retained; ff-only aligned with feature/m0-g8b-scenario-suite at docs closure
+g8b_harness_run_id: g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505
+g8b_harness_automatic_verdict: PASS
+g8b_harness_review_output: HARNESS REVIEW OUTPUT APPROVED
+g8b_harness_review_packet_sha256: feffc180f81d36558b8139f5436a2a0eed6422617dd9a3207153b1cb62af1323
+g8b_harness_receipt_sha256: 42bbacf77ca80356996a53fb2d0a56a5aba18215b5b85bda637350522c95e033
 official_capture_completion_marker: CAPTURE_RECEIPT.json (must be written last)
 official_capture_package_hash: ZIP-external PACKAGE_SHA256.txt
 official_capture_id: g8a-v5-9abec9e-20260817T032827206Z
@@ -486,5 +495,5 @@ build: canonical recovery PRE/POST full workspace, clippy, evidence self-tests, 
 source_freeze_checks: official receipt complete; source/upstream clean and unchanged at 9abec9e; independent verifier passed 11/11 with zero findings
 benchmarks: official G8-A v5 P50 = 865.304 TPS / 1.155663 ms per tick and profiled envelope P50 = 1.018080 ms; historical v4 remains unbound historical data
 adversarial_review: optional and explicit-request-only; existing G8-A report is historical and non-blocking
-m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenario 1 accepted, scenarios 2-5 unaccepted, overall not closed; G8-C pending)
+m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenario 1 accepted, scenarios 2-5 pending / not yet user accepted, overall not closed; G8-C pending)
 ```

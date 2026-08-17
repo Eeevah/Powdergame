@@ -1,0 +1,19 @@
+name: Development policy audit
+
+"on":
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit repository development policy
+        shell: pwsh
+        run: ./tools/dev.ps1 audit -Ci -Strict

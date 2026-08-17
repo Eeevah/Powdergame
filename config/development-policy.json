@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "status": "adopted",
+  "last_updated": "2026-08-17",
+  "canonical_app": {
+    "binary": "target/release/powdergame-windows.exe",
+    "normal_launcher": "run_powdergame.bat",
+    "experiment_launcher": "run_experiment.bat",
+    "developer_only_binaries": [
+      "target/release/powdergame-benchmark.exe"
+    ]
+  },
+  "launchers": {
+    "allowed_root": [
+      "run_powdergame.bat",
+      "run_experiment.bat"
+    ],
+    "legacy_root": [
+      {
+        "path": "run_g7_activity_demo.bat",
+        "replacement": "run_powdergame.bat --activity-demo",
+        "remove_by": "G8-B closure"
+      },
+      {
+        "path": "run_g8_benchmark_gallery.bat",
+        "replacement": "run_powdergame.bat --benchmark-gallery",
+        "remove_by": "G8-B closure"
+      }
+    ],
+    "deny_new_root_patterns": [
+      "^run_g.*\\.(bat|cmd|ps1)$",
+      ".*powdergame.*\\.(cmd|ps1)$"
+    ]
+  },
+  "worktrees": {
+    "max_total": 3,
+    "max_canonical": 1,
+    "max_active_feature": 1,
+    "max_temporary_review": 1,
+    "retire_sequence": [
+      "clean",
+      "upstream-verified",
+      "artifacts-preserved",
+      "cargo-clean",
+      "worktree-remove"
+    ]
+  },
+  "artifacts": {
+    "root": "C:\\Users\\mdkap\\source\\Powdergame-artifacts",
+    "session_subdir": "development-sessions",
+    "scratch_keep_per_scenario": 3,
+    "scratch_keep_days": 7,
+    "immutable_classes": [
+      "candidate",
+      "accepted",
+      "rejected"
+    ]
+  },
+  "required_policy_files": [
+    "docs/development/VALIDATION_POLICY.md",
+    "docs/development/DEVELOPMENT_LEARNING_LOOP.md",
+    "docs/development/LESSONS_LEDGER.md",
+    "docs/development/WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md",
+    "config/development-policy.json",
+    "tools/dev.ps1"
+  ],
+  "validation_classes": [
+    {
+      "id": "engine-core-layout",
+      "priority": 100,
+      "patterns": [
+        "^engine/",
+        "^Cargo\\.toml$",
+        "^Cargo\\.lock$",
+        "\\.wgsl$"
+      ],
+      "full": "required",
+      "smoke": "required",
+      "candidate": "when-task-output",
+      "commands": [
+        "cargo fmt --all -- --check",
+        "cargo check --workspace --all-targets",
+        "cargo test --workspace -- --test-threads=1",
+        "cargo clippy --workspace --all-targets -- -D warnings",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "shared-scenario-runtime",
+      "priority": 90,
+      "patterns": [
+        "^apps/scenarios/src/(lib|reset|stage|staging|scenario)\\.rs$"
+      ],
+      "full": "required",
+      "smoke": "required",
+      "candidate": "when-task-output",
+      "commands": [
+        "cargo fmt --all -- --check",
+        "cargo check --workspace --all-targets",
+        "cargo test -p powdergame-scenarios",
+        "cargo test -p powdergame-scenarios --test gpu_reset -- --test-threads=1",
+        "cargo test --workspace -- --test-threads=1",
+        "cargo clippy --workspace --all-targets -- -D warnings",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "app-readback-provenance",
+      "priority": 80,
+      "patterns": [
+        "^apps/windows/src/(main|renderer|observatory|gallery)\\.rs$",
+        "^apps/windows/build\\.rs$",
+        "^apps/benchmark/",
+        "^tools/experiment/run_experiment\\.py$"
+      ],
+      "full": "recommended",
+      "smoke": "required",
+      "candidate": "when-task-output",
+      "commands": [
+        "cargo fmt --all -- --check",
+        "cargo check -p powdergame-windows --all-targets",
+        "cargo test -p powdergame-windows -- --test-threads=1",
+        "cargo clippy --workspace --all-targets -- -D warnings",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "harness-coordinator-cli",
+      "priority": 70,
+      "patterns": [
+        "^apps/windows/src/experiment(/|\\.rs$)",
+        "^tools/experiment/",
+        "^run_experiment\\.bat$"
+      ],
+      "full": "not-required",
+      "smoke": "required",
+      "candidate": "when-task-output",
+      "commands": [
+        "cargo fmt --all -- --check",
+        "cargo check -p powdergame-windows --all-targets",
+        "cargo test -p powdergame-windows experiment:: -- --test-threads=1",
+        "python -m unittest tools.experiment.test_run_experiment",
+        "cargo clippy --workspace --all-targets -- -D warnings",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "fixture-only",
+      "priority": 60,
+      "patterns": [
+        "^apps/scenarios/"
+      ],
+      "full": "not-required",
+      "smoke": "scenario-bounded",
+      "candidate": "when-task-output",
+      "commands": [
+        "cargo fmt --all -- --check",
+        "cargo check --workspace --all-targets",
+        "cargo test -p powdergame-scenarios",
+        "cargo test -p powdergame-scenarios --test gpu_reset -- --test-threads=1",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "launcher-policy-tooling",
+      "priority": 50,
+      "patterns": [
+        "^run_.*\\.(bat|cmd|ps1)$",
+        "^tools/dev\\.ps1$",
+        "^config/development-policy\\.json$",
+        "^\\.github/workflows/development-policy\\.yml$"
+      ],
+      "full": "not-required",
+      "smoke": "minimal-launcher",
+      "candidate": "not-required",
+      "commands": [
+        "pwsh -NoProfile -File tools/dev.ps1 audit -Strict",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "docs-only",
+      "priority": 10,
+      "patterns": [
+        "^docs/",
+        "^README\\.md$"
+      ],
+      "full": "not-required",
+      "smoke": "not-required",
+      "candidate": "not-required",
+      "commands": [
+        "pwsh -NoProfile -File tools/dev.ps1 audit",
+        "git diff --check"
+      ]
+    }
+  ]
+}

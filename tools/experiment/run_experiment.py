@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create one immutable external Sand Fall experiment packet.
+"""Create one immutable external G8-B scenario experiment packet.
 
 Operational failures intentionally leave the unique run directory in place
 without EXPERIMENT_RECEIPT.json. A failed run is never repaired or reused.
@@ -24,16 +24,20 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Sequence
 
 
-EXPERIMENT_ID = "g8b-sand-fall-v0"
-SCENARIO = "sand-fall"
 DEFAULT_ARTIFACT_ROOT = Path(r"C:\Users\mdkap\source\Powdergame-artifacts")
 
-MANIFEST_SCHEMA = "powdergame-experiment-manifest-v0"
-ANALYSIS_SCHEMA = "powdergame-experiment-analysis-v0"
+SAND_MANIFEST_SCHEMA = "powdergame-experiment-manifest-v0"
+SAND_ANALYSIS_SCHEMA = "powdergame-experiment-analysis-v0"
 FRAMES_SCHEMA = "powdergame-experiment-frames-v0"
-TELEMETRY_SCHEMA = "powdergame-experiment-telemetry-v0"
-REPORT_SCHEMA = "powdergame-experiment-report-v0"
-RECEIPT_SCHEMA = "powdergame-experiment-receipt-v0"
+SAND_TELEMETRY_SCHEMA = "powdergame-experiment-telemetry-v0"
+SAND_REPORT_SCHEMA = "powdergame-experiment-report-v0"
+SAND_RECEIPT_SCHEMA = "powdergame-experiment-receipt-v0"
+
+WATER_MANIFEST_SCHEMA = "powdergame-experiment-manifest-v1"
+WATER_ANALYSIS_SCHEMA = "powdergame-experiment-analysis-v1"
+WATER_TELEMETRY_SCHEMA = "powdergame-experiment-telemetry-v1"
+WATER_REPORT_SCHEMA = "powdergame-experiment-report-v1"
+WATER_RECEIPT_SCHEMA = "powdergame-experiment-receipt-v1"
 
 WORLD_WIDTH = 256
 WORLD_HEIGHT = 256
@@ -41,6 +45,7 @@ CHUNK_SIZE = 64
 MAX_TICKS = 20_000
 DIAGNOSTIC_INTERVAL = 8
 CONSECUTIVE_ALL_SLEEP = 3
+CONSECUTIVE_STABLE_PLATEAU = 8
 POST_SLEEP_TICKS = 180
 
 RENDERER_WIDTH = 1_600
@@ -50,8 +55,8 @@ CROP_Y = 60
 CROP_WIDTH = 760
 CROP_HEIGHT = 760
 
-ALLOWED_VERDICTS = {"PASS", "FAIL", "NEEDS_HUMAN"}
-PREDICATE_NAMES = {
+SAND_ALLOWED_VERDICTS = frozenset({"PASS", "FAIL", "NEEDS_HUMAN"})
+SAND_PREDICATE_NAMES = frozenset({
     "actual_fall",
     "matter_conservation",
     "no_invalid_materials",
@@ -59,13 +64,85 @@ PREDICATE_NAMES = {
     "sleep_before_max",
     "post_sleep_stable",
     "exact_reset",
-}
+})
+WATER_ALLOWED_VERDICTS = frozenset({"PASS", "FAIL", "NEEDS_HUMAN_REVIEW"})
+WATER_PREDICATE_NAMES = frozenset({
+    "actual_water_movement",
+    "cross_chunk_flow",
+    "destination_arrival",
+    "water_conservation",
+    "no_invalid_materials",
+    "no_nonfinite_fields",
+    "stable_bulk_before_max",
+    "post_settle_stable",
+    "exact_reset",
+})
+WATER_PHASES = frozenset(
+    {"initial", "flowing", "post-settle-confirmation", "reset"}
+)
+WATER_REASONS = frozenset(
+    {
+        "tick0",
+        "tick1",
+        "early-flow",
+        "diagnostic-cadence",
+        "max-tick",
+        "post-settle-tick",
+        "programmatic-r-equivalent",
+    }
+)
+WATER_ALWAYS_EVENTS = frozenset(
+    {
+        "lifecycle_started",
+        "pristine_reset_completed",
+        "tick0_captured",
+        "tick1_captured",
+        "terminal_selected",
+        "reset_started",
+        "reset_comparison_completed",
+        "worker_completed",
+    }
+)
+WATER_OPTIONAL_EVENTS = frozenset(
+    {
+        "post_settle_confirmation_completed",
+        "water_movement_observed",
+        "cross_chunk_flow_observed",
+        "destination_arrival_observed",
+        "new_peak_active",
+        "new_max_destination_spread",
+        "first_sleeping_chunk_observed",
+        "all_sleep_observed",
+        "all_sleep_streak_broken",
+        "all_sleep_confirmed",
+        "stable_plateau_observed",
+        "stable_plateau_streak_broken",
+        "stable_plateau_confirmed",
+    }
+)
+WATER_FRAME_KINDS = frozenset(
+    {
+        "tick0",
+        "tick1",
+        "first-movement",
+        "peak-active",
+        "cross-chunk-flow",
+        "destination-arrival",
+        "max-destination-spread",
+        "first-sleeping-chunk",
+        "late",
+        "terminal",
+        "post-settle",
+        "reset",
+        "diagnostic-observation",
+    }
+)
 PREDICATE_STATUSES = {"pass", "fail", "unknown"}
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 GIT_OID = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 STATE_HASH = re.compile(r"^fnv1a64:[0-9a-f]{16}$")
 
-MANIFEST_TOP_KEYS = {
+SAND_MANIFEST_TOP_KEYS = {
     "schema_version",
     "experiment_id",
     "run_id",
@@ -79,6 +156,8 @@ MANIFEST_TOP_KEYS = {
     "renderer",
     "commands",
 }
+# Public Sand v0 alias retained for the existing focused fixture suite.
+MANIFEST_TOP_KEYS = SAND_MANIFEST_TOP_KEYS
 MANIFEST_SECTION_KEYS = {
     "source": {"root", "branch", "sha", "git_state"},
     "binary": {"path", "sha256", "build_profile"},
@@ -107,6 +186,115 @@ class ExperimentError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class ScenarioContract:
+    scenario: str
+    experiment_id: str
+    manifest_schema: str
+    telemetry_schema: str
+    analysis_schema: str
+    frames_schema: str
+    report_schema: str
+    receipt_schema: str
+    predicate_names: frozenset[str]
+    allowed_verdicts: frozenset[str]
+    needs_human_verdict: str
+    title: str
+    records_run_mode: bool = False
+
+
+SAND_CONTRACT = ScenarioContract(
+    scenario="sand-fall",
+    experiment_id="g8b-sand-fall-v0",
+    manifest_schema=SAND_MANIFEST_SCHEMA,
+    telemetry_schema=SAND_TELEMETRY_SCHEMA,
+    analysis_schema=SAND_ANALYSIS_SCHEMA,
+    frames_schema=FRAMES_SCHEMA,
+    report_schema=SAND_REPORT_SCHEMA,
+    receipt_schema=SAND_RECEIPT_SCHEMA,
+    predicate_names=SAND_PREDICATE_NAMES,
+    allowed_verdicts=SAND_ALLOWED_VERDICTS,
+    needs_human_verdict="NEEDS_HUMAN",
+    title="Sand Fall",
+)
+WATER_CONTRACT = ScenarioContract(
+    scenario="water-flow",
+    experiment_id="g8b-water-flow-v0",
+    manifest_schema=WATER_MANIFEST_SCHEMA,
+    telemetry_schema=WATER_TELEMETRY_SCHEMA,
+    analysis_schema=WATER_ANALYSIS_SCHEMA,
+    frames_schema=FRAMES_SCHEMA,
+    report_schema=WATER_REPORT_SCHEMA,
+    receipt_schema=WATER_RECEIPT_SCHEMA,
+    predicate_names=WATER_PREDICATE_NAMES,
+    allowed_verdicts=WATER_ALLOWED_VERDICTS,
+    needs_human_verdict="NEEDS_HUMAN_REVIEW",
+    title="Water Flow",
+    records_run_mode=True,
+)
+SCENARIO_CONTRACTS = {
+    SAND_CONTRACT.scenario: SAND_CONTRACT,
+    WATER_CONTRACT.scenario: WATER_CONTRACT,
+}
+RUN_MODES = frozenset({"candidate", "scratch"})
+WATER_FINDING_CLASSIFICATIONS = (
+    "actual_physics_defect",
+    "fixture_representativeness_issue",
+    "expected_local_movement_artifact",
+    "presentation_or_capture_issue",
+    "insufficient_evidence",
+)
+WATER_VISUAL_QUESTIONS = (
+    "Does Water visibly leave the source volume and follow the intended channel?",
+    "Is flow continuous across chunk boundaries without a visible seam or freeze?",
+    "Does Water reach and spread through the destination basin?",
+    "Does the Water/Oil arrangement remain visually plausible for the staged fixture?",
+    "Do the late, terminal, and post-settle frames support the telemetry classification?",
+    "Do HUD values and visible state agree with the joined sample caption?",
+)
+
+# Sand v0 compatibility aliases are intentionally retained for existing callers,
+# fixtures, and the already-published Sand contract.
+EXPERIMENT_ID = SAND_CONTRACT.experiment_id
+SCENARIO = SAND_CONTRACT.scenario
+MANIFEST_SCHEMA = SAND_CONTRACT.manifest_schema
+ANALYSIS_SCHEMA = SAND_CONTRACT.analysis_schema
+TELEMETRY_SCHEMA = SAND_CONTRACT.telemetry_schema
+REPORT_SCHEMA = SAND_CONTRACT.report_schema
+RECEIPT_SCHEMA = SAND_CONTRACT.receipt_schema
+ALLOWED_VERDICTS = set(SAND_CONTRACT.allowed_verdicts)
+PREDICATE_NAMES = set(SAND_CONTRACT.predicate_names)
+
+
+def contract_for_scenario(scenario: str) -> ScenarioContract:
+    try:
+        return SCENARIO_CONTRACTS[scenario]
+    except KeyError as error:
+        expected = ", ".join(sorted(SCENARIO_CONTRACTS))
+        raise ExperimentError(
+            f"unsupported experiment scenario {scenario!r}; expected one of: {expected}"
+        ) from error
+
+
+def validate_run_mode(contract: ScenarioContract, run_mode: str) -> None:
+    if run_mode not in RUN_MODES:
+        raise ExperimentError(
+            f"unsupported run mode {run_mode!r}; expected candidate or scratch"
+        )
+    if contract is SAND_CONTRACT and run_mode != "candidate":
+        raise ExperimentError("Sand Fall v0 supports only candidate mode")
+
+
+def contract_for_manifest(data: dict[str, Any]) -> ScenarioContract:
+    scenario = data.get("scenario")
+    if not isinstance(scenario, str):
+        raise ExperimentError("manifest scenario must be a string")
+    contract = contract_for_scenario(scenario)
+    if data.get("experiment_id") != contract.experiment_id:
+        raise ExperimentError("manifest experiment/scenario mismatch")
+    return contract
+
+
+@dataclass(frozen=True)
 class SourceInfo:
     root: Path
     branch: str
@@ -125,13 +313,26 @@ class ManifestData:
     run_dir: Path
     build_command: tuple[str, ...]
     worker_command: tuple[str, ...]
+    contract: ScenarioContract = SAND_CONTRACT
+    run_mode: str = "candidate"
 
     def as_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": MANIFEST_SCHEMA,
-            "experiment_id": EXPERIMENT_ID,
+        validate_run_mode(self.contract, self.run_mode)
+        experiment = {
+            "max_ticks": MAX_TICKS,
+            "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+            "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
+            "post_sleep_ticks": POST_SLEEP_TICKS,
+        }
+        if self.contract is WATER_CONTRACT:
+            experiment["stable_plateau_consecutive_samples"] = (
+                CONSECUTIVE_STABLE_PLATEAU
+            )
+        data = {
+            "schema_version": self.contract.manifest_schema,
+            "experiment_id": self.contract.experiment_id,
             "run_id": self.run_id,
-            "scenario": SCENARIO,
+            "scenario": self.contract.scenario,
             "created_utc": self.created_utc,
             "source": {
                 "root": str(self.source.root),
@@ -153,12 +354,7 @@ class ManifestData:
                 "height": WORLD_HEIGHT,
                 "chunk_size": CHUNK_SIZE,
             },
-            "experiment": {
-                "max_ticks": MAX_TICKS,
-                "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
-                "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
-                "post_sleep_ticks": POST_SLEEP_TICKS,
-            },
+            "experiment": experiment,
             "renderer": {
                 "full_width": RENDERER_WIDTH,
                 "full_height": RENDERER_HEIGHT,
@@ -172,6 +368,9 @@ class ManifestData:
                 "worker": list(self.worker_command),
             },
         }
+        if self.contract.records_run_mode:
+            data["run_mode"] = self.run_mode
+        return data
 
 
 def utc_now() -> datetime:
@@ -184,10 +383,16 @@ def format_utc(value: datetime) -> str:
     )
 
 
-def generate_run_id(now: datetime | None = None) -> str:
+def generate_run_id(
+    now: datetime | None = None,
+    contract: ScenarioContract = SAND_CONTRACT,
+    run_mode: str = "candidate",
+) -> str:
+    validate_run_mode(contract, run_mode)
     value = (now or utc_now()).astimezone(timezone.utc)
     stamp = value.strftime("%Y%m%dT%H%M%S") + f"{value.microsecond:06d}Z"
-    return f"{EXPERIMENT_ID}-{stamp}-{secrets.token_hex(4)}"
+    mode_marker = "-scratch" if contract.records_run_mode and run_mode == "scratch" else ""
+    return f"{contract.experiment_id}{mode_marker}-{stamp}-{secrets.token_hex(4)}"
 
 
 def sha256_file(path: Path) -> str:
@@ -311,8 +516,10 @@ def render_manifest(manifest: ManifestData) -> str:
         f"experiment_id = {toml_quote(data['experiment_id'])}",
         f"run_id = {toml_quote(data['run_id'])}",
         f"scenario = {toml_quote(data['scenario'])}",
-        f"created_utc = {toml_quote(data['created_utc'])}",
     ]
+    if "run_mode" in data:
+        lines.append(f"run_mode = {toml_quote(data['run_mode'])}")
+    lines.append(f"created_utc = {toml_quote(data['created_utc'])}")
     for section in ("source", "binary", "artifact", "world", "experiment", "renderer"):
         lines.extend(["", f"[{section}]"])
         for key, value in data[section].items():
@@ -343,11 +550,21 @@ def require_exact_keys(value: dict[str, Any], expected: set[str], label: str) ->
 
 
 def validate_manifest_dict(data: dict[str, Any]) -> None:
-    require_exact_keys(data, MANIFEST_TOP_KEYS, "manifest")
-    if data["schema_version"] != MANIFEST_SCHEMA:
+    contract = contract_for_manifest(data)
+    expected_top = set(SAND_MANIFEST_TOP_KEYS)
+    if contract.records_run_mode:
+        expected_top.add("run_mode")
+    require_exact_keys(data, expected_top, "manifest")
+    if data["schema_version"] != contract.manifest_schema:
         raise ExperimentError("manifest schema_version mismatch")
-    if data["experiment_id"] != EXPERIMENT_ID or data["scenario"] != SCENARIO:
-        raise ExperimentError("manifest experiment/scenario mismatch")
+    run_mode = data.get("run_mode", "candidate")
+    if not isinstance(run_mode, str):
+        raise ExperimentError("manifest run_mode must be a string")
+    validate_run_mode(contract, run_mode)
+    if contract.records_run_mode:
+        scratch_marker_present = "-scratch-" in data["run_id"]
+        if scratch_marker_present != (run_mode == "scratch"):
+            raise ExperimentError("manifest run_id scratch marker disagrees with run_mode")
     if not isinstance(data["run_id"], str) or not re.fullmatch(
         r"[A-Za-z0-9][A-Za-z0-9._-]*", data["run_id"]
     ):
@@ -360,7 +577,10 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
         raise ExperimentError("manifest created_utc must be an ISO-8601 timestamp") from error
     if created.tzinfo is None or created.utcoffset() != timezone.utc.utcoffset(created):
         raise ExperimentError("manifest created_utc must identify UTC")
-    for section, expected in MANIFEST_SECTION_KEYS.items():
+    expected_sections = {name: set(keys) for name, keys in MANIFEST_SECTION_KEYS.items()}
+    if contract is WATER_CONTRACT:
+        expected_sections["experiment"].add("stable_plateau_consecutive_samples")
+    for section, expected in expected_sections.items():
         value = data[section]
         if not isinstance(value, dict):
             raise ExperimentError(f"manifest [{section}] must be a table")
@@ -388,12 +608,17 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
         "chunk_size": CHUNK_SIZE,
     }:
         raise ExperimentError("manifest world must be exactly 256x256 with chunk size 64")
-    if data["experiment"] != {
+    expected_experiment = {
         "max_ticks": MAX_TICKS,
         "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
         "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
         "post_sleep_ticks": POST_SLEEP_TICKS,
-    }:
+    }
+    if contract is WATER_CONTRACT:
+        expected_experiment["stable_plateau_consecutive_samples"] = (
+            CONSECUTIVE_STABLE_PLATEAU
+        )
+    if data["experiment"] != expected_experiment:
         raise ExperimentError("manifest experiment constants mismatch")
     if data["renderer"] != {
         "full_width": RENDERER_WIDTH,
@@ -438,7 +663,14 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
     if data["commands"]["build"] != expected_build:
         raise ExperimentError("manifest build command mismatch")
     expected_worker = list(
-        worker_command(binary_path, run_dir, data["run_id"], data["binary"]["sha256"])
+        worker_command(
+            binary_path,
+            run_dir,
+            data["run_id"],
+            data["binary"]["sha256"],
+            contract=contract,
+            run_mode=run_mode,
+        )
     )
     if data["commands"]["worker"] != expected_worker:
         raise ExperimentError("manifest worker command mismatch")
@@ -496,7 +728,7 @@ def require_nonnegative_int(value: Any, label: str) -> int:
     return value
 
 
-def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
+def validate_sand_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
     expected_keys = {
         "schema_version",
         "experiment_id",
@@ -659,6 +891,266 @@ def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> Non
         raise ExperimentError("analysis raw_frame_count must be between 6 and 10")
 
 
+def require_optional_nonnegative_int(value: Any, label: str) -> int | None:
+    if value is None:
+        return None
+    return require_nonnegative_int(value, label)
+
+
+def require_optional_identity_pair(
+    tick: Any, sample_sequence: Any, label: str
+) -> tuple[int | None, int | None]:
+    parsed_tick = require_optional_nonnegative_int(tick, f"{label} tick")
+    parsed_sample = require_optional_nonnegative_int(
+        sample_sequence, f"{label} sample_sequence"
+    )
+    if (parsed_tick is None) != (parsed_sample is None):
+        raise ExperimentError(f"{label} tick/sample_sequence must both be null or integers")
+    return parsed_tick, parsed_sample
+
+
+def validate_water_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
+    expected_keys = {
+        "schema_version",
+        "experiment_id",
+        "run_id",
+        "scenario",
+        "binary_sha256",
+        "provenance",
+        "world",
+        "sleep",
+        "lifecycle",
+        "baseline",
+        "metrics",
+        "predicates",
+        "verdict",
+        "raw_frame_count",
+    }
+    require_exact_keys(analysis, expected_keys, "analysis")
+    for key in ("experiment_id", "run_id", "scenario", "binary_sha256"):
+        expected = manifest["binary"]["sha256"] if key == "binary_sha256" else manifest[key]
+        if analysis[key] != expected:
+            raise ExperimentError(f"analysis {key} does not match manifest")
+    if analysis["schema_version"] != WATER_CONTRACT.analysis_schema:
+        raise ExperimentError("analysis schema_version mismatch")
+
+    provenance = analysis["provenance"]
+    if not isinstance(provenance, dict):
+        raise ExperimentError("analysis provenance must be an object")
+    require_exact_keys(
+        provenance, {"source_sha", "git_state", "build_profile"}, "analysis provenance"
+    )
+    if provenance != {
+        "source_sha": manifest["source"]["sha"],
+        "git_state": "clean",
+        "build_profile": "release",
+    }:
+        raise ExperimentError("analysis provenance mismatch")
+    if analysis["world"] != manifest["world"]:
+        raise ExperimentError("analysis world does not match manifest")
+    sleep = analysis["sleep"]
+    if not isinstance(sleep, dict):
+        raise ExperimentError("analysis sleep must be an object")
+    require_exact_keys(sleep, {"enabled", "threshold"}, "analysis sleep")
+    if not isinstance(sleep["enabled"], bool):
+        raise ExperimentError("analysis sleep enabled must be boolean")
+    require_nonnegative_int(sleep["threshold"], "analysis sleep threshold")
+
+    lifecycle = analysis["lifecycle"]
+    if not isinstance(lifecycle, dict):
+        raise ExperimentError("analysis lifecycle must be an object")
+    lifecycle_keys = {
+        "max_ticks",
+        "diagnostic_interval_ticks",
+        "all_sleep_consecutive_samples",
+        "stable_plateau_consecutive_samples",
+        "post_settle_confirmation_ticks",
+        "terminal_reason",
+        "first_all_sleep_sim_tick",
+        "first_all_sleep_sample_sequence",
+        "confirmed_all_sleep_sim_tick",
+        "first_stable_plateau_sim_tick",
+        "first_stable_plateau_sample_sequence",
+        "confirmed_stable_plateau_sim_tick",
+        "terminal_sim_tick",
+        "terminal_sample_sequence",
+        "post_settle_end_tick",
+        "post_settle_change_ticks",
+        "post_settle_wake_ticks",
+        "sample_count",
+    }
+    require_exact_keys(lifecycle, lifecycle_keys, "analysis lifecycle")
+    expected_lifecycle = {
+        "max_ticks": MAX_TICKS,
+        "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+        "all_sleep_consecutive_samples": CONSECUTIVE_ALL_SLEEP,
+        "stable_plateau_consecutive_samples": CONSECUTIVE_STABLE_PLATEAU,
+        "post_settle_confirmation_ticks": POST_SLEEP_TICKS,
+    }
+    for key, expected in expected_lifecycle.items():
+        if lifecycle[key] != expected:
+            raise ExperimentError(f"analysis lifecycle {key} mismatch")
+    if lifecycle["terminal_reason"] not in {"all-sleep", "stable-plateau", "max-ticks"}:
+        raise ExperimentError("analysis lifecycle terminal_reason is invalid")
+    require_optional_identity_pair(
+        lifecycle["first_all_sleep_sim_tick"],
+        lifecycle["first_all_sleep_sample_sequence"],
+        "analysis lifecycle first all-sleep",
+    )
+    require_optional_nonnegative_int(
+        lifecycle["confirmed_all_sleep_sim_tick"],
+        "analysis lifecycle confirmed_all_sleep_sim_tick",
+    )
+    require_optional_identity_pair(
+        lifecycle["first_stable_plateau_sim_tick"],
+        lifecycle["first_stable_plateau_sample_sequence"],
+        "analysis lifecycle first stable plateau",
+    )
+    require_optional_nonnegative_int(
+        lifecycle["confirmed_stable_plateau_sim_tick"],
+        "analysis lifecycle confirmed_stable_plateau_sim_tick",
+    )
+    for key in (
+        "terminal_sim_tick",
+        "terminal_sample_sequence",
+        "post_settle_change_ticks",
+        "post_settle_wake_ticks",
+        "sample_count",
+    ):
+        require_nonnegative_int(lifecycle[key], f"analysis lifecycle {key}")
+    require_optional_nonnegative_int(
+        lifecycle["post_settle_end_tick"], "analysis lifecycle post_settle_end_tick"
+    )
+    if lifecycle["terminal_reason"] == "max-ticks":
+        if lifecycle["post_settle_end_tick"] is not None:
+            raise ExperimentError("max-ticks terminal must not record post_settle_end_tick")
+    elif lifecycle["post_settle_end_tick"] is None:
+        raise ExperimentError("settled terminal must record post_settle_end_tick")
+
+    baseline = analysis["baseline"]
+    baseline_keys = {
+        "matter_count",
+        "water_count",
+        "oil_count",
+        "water_y_sum",
+        "oil_y_sum",
+        "water_occupied_chunks",
+        "oil_occupied_chunks",
+        "bottom_chunk_row_water_cells",
+        "destination_water_cells",
+        "destination_spread_x",
+    }
+    if not isinstance(baseline, dict):
+        raise ExperimentError("analysis baseline must be an object")
+    require_exact_keys(baseline, baseline_keys, "analysis baseline")
+    for key, value in baseline.items():
+        require_nonnegative_int(value, f"analysis baseline {key}")
+
+    metrics = analysis["metrics"]
+    metrics_keys = {
+        "peak_active_cells",
+        "peak_active_chunks",
+        "peak_active_sim_tick",
+        "peak_active_sample_sequence",
+        "first_water_movement_tick",
+        "first_water_movement_sample_sequence",
+        "first_cross_chunk_flow_tick",
+        "first_cross_chunk_flow_sample_sequence",
+        "first_destination_arrival_tick",
+        "first_destination_arrival_sample_sequence",
+        "first_sleeping_chunk_tick",
+        "first_sleeping_chunk_sample_sequence",
+        "max_bottom_chunk_row_water_cells",
+        "max_destination_water_cells",
+        "max_destination_spread_x",
+        "max_destination_spread_tick",
+        "max_destination_spread_sample_sequence",
+        "final_matter_count",
+        "final_water_count",
+        "final_oil_count",
+        "final_water_occupied_chunks",
+        "final_oil_occupied_chunks",
+        "final_sleeping_chunks",
+        "matter_count_delta",
+        "water_count_delta",
+        "oil_count_delta",
+        "post_settle_state_changes",
+        "post_settle_spontaneous_wakes",
+        "reset_exact_equivalence",
+    }
+    if not isinstance(metrics, dict):
+        raise ExperimentError("analysis metrics must be an object")
+    require_exact_keys(metrics, metrics_keys, "analysis metrics")
+    for key in (
+        "peak_active_cells",
+        "peak_active_chunks",
+        "peak_active_sim_tick",
+        "peak_active_sample_sequence",
+        "max_bottom_chunk_row_water_cells",
+        "max_destination_water_cells",
+        "max_destination_spread_x",
+        "final_matter_count",
+        "final_water_count",
+        "final_oil_count",
+        "final_water_occupied_chunks",
+        "final_oil_occupied_chunks",
+        "final_sleeping_chunks",
+        "post_settle_state_changes",
+        "post_settle_spontaneous_wakes",
+    ):
+        require_nonnegative_int(metrics[key], f"analysis metrics {key}")
+    for prefix in (
+        "first_water_movement",
+        "first_cross_chunk_flow",
+        "first_destination_arrival",
+        "first_sleeping_chunk",
+        "max_destination_spread",
+    ):
+        require_optional_identity_pair(
+            metrics[f"{prefix}_tick"],
+            metrics[f"{prefix}_sample_sequence"],
+            f"analysis metrics {prefix}",
+        )
+    if metrics["max_destination_spread_x"] == 0:
+        if metrics["max_destination_spread_tick"] is not None:
+            raise ExperimentError("zero max destination spread must have null identity")
+    elif metrics["max_destination_spread_tick"] is None:
+        raise ExperimentError("positive max destination spread must have an identity")
+    for key in ("matter_count_delta", "water_count_delta", "oil_count_delta"):
+        if isinstance(metrics[key], bool) or not isinstance(metrics[key], int):
+            raise ExperimentError(f"analysis metrics {key} must be an integer")
+    if not isinstance(metrics["reset_exact_equivalence"], bool):
+        raise ExperimentError("analysis metrics reset_exact_equivalence must be boolean")
+
+    predicates = analysis["predicates"]
+    if not isinstance(predicates, dict) or set(predicates) != WATER_CONTRACT.predicate_names:
+        raise ExperimentError("analysis predicates must contain the exact nine Water checks")
+    for name, predicate in predicates.items():
+        if not isinstance(predicate, dict) or set(predicate) != {"status", "detail"}:
+            raise ExperimentError(f"analysis predicate {name} keys mismatch")
+        if predicate["status"] not in PREDICATE_STATUSES:
+            raise ExperimentError(f"analysis predicate {name} has invalid status")
+        if not isinstance(predicate["detail"], str):
+            raise ExperimentError(f"analysis predicate {name} detail must be a string")
+    if analysis["verdict"] not in WATER_CONTRACT.allowed_verdicts:
+        raise ExperimentError(
+            "analysis verdict must be PASS, FAIL, or NEEDS_HUMAN_REVIEW"
+        )
+    raw_frame_count = require_nonnegative_int(
+        analysis["raw_frame_count"], "analysis raw_frame_count"
+    )
+    if not 8 <= raw_frame_count <= 12:
+        raise ExperimentError("Water analysis raw_frame_count must be between 8 and 12")
+
+
+def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
+    contract = contract_for_manifest(manifest)
+    if contract is SAND_CONTRACT:
+        validate_sand_analysis(analysis, manifest)
+    else:
+        validate_water_analysis(analysis, manifest)
+
+
 def safe_relative_worker_path(run_dir: Path, value: Any) -> Path:
     if not isinstance(value, str) or not value:
         raise ExperimentError("frame relative_path must be a non-empty string")
@@ -699,6 +1191,7 @@ def screenshot_name(frame: dict[str, Any], crop: bool = False) -> str:
 def validate_frames(
     frames_doc: dict[str, Any], manifest: dict[str, Any], run_dir: Path
 ) -> list[dict[str, Any]]:
+    contract = contract_for_manifest(manifest)
     required_top = {
         "schema_version",
         "experiment_id",
@@ -710,7 +1203,7 @@ def validate_frames(
         "frames",
     }
     require_exact_keys(frames_doc, required_top, "frames.json")
-    if frames_doc["schema_version"] != FRAMES_SCHEMA:
+    if frames_doc["schema_version"] != contract.frames_schema:
         raise ExperimentError("frames schema_version mismatch")
     for key in ("experiment_id", "run_id", "scenario", "binary_sha256"):
         expected = (
@@ -723,6 +1216,8 @@ def validate_frames(
         raise ExperimentError("frames.json must contain at least one frame")
     if frames_doc["frame_count"] != len(frames):
         raise ExperimentError("frames frame_count does not match frames array")
+    if contract is WATER_CONTRACT and not 8 <= len(frames) <= 12:
+        raise ExperimentError("Water frames.json must contain between 8 and 12 frames")
     if frames_doc["pixel_encoding"] != "rgba8-tightly-packed":
         raise ExperimentError("frames pixel_encoding mismatch")
     required_frame = {
@@ -747,6 +1242,19 @@ def validate_frames(
             raise ExperimentError("frame ordinals must be contiguous and zero-based")
         if not isinstance(frame["kind"], str) or not frame["kind"]:
             raise ExperimentError(f"frame {expected_ordinal} kind must be non-empty")
+        if contract is WATER_CONTRACT:
+            if frame["kind"] not in WATER_FRAME_KINDS:
+                raise ExperimentError(
+                    f"Water frame {expected_ordinal} has unsupported kind {frame['kind']!r}"
+                )
+            if (
+                frame["kind"] == "diagnostic-observation"
+                and frame["reason"] != "minimum-evidence-observation"
+            ):
+                raise ExperimentError(
+                    "diagnostic-observation frame reason must be "
+                    "minimum-evidence-observation"
+                )
         if frame["width"] != RENDERER_WIDTH or frame["height"] != RENDERER_HEIGHT:
             raise ExperimentError("raw frame dimensions must be exactly 1600x900")
         expected_bytes = RENDERER_WIDTH * RENDERER_HEIGHT * 4
@@ -773,7 +1281,7 @@ def validate_frames(
     return frames
 
 
-def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
+def validate_sand_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
     expected_keys = {
         "schema_version",
         "experiment_id",
@@ -884,7 +1392,214 @@ def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) ->
             raise ExperimentError(f"sample {index} state_hash is invalid")
 
 
+def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
+    expected_keys = {
+        "schema_version",
+        "experiment_id",
+        "run_id",
+        "scenario",
+        "source_sha",
+        "git_state",
+        "build_profile",
+        "binary_sha256",
+        "sample_sequence",
+        "sim_tick",
+        "phase",
+        "reason",
+        "world",
+        "sleep",
+        "census",
+        "material_counts_by_id",
+        "matter_count",
+        "water_count",
+        "oil_count",
+        "water_y_sum",
+        "water_min_y",
+        "water_max_y",
+        "oil_y_sum",
+        "oil_min_y",
+        "oil_max_y",
+        "water_occupied_chunks",
+        "oil_occupied_chunks",
+        "water_outside_initial_mask",
+        "initial_water_cells_vacated",
+        "bottom_chunk_row_water_cells",
+        "destination_water_cells",
+        "destination_spread_x",
+        "invalid_material_count",
+        "nonfinite_temperature_count",
+        "nonfinite_pressure_count",
+        "changed_chunks",
+        "wake_chunks",
+        "wake_reason_or",
+        "state_hash",
+        "physical_state_hash",
+    }
+    census_keys = {
+        "total_cells",
+        "any_active_cells",
+        "matter_active_cells",
+        "thermal_active_cells",
+        "pressure_active_cells",
+        "reaction_active_cells",
+        "total_chunks",
+        "active_chunks",
+        "runnable_chunks",
+        "sleeping_chunks",
+    }
+    for index, sample in enumerate(samples):
+        require_exact_keys(sample, expected_keys, f"sample {index}")
+        if sample["schema_version"] != WATER_CONTRACT.telemetry_schema:
+            raise ExperimentError(f"sample {index} schema_version mismatch")
+        identity = {
+            "experiment_id": manifest["experiment_id"],
+            "run_id": manifest["run_id"],
+            "scenario": WATER_CONTRACT.scenario,
+            "source_sha": manifest["source"]["sha"],
+            "git_state": "clean",
+            "build_profile": "release",
+            "binary_sha256": manifest["binary"]["sha256"],
+        }
+        for key, expected in identity.items():
+            if sample[key] != expected:
+                raise ExperimentError(f"sample {index} {key} mismatch")
+        sequence = require_nonnegative_int(sample["sample_sequence"], "sample sequence")
+        if sequence != index:
+            raise ExperimentError("sample_sequence must be contiguous and zero-based")
+        require_nonnegative_int(sample["sim_tick"], "sample sim_tick")
+        if sample["phase"] not in WATER_PHASES:
+            raise ExperimentError(f"sample {index} phase is invalid")
+        if sample["reason"] not in WATER_REASONS:
+            raise ExperimentError(f"sample {index} reason is invalid")
+        expected_reasons = {
+            "initial": {"tick0"},
+            "flowing": {"tick1", "early-flow", "diagnostic-cadence", "max-tick"},
+            "post-settle-confirmation": {"post-settle-tick"},
+            "reset": {"programmatic-r-equivalent"},
+        }
+        if sample["reason"] not in expected_reasons[sample["phase"]]:
+            raise ExperimentError(f"sample {index} phase/reason mismatch")
+        if sample["world"] != manifest["world"]:
+            raise ExperimentError(f"sample {index} world mismatch")
+        sleep = sample["sleep"]
+        if not isinstance(sleep, dict):
+            raise ExperimentError(f"sample {index} sleep must be an object")
+        require_exact_keys(sleep, {"enabled", "threshold"}, f"sample {index} sleep")
+        if not isinstance(sleep["enabled"], bool):
+            raise ExperimentError(f"sample {index} sleep enabled must be boolean")
+        require_nonnegative_int(sleep["threshold"], f"sample {index} sleep threshold")
+        census = sample["census"]
+        if not isinstance(census, dict):
+            raise ExperimentError(f"sample {index} census must be an object")
+        require_exact_keys(census, census_keys, f"sample {index} census")
+        for key, value in census.items():
+            require_nonnegative_int(value, f"sample {index} census {key}")
+        if census["total_cells"] != WORLD_WIDTH * WORLD_HEIGHT:
+            raise ExperimentError(f"sample {index} census total_cells mismatch")
+        total_chunks = (WORLD_WIDTH // CHUNK_SIZE) * (WORLD_HEIGHT // CHUNK_SIZE)
+        if census["total_chunks"] != total_chunks:
+            raise ExperimentError(f"sample {index} census total_chunks mismatch")
+        for key in ("active_chunks", "runnable_chunks", "sleeping_chunks"):
+            if census[key] > total_chunks:
+                raise ExperimentError(f"sample {index} census {key} exceeds total chunks")
+        if census["runnable_chunks"] + census["sleeping_chunks"] != total_chunks:
+            raise ExperimentError(f"sample {index} chunk-state census is incomplete")
+        for key in (
+            "matter_active_cells",
+            "thermal_active_cells",
+            "pressure_active_cells",
+            "reaction_active_cells",
+        ):
+            if census[key] > census["any_active_cells"]:
+                raise ExperimentError(f"sample {index} census {key} exceeds any-active cells")
+        counts = sample["material_counts_by_id"]
+        if not isinstance(counts, list) or len(counts) != 10:
+            raise ExperimentError(f"sample {index} material_counts_by_id mismatch")
+        for material_id, value in enumerate(counts):
+            require_nonnegative_int(value, f"sample {index} material count {material_id}")
+        scalar_counts = (
+            "matter_count",
+            "water_count",
+            "oil_count",
+            "water_y_sum",
+            "oil_y_sum",
+            "water_occupied_chunks",
+            "oil_occupied_chunks",
+            "water_outside_initial_mask",
+            "initial_water_cells_vacated",
+            "bottom_chunk_row_water_cells",
+            "destination_water_cells",
+            "destination_spread_x",
+            "invalid_material_count",
+            "nonfinite_temperature_count",
+            "nonfinite_pressure_count",
+            "changed_chunks",
+            "wake_chunks",
+            "wake_reason_or",
+        )
+        for key in scalar_counts:
+            require_nonnegative_int(sample[key], f"sample {index} {key}")
+        if sample["matter_count"] != sum(counts[1:]):
+            raise ExperimentError(f"sample {index} matter_count does not match material counts")
+        if sample["water_count"] != counts[4] or sample["oil_count"] != counts[5]:
+            raise ExperimentError(f"sample {index} Water/Oil counts do not match material counts")
+        if sum(counts) + sample["invalid_material_count"] != WORLD_WIDTH * WORLD_HEIGHT:
+            raise ExperimentError(f"sample {index} material census does not cover the world")
+        for material in ("water", "oil"):
+            count = sample[f"{material}_count"]
+            minimum = sample[f"{material}_min_y"]
+            maximum = sample[f"{material}_max_y"]
+            require_optional_nonnegative_int(minimum, f"sample {index} {material}_min_y")
+            require_optional_nonnegative_int(maximum, f"sample {index} {material}_max_y")
+            if count == 0:
+                if minimum is not None or maximum is not None:
+                    raise ExperimentError(
+                        f"sample {index} empty {material} census must have null y bounds"
+                    )
+            elif minimum is None or maximum is None or minimum > maximum or maximum >= WORLD_HEIGHT:
+                raise ExperimentError(f"sample {index} {material} y bounds are invalid")
+            else:
+                y_sum = sample[f"{material}_y_sum"]
+                if not minimum * count <= y_sum <= maximum * count:
+                    raise ExperimentError(f"sample {index} {material} y sum is out of bounds")
+        for key in ("water_occupied_chunks", "oil_occupied_chunks"):
+            if sample[key] > total_chunks:
+                raise ExperimentError(f"sample {index} {key} exceeds total chunks")
+        for key in (
+            "water_outside_initial_mask",
+            "bottom_chunk_row_water_cells",
+            "destination_water_cells",
+        ):
+            if sample[key] > sample["water_count"]:
+                raise ExperimentError(f"sample {index} {key} exceeds water_count")
+        if sample["initial_water_cells_vacated"] > WORLD_WIDTH * WORLD_HEIGHT:
+            raise ExperimentError(f"sample {index} vacated Water count exceeds the world")
+        if sample["destination_water_cells"] == 0 and sample["destination_spread_x"] != 0:
+            raise ExperimentError(f"sample {index} empty destination must have zero spread")
+        if sample["destination_spread_x"] >= WORLD_WIDTH:
+            raise ExperimentError(f"sample {index} destination spread is out of range")
+        if not isinstance(sample["state_hash"], str) or not STATE_HASH.fullmatch(
+            sample["state_hash"]
+        ):
+            raise ExperimentError(f"sample {index} state_hash is invalid")
+        if not isinstance(sample["physical_state_hash"], str) or not STATE_HASH.fullmatch(
+            sample["physical_state_hash"]
+        ):
+            raise ExperimentError(f"sample {index} physical_state_hash is invalid")
+        if (sample["wake_chunks"] == 0) != (sample["wake_reason_or"] == 0):
+            raise ExperimentError(f"sample {index} wake census and wake_reason_or disagree")
+
+
+def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
+    contract = contract_for_manifest(manifest)
+    if contract is SAND_CONTRACT:
+        validate_sand_samples(samples, manifest)
+    else:
+        validate_water_samples(samples, manifest)
+
+
 def validate_events(events: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
+    contract = contract_for_manifest(manifest)
     for index, event in enumerate(events):
         required = {
             "schema_version",
@@ -896,13 +1611,17 @@ def validate_events(events: list[dict[str, Any]], manifest: dict[str, Any]) -> N
             "sample_sequence",
             "detail",
         }
+        if contract is WATER_CONTRACT:
+            required.add("scenario")
         require_exact_keys(event, required, f"event {index}")
-        if event["schema_version"] != TELEMETRY_SCHEMA:
+        if event["schema_version"] != contract.telemetry_schema:
             raise ExperimentError(f"event {index} schema_version mismatch")
         if event["experiment_id"] != manifest["experiment_id"]:
             raise ExperimentError(f"event {index} experiment_id mismatch")
         if event["run_id"] != manifest["run_id"]:
             raise ExperimentError(f"event {index} run_id mismatch")
+        if contract is WATER_CONTRACT and event["scenario"] != contract.scenario:
+            raise ExperimentError(f"event {index} scenario mismatch")
         sequence = require_nonnegative_int(event["event_sequence"], "event sequence")
         if sequence != index:
             raise ExperimentError("event_sequence must be contiguous and zero-based")
@@ -926,12 +1645,14 @@ def sample_is_all_sleep(sample: dict[str, Any]) -> bool:
     )
 
 
-def verdict_from_predicates(predicates: dict[str, Any]) -> str:
+def verdict_from_predicates(
+    predicates: dict[str, Any], contract: ScenarioContract = SAND_CONTRACT
+) -> str:
     statuses = {predicate["status"] for predicate in predicates.values()}
     if "fail" in statuses:
         return "FAIL"
     if "unknown" in statuses:
-        return "NEEDS_HUMAN"
+        return contract.needs_human_verdict
     return "PASS"
 
 
@@ -951,7 +1672,7 @@ def first_confirmed_all_sleep_streak(
     return None
 
 
-def validate_telemetry(
+def validate_sand_telemetry(
     run_dir: Path, manifest: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     required_logs = (
@@ -976,7 +1697,7 @@ def validate_telemetry(
     sample_count = analysis["lifecycle"].get("sample_count")
     if sample_count != len(samples):
         raise ExperimentError("analysis lifecycle sample_count does not match samples.jsonl")
-    recomputed_verdict = verdict_from_predicates(analysis["predicates"])
+    recomputed_verdict = verdict_from_predicates(analysis["predicates"], SAND_CONTRACT)
     if analysis["verdict"] != recomputed_verdict:
         raise ExperimentError("analysis verdict disagrees with its seven predicate statuses")
     for index, sample in enumerate(samples):
@@ -1095,6 +1816,715 @@ def validate_telemetry(
     return analysis, frames_doc, samples, events
 
 
+WATER_DIAGNOSTIC_REASONS = frozenset(
+    {"early-flow", "diagnostic-cadence", "max-tick"}
+)
+
+
+def water_diagnostic_samples(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        sample
+        for sample in samples
+        if sample["phase"] == "flowing"
+        and sample["reason"] in WATER_DIAGNOSTIC_REASONS
+    ]
+
+
+def first_matching(
+    samples: Iterable[dict[str, Any]], predicate: Any
+) -> dict[str, Any] | None:
+    return next((sample for sample in samples if predicate(sample)), None)
+
+
+def sample_identity(sample: dict[str, Any] | None) -> tuple[int | None, int | None]:
+    if sample is None:
+        return None, None
+    return sample["sim_tick"], sample["sample_sequence"]
+
+
+def confirmed_water_all_sleep_streak(
+    samples: list[dict[str, Any]], required: int
+) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]], list[dict[str, Any]]]:
+    streak: list[dict[str, Any]] = []
+    confirmed: list[dict[str, Any]] | None = None
+    starts: list[dict[str, Any]] = []
+    breaks: list[dict[str, Any]] = []
+    for sample in water_diagnostic_samples(samples):
+        if sample_is_all_sleep(sample):
+            if not streak:
+                starts.append(sample)
+            streak.append(sample)
+            if confirmed is None and len(streak) == required:
+                confirmed = list(streak)
+                break
+        elif streak:
+            breaks.append(sample)
+            streak.clear()
+    return confirmed, starts, breaks
+
+
+def confirmed_water_plateau_streak(
+    samples: list[dict[str, Any]], required: int
+) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]], list[dict[str, Any]]]:
+    streak: list[dict[str, Any]] = []
+    confirmed: list[dict[str, Any]] | None = None
+    starts: list[dict[str, Any]] = []
+    breaks: list[dict[str, Any]] = []
+    for sample in water_diagnostic_samples(samples):
+        eligible = sample["changed_chunks"] == 0 and sample["wake_chunks"] == 0
+        same_hash = bool(streak) and sample["state_hash"] == streak[-1]["state_hash"]
+        if not eligible:
+            if streak:
+                breaks.append(sample)
+                streak.clear()
+            continue
+        if streak and not same_hash:
+            breaks.append(sample)
+            streak.clear()
+        if not streak:
+            starts.append(sample)
+        streak.append(sample)
+        if confirmed is None and len(streak) == required:
+            confirmed = list(streak)
+            break
+    return confirmed, starts, breaks
+
+
+def require_water_predicate_statuses(
+    predicates: dict[str, Any], expected: dict[str, str]
+) -> None:
+    for name, expected_status in expected.items():
+        actual = predicates[name]["status"]
+        if actual != expected_status:
+            raise ExperimentError(
+                f"Water predicate {name} status {actual!r} disagrees with raw telemetry "
+                f"({expected_status!r})"
+            )
+
+
+def require_event_sample_identity(
+    event: dict[str, Any], sample: dict[str, Any], label: str
+) -> None:
+    if (
+        event["sim_tick"] != sample["sim_tick"]
+        or event["sample_sequence"] != sample["sample_sequence"]
+    ):
+        raise ExperimentError(f"Water event {label} identity disagrees with telemetry")
+
+
+def validate_water_event_contract(
+    events: list[dict[str, Any]],
+    samples: list[dict[str, Any]],
+    lifecycle: dict[str, Any],
+    first_movement: dict[str, Any] | None,
+    first_cross: dict[str, Any] | None,
+    first_destination: dict[str, Any] | None,
+    first_sleeping: dict[str, Any] | None,
+    peak_updates: list[dict[str, Any]],
+    spread_updates: list[dict[str, Any]],
+    all_sleep_starts: list[dict[str, Any]],
+    all_sleep_breaks: list[dict[str, Any]],
+    all_sleep_streak: list[dict[str, Any]] | None,
+    plateau_starts: list[dict[str, Any]],
+    plateau_breaks: list[dict[str, Any]],
+    plateau_streak: list[dict[str, Any]] | None,
+    terminal: dict[str, Any],
+    post_settle: list[dict[str, Any]],
+) -> None:
+    allowed = WATER_ALWAYS_EVENTS | WATER_OPTIONAL_EVENTS
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    by_sequence = {sample["sample_sequence"]: sample for sample in samples}
+    for event in events:
+        if event["event"] not in allowed:
+            raise ExperimentError(f"unsupported Water event {event['event']!r}")
+        by_name.setdefault(event["event"], []).append(event)
+        sequence = event["sample_sequence"]
+        if sequence is not None:
+            sample = by_sequence.get(sequence)
+            if sample is None or sample["sim_tick"] != event["sim_tick"]:
+                raise ExperimentError(
+                    f"Water event {event['event']} does not bind to its telemetry sample"
+                )
+
+    for name in WATER_ALWAYS_EVENTS:
+        if len(by_name.get(name, [])) != 1:
+            raise ExperimentError(f"Water event {name} must occur exactly once")
+    mandatory_order = (
+        "lifecycle_started",
+        "pristine_reset_completed",
+        "tick0_captured",
+        "tick1_captured",
+        "terminal_selected",
+        "reset_started",
+        "reset_comparison_completed",
+        "worker_completed",
+    )
+    mandatory_positions = [by_name[name][0]["event_sequence"] for name in mandatory_order]
+    if mandatory_positions != sorted(mandatory_positions):
+        raise ExperimentError("Water lifecycle events are out of order")
+
+    identity_events = {
+        "tick0_captured": samples[0],
+        "tick1_captured": samples[1],
+        "terminal_selected": terminal,
+        "reset_started": samples[-2],
+        "reset_comparison_completed": samples[-1],
+        "worker_completed": samples[-1],
+    }
+    for name, sample in identity_events.items():
+        require_event_sample_identity(by_name[name][0], sample, name)
+    for name in ("lifecycle_started", "pristine_reset_completed"):
+        event = by_name[name][0]
+        if event["sim_tick"] != 0 or event["sample_sequence"] is not None:
+            raise ExperimentError(f"Water event {name} must be the pre-sample tick0 event")
+
+    optional_first = {
+        "water_movement_observed": first_movement,
+        "cross_chunk_flow_observed": first_cross,
+        "destination_arrival_observed": first_destination,
+        "first_sleeping_chunk_observed": first_sleeping,
+    }
+    for name, sample in optional_first.items():
+        found = by_name.get(name, [])
+        if sample is None:
+            if found:
+                raise ExperimentError(f"Water event {name} exists without its signal")
+        elif len(found) != 1:
+            raise ExperimentError(f"Water event {name} must occur exactly once")
+        else:
+            require_event_sample_identity(found[0], sample, name)
+
+    repeated = {
+        "new_peak_active": peak_updates,
+        "new_max_destination_spread": spread_updates,
+        "all_sleep_observed": all_sleep_starts,
+        "all_sleep_streak_broken": all_sleep_breaks,
+        "stable_plateau_observed": plateau_starts,
+        "stable_plateau_streak_broken": plateau_breaks,
+    }
+    for name, expected_samples in repeated.items():
+        found = by_name.get(name, [])
+        if len(found) != len(expected_samples):
+            raise ExperimentError(f"Water event {name} cardinality disagrees with telemetry")
+        for event, sample in zip(found, expected_samples, strict=True):
+            require_event_sample_identity(event, sample, name)
+
+    confirmation_events = {
+        "all_sleep_confirmed": None if all_sleep_streak is None else all_sleep_streak[-1],
+        "stable_plateau_confirmed": None if plateau_streak is None else plateau_streak[-1],
+    }
+    for name, sample in confirmation_events.items():
+        found = by_name.get(name, [])
+        if sample is None:
+            if found:
+                raise ExperimentError(f"Water event {name} exists without confirmation")
+        elif len(found) != 1:
+            raise ExperimentError(f"Water event {name} must occur exactly once")
+        else:
+            require_event_sample_identity(found[0], sample, name)
+
+    post_events = by_name.get("post_settle_confirmation_completed", [])
+    window_expected = lifecycle["terminal_reason"] != "max-ticks"
+    if len(post_events) != int(window_expected):
+        raise ExperimentError(
+            "post_settle_confirmation_completed event disagrees with terminal reason"
+        )
+    if post_events:
+        require_event_sample_identity(
+            post_events[0], post_settle[-1], "post_settle_confirmation_completed"
+        )
+        if not (
+            by_name["terminal_selected"][0]["event_sequence"]
+            < post_events[0]["event_sequence"]
+            < by_name["reset_started"][0]["event_sequence"]
+        ):
+            raise ExperimentError("Water post-settle completion event is out of order")
+
+
+def validate_water_frame_contract(
+    frames: list[dict[str, Any]],
+    samples: list[dict[str, Any]],
+    analysis: dict[str, Any],
+    first_movement: dict[str, Any] | None,
+    first_cross: dict[str, Any] | None,
+    first_destination: dict[str, Any] | None,
+    first_sleeping: dict[str, Any] | None,
+    peak: dict[str, Any],
+    max_spread: dict[str, Any] | None,
+    terminal: dict[str, Any],
+    post_settle: list[dict[str, Any]],
+) -> None:
+    by_kind: dict[str, list[dict[str, Any]]] = {}
+    kinds_by_sequence: dict[int, list[str]] = {}
+    by_sequence = {sample["sample_sequence"]: sample for sample in samples}
+    for frame in frames:
+        by_kind.setdefault(frame["kind"], []).append(frame)
+        sequence = frame["sample_sequence"]
+        kinds_by_sequence.setdefault(sequence, []).append(frame["kind"])
+        sample = by_sequence.get(sequence)
+        if sample is None:
+            raise ExperimentError("Water frame sample_sequence is absent from telemetry")
+        if sample["sim_tick"] != frame["sim_tick"] or sample["state_hash"] != frame["state_hash"]:
+            raise ExperimentError("Water frame identity disagrees with telemetry")
+
+    for kind, grouped in by_kind.items():
+        if kind != "diagnostic-observation" and len(grouped) > 1:
+            raise ExperimentError(f"Water named frame kind {kind} occurs more than once")
+    for kinds in kinds_by_sequence.values():
+        if len(kinds) == 1:
+            continue
+        if (
+            len(kinds) != 2
+            or "peak-active" not in kinds
+            or "diagnostic-observation" in kinds
+        ):
+            raise ExperimentError(
+                "Water frame sample identities must be unique except one analysis-bound "
+                "peak-active/named-frame alias"
+            )
+
+    for required_kind in ("tick0", "tick1", "late", "terminal", "reset"):
+        if len(by_kind.get(required_kind, [])) != 1:
+            raise ExperimentError(f"Water frame kind {required_kind} must occur exactly once")
+    expected_post_frames = 1 if post_settle else 0
+    if len(by_kind.get("post-settle", [])) != expected_post_frames:
+        raise ExperimentError("Water post-settle frame cardinality disagrees with lifecycle")
+
+    expected_by_kind: dict[str, dict[str, Any] | None] = {
+        "tick0": samples[0],
+        "tick1": samples[1],
+        "first-movement": first_movement,
+        "peak-active": peak,
+        "cross-chunk-flow": first_cross,
+        "destination-arrival": first_destination,
+        "max-destination-spread": max_spread,
+        "first-sleeping-chunk": first_sleeping,
+        "terminal": terminal,
+        "post-settle": post_settle[-1] if post_settle else None,
+        "reset": samples[-1],
+    }
+    diagnostics = water_diagnostic_samples(samples)
+    terminal_index = next(
+        (index for index, sample in enumerate(diagnostics) if sample is terminal), None
+    )
+    expected_by_kind["late"] = (
+        diagnostics[terminal_index - 1]
+        if terminal_index is not None and terminal_index > 0
+        else None
+    )
+    for kind, expected_sample in expected_by_kind.items():
+        for frame in by_kind.get(kind, []):
+            if expected_sample is None:
+                raise ExperimentError(f"Water frame kind {kind} exists without its milestone")
+            if frame["sample_sequence"] != expected_sample["sample_sequence"]:
+                raise ExperimentError(f"Water frame kind {kind} binds the wrong sample")
+
+    fallback = by_kind.get("diagnostic-observation", [])
+    if fallback:
+        if analysis["verdict"] == "PASS" or len(frames) != 8:
+            raise ExperimentError(
+                "diagnostic-observation frames may only fill a non-PASS run to eight frames"
+            )
+        for frame in fallback:
+            sample = by_sequence[frame["sample_sequence"]]
+            if sample not in diagnostics:
+                raise ExperimentError(
+                    "diagnostic-observation frame must bind a flowing diagnostic sample"
+                )
+
+
+def validate_water_telemetry(
+    run_dir: Path, manifest: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    required_logs = (
+        run_dir / "stdout.log",
+        run_dir / "stderr.log",
+        run_dir / "logs" / "build.stdout.log",
+        run_dir / "logs" / "build.stderr.log",
+    )
+    for path in required_logs:
+        if not path.is_file():
+            raise ExperimentError(f"required raw command log is missing: {path}")
+    analysis = read_json(run_dir / "work" / "analysis.json", "analysis.json")
+    frames_doc = read_json(run_dir / "work" / "frames.json", "frames.json")
+    samples = read_jsonl(run_dir / "telemetry" / "samples.jsonl", "samples.jsonl")
+    events = read_jsonl(run_dir / "telemetry" / "events.jsonl", "events.jsonl")
+    validate_water_analysis(analysis, manifest)
+    frames = validate_frames(frames_doc, manifest, run_dir)
+    validate_water_samples(samples, manifest)
+    validate_events(events, manifest)
+    if analysis["raw_frame_count"] != len(frames):
+        raise ExperimentError("analysis raw_frame_count does not match frames.json")
+    if analysis["lifecycle"]["sample_count"] != len(samples):
+        raise ExperimentError("analysis lifecycle sample_count does not match samples.jsonl")
+    recomputed_verdict = verdict_from_predicates(
+        analysis["predicates"], WATER_CONTRACT
+    )
+    if analysis["verdict"] != recomputed_verdict:
+        raise ExperimentError(
+            "analysis verdict disagrees with its nine Water predicate statuses"
+        )
+    for index, sample in enumerate(samples):
+        if sample["sleep"] != analysis["sleep"]:
+            raise ExperimentError(f"sample {index} sleep settings disagree with analysis")
+
+    if len(samples) < 3:
+        raise ExperimentError("Water telemetry must contain tick0, tick1, and reset samples")
+    tick0 = samples[0]
+    tick1 = samples[1]
+    reset = samples[-1]
+    if (tick0["sim_tick"], tick0["phase"], tick0["reason"]) != (0, "initial", "tick0"):
+        raise ExperimentError("Water telemetry must begin with initial tick0")
+    if (tick1["sim_tick"], tick1["phase"], tick1["reason"]) != (1, "flowing", "tick1"):
+        raise ExperimentError("Water telemetry sample 1 must be flowing tick1")
+    reset_samples = [sample for sample in samples if sample["phase"] == "reset"]
+    if len(reset_samples) != 1 or reset is not reset_samples[0]:
+        raise ExperimentError("Water telemetry must end with exactly one reset sample")
+    if reset["sim_tick"] != 0 or reset["reason"] != "programmatic-r-equivalent":
+        raise ExperimentError("Water reset sample must be the programmatic tick0 equivalent")
+    pre_reset = samples[:-1]
+    if any(sample["phase"] == "initial" for sample in pre_reset[1:]):
+        raise ExperimentError("Water initial phase may only appear at sample 0")
+    if any(
+        later["sim_tick"] <= earlier["sim_tick"]
+        for earlier, later in zip(pre_reset, pre_reset[1:])
+    ):
+        raise ExperimentError("Water pre-reset sim ticks must be strictly increasing")
+    post_settle = [
+        sample for sample in pre_reset if sample["phase"] == "post-settle-confirmation"
+    ]
+    if post_settle and any(
+        sample["phase"] != "post-settle-confirmation"
+        for sample in pre_reset[pre_reset.index(post_settle[0]) :]
+    ):
+        raise ExperimentError("Water post-settle phase must be contiguous and final")
+
+    expected_baseline = {
+        key: tick0[key]
+        for key in (
+            "matter_count",
+            "water_count",
+            "oil_count",
+            "water_y_sum",
+            "oil_y_sum",
+            "water_occupied_chunks",
+            "oil_occupied_chunks",
+            "bottom_chunk_row_water_cells",
+            "destination_water_cells",
+            "destination_spread_x",
+        )
+    }
+    if analysis["baseline"] != expected_baseline:
+        raise ExperimentError("Water analysis baseline does not match tick0 telemetry")
+    if any(
+        sample["initial_water_cells_vacated"] > tick0["water_count"]
+        for sample in pre_reset
+    ):
+        raise ExperimentError("Water vacated-cell count exceeds the tick0 Water mask")
+
+    signal_samples = [
+        sample for sample in pre_reset if sample["phase"] in {"initial", "flowing"}
+    ]
+    flowing = [sample for sample in signal_samples if sample["phase"] == "flowing"]
+    first_movement = first_matching(
+        flowing,
+        lambda sample: sample["water_outside_initial_mask"] > 0
+        and sample["initial_water_cells_vacated"] > 0,
+    )
+    first_cross = first_matching(
+        flowing, lambda sample: sample["bottom_chunk_row_water_cells"] > 0
+    )
+    first_destination = first_matching(
+        flowing, lambda sample: sample["destination_water_cells"] > 0
+    )
+    first_sleeping = first_matching(
+        pre_reset, lambda sample: sample["census"]["sleeping_chunks"] > 0
+    )
+
+    peak = signal_samples[0]
+    peak_updates: list[dict[str, Any]] = []
+    for sample in signal_samples[1:]:
+        if sample["census"]["any_active_cells"] > peak["census"]["any_active_cells"]:
+            peak = sample
+            peak_updates.append(sample)
+    max_active_chunks = max(sample["census"]["active_chunks"] for sample in signal_samples)
+    max_bottom = max(sample["bottom_chunk_row_water_cells"] for sample in signal_samples)
+    max_destination = max(sample["destination_water_cells"] for sample in signal_samples)
+    spread_updates: list[dict[str, Any]] = []
+    current_spread = tick0["destination_spread_x"]
+    max_spread = tick0 if current_spread != 0 else None
+    for sample in signal_samples[1:]:
+        if sample["destination_spread_x"] > current_spread:
+            current_spread = sample["destination_spread_x"]
+            spread_updates.append(sample)
+            max_spread = sample
+
+    lifecycle = analysis["lifecycle"]
+    by_sequence = {sample["sample_sequence"]: sample for sample in samples}
+    terminal = by_sequence.get(lifecycle["terminal_sample_sequence"])
+    if terminal is None or terminal["sim_tick"] != lifecycle["terminal_sim_tick"]:
+        raise ExperimentError("Water terminal identity is absent from telemetry")
+    if terminal["phase"] != "flowing" or terminal["reason"] not in WATER_DIAGNOSTIC_REASONS:
+        raise ExperimentError("Water terminal must bind a flowing diagnostic sample")
+    expected_diagnostic_ticks = [2]
+    expected_diagnostic_ticks.extend(
+        range(DIAGNOSTIC_INTERVAL, terminal["sim_tick"] + 1, DIAGNOSTIC_INTERVAL)
+    )
+    if terminal["sim_tick"] == MAX_TICKS and MAX_TICKS not in expected_diagnostic_ticks:
+        expected_diagnostic_ticks.append(MAX_TICKS)
+    expected_diagnostic_ticks = sorted(set(expected_diagnostic_ticks))
+    actual_diagnostics = water_diagnostic_samples(pre_reset)
+    if [sample["sim_tick"] for sample in actual_diagnostics] != expected_diagnostic_ticks:
+        raise ExperimentError("Water diagnostic cadence is incomplete or contains extra samples")
+    for sample in actual_diagnostics:
+        expected_reason = (
+            "early-flow"
+            if sample["sim_tick"] == 2
+            else "max-tick"
+            if sample["sim_tick"] == MAX_TICKS
+            else "diagnostic-cadence"
+        )
+        if sample["reason"] != expected_reason:
+            raise ExperimentError("Water diagnostic reason disagrees with its sim tick")
+
+    all_sleep_streak, all_sleep_starts, all_sleep_breaks = (
+        confirmed_water_all_sleep_streak(pre_reset, CONSECUTIVE_ALL_SLEEP)
+    )
+    plateau_streak, plateau_starts, plateau_breaks = confirmed_water_plateau_streak(
+        pre_reset, CONSECUTIVE_STABLE_PLATEAU
+    )
+    terminal_reason = lifecycle["terminal_reason"]
+    if terminal_reason == "all-sleep":
+        if all_sleep_streak is None or terminal is not all_sleep_streak[-1]:
+            raise ExperimentError("all-sleep terminal disagrees with the three-sample streak")
+        first_all_sleep = all_sleep_streak[0]
+        if (
+            lifecycle["first_all_sleep_sim_tick"],
+            lifecycle["first_all_sleep_sample_sequence"],
+            lifecycle["confirmed_all_sleep_sim_tick"],
+        ) != (
+            first_all_sleep["sim_tick"],
+            first_all_sleep["sample_sequence"],
+            terminal["sim_tick"],
+        ):
+            raise ExperimentError("Water all-sleep lifecycle identity mismatch")
+    elif lifecycle["confirmed_all_sleep_sim_tick"] is not None:
+        raise ExperimentError("non-all-sleep terminal records all-sleep confirmation")
+    elif (
+        lifecycle["first_all_sleep_sim_tick"] is not None
+        or lifecycle["first_all_sleep_sample_sequence"] is not None
+    ):
+        raise ExperimentError("non-all-sleep terminal records an all-sleep streak identity")
+    if terminal_reason != "all-sleep" and all_sleep_streak is not None:
+        raise ExperimentError("confirmed all-sleep streak did not receive terminal precedence")
+    if plateau_streak is not None:
+        if terminal is not plateau_streak[-1] or terminal_reason not in {
+            "all-sleep",
+            "stable-plateau",
+        }:
+            raise ExperimentError(
+                "plateau confirmation does not coincide with its selected terminal"
+            )
+        first_plateau = plateau_streak[0]
+        if (
+            lifecycle["first_stable_plateau_sim_tick"],
+            lifecycle["first_stable_plateau_sample_sequence"],
+            lifecycle["confirmed_stable_plateau_sim_tick"],
+        ) != (
+            first_plateau["sim_tick"],
+            first_plateau["sample_sequence"],
+            terminal["sim_tick"],
+        ):
+            raise ExperimentError("Water stable-plateau lifecycle identity mismatch")
+    elif (
+        lifecycle["confirmed_stable_plateau_sim_tick"] is not None
+        or lifecycle["first_stable_plateau_sim_tick"] is not None
+        or lifecycle["first_stable_plateau_sample_sequence"] is not None
+    ):
+        raise ExperimentError("Water lifecycle records plateau identity without confirmation")
+    if terminal_reason == "stable-plateau" and plateau_streak is None:
+        raise ExperimentError("stable-plateau terminal lacks the eight-sample streak")
+    if terminal_reason == "max-ticks":
+        if terminal["sim_tick"] != MAX_TICKS or terminal["reason"] != "max-tick":
+            raise ExperimentError("max-ticks terminal does not bind max-tick telemetry")
+        if post_settle:
+            raise ExperimentError("max-ticks terminal must not have a post-settle window")
+    else:
+        if len(post_settle) != POST_SLEEP_TICKS:
+            raise ExperimentError("settled Water terminal must have exactly 180 post samples")
+        expected_ticks = list(
+            range(terminal["sim_tick"] + 1, terminal["sim_tick"] + POST_SLEEP_TICKS + 1)
+        )
+        if [sample["sim_tick"] for sample in post_settle] != expected_ticks:
+            raise ExperimentError("Water post-settle ticks must be contiguous")
+        if lifecycle["post_settle_end_tick"] != expected_ticks[-1]:
+            raise ExperimentError("Water post_settle_end_tick disagrees with telemetry")
+
+    final_pre_reset = pre_reset[-1]
+    raw_post_changes = sum(
+        sample["physical_state_hash"] != terminal["physical_state_hash"]
+        or sample["changed_chunks"] != 0
+        for sample in post_settle
+    )
+    raw_post_wakes = sum(
+        sample["wake_chunks"] != 0
+        or (terminal_reason == "all-sleep" and not sample_is_all_sleep(sample))
+        for sample in post_settle
+    )
+    if lifecycle["post_settle_change_ticks"] != raw_post_changes:
+        raise ExperimentError("Water post-settle change count disagrees with raw telemetry")
+    if lifecycle["post_settle_wake_ticks"] != raw_post_wakes:
+        raise ExperimentError("Water post-settle wake count disagrees with telemetry")
+
+    metrics = analysis["metrics"]
+    expected_metrics = {
+        "peak_active_cells": peak["census"]["any_active_cells"],
+        "peak_active_chunks": max_active_chunks,
+        "peak_active_sim_tick": peak["sim_tick"],
+        "peak_active_sample_sequence": peak["sample_sequence"],
+        "first_water_movement_tick": sample_identity(first_movement)[0],
+        "first_water_movement_sample_sequence": sample_identity(first_movement)[1],
+        "first_cross_chunk_flow_tick": sample_identity(first_cross)[0],
+        "first_cross_chunk_flow_sample_sequence": sample_identity(first_cross)[1],
+        "first_destination_arrival_tick": sample_identity(first_destination)[0],
+        "first_destination_arrival_sample_sequence": sample_identity(first_destination)[1],
+        "first_sleeping_chunk_tick": sample_identity(first_sleeping)[0],
+        "first_sleeping_chunk_sample_sequence": sample_identity(first_sleeping)[1],
+        "max_bottom_chunk_row_water_cells": max_bottom,
+        "max_destination_water_cells": max_destination,
+        "max_destination_spread_x": current_spread,
+        "max_destination_spread_tick": sample_identity(max_spread)[0],
+        "max_destination_spread_sample_sequence": sample_identity(max_spread)[1],
+        "final_matter_count": final_pre_reset["matter_count"],
+        "final_water_count": final_pre_reset["water_count"],
+        "final_oil_count": final_pre_reset["oil_count"],
+        "final_water_occupied_chunks": final_pre_reset["water_occupied_chunks"],
+        "final_oil_occupied_chunks": final_pre_reset["oil_occupied_chunks"],
+        "final_sleeping_chunks": final_pre_reset["census"]["sleeping_chunks"],
+        "matter_count_delta": final_pre_reset["matter_count"] - tick0["matter_count"],
+        "water_count_delta": final_pre_reset["water_count"] - tick0["water_count"],
+        "oil_count_delta": final_pre_reset["oil_count"] - tick0["oil_count"],
+        "post_settle_state_changes": raw_post_changes,
+        "post_settle_spontaneous_wakes": lifecycle["post_settle_wake_ticks"],
+    }
+    for key, expected in expected_metrics.items():
+        if metrics[key] != expected:
+            raise ExperimentError(f"Water analysis metric {key} disagrees with telemetry")
+
+    conserved = all(
+        (sample["matter_count"], sample["water_count"], sample["oil_count"])
+        == (tick0["matter_count"], tick0["water_count"], tick0["oil_count"])
+        for sample in pre_reset
+    )
+    no_invalid = all(sample["invalid_material_count"] == 0 for sample in pre_reset)
+    no_nonfinite = all(
+        sample["nonfinite_temperature_count"] == 0
+        and sample["nonfinite_pressure_count"] == 0
+        for sample in pre_reset
+    )
+    settled_window = terminal_reason != "max-ticks"
+    post_stable = (
+        settled_window
+        and len(post_settle) == POST_SLEEP_TICKS
+        and lifecycle["post_settle_change_ticks"] == 0
+        and lifecycle["post_settle_wake_ticks"] == 0
+    )
+    reset_observable_equal = all(
+        reset[key] == tick0[key]
+        for key in (
+            "world",
+            "sleep",
+            "census",
+            "material_counts_by_id",
+            "matter_count",
+            "water_count",
+            "oil_count",
+            "water_y_sum",
+            "water_min_y",
+            "water_max_y",
+            "oil_y_sum",
+            "oil_min_y",
+            "oil_max_y",
+            "water_occupied_chunks",
+            "oil_occupied_chunks",
+            "water_outside_initial_mask",
+            "initial_water_cells_vacated",
+            "bottom_chunk_row_water_cells",
+            "destination_water_cells",
+            "destination_spread_x",
+            "invalid_material_count",
+            "nonfinite_temperature_count",
+            "nonfinite_pressure_count",
+            "state_hash",
+            "physical_state_hash",
+        )
+    )
+    if metrics["reset_exact_equivalence"] and not reset_observable_equal:
+        raise ExperimentError("PASS exact Water reset disagrees with observable telemetry")
+    expected_predicates = {
+        "actual_water_movement": "pass" if first_movement is not None else "unknown",
+        "cross_chunk_flow": "pass" if first_cross is not None else "unknown",
+        "destination_arrival": "pass" if first_destination is not None else "unknown",
+        "water_conservation": "pass" if conserved else "fail",
+        "no_invalid_materials": "pass" if no_invalid else "fail",
+        "no_nonfinite_fields": "pass" if no_nonfinite else "fail",
+        "stable_bulk_before_max": (
+            "pass"
+            if terminal_reason == "all-sleep"
+            and lifecycle["confirmed_all_sleep_sim_tick"] < MAX_TICKS
+            else "unknown"
+        ),
+        "post_settle_stable": (
+            "unknown" if not settled_window else "pass" if post_stable else "fail"
+        ),
+        "exact_reset": "pass" if metrics["reset_exact_equivalence"] else "fail",
+    }
+    require_water_predicate_statuses(analysis["predicates"], expected_predicates)
+
+    validate_water_event_contract(
+        events,
+        samples,
+        lifecycle,
+        first_movement,
+        first_cross,
+        first_destination,
+        first_sleeping,
+        peak_updates,
+        spread_updates,
+        all_sleep_starts,
+        all_sleep_breaks,
+        all_sleep_streak,
+        plateau_starts,
+        plateau_breaks,
+        plateau_streak,
+        terminal,
+        post_settle,
+    )
+    validate_water_frame_contract(
+        frames,
+        samples,
+        analysis,
+        first_movement,
+        first_cross,
+        first_destination,
+        first_sleeping,
+        peak,
+        max_spread,
+        terminal,
+        post_settle,
+    )
+    return analysis, frames_doc, samples, events
+
+
+def validate_telemetry(
+    run_dir: Path, manifest: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    contract = contract_for_manifest(manifest)
+    if contract is SAND_CONTRACT:
+        return validate_sand_telemetry(run_dir, manifest)
+    return validate_water_telemetry(run_dir, manifest)
+
+
 def pillow_modules() -> tuple[Any, Any, Any]:
     try:
         from PIL import Image, ImageDraw, ImageOps
@@ -1151,7 +2581,38 @@ def create_screenshots(
     return output
 
 
-def create_contact_sheet_bytes(run_dir: Path, screenshots: list[dict[str, Any]]) -> bytes:
+def contact_sheet_caption_lines(
+    item: dict[str, Any], sample: dict[str, Any] | None
+) -> tuple[str, ...]:
+    reason = str(item["reason"])
+    if len(reason) > 34:
+        reason = reason[:31] + "..."
+    identity = (
+        f"#{item['ordinal']} {reason} | sim {item['sim_tick']} | "
+        f"sample {item['sample_sequence']}"
+    )
+    if sample is None:
+        return (identity,)
+    if sample["sample_sequence"] != item["sample_sequence"]:
+        raise ExperimentError("contact-sheet telemetry join has a sample identity mismatch")
+    if "state_hash" in item and item["state_hash"] != sample["state_hash"]:
+        raise ExperimentError("contact-sheet telemetry join has a state-hash mismatch")
+    census = sample["census"]
+    return (
+        identity,
+        (
+            f"Active cells {census['any_active_cells']} | "
+            f"Runnable {census['runnable_chunks']} | Sleeping {census['sleeping_chunks']}"
+        ),
+        f"State {sample['state_hash']}",
+    )
+
+
+def create_contact_sheet_bytes(
+    run_dir: Path,
+    screenshots: list[dict[str, Any]],
+    samples: list[dict[str, Any]] | None = None,
+) -> bytes:
     Image, ImageDraw, ImageOps = pillow_modules()
     columns = 3
     panel_width = 420
@@ -1159,21 +2620,24 @@ def create_contact_sheet_bytes(run_dir: Path, screenshots: list[dict[str, Any]])
     rows = (len(screenshots) + columns - 1) // columns
     sheet = Image.new("RGB", (columns * panel_width, max(1, rows) * panel_height), "#11151c")
     draw = ImageDraw.Draw(sheet)
+    samples_by_sequence = (
+        {} if samples is None else {sample["sample_sequence"]: sample for sample in samples}
+    )
     for index, item in enumerate(screenshots):
         column = index % columns
         row = index // columns
         left = column * panel_width
         top = row * panel_height
         crop = Image.open(run_dir / item["crop_png"]).convert("RGB")
-        thumb = ImageOps.contain(crop, (390, 390))
+        thumb = ImageOps.contain(crop, (390, 360))
         x = left + (panel_width - thumb.width) // 2
         y = top + 8
         sheet.paste(thumb, (x, y))
-        label = (
-            f"#{item['ordinal']} {item['reason']} | sim {item['sim_tick']} | "
-            f"sample {item['sample_sequence']}"
-        )
-        draw.text((left + 12, top + 410), label, fill="#f4f7fb")
+        sample = samples_by_sequence.get(item["sample_sequence"])
+        if samples is not None and sample is None:
+            raise ExperimentError("contact-sheet frame sample is absent from telemetry")
+        for line_index, label in enumerate(contact_sheet_caption_lines(item, sample)):
+            draw.text((left + 12, top + 374 + line_index * 18), label, fill="#f4f7fb")
         draw.rectangle(
             (left + 2, top + 2, left + panel_width - 3, top + panel_height - 3),
             outline="#506078",
@@ -1189,8 +2653,9 @@ def render_report_markdown(
     events: list[dict[str, Any]],
     screenshots: list[dict[str, Any]],
 ) -> str:
+    contract = contract_for_manifest(manifest)
     lines = [
-        "# Powdergame Sand Fall Experiment Report",
+        f"# Powdergame {contract.title} Experiment Report",
         "",
         f"- Experiment: `{manifest['experiment_id']}`",
         f"- Run ID: `{manifest['run_id']}`",
@@ -1198,15 +2663,21 @@ def render_report_markdown(
         f"- Binary SHA-256: `{manifest['binary']['sha256']}`",
         f"- Automatic verdict: **{analysis['verdict']}**",
         f"- Samples / events / frames: {len(samples)} / {len(events)} / {len(screenshots)}",
-        "",
-        "The automatic verdict is worker telemetry, not user acceptance or G8-B/G8-C closure.",
-        "",
-        "## Predicates",
-        "",
-        "| Predicate | Status | Detail |",
-        "|---|---|---|",
     ]
-    for name in sorted(PREDICATE_NAMES):
+    if contract.records_run_mode:
+        lines.append(f"- Run mode: `{manifest['run_mode']}`")
+    lines.extend(
+        [
+            "",
+            "The automatic verdict is worker telemetry, not user acceptance or G8-B/G8-C closure.",
+            "",
+            "## Predicates",
+            "",
+            "| Predicate | Status | Detail |",
+            "|---|---|---|",
+        ]
+    )
+    for name in sorted(contract.predicate_names):
         predicate = analysis["predicates"][name]
         detail = predicate["detail"].replace("|", "\\|").replace("\n", " ")
         lines.append(f"| `{name}` | {predicate['status']} | {detail} |")
@@ -1215,24 +2686,50 @@ def render_report_markdown(
             "",
             "## Frames",
             "",
-            "| # | Reason | Sim tick | Sample | State hash | Full | World crop |",
-            "|---:|---|---:|---:|---|---|---|",
+            (
+                "| # | Kind | Reason | Sim tick | Sample | State hash | Full | World crop |"
+                if contract is WATER_CONTRACT
+                else "| # | Reason | Sim tick | Sample | State hash | Full | World crop |"
+            ),
+            (
+                "|---:|---|---|---:|---:|---|---|---|"
+                if contract is WATER_CONTRACT
+                else "|---:|---|---:|---:|---|---|---|"
+            ),
         ]
     )
     for item in screenshots:
+        kind = f" {item['kind']} |" if contract is WATER_CONTRACT else ""
         lines.append(
-            f"| {item['ordinal']} | {item['reason']} | {item['sim_tick']} | "
+            f"| {item['ordinal']} |{kind} {item['reason']} | {item['sim_tick']} | "
             f"{item['sample_sequence']} | `{item['state_hash']}` | "
             f"[{Path(item['full_png']).name}](../{item['full_png']}) | "
             f"[{Path(item['crop_png']).name}](../{item['crop_png']}) |"
         )
+    if contract is WATER_CONTRACT:
+        lines.extend(
+            [
+                "",
+                "## Review classification guide",
+                "",
+                "These are cautious labels for a human reviewer, not findings declared by the runner.",
+                "",
+            ]
+        )
+        lines.extend(f"- `{category}`" for category in WATER_FINDING_CLASSIFICATIONS)
+        lines.extend(["", "## Visual questions", ""])
+        lines.extend(f"- {question}" for question in WATER_VISUAL_QUESTIONS)
     lines.extend(
         [
             "",
             "## Boundaries",
             "",
-            "- This experiment is Sand Fall only.",
-            "- Water Flow and G8-C are outside scope.",
+            f"- This experiment is {contract.title} only.",
+            (
+                "- Water Flow and G8-C are outside scope."
+                if contract is SAND_CONTRACT
+                else "- Sand Fall regression, other Gallery scenarios, and G8-C are outside scope."
+            ),
             "- Gallery rendering/diagnostics are not official benchmark timing.",
             "- Review packet generation does not contact an AI reviewer.",
             "",
@@ -1242,6 +2739,32 @@ def render_report_markdown(
 
 
 def render_review_prompt(manifest: dict[str, Any], analysis: dict[str, Any]) -> str:
+    contract = contract_for_manifest(manifest)
+    if contract is WATER_CONTRACT:
+        categories = "\n".join(
+            f"- `{category}`" for category in WATER_FINDING_CLASSIFICATIONS
+        )
+        questions = "\n".join(f"- {question}" for question in WATER_VISUAL_QUESTIONS)
+        return f"""# Human Review Prompt — Powdergame Water Flow Experiment
+
+This prompt was generated locally and was not sent to an AI or any external service.
+Review only the attached `REVIEW_PACKET.zip` for experiment `{manifest['experiment_id']}`,
+run `{manifest['run_id']}` in `{manifest['run_mode']}` mode, source
+`{manifest['source']['sha']}`, binary `{manifest['binary']['sha256']}`. The worker
+automatic verdict is `{analysis['verdict']}`; treat it as a telemetry claim to check,
+not as acceptance or a product conclusion.
+
+Classify each concrete observation cautiously using one of these review labels:
+{categories}
+
+Answer these visual questions from the full frames, crops, joined contact-sheet captions,
+and matching telemetry samples:
+{questions}
+
+Report missing evidence and ambiguity explicitly. Do not infer other scenarios, G8-C,
+performance readiness, or G8-B closure. No action, code change, upload, or external
+message is authorized by this prompt.
+"""
     return f"""# ChatGPT Review Prompt — Powdergame Sand Fall Experiment
 
 Review only the attached `REVIEW_PACKET.zip` for experiment `{manifest['experiment_id']}`,
@@ -1314,8 +2837,12 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
         raise ExperimentError("completed run already has a receipt and cannot be reused")
     manifest_path = run_dir / "EXPERIMENT_MANIFEST.toml"
     manifest = read_and_validate_manifest(manifest_path)
+    contract = contract_for_manifest(manifest)
     analysis, frames_doc, samples, events = validate_telemetry(run_dir, manifest)
     screenshots = create_screenshots(run_dir, frames_doc["frames"], log)
+    if contract is WATER_CONTRACT:
+        for screenshot, frame in zip(screenshots, frames_doc["frames"], strict=True):
+            screenshot["kind"] = frame["kind"]
 
     report_dir = run_dir / "report"
     try:
@@ -1324,11 +2851,13 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
         raise ExperimentError("report output directory already exists") from error
     contact_sheet_path = report_dir / "CONTACT_SHEET.png"
     write_new_bytes(
-        contact_sheet_path, create_contact_sheet_bytes(run_dir, screenshots), log
+        contact_sheet_path,
+        create_contact_sheet_bytes(run_dir, screenshots, samples),
+        log,
     )
 
     report_json = {
-        "schema_version": REPORT_SCHEMA,
+        "schema_version": contract.report_schema,
         "experiment_id": manifest["experiment_id"],
         "run_id": manifest["run_id"],
         "scenario": manifest["scenario"],
@@ -1342,12 +2871,19 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
         "screenshots": screenshots,
         "contact_sheet": contact_sheet_path.relative_to(run_dir).as_posix(),
         "scope": {
-            "sand_fall_only": True,
-            "water_flow": False,
+            "sand_fall_only": contract is SAND_CONTRACT,
+            "water_flow": contract is WATER_CONTRACT,
             "g8c": False,
             "ai_contacted": False,
         },
     }
+    if contract is WATER_CONTRACT:
+        report_json["run_mode"] = manifest["run_mode"]
+        report_json["review_guidance"] = {
+            "classification_categories": list(WATER_FINDING_CLASSIFICATIONS),
+            "visual_questions": list(WATER_VISUAL_QUESTIONS),
+            "categories_are_findings": False,
+        }
     write_new_text(
         report_dir / "REPORT.json",
         json.dumps(report_json, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
@@ -1370,7 +2906,7 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
     write_new_text(hashes_path, render_hashes(run_dir), log)
 
     receipt = {
-        "schema_version": RECEIPT_SCHEMA,
+        "schema_version": contract.receipt_schema,
         "experiment_id": manifest["experiment_id"],
         "run_id": manifest["run_id"],
         "scenario": manifest["scenario"],
@@ -1384,6 +2920,8 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
         "hash_entry_count": len(hashable_files(run_dir)),
         "receipt_is_final_publication_marker": True,
     }
+    if contract is WATER_CONTRACT:
+        receipt["run_mode"] = manifest["run_mode"]
     write_new_text(
         receipt_path,
         json.dumps(receipt, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
@@ -1394,11 +2932,19 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
     return receipt_path
 
 
-def worker_command(binary: Path, run_dir: Path, run_id: str, binary_sha256: str) -> tuple[str, ...]:
+def worker_command(
+    binary: Path,
+    run_dir: Path,
+    run_id: str,
+    binary_sha256: str,
+    contract: ScenarioContract = SAND_CONTRACT,
+    run_mode: str = "candidate",
+) -> tuple[str, ...]:
+    validate_run_mode(contract, run_mode)
     return (
         str(binary),
         "--experiment-worker",
-        SCENARIO,
+        contract.scenario,
         "--experiment-run-dir",
         str(run_dir),
         "--experiment-run-id",
@@ -1416,14 +2962,17 @@ def worker_command(binary: Path, run_dir: Path, run_id: str, binary_sha256: str)
     )
 
 
-def run_experiment(source_root: Path, artifact_root: Path, scenario: str) -> Path:
-    if scenario != SCENARIO:
-        raise ExperimentError(
-            f"unsupported experiment scenario {scenario!r}; only {SCENARIO!r} is allowed"
-        )
+def run_experiment(
+    source_root: Path,
+    artifact_root: Path,
+    scenario: str,
+    mode: str = "candidate",
+) -> Path:
+    contract = contract_for_scenario(scenario)
+    validate_run_mode(contract, mode)
     validate_external_artifact_root(source_root, artifact_root)
     source = inspect_clean_named_source(source_root)
-    run_id = generate_run_id()
+    run_id = generate_run_id(contract=contract, run_mode=mode)
     run_dir = create_run_directory(artifact_root.resolve(), run_id)
     logs = run_dir / "logs"
     logs.mkdir()
@@ -1442,7 +2991,9 @@ def run_experiment(source_root: Path, artifact_root: Path, scenario: str) -> Pat
     if not binary.is_file():
         raise ExperimentError(f"release binary was not produced: {binary}")
     binary_hash = sha256_file(binary)
-    worker = worker_command(binary, run_dir, run_id, binary_hash)
+    worker = worker_command(
+        binary, run_dir, run_id, binary_hash, contract=contract, run_mode=mode
+    )
     manifest = ManifestData(
         run_id=run_id,
         created_utc=format_utc(utc_now()),
@@ -1453,6 +3004,8 @@ def run_experiment(source_root: Path, artifact_root: Path, scenario: str) -> Pat
         run_dir=run_dir.resolve(),
         build_command=build,
         worker_command=worker,
+        contract=contract,
+        run_mode=mode,
     )
     manifest_text = render_manifest(manifest)
     write_new_text(run_dir / "EXPERIMENT_MANIFEST.toml", manifest_text)
@@ -1474,9 +3027,17 @@ def run_experiment(source_root: Path, artifact_root: Path, scenario: str) -> Pat
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run one immutable Powdergame Sand Fall experiment."
+        description="Run one immutable Powdergame G8-B scenario experiment."
     )
-    parser.add_argument("scenario", help="must be exactly sand-fall")
+    parser.add_argument(
+        "scenario", choices=sorted(SCENARIO_CONTRACTS), help="scenario experiment to run"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=sorted(RUN_MODES),
+        default="candidate",
+        help="Water Flow publication mode (default: candidate)",
+    )
     parser.add_argument(
         "--artifact-root",
         type=Path,
@@ -1495,7 +3056,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        receipt = run_experiment(args.source_root, args.artifact_root, args.scenario)
+        receipt = run_experiment(
+            args.source_root, args.artifact_root, args.scenario, mode=args.mode
+        )
     except ExperimentError as error:
         print(f"FATAL: {error}", file=sys.stderr)
         return 1

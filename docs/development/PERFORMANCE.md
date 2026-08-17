@@ -512,7 +512,7 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - Liquid movement
 - density displacement
 - stable bulk
-- **PENDING / NOT YET USER ACCEPTED**: inspection/correction은 현재 checkpoint task 범위 밖이다.
+- **HARNESS IMPLEMENTATION CANDIDATE / NOT YET USER ACCEPTED**: base `b884abc`의 finite fixture와 production physics는 그대로 두고, 첫 scratch/candidate observation을 준비한다.
 
 ### Fire / Heat
 
@@ -556,7 +556,7 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - 기본 `calibration`은 기존 `powdergame-g8a-v5`, `g8a-*`, `target/calibration_report.csv` 계약을 유지한다. shared fixture는 같은 CSV column shape에서 `powdergame-g8b-fixture-v1`, `g8b-<slug>-*`, `target/<slug>_report.csv`로 identity와 기본 output을 분리한다.
 - 이 구현은 scenario 반복 가능성과 관찰 surface를 제공할 뿐이다. official G8-C throughput/render/coexistence matrix, bottleneck 결정, 숫자 budget은 별도 단계다.
 
-### Sand Fall Experiment Evidence Harness v0
+### Scenario Experiment Evidence Harness
 
 `feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 사용자 승인된 Sand Fall을 대상으로, `feature/g8b-experiment-harness-v0`가 lifecycle evidence runner를 제공한다. 이 runner는 performance benchmark가 아니라 accepted fixture의 실제 낙하, Matter/field integrity, sleep convergence, post-sleep stability, exact reset을 기록하는 out-of-band experiment다.
 
@@ -564,7 +564,7 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 run_experiment.bat sand-fall
 ```
 
-- only `sand-fall`; 256×256×64; production `Simulation::tick`; shared pristine staging
+- Sand v0 contract; 256×256×64; production `Simulation::tick`; shared pristine staging
 - diagnostic simulation tick과 sample sequence를 별도 기록
 - all-sleep 조건을 3회 연속 sample에서 확인하고 이후 180 production tick 동안 change/wake를 매 tick 검사
 - renderer와 같은 draw path에서 6–10 semantic full frames를 캡처하고 crop/contact sheet는 full PNG에서만 파생
@@ -576,6 +576,14 @@ run_experiment.bat sand-fall
 Automatic `PASS`는 actual fall, Matter conservation, zero invalid Material, zero non-finite field, sleep before max, zero post-sleep change/wake, exact reset의 일곱 hard predicate가 모두 참이라는 run-local 판정이다. Scenario 2–5 user acceptance, G8-B closure, official G8-C performance, bottleneck decision을 의미하지 않는다.
 
 Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic `PASS`, Harness review output `APPROVED`로 검증되었다. 이는 performance benchmark나 G8-C evidence가 아니며, 이후 docs-only closure commit과 experiment source provenance를 구분한다. 전체 lifecycle, 수치, artifact hash, review 경계는 `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`를 따른다.
+
+#### Water Flow v1 candidate
+
+Water Flow는 같은 coordinator/provenance/screenshot/report/contact-sheet/hash/receipt-last 기반 위에 scenario-specific analyzer만 분리한다. `run_experiment.bat water-flow --mode scratch`는 fixture 변경 전 첫 진단 run이고, `run_experiment.bat water-flow`는 clean source seal과 FULL checkpoint 뒤 정확히 한 번 생성할 candidate다. 두 mode 모두 unique Run ID, create-new/no-overwrite, failed-run preservation, receipt-last 정책을 유지하며 generated artifact는 Git 밖에 둔다.
+
+Water manifest/telemetry/analysis/report/receipt는 `powdergame-experiment-*-v1`을 사용하고 shared frame manifest는 v0를 유지한다. 아홉 predicate는 `actual_water_movement`, `cross_chunk_flow`, `destination_arrival`, `water_conservation`, `no_invalid_materials`, `no_nonfinite_fields`, `stable_bulk_before_max`, `post_settle_stable`, `exact_reset`이다. 모든 status가 pass일 때만 `PASS`, 하나라도 fail이면 `FAIL`, unknown이 남으면 `NEEDS_HUMAN_REVIEW`다. Eight-sample stable plateau는 terminal observation이 될 수 있지만 finite fixture의 all-sleep proof를 대신해 `stable_bulk_before_max`를 pass로 만들지 않는다.
+
+256×256×64의 untuned tick-0 census는 Water 15,244 / Oil 2,240 / Stone 6,888 / Boundary Block 1,020 / Empty 40,144이다. destination은 `[18,238) × [200,230)` 안의 tick-0 EMPTY 6,216-cell mask이며 staging outcome이 아니라 observation region이다. FAST 기록은 fmt/check, scenarios 7/7, Windows experiment 16/16, Python 19/19, GPU reset 1/1이다. Candidate source SHA, FULL checkpoint, release smoke, scratch/candidate run과 verdict는 pending이며 Water는 아직 사용자 승인되지 않았다.
 
 ---
 

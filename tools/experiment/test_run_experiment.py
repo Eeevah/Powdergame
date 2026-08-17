@@ -34,7 +34,12 @@ class ExperimentRunnerTests(unittest.TestCase):
         }.items():
             self.contract_patches.enter_context(mock.patch.object(experiment, name, value))
 
-    def manifest_data(self, run_dir: Path) -> experiment.ManifestData:
+    def manifest_data(
+        self,
+        run_dir: Path,
+        contract: experiment.ScenarioContract = experiment.SAND_CONTRACT,
+        mode: str = "candidate",
+    ) -> experiment.ManifestData:
         binary = self.source / "target" / "release" / "powdergame-windows.exe"
         binary_sha256 = "b" * 64
         return experiment.ManifestData(
@@ -58,15 +63,28 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "powdergame-windows",
             ),
             worker_command=experiment.worker_command(
-                binary.resolve(), run_dir.resolve(), run_dir.name, binary_sha256
+                binary.resolve(),
+                run_dir.resolve(),
+                run_dir.name,
+                binary_sha256,
+                contract=contract,
+                run_mode=mode,
             ),
+            contract=contract,
+            run_mode=mode,
         )
 
-    def create_manifest(self, run_id: str = "g8b-sand-fall-v0-test-run") -> tuple[Path, dict]:
+    def create_manifest(
+        self,
+        run_id: str = "g8b-sand-fall-v0-test-run",
+        contract: experiment.ScenarioContract = experiment.SAND_CONTRACT,
+        mode: str = "candidate",
+    ) -> tuple[Path, dict]:
         run_dir = experiment.create_run_directory(self.artifacts, run_id)
         manifest_path = run_dir / "EXPERIMENT_MANIFEST.toml"
         experiment.write_new_text(
-            manifest_path, experiment.render_manifest(self.manifest_data(run_dir))
+            manifest_path,
+            experiment.render_manifest(self.manifest_data(run_dir, contract, mode)),
         )
         return run_dir, experiment.read_and_validate_manifest(manifest_path)
 
@@ -285,6 +303,379 @@ class ExperimentRunnerTests(unittest.TestCase):
         )
         return run_dir
 
+    def create_valid_water_worker_fixture(
+        self,
+        run_id: str = "g8b-water-flow-v0-test-run",
+        mode: str = "candidate",
+    ) -> Path:
+        if mode == "scratch" and "-scratch-" not in run_id:
+            run_id = run_id.replace("g8b-water-flow-v0-", "g8b-water-flow-v0-scratch-")
+        run_dir, manifest = self.create_manifest(
+            run_id, experiment.WATER_CONTRACT, mode
+        )
+        logs = run_dir / "logs"
+        logs.mkdir()
+        (logs / "build.stdout.log").write_bytes(b"build stdout\r\n")
+        (logs / "build.stderr.log").write_bytes(b"")
+        (run_dir / "stdout.log").write_bytes(b"worker stdout\r\n")
+        (run_dir / "stderr.log").write_bytes(b"")
+        telemetry = run_dir / "telemetry"
+        frames_dir = run_dir / "work" / "frames"
+        telemetry.mkdir()
+        frames_dir.mkdir(parents=True)
+
+        material_counts = [40144, 1020, 6888, 0, 15244, 2240, 0, 0, 0, 0]
+
+        def sample(
+            tick: int,
+            phase: str,
+            reason: str,
+            *,
+            active: int,
+            active_chunks: int,
+            runnable: int,
+            sleeping: int,
+            changed: int,
+            state_hash: str,
+            outside: int = 0,
+            vacated: int = 0,
+            bottom: int = 0,
+            destination: int = 0,
+            spread: int = 0,
+            water_chunks: int = 10,
+            water_y_sum: int = 1_000_000,
+        ) -> dict:
+            return {
+                "schema_version": experiment.WATER_TELEMETRY_SCHEMA,
+                "experiment_id": experiment.WATER_CONTRACT.experiment_id,
+                "run_id": run_dir.name,
+                "scenario": experiment.WATER_CONTRACT.scenario,
+                "source_sha": manifest["source"]["sha"],
+                "git_state": "clean",
+                "build_profile": "release",
+                "binary_sha256": manifest["binary"]["sha256"],
+                "sample_sequence": -1,
+                "sim_tick": tick,
+                "phase": phase,
+                "reason": reason,
+                "world": manifest["world"],
+                "sleep": {"enabled": True, "threshold": 3},
+                "census": {
+                    "total_cells": experiment.WORLD_WIDTH * experiment.WORLD_HEIGHT,
+                    "any_active_cells": active,
+                    "matter_active_cells": active,
+                    "thermal_active_cells": 0,
+                    "pressure_active_cells": 0,
+                    "reaction_active_cells": 0,
+                    "total_chunks": 16,
+                    "active_chunks": active_chunks,
+                    "runnable_chunks": runnable,
+                    "sleeping_chunks": sleeping,
+                },
+                "material_counts_by_id": list(material_counts),
+                "matter_count": 25392,
+                "water_count": 15244,
+                "oil_count": 2240,
+                "water_y_sum": water_y_sum,
+                "water_min_y": 8,
+                "water_max_y": 220 if bottom else 188,
+                "oil_y_sum": 200000,
+                "oil_min_y": 48,
+                "oil_max_y": 180,
+                "water_occupied_chunks": water_chunks,
+                "oil_occupied_chunks": 4,
+                "water_outside_initial_mask": outside,
+                "initial_water_cells_vacated": vacated,
+                "bottom_chunk_row_water_cells": bottom,
+                "destination_water_cells": destination,
+                "destination_spread_x": spread,
+                "invalid_material_count": 0,
+                "nonfinite_temperature_count": 0,
+                "nonfinite_pressure_count": 0,
+                "changed_chunks": changed,
+                "wake_chunks": 0,
+                "wake_reason_or": 0,
+                "state_hash": state_hash,
+                "physical_state_hash": state_hash,
+            }
+
+        samples = [
+            sample(
+                0,
+                "initial",
+                "tick0",
+                active=100,
+                active_chunks=6,
+                runnable=16,
+                sleeping=0,
+                changed=0,
+                state_hash="fnv1a64:0000000000000100",
+            ),
+            sample(
+                1,
+                "flowing",
+                "tick1",
+                active=120,
+                active_chunks=7,
+                runnable=15,
+                sleeping=1,
+                changed=5,
+                state_hash="fnv1a64:0000000000000101",
+                outside=5,
+                vacated=5,
+                water_chunks=11,
+                water_y_sum=1_000_100,
+            ),
+            sample(
+                2,
+                "flowing",
+                "early-flow",
+                active=110,
+                active_chunks=8,
+                runnable=14,
+                sleeping=2,
+                changed=4,
+                state_hash="fnv1a64:0000000000000102",
+                outside=20,
+                vacated=20,
+                bottom=7,
+                water_chunks=12,
+                water_y_sum=1_000_220,
+            ),
+        ]
+        for tick in (8, 16, 24):
+            samples.append(
+                sample(
+                    tick,
+                    "flowing",
+                    "diagnostic-cadence",
+                    active=0,
+                    active_chunks=0,
+                    runnable=0,
+                    sleeping=16,
+                    changed=0,
+                    state_hash="fnv1a64:0000000000000200",
+                    outside=40,
+                    vacated=40,
+                    bottom=12,
+                    destination=20,
+                    spread=15,
+                    water_chunks=13,
+                    water_y_sum=1_000_400,
+                )
+            )
+        for tick in range(25, 205):
+            samples.append(
+                sample(
+                    tick,
+                    "post-settle-confirmation",
+                    "post-settle-tick",
+                    active=0,
+                    active_chunks=0,
+                    runnable=0,
+                    sleeping=16,
+                    changed=0,
+                    state_hash="fnv1a64:0000000000000200",
+                    outside=40,
+                    vacated=40,
+                    bottom=12,
+                    destination=20,
+                    spread=15,
+                    water_chunks=13,
+                    water_y_sum=1_000_400,
+                )
+            )
+        samples.append(copy.deepcopy(samples[0]))
+        samples[-1].update(
+            {
+                "sim_tick": 0,
+                "phase": "reset",
+                "reason": "programmatic-r-equivalent",
+            }
+        )
+        for sequence, item in enumerate(samples):
+            item["sample_sequence"] = sequence
+
+        sample_path = telemetry / "samples.jsonl"
+        sample_path.write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in samples),
+            encoding="utf-8",
+        )
+
+        def event(name: str, item: dict | None, detail: str = "fixture") -> dict:
+            return {
+                "schema_version": experiment.WATER_TELEMETRY_SCHEMA,
+                "experiment_id": experiment.WATER_CONTRACT.experiment_id,
+                "run_id": run_dir.name,
+                "scenario": experiment.WATER_CONTRACT.scenario,
+                "event_sequence": -1,
+                "event": name,
+                "sim_tick": 0 if item is None else item["sim_tick"],
+                "sample_sequence": None if item is None else item["sample_sequence"],
+                "detail": detail,
+            }
+
+        events = [
+            event("lifecycle_started", None),
+            event("pristine_reset_completed", None),
+            event("tick0_captured", samples[0]),
+            event("tick1_captured", samples[1]),
+            event("water_movement_observed", samples[1]),
+            event("new_peak_active", samples[1]),
+            event("cross_chunk_flow_observed", samples[2]),
+            event("first_sleeping_chunk_observed", samples[1]),
+            event("destination_arrival_observed", samples[3]),
+            event("new_max_destination_spread", samples[3]),
+            event("all_sleep_observed", samples[3]),
+            event("stable_plateau_observed", samples[3]),
+            event("all_sleep_confirmed", samples[5]),
+            event("terminal_selected", samples[5]),
+            event("post_settle_confirmation_completed", samples[-2]),
+            event("reset_started", samples[-2]),
+            event("reset_comparison_completed", samples[-1]),
+            event("worker_completed", samples[-1], "PASS"),
+        ]
+        for sequence, item in enumerate(events):
+            item["event_sequence"] = sequence
+        (telemetry / "events.jsonl").write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in events),
+            encoding="utf-8",
+        )
+
+        frame_specs = (
+            ("tick0", 0, "pristine-reset"),
+            ("tick1", 1, "tick1"),
+            ("cross-chunk-flow", 2, "cross-chunk-flow"),
+            ("destination-arrival", 3, "destination-arrival"),
+            ("late", 4, "observation-before-terminal-diagnostic"),
+            ("terminal", 5, "all-sleep-terminal"),
+            ("post-settle", len(samples) - 2, "post-settle"),
+            ("reset", len(samples) - 1, "programmatic-reset"),
+        )
+        raw_size = experiment.RENDERER_WIDTH * experiment.RENDERER_HEIGHT * 4
+        frames = []
+        for ordinal, (kind, sample_index, reason) in enumerate(frame_specs):
+            item = samples[sample_index]
+            filename = f"{ordinal:02}-{kind}.rgba"
+            color = bytes(((ordinal * 31) % 256, (ordinal * 47) % 256, 80, 255))
+            (frames_dir / filename).write_bytes(color * (raw_size // 4))
+            frames.append(
+                {
+                    "ordinal": ordinal,
+                    "kind": kind,
+                    "relative_path": f"work/frames/{filename}",
+                    "width": experiment.RENDERER_WIDTH,
+                    "height": experiment.RENDERER_HEIGHT,
+                    "rgba_bytes": raw_size,
+                    "reason": reason,
+                    "sim_tick": item["sim_tick"],
+                    "sample_sequence": item["sample_sequence"],
+                    "state_hash": item["state_hash"],
+                }
+            )
+        frames_doc = {
+            "schema_version": experiment.FRAMES_SCHEMA,
+            "experiment_id": experiment.WATER_CONTRACT.experiment_id,
+            "run_id": run_dir.name,
+            "scenario": experiment.WATER_CONTRACT.scenario,
+            "binary_sha256": manifest["binary"]["sha256"],
+            "frame_count": len(frames),
+            "pixel_encoding": "rgba8-tightly-packed",
+            "frames": frames,
+        }
+        (run_dir / "work" / "frames.json").write_text(
+            json.dumps(frames_doc), encoding="utf-8"
+        )
+
+        predicates = {
+            name: {"status": "pass", "detail": f"fixture {name}"}
+            for name in experiment.WATER_PREDICATE_NAMES
+        }
+        analysis = {
+            "schema_version": experiment.WATER_ANALYSIS_SCHEMA,
+            "experiment_id": experiment.WATER_CONTRACT.experiment_id,
+            "run_id": run_dir.name,
+            "scenario": experiment.WATER_CONTRACT.scenario,
+            "binary_sha256": manifest["binary"]["sha256"],
+            "provenance": {
+                "source_sha": manifest["source"]["sha"],
+                "git_state": "clean",
+                "build_profile": "release",
+            },
+            "world": manifest["world"],
+            "sleep": {"enabled": True, "threshold": 3},
+            "lifecycle": {
+                "max_ticks": experiment.MAX_TICKS,
+                "diagnostic_interval_ticks": experiment.DIAGNOSTIC_INTERVAL,
+                "all_sleep_consecutive_samples": experiment.CONSECUTIVE_ALL_SLEEP,
+                "stable_plateau_consecutive_samples": experiment.CONSECUTIVE_STABLE_PLATEAU,
+                "post_settle_confirmation_ticks": experiment.POST_SLEEP_TICKS,
+                "terminal_reason": "all-sleep",
+                "first_all_sleep_sim_tick": 8,
+                "first_all_sleep_sample_sequence": 3,
+                "confirmed_all_sleep_sim_tick": 24,
+                "first_stable_plateau_sim_tick": None,
+                "first_stable_plateau_sample_sequence": None,
+                "confirmed_stable_plateau_sim_tick": None,
+                "terminal_sim_tick": 24,
+                "terminal_sample_sequence": 5,
+                "post_settle_end_tick": 204,
+                "post_settle_change_ticks": 0,
+                "post_settle_wake_ticks": 0,
+                "sample_count": len(samples),
+            },
+            "baseline": {
+                "matter_count": 25392,
+                "water_count": 15244,
+                "oil_count": 2240,
+                "water_y_sum": 1_000_000,
+                "oil_y_sum": 200000,
+                "water_occupied_chunks": 10,
+                "oil_occupied_chunks": 4,
+                "bottom_chunk_row_water_cells": 0,
+                "destination_water_cells": 0,
+                "destination_spread_x": 0,
+            },
+            "metrics": {
+                "peak_active_cells": 120,
+                "peak_active_chunks": 8,
+                "peak_active_sim_tick": 1,
+                "peak_active_sample_sequence": 1,
+                "first_water_movement_tick": 1,
+                "first_water_movement_sample_sequence": 1,
+                "first_cross_chunk_flow_tick": 2,
+                "first_cross_chunk_flow_sample_sequence": 2,
+                "first_destination_arrival_tick": 8,
+                "first_destination_arrival_sample_sequence": 3,
+                "first_sleeping_chunk_tick": 1,
+                "first_sleeping_chunk_sample_sequence": 1,
+                "max_bottom_chunk_row_water_cells": 12,
+                "max_destination_water_cells": 20,
+                "max_destination_spread_x": 15,
+                "max_destination_spread_tick": 8,
+                "max_destination_spread_sample_sequence": 3,
+                "final_matter_count": 25392,
+                "final_water_count": 15244,
+                "final_oil_count": 2240,
+                "final_water_occupied_chunks": 13,
+                "final_oil_occupied_chunks": 4,
+                "final_sleeping_chunks": 16,
+                "matter_count_delta": 0,
+                "water_count_delta": 0,
+                "oil_count_delta": 0,
+                "post_settle_state_changes": 0,
+                "post_settle_spontaneous_wakes": 0,
+                "reset_exact_equivalence": True,
+            },
+            "predicates": predicates,
+            "verdict": "PASS",
+            "raw_frame_count": len(frames),
+        }
+        (run_dir / "work" / "analysis.json").write_text(
+            json.dumps(analysis), encoding="utf-8"
+        )
+        return run_dir
+
     def test_manifest_is_strict_and_round_trips(self) -> None:
         run_dir, manifest = self.create_manifest()
         self.assertEqual(set(manifest), experiment.MANIFEST_TOP_KEYS)
@@ -307,6 +698,248 @@ class ExperimentRunnerTests(unittest.TestCase):
         wrong_run_dir["artifact"]["run_dir"] = str(self.artifacts / "different")
         with self.assertRaisesRegex(experiment.ExperimentError, "artifact_root/run_id"):
             experiment.validate_manifest_dict(wrong_run_dir)
+
+    def test_water_manifest_modes_and_tri_state_verdict_are_exact(self) -> None:
+        candidate_dir, candidate = self.create_manifest(
+            "g8b-water-flow-v0-candidate-test",
+            experiment.WATER_CONTRACT,
+            "candidate",
+        )
+        self.assertEqual(candidate["schema_version"], experiment.WATER_MANIFEST_SCHEMA)
+        self.assertEqual(candidate["run_mode"], "candidate")
+        self.assertEqual(
+            candidate["experiment"]["stable_plateau_consecutive_samples"], 8
+        )
+        self.assertEqual(candidate["commands"]["worker"][2], "water-flow")
+        self.assertNotIn("--mode", candidate["commands"]["worker"])
+        self.assertEqual(candidate["artifact"]["run_dir"], str(candidate_dir.resolve()))
+
+        _, scratch = self.create_manifest(
+            "g8b-water-flow-v0-scratch-test",
+            experiment.WATER_CONTRACT,
+            "scratch",
+        )
+        self.assertEqual(scratch["run_mode"], "scratch")
+        self.assertIn("-scratch-", scratch["run_id"])
+        mismatched = copy.deepcopy(scratch)
+        mismatched["run_mode"] = "candidate"
+        with self.assertRaisesRegex(experiment.ExperimentError, "scratch marker"):
+            experiment.validate_manifest_dict(mismatched)
+        with self.assertRaisesRegex(experiment.ExperimentError, "only candidate"):
+            experiment.validate_run_mode(experiment.SAND_CONTRACT, "scratch")
+
+        pass_predicates = {
+            name: {"status": "pass", "detail": "fixture"}
+            for name in experiment.WATER_PREDICATE_NAMES
+        }
+        self.assertEqual(
+            experiment.verdict_from_predicates(
+                pass_predicates, experiment.WATER_CONTRACT
+            ),
+            "PASS",
+        )
+        pass_predicates["destination_arrival"]["status"] = "unknown"
+        self.assertEqual(
+            experiment.verdict_from_predicates(
+                pass_predicates, experiment.WATER_CONTRACT
+            ),
+            "NEEDS_HUMAN_REVIEW",
+        )
+        pass_predicates["exact_reset"]["status"] = "fail"
+        self.assertEqual(
+            experiment.verdict_from_predicates(
+                pass_predicates, experiment.WATER_CONTRACT
+            ),
+            "FAIL",
+        )
+
+    def test_water_telemetry_recomputes_flow_sleep_and_reset_contract(self) -> None:
+        run_dir = self.create_valid_water_worker_fixture()
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        analysis, frames, samples, events = experiment.validate_telemetry(
+            run_dir, manifest
+        )
+        self.assertEqual(analysis["verdict"], "PASS")
+        self.assertEqual(analysis["metrics"]["first_water_movement_tick"], 1)
+        self.assertEqual(analysis["metrics"]["first_cross_chunk_flow_tick"], 2)
+        self.assertEqual(analysis["metrics"]["first_destination_arrival_tick"], 8)
+        self.assertEqual(analysis["lifecycle"]["first_all_sleep_sim_tick"], 8)
+        self.assertEqual(analysis["lifecycle"]["confirmed_all_sleep_sim_tick"], 24)
+        self.assertEqual(analysis["lifecycle"]["post_settle_end_tick"], 204)
+        self.assertEqual(len(samples), 187)
+        self.assertEqual(frames["frame_count"], 8)
+        self.assertEqual(len(events), 18)
+
+    def test_water_named_peak_frame_may_share_the_tick1_identity(self) -> None:
+        run_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-peak-alias-test"
+        )
+        frames_path = run_dir / "work" / "frames.json"
+        frames_doc = json.loads(frames_path.read_text(encoding="utf-8"))
+        tick1 = next(frame for frame in frames_doc["frames"] if frame["kind"] == "tick1")
+        peak = copy.deepcopy(tick1)
+        peak["ordinal"] = len(frames_doc["frames"])
+        peak["kind"] = "peak-active"
+        peak["reason"] = "highest-observed-active-cells"
+        peak["relative_path"] = "work/frames/peak-alias.rgba"
+        source_raw = run_dir / Path(*Path(tick1["relative_path"]).parts)
+        (run_dir / "work" / "frames" / "peak-alias.rgba").write_bytes(
+            source_raw.read_bytes()
+        )
+        frames_doc["frames"].append(peak)
+        frames_doc["frame_count"] += 1
+        frames_path.write_text(json.dumps(frames_doc), encoding="utf-8")
+        analysis_path = run_dir / "work" / "analysis.json"
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        analysis["raw_frame_count"] += 1
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        experiment.validate_telemetry(run_dir, manifest)
+
+    def test_water_conservation_is_recomputed_from_every_non_reset_sample(self) -> None:
+        run_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-conservation-test"
+        )
+        sample_path = run_dir / "telemetry" / "samples.jsonl"
+        samples = [
+            json.loads(line)
+            for line in sample_path.read_text(encoding="utf-8").splitlines()
+        ]
+        samples[10]["material_counts_by_id"][0] += 1
+        samples[10]["material_counts_by_id"][4] -= 1
+        samples[10]["matter_count"] -= 1
+        samples[10]["water_count"] -= 1
+        sample_path.write_text(
+            "".join(json.dumps(item) + "\n" for item in samples), encoding="utf-8"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "water_conservation"):
+            experiment.validate_telemetry(run_dir, manifest)
+
+    def test_water_destination_and_cross_chunk_signals_are_not_inferred(self) -> None:
+        for label, fields, expected in (
+            (
+                "cross",
+                {"bottom_chunk_row_water_cells": 0},
+                "first_cross_chunk_flow",
+            ),
+            (
+                "destination",
+                {"destination_water_cells": 0, "destination_spread_x": 0},
+                "first_destination_arrival",
+            ),
+        ):
+            with self.subTest(signal=label):
+                run_dir = self.create_valid_water_worker_fixture(
+                    f"g8b-water-flow-v0-{label}-test"
+                )
+                sample_path = run_dir / "telemetry" / "samples.jsonl"
+                samples = [
+                    json.loads(line)
+                    for line in sample_path.read_text(encoding="utf-8").splitlines()
+                ]
+                for item in samples:
+                    if item["phase"] == "flowing":
+                        item.update(fields)
+                sample_path.write_text(
+                    "".join(json.dumps(item) + "\n" for item in samples),
+                    encoding="utf-8",
+                )
+                manifest = experiment.read_and_validate_manifest(
+                    run_dir / "EXPERIMENT_MANIFEST.toml"
+                )
+                with self.assertRaisesRegex(experiment.ExperimentError, expected):
+                    experiment.validate_telemetry(run_dir, manifest)
+
+    def test_water_all_sleep_and_plateau_detectors_use_exact_diagnostic_rules(self) -> None:
+        run_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-sleep-test"
+        )
+        sample_path = run_dir / "telemetry" / "samples.jsonl"
+        samples = [
+            json.loads(line)
+            for line in sample_path.read_text(encoding="utf-8").splitlines()
+        ]
+        all_sleep, _, _ = experiment.confirmed_water_all_sleep_streak(samples, 3)
+        self.assertEqual([item["sim_tick"] for item in all_sleep or []], [8, 16, 24])
+
+        plateau_samples = [copy.deepcopy(samples[4]) for _ in range(8)]
+        for sequence, item in enumerate(plateau_samples):
+            item["sample_sequence"] = sequence
+            item["sim_tick"] = 8 * (sequence + 1)
+        plateau, starts, breaks = experiment.confirmed_water_plateau_streak(
+            plateau_samples, 8
+        )
+        self.assertEqual(len(plateau or []), 8)
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(breaks, [])
+        plateau_samples[4]["wake_chunks"] = 1
+        plateau, _, breaks = experiment.confirmed_water_plateau_streak(
+            plateau_samples, 8
+        )
+        self.assertIsNone(plateau)
+        self.assertEqual(len(breaks), 1)
+
+        samples[5]["census"]["runnable_chunks"] = 1
+        samples[5]["census"]["sleeping_chunks"] = 15
+        sample_path.write_text(
+            "".join(json.dumps(item) + "\n" for item in samples), encoding="utf-8"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "three-sample streak"):
+            experiment.validate_telemetry(run_dir, manifest)
+
+    def test_water_post_settle_and_reset_evidence_are_bound(self) -> None:
+        for label, mutate, expected in (
+            (
+                "post",
+                lambda samples: samples[10].update(
+                    {
+                        "state_hash": "fnv1a64:ffffffffffffffff",
+                        "physical_state_hash": "fnv1a64:ffffffffffffffff",
+                    }
+                ),
+                "post-settle change count",
+            ),
+            (
+                "reset",
+                lambda samples: samples[-1].update(
+                    {
+                        "state_hash": "fnv1a64:eeeeeeeeeeeeeeee",
+                        "physical_state_hash": "fnv1a64:eeeeeeeeeeeeeeee",
+                    }
+                ),
+                "exact Water reset",
+            ),
+        ):
+            with self.subTest(evidence=label):
+                run_dir = self.create_valid_water_worker_fixture(
+                    f"g8b-water-flow-v0-{label}-test"
+                )
+                sample_path = run_dir / "telemetry" / "samples.jsonl"
+                samples = [
+                    json.loads(line)
+                    for line in sample_path.read_text(encoding="utf-8").splitlines()
+                ]
+                mutate(samples)
+                sample_path.write_text(
+                    "".join(json.dumps(item) + "\n" for item in samples),
+                    encoding="utf-8",
+                )
+                manifest = experiment.read_and_validate_manifest(
+                    run_dir / "EXPERIMENT_MANIFEST.toml"
+                )
+                with self.assertRaisesRegex(experiment.ExperimentError, expected):
+                    experiment.validate_telemetry(run_dir, manifest)
 
     def test_git_queries_scope_safe_directory_to_the_exact_source_root(self) -> None:
         completed = mock.Mock(returncode=0, stdout=b"feature/test\n", stderr=b"")
@@ -345,7 +978,7 @@ class ExperimentRunnerTests(unittest.TestCase):
         with self.assertRaises(experiment.ExperimentError):
             experiment.write_new_text(output, "two")
 
-    def test_worker_command_and_scenario_rejection_are_exact(self) -> None:
+    def test_worker_commands_and_scenario_rejection_are_exact(self) -> None:
         binary = Path(r"C:\source\powdergame-windows.exe")
         run_dir = Path(r"C:\artifacts\run")
         command = experiment.worker_command(binary, run_dir, "run-1", "c" * 64)
@@ -371,8 +1004,18 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "180",
             ),
         )
+        water = experiment.worker_command(
+            binary,
+            run_dir,
+            "run-2",
+            "d" * 64,
+            contract=experiment.WATER_CONTRACT,
+        )
+        self.assertEqual(water[1:3], ("--experiment-worker", "water-flow"))
+        self.assertNotIn("--mode", water)
+        self.assertNotIn("stable-plateau", water)
         with self.assertRaises(experiment.ExperimentError):
-            experiment.run_experiment(self.source, self.artifacts, "water-flow")
+            experiment.contract_for_scenario("pressure-burst")
 
     def test_screenshot_name_contains_tick_sample_and_reason(self) -> None:
         frame = {
@@ -471,6 +1114,35 @@ class ExperimentRunnerTests(unittest.TestCase):
             self.assertEqual(sheet.getpixel((210, 200)), (220, 20, 30))
             self.assertEqual(sheet.getpixel((630, 200)), (20, 80, 220))
 
+    def test_contact_sheet_caption_joins_activity_and_state_hash(self) -> None:
+        item = {
+            "ordinal": 3,
+            "reason": "destination-arrival",
+            "sim_tick": 24,
+            "sample_sequence": 7,
+        }
+        sample = {
+            "sample_sequence": 7,
+            "state_hash": "fnv1a64:0123456789abcdef",
+            "census": {
+                "any_active_cells": 123,
+                "runnable_chunks": 8,
+                "sleeping_chunks": 6,
+            },
+        }
+        self.assertEqual(
+            experiment.contact_sheet_caption_lines(item, sample),
+            (
+                "#3 destination-arrival | sim 24 | sample 7",
+                "Active cells 123 | Runnable 8 | Sleeping 6",
+                "State fnv1a64:0123456789abcdef",
+            ),
+        )
+        mismatched = copy.deepcopy(sample)
+        mismatched["sample_sequence"] = 8
+        with self.assertRaisesRegex(experiment.ExperimentError, "identity mismatch"):
+            experiment.contact_sheet_caption_lines(item, mismatched)
+
     def test_packet_contents_hashes_and_receipt_last(self) -> None:
         run_dir = self.create_valid_worker_fixture()
         publication_log: list[str] = []
@@ -510,9 +1182,50 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertIn("  work/analysis.json\n", hashes)
         self.assertNotIn("EXPERIMENT_RECEIPT.json", hashes)
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        report = json.loads((run_dir / "report" / "REPORT.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["schema_version"], experiment.SAND_REPORT_SCHEMA)
+        self.assertNotIn("run_mode", report)
+        self.assertEqual(receipt["schema_version"], experiment.SAND_RECEIPT_SCHEMA)
+        self.assertNotIn("run_mode", receipt)
         self.assertEqual(receipt["review_packet_sha256"], experiment.sha256_file(packet))
         self.assertTrue(receipt["receipt_is_final_publication_marker"])
         with self.assertRaises(experiment.ExperimentError):
+            experiment.postprocess_run(run_dir)
+
+    def test_water_packet_is_create_new_and_receipt_last(self) -> None:
+        run_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-packet-test"
+        )
+        publication_log: list[str] = []
+        receipt_path = experiment.postprocess_run(run_dir, publication_log)
+        self.assertEqual(publication_log[-1], "EXPERIMENT_RECEIPT.json")
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        report = json.loads(
+            (run_dir / "report" / "REPORT.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(receipt["schema_version"], experiment.WATER_RECEIPT_SCHEMA)
+        self.assertEqual(receipt["run_mode"], "candidate")
+        self.assertEqual(report["schema_version"], experiment.WATER_REPORT_SCHEMA)
+        self.assertEqual(report["run_mode"], "candidate")
+        self.assertEqual(report["screenshots"][0]["kind"], "tick0")
+        self.assertFalse(report["scope"]["ai_contacted"])
+        self.assertFalse(
+            report["review_guidance"]["categories_are_findings"]
+        )
+        prompt = (run_dir / "report" / "CHATGPT_REVIEW_PROMPT.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("was not sent to an AI", prompt)
+        self.assertIn("actual_physics_defect", prompt)
+        self.assertIn("Does Water visibly leave", prompt)
+        packet = run_dir / "report" / "REVIEW_PACKET.zip"
+        with zipfile.ZipFile(packet) as archive:
+            names = set(archive.namelist())
+        self.assertIn("report/CONTACT_SHEET.png", names)
+        self.assertIn("telemetry/samples.jsonl", names)
+        self.assertNotIn("HASHES.sha256", names)
+        self.assertNotIn("EXPERIMENT_RECEIPT.json", names)
+        with self.assertRaisesRegex(experiment.ExperimentError, "receipt"):
             experiment.postprocess_run(run_dir)
 
     def test_invalid_worker_output_leaves_no_receipt(self) -> None:

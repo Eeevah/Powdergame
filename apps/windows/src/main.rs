@@ -56,7 +56,10 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
-use experiment::{run_sand_fall_experiment, ExperimentWorkerConfig, EXPERIMENT_ID};
+use experiment::{
+    run_sand_fall_experiment, run_water_flow_experiment, ExperimentWorkerConfig, EXPERIMENT_ID,
+    WATER_EXPERIMENT_ID,
+};
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
 };
@@ -454,7 +457,12 @@ impl App {
                     );
                 } else {
                     println!(
-                        "[powdergame][experiment] worker owns the pristine shared Sand Fall reset/stage"
+                        "[powdergame][experiment] worker owns the pristine shared {} reset/stage",
+                        self.experiment
+                            .as_ref()
+                            .expect("experiment branch")
+                            .scenario
+                            .name()
                     );
                 }
             }
@@ -491,19 +499,37 @@ impl App {
 
         if let Some(config) = self.experiment.as_ref() {
             let provenance = RuntimeProvenance::from_build();
-            println!(
-                "[powdergame][experiment] starting experiment_id={} run_id={} source_sha={} git_state={} build_profile={}",
-                config.experiment_id,
-                config.run_id,
-                provenance.source_sha,
-                provenance.git_state.as_str(),
-                provenance.build_profile
-            );
-            let outcome =
-                run_sand_fall_experiment(&mut simulation, &mut renderer, &provenance, config)
-                    .map_err(|error| {
-                        GpuError::Other(format!("experiment worker failed: {error}"))
-                    })?;
+            if config.scenario == ScenarioId::WaterFlow {
+                println!(
+                    "[powdergame][experiment] starting experiment_id={} scenario={} run_id={} source_sha={} git_state={} build_profile={}",
+                    config.experiment_id,
+                    config.scenario.slug(),
+                    config.run_id,
+                    provenance.source_sha,
+                    provenance.git_state.as_str(),
+                    provenance.build_profile
+                );
+            } else {
+                // Preserve the sealed Sand Fall stdout contract exactly.
+                println!(
+                    "[powdergame][experiment] starting experiment_id={} run_id={} source_sha={} git_state={} build_profile={}",
+                    config.experiment_id,
+                    config.run_id,
+                    provenance.source_sha,
+                    provenance.git_state.as_str(),
+                    provenance.build_profile
+                );
+            }
+            let outcome = match config.scenario {
+                ScenarioId::SandFall => {
+                    run_sand_fall_experiment(&mut simulation, &mut renderer, &provenance, config)
+                }
+                ScenarioId::WaterFlow => {
+                    run_water_flow_experiment(&mut simulation, &mut renderer, &provenance, config)
+                }
+                scenario => Err(format!("no experiment worker is registered for {scenario}")),
+            }
+            .map_err(|error| GpuError::Other(format!("experiment worker failed: {error}")))?;
             println!(
                 "[powdergame][experiment] completed run_id={} verdict={} samples={} raw_frames={} first_all_sleep_sim_tick={} first_all_sleep_diagnostic_sample_tick={}",
                 outcome.run_id,
@@ -2031,7 +2057,9 @@ where
     });
     if !worker_requested {
         if experiment_option_present {
-            return Err("experiment options require '--experiment-worker sand-fall'".to_string());
+            return Err(
+                "experiment options require '--experiment-worker sand-fall|water-flow'".to_string(),
+            );
         }
         return Ok(None);
     }
@@ -2062,12 +2090,15 @@ where
                     return Err("duplicate --experiment-worker".to_string());
                 }
                 let selected = value(&mut index)?;
-                if selected != "sand-fall" {
-                    return Err(format!(
-                        "experiment worker supports only 'sand-fall', got '{selected}'"
-                    ));
-                }
-                scenario = Some(ScenarioId::SandFall);
+                scenario = Some(match selected.as_str() {
+                    "sand-fall" => ScenarioId::SandFall,
+                    "water-flow" => ScenarioId::WaterFlow,
+                    _ => {
+                        return Err(format!(
+                            "experiment worker supports only 'sand-fall' or 'water-flow', got '{selected}'"
+                        ));
+                    }
+                });
             }
             "--experiment-run-dir" => {
                 if run_dir.is_some() {
@@ -2132,11 +2163,17 @@ where
         }
     }
 
+    let scenario = scenario.expect("worker marker was observed");
+    let experiment_id = match scenario {
+        ScenarioId::SandFall => EXPERIMENT_ID,
+        ScenarioId::WaterFlow => WATER_EXPERIMENT_ID,
+        _ => unreachable!("worker parser accepts only Sand Fall and Water Flow"),
+    };
     Ok(Some(ExperimentWorkerConfig {
-        experiment_id: EXPERIMENT_ID.to_string(),
+        experiment_id: experiment_id.to_string(),
         run_id: run_id.ok_or_else(|| "missing --experiment-run-id".to_string())?,
         run_dir: run_dir.ok_or_else(|| "missing --experiment-run-dir".to_string())?,
-        scenario: scenario.expect("worker marker was observed"),
+        scenario,
         binary_sha256: binary_sha256.ok_or_else(|| "missing --binary-sha256".to_string())?,
         max_ticks: max_ticks.ok_or_else(|| "missing --max-ticks".to_string())?,
         diagnostic_interval_ticks: diagnostic_interval_ticks
@@ -2260,9 +2297,36 @@ mod tests {
     }
 
     #[test]
-    fn experiment_worker_cli_rejects_missing_unknown_and_non_sand_modes() {
+    fn experiment_worker_cli_selects_water_contract_without_changing_sand_defaults() {
+        let parsed = experiment_worker_from_args([
+            "--experiment-worker",
+            "water-flow",
+            "--experiment-run-dir",
+            r"C:\outside\water-run",
+            "--experiment-run-id",
+            "g8b-water-flow-v0-test",
+            "--binary-sha256",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--max-ticks",
+            "20000",
+            "--diagnostic-interval",
+            "8",
+            "--consecutive-all-sleep",
+            "3",
+            "--post-sleep-ticks",
+            "180",
+        ])
+        .expect("valid Water worker arguments")
+        .expect("Water worker selected");
+        assert_eq!(parsed.experiment_id, "g8b-water-flow-v0");
+        assert_eq!(parsed.scenario, ScenarioId::WaterFlow);
+        assert_eq!(parsed.run_id, "g8b-water-flow-v0-test");
+    }
+
+    #[test]
+    fn experiment_worker_cli_rejects_missing_unknown_and_unsupported_modes() {
         assert!(experiment_worker_from_args(["--experiment-run-id", "orphan"]).is_err());
-        assert!(experiment_worker_from_args(["--experiment-worker", "water-flow"]).is_err());
+        assert!(experiment_worker_from_args(["--experiment-worker", "fire-heat"]).is_err());
         assert!(
             experiment_worker_from_args(["--experiment-worker", "sand-fall", "--unknown"]).is_err()
         );

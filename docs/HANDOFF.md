@@ -46,8 +46,9 @@
 - G0-G7: PASS / CLOSED
 - G8: Performance Evidence — IN_PROGRESS
   - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2–5 PENDING / NOT YET USER ACCEPTED; overall USER ACCEPTANCE PENDING / NOT CLOSED
+  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2 Water Flow Harness implementation candidate / NOT USER ACCEPTED; Scenario 3–5 PENDING; overall USER ACCEPTANCE PENDING / NOT CLOSED
   - G8-B Sand Fall Experiment Harness v0: experiment source `9e1fdac` pilot PASS / `HARNESS REVIEW OUTPUT APPROVED`; later docs-only closure is separate; G8-B overall NOT CLOSED
+  - G8-B Water Flow Harness v1: implemented from base `b884abc` on the shared scenario-suite line; FAST checks recorded; source seal/FULL/smoke/scratch/candidate run/verdict pending
   - G8-C Official Matrix: PENDING
 - G9: Playable First World / Product Validation — PENDING
 
@@ -81,6 +82,8 @@ G8-A의 clean source publish, official capture, independent verification은 끝�
 Canonical Recovery는 local integration branch에서 구현선과 research/Material Wiki를 결합했다. 이 branch는 push되지 않았고 recovery PR도 생성되지 않았으며 `main`도 갱신되지 않았다. Draft PR #1은 open/draft 상태로 보존한다.
 
 사용자 지시에 따라 G8-B 구현 candidate는 `feature/m0-g8b-scenario-suite`에서 시작했고 Scenario 1 Sand Fall checkpoint는 `e77d102febb1e3c497c2b669efe0140408bd99d7`로 고정되었다. Sand Fall Experiment Harness v0는 그 checkpoint 위의 `feature/g8b-experiment-harness-v0` experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 pilot automatic `PASS`와 `HARNESS REVIEW OUTPUT APPROVED`를 기록했다. 이후 docs-only closure commit은 이 experiment source provenance와 별도이며, `feature/m0-g8b-scenario-suite`가 그 closure까지 ff-only로 전진해 보존된 Harness branch와 같은 지점을 가리킨다. 다음 G8-B 작업선은 `feature/m0-g8b-scenario-suite` 하나다. Scenario 1 및 Harness 승인은 Scenario 2~5, G8-B closure, G8-C, G9, P1 identity/descriptor 등록, 새 Material, 최적화 또는 `main` 승격을 자동 승인하지 않는다.
+
+Scenario 2 Water Flow 작업은 같은 `feature/m0-g8b-scenario-suite`의 required base `b884abcfbab8e104bdf34e2e8d19635b157c1638`에서 시작했다. Harness candidate는 구현되어 FAST fmt/check, scenarios 7/7, Windows experiment 16/16, Python 19/19, GPU reset 1/1을 기록했다. 기존 finite Water fixture, Sand fixture/pilot/artifacts, production physics는 변경하지 않았다. 아직 clean source SHA, FULL workspace checkpoint, Windows release smoke, first scratch run, one candidate run, artifact receipt와 automatic verdict가 없으므로 Water는 **NOT USER ACCEPTED**이며 G8-B는 **NOT CLOSED**다.
 
 ---
 
@@ -218,11 +221,14 @@ G9는 신규 Matter 수를 늘리는 단계가 아니다. 현재 세트로 먼�
 19. Sand Fall Experiment Harness v0 pilot + receipt-last artifact validation — **PASS** at experiment source `9e1fdac`
 20. Harness Contact Sheet/keyframe review — **APPROVED**; compact per-tile metric captions are a non-blocking future improvement
 21. G8-B Windows Gallery user acceptance — Scenario 1 Sand Fall **ACCEPTED**; Scenario 2~5 **PENDING**; overall **NOT CLOSED**
-22. 같은 source SHA의 G8-A user visual validation
-23. 별도 사용자 결정 전 Water Flow 및 G8-C official performance matrix 시작 금지
-24. 사용자 결정 B: G9 Playable First World 진행
-25. 사용자 결정 C: M0 승인 이후에만 P1 identity/descriptor 등록 검토
-26. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
+22. Water Flow Harness v1 implementation candidate — unchanged finite fixture/physics; FAST checks recorded
+23. clean scratch source seal → first immutable scratch run and classification
+24. 필요한 source 수정이 끝나면 다시 seal → one FULL checkpoint/smoke → exactly one candidate run, then stop
+25. 같은 source SHA의 G8-A user visual validation
+26. Fire / Heat, Pressure Burst, Heavy Mixed World 및 G8-C는 별도 사용자 지시 전 시작 금지
+27. 사용자 결정 B: G9 Playable First World 진행
+28. 사용자 결정 C: M0 승인 이후에만 P1 identity/descriptor 등록 검토
+29. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
 
 Do not start with aggressive packing/f16/indirect dispatch.
 
@@ -233,7 +239,7 @@ Do not optimize compact active lists / indirect dispatch before G8 measurement i
 ## 8. Required G8 Benchmarks
 
 - Sand Fall — **USER ACCEPTED**; complete settling and all chunks sleeping are success; do not retune for perpetual activity
-- Water Flow — **PENDING / NOT YET USER ACCEPTED; OUT OF CURRENT CHECKPOINT TASK**
+- Water Flow — **HARNESS IMPLEMENTATION CANDIDATE / NOT YET USER ACCEPTED; RUNS PENDING**
 - Fire / Heat — **PENDING / NOT YET USER ACCEPTED**
 - Pressure Burst — **PENDING / NOT YET USER ACCEPTED**
 - Heavy Mixed World — **PENDING / NOT YET USER ACCEPTED**
@@ -262,7 +268,7 @@ Include rendering and simulation+rendering coexistence evidence; calibration-onl
 
 Do not set arbitrary M0 maximum-TPS pass/fail before the official matrix exists.
 
-Current boundary: fixture/staging/selection implementation candidate exists and Scenario 1 is accepted. Scenario 2~5 remain pending / not yet user accepted, Water Flow is out of the current checkpoint task, and **G8-B is NOT CLOSED**. Do not retune accepted Sand Fall to avoid its successful settled/all-sleep terminal state. No physics/Material/G9/optimization addition belongs to this candidate.
+Current boundary: fixture/staging/selection implementation candidate exists and Scenario 1 is accepted. Scenario 2 Water Flow now has an unsealed Harness candidate, but no scratch/candidate evidence or user acceptance; Scenario 3~5 remain pending and **G8-B is NOT CLOSED**. Do not retune accepted Sand Fall or the untuned Water fixture before its first run. No physics/Material/G9/optimization addition belongs to this candidate.
 
 ### Sand Fall Experiment Harness v0
 
@@ -272,11 +278,24 @@ Recorded pilot entry point (do not rerun for this closure):
 run_experiment.bat sand-fall
 ```
 
-The runner is Sand Fall only and writes a unique immutable run directly below `C:\Users\mdkap\source\Powdergame-artifacts`. It preserves raw stdout/stderr, telemetry samples/events, worker analysis/frame manifests, 6–10 semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert ChatGPT review prompt, review packet, and hashes. `EXPERIMENT_RECEIPT.json` is written last; no receipt means incomplete, and a failed run ID is never repaired or reused. Generated artifacts never enter Git.
+The shared coordinator dispatches the immutable Sand v0 contract and the new Water v1 contract, writing every unique run directly below `C:\Users\mdkap\source\Powdergame-artifacts`. It preserves raw stdout/stderr, telemetry samples/events, worker analysis/frame manifests, semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert review prompt, review packet, and hashes. `EXPERIMENT_RECEIPT.json` is written last with no filesystem write afterward; no receipt means incomplete, and a failed Run ID is never repaired or reused. Generated artifacts never enter Git.
 
 The lifecycle records tick 0, tick 1, peak active, first sleeping chunk, late settling, first observed all sleep in a confirmed three-sample streak, 180 post-sleep ticks, and programmatic `R`-equivalent exact reset. Simulation tick and diagnostic sample sequence remain distinct. Automatic `PASS` requires all seven hard Sand Fall predicates, but does not close G8-B or establish Water Flow/G8-C evidence.
 
 Current Harness state: validated pilot **PASS** at experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`; Harness review output **APPROVED**. The later docs-only closure commit records this result but is not the experiment source. G8-B remains **NOT CLOSED** because Water Flow, Fire / Heat, Pressure Burst, and Heavy Mixed World are pending. Follow `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md` for the authoritative run record.
+
+### Water Flow Experiment Harness v1 candidate
+
+```bat
+run_experiment.bat water-flow --mode scratch
+run_experiment.bat water-flow
+```
+
+Water uses the same shared pristine staging and production physics. The 256×256×64 tick-0 fixture remains Water 15,244 / Oil 2,240 / Stone 6,888 / Boundary Block 1,020 / Empty 40,144, with a diagnostic destination mask of 6,216 tick-0 EMPTY cells inside `[18,238) × [200,230)`. Neither the mask nor the analyzer stages a result.
+
+Water manifest/telemetry/analysis/report/receipt use v1 schemas; the frame manifest remains shared v0. Its nine predicates are movement, cross-chunk flow, destination arrival, Water conservation, invalid-ID integrity, finite-field integrity, stable bulk before max, post-settle stability, and exact reset. `scratch` and default `candidate` have distinct Run IDs and the same create-new/no-overwrite/receipt-last contract. A plateau can yield `NEEDS_HUMAN_REVIEW`; it is not silently promoted to finite-fixture all-sleep `PASS`.
+
+Current Water state: implementation and FAST checks exist, but candidate source SHA, FULL checkpoint, Windows release smoke, first scratch run, candidate run, Contact Sheet/packet/receipt hashes and automatic verdict are **PENDING**. Do not alter the fixture based on expectation before preserving and classifying the first scratch evidence. Water remains **NOT USER ACCEPTED**. Follow `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`.
 
 ---
 

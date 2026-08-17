@@ -16,7 +16,7 @@ Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder
 
 G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`의 official capture와 독립 검증을 완료한 verified evidence candidate다. 같은 SHA의 user visual validation은 아직 pending이며, 기존 v4 timing CSV는 source/binary 실행 연결과 raw census가 없는 historical data로만 보존한다.
 
-`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했지만 Scenario 2~5는 아직 승인되지 않았다. Sand Fall Experiment Harness v0의 검증된 pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic verdict **PASS**와 Harness review output **APPROVED**를 기록했다. 이 experiment source SHA는 이후의 docs-only closure commit SHA와 구분한다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World, G8-C official matrix는 pending이다. 이 candidate는 production physics, Material, G9, 최적화를 추가하지 않는다.
+`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했고, 그 immutable Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic verdict **PASS**와 Harness review output **APPROVED**를 기록했다. 현재 같은 G8-B 작업선은 base `b884abcfbab8e104bdf34e2e8d19635b157c1638` 위에 Scenario 2 Water Flow Harness candidate를 구현했지만 source seal, FULL checkpoint, smoke, scratch run, candidate run과 사용자 승인은 모두 pending이다. Water fixture와 production physics는 변경하지 않았다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 Fire / Heat, Pressure Burst, Heavy Mixed World와 G8-C official matrix는 이번 범위 밖이다.
 
 ## 현재 공식 개발 경로
 
@@ -44,7 +44,7 @@ run_g8_benchmark_gallery.bat
 
 Gallery slot `1`~`5`는 Sand Fall, Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World의 official G8-B fixture다. Slot `6`은 official matrix workload가 아니라 기존 G7 Active/Sleep geometry와 edit-wake 의미를 보존하는 회귀 fixture다. Gallery는 paused 상태로 시작하며 `1-6` scenario 선택, `SPACE` play/pause, `N` one tick, `F` x1/x4/x16, `R` pristine reset, `ESC` quit을 제공한다.
 
-Scenario 1 Sand Fall의 승인 계약은 완전 정착과 모든 chunk의 sleep 수렴을 성공으로 보는 것이다. 계속 움직이는 화면을 만들기 위해 source/geometry/sleep behavior를 retune하지 않는다. Scenario 2~5는 미승인이며 Water Flow는 현재 checkpoint task 범위 밖이다.
+Scenario 1 Sand Fall의 승인 계약은 완전 정착과 모든 chunk의 sleep 수렴을 성공으로 보는 것이다. 계속 움직이는 화면을 만들기 위해 source/geometry/sleep behavior를 retune하지 않는다. Scenario 2 Water Flow는 Harness implementation candidate가 존재하지만 아직 자동 run이나 사용자 승인을 받지 않았다. Scenario 3~5도 미승인이며 G8-B는 닫히지 않았다.
 
 같은 fixture를 headless harness에서 선택할 수 있다.
 
@@ -54,17 +54,19 @@ cargo run --release -p powdergame-benchmark -- --scenario sand-fall
 
 Windows Gallery의 렌더링, HUD, wall-clock TPS, bounded diagnostic census/readback은 사람이 fixture를 관찰하기 위한 정보다. 이 값은 official benchmark timing이 아니며 G8-C evidence로 사용하지 않는다. 세부 계약과 현재 미완료 항목은 [`docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md`](docs/evidence/G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md)를 따른다.
 
-## Sand Fall Experiment Harness v0
+## Scenario Experiment Harness
 
-승인된 Sand Fall의 낙하 → 정착 → all-sleep → post-sleep 안정 → exact reset lifecycle을 하나의 외부 evidence run으로 기록하는 one-command runner가 implementation candidate로 준비되어 있다.
+승인된 Sand Fall의 낙하 → 정착 → all-sleep → post-sleep 안정 → exact reset lifecycle과, 승인 전 Water Flow의 movement → cross-chunk → destination → settle/reset lifecycle을 같은 one-command coordinator에서 scenario별 analyzer로 분리한다.
 
 ```bat
 run_experiment.bat sand-fall
+run_experiment.bat water-flow --mode scratch
+run_experiment.bat water-flow
 ```
 
 각 run은 `C:\Users\mdkap\source\Powdergame-artifacts\<unique-run-id>`에만 생성된다. 기존 경로를 덮어쓰지 않으며 `EXPERIMENT_RECEIPT.json`이 마지막에 생성된 run만 structurally complete하다. 로그, telemetry JSONL, raw RGBA, full/crop PNG, report, contact sheet, local review prompt, review packet, hash manifest는 모두 저장소 밖에 남고 Git에 추가하지 않는다.
 
-일곱 hard predicate가 모두 참이면 runner는 자동 `PASS`를 기록한다. 검증된 pilot `g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505`는 automatic `PASS`와 `HARNESS REVIEW OUTPUT APPROVED`를 기록했다. 이것은 Sand Fall run의 판정일 뿐 G8-B closure, 남은 Scenario 2–5 승인, Water Flow, 또는 G8-C 성능 증거가 아니다. 전체 계약은 [`docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`](docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md)에 기록한다.
+Sand v0의 일곱 hard predicate와 이미 게시된 pilot/artifact는 변경하지 않는다. Water는 manifest/telemetry/analysis/report/receipt v1과 `actual_water_movement`, `cross_chunk_flow`, `destination_arrival`, `water_conservation`, integrity 2종, `stable_bulk_before_max`, `post_settle_stable`, `exact_reset`의 아홉 predicate를 사용한다. Water `scratch`와 기본 `candidate` mode는 Run ID에 구분되어 같은 unique/no-overwrite/receipt-last 정책을 적용한다. 현재 Water source SHA와 두 run의 ID/verdict는 아직 없다. Sand 계약은 [`docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`](docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md), Water 계약은 [`docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`](docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md)를 따른다.
 
 ## 핵심 엔진 철학
 

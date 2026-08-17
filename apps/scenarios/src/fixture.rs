@@ -966,6 +966,98 @@ mod tests {
     }
 
     #[test]
+    fn water_flow_256_pins_finite_authored_geometry_and_observation_mask() {
+        let config = WorldConfig::new(256, 256, 64).unwrap();
+        let fixture = ScenarioFixture::build(ScenarioId::WaterFlow, config).unwrap();
+
+        // Reconstruct the authored half-open rectangles independently of
+        // `build_water_flow`. This freezes the untuned Scenario 2 candidate
+        // geometry before the first Harness run.
+        let mut expected = initial_material_ids(&config).unwrap();
+        {
+            let mut paint = |x_range: Range<usize>, y_range: Range<usize>, material: u32| {
+                for y in y_range {
+                    for x in x_range.clone() {
+                        expected[y * config.width as usize + x] = material;
+                    }
+                }
+            };
+            paint(10..246, 230..238, MATERIAL_STONE);
+            paint(10..18, 90..238, MATERIAL_STONE);
+            paint(238..246, 90..238, MATERIAL_STONE);
+            paint(18..112, 22..112, MATERIAL_WATER);
+            paint(144..238, 34..130, MATERIAL_WATER);
+            paint(164..220, 72..112, MATERIAL_OIL);
+            paint(72..164, 154..160, MATERIAL_STONE);
+            paint(18..74, 188..194, MATERIAL_STONE);
+            paint(182..238, 194..200, MATERIAL_STONE);
+            paint(112..124, 110..202, MATERIAL_STONE);
+            paint(124..136, 188..230, MATERIAL_STONE);
+        }
+        assert_eq!(fixture.materials(), expected.as_slice());
+
+        let count = |material| {
+            fixture
+                .materials()
+                .iter()
+                .filter(|&&value| value == material)
+                .count()
+        };
+        assert_eq!(count(MATERIAL_WATER), 15_244);
+        assert_eq!(count(MATERIAL_OIL), 2_240);
+        assert_eq!(count(MATERIAL_STONE), 6_888);
+        assert_eq!(count(MATERIAL_BOUNDARY_BLOCK), 1_020);
+        assert_eq!(count(MATERIAL_EMPTY), 40_144);
+
+        assert!(fixture
+            .temperatures()
+            .iter()
+            .all(|value| value.to_bits() == TEMPERATURE_REFERENCE.to_bits()));
+        assert!(fixture
+            .pressures()
+            .iter()
+            .all(|value| value.to_bits() == PRESSURE_REFERENCE.to_bits()));
+        assert!(fixture.flags().iter().all(|value| *value == 0));
+        assert!(fixture.chunk_edit_wake().iter().all(|value| *value == 0));
+
+        // Harness observation contract: the destination is the tick-0 EMPTY
+        // mask inside the lower basin bounds. It is observation-only and does
+        // not add a source, target material, or scripted scenario result.
+        let mut destination_mask_cells = 0usize;
+        let mut destination_water_cells = 0usize;
+        let mut destination_oil_cells = 0usize;
+        for y in 200..230 {
+            for x in 18..238 {
+                let material = fixture.materials()[cell(&fixture, x, y)];
+                if material == MATERIAL_EMPTY {
+                    destination_mask_cells += 1;
+                }
+                if material == MATERIAL_WATER {
+                    destination_water_cells += 1;
+                }
+                if material == MATERIAL_OIL {
+                    destination_oil_cells += 1;
+                }
+            }
+        }
+        assert_eq!(destination_mask_cells, 6_216);
+        assert_eq!(destination_water_cells, 0);
+        assert_eq!(destination_oil_cells, 0);
+
+        // The complete bottom chunk row is Water-free at tick 0. Observing
+        // Water there later is therefore a fixture-derived cross-chunk signal.
+        let mut bottom_chunk_row_water = 0usize;
+        for y in 192..256 {
+            for x in 0..256 {
+                if fixture.materials()[cell(&fixture, x, y)] == MATERIAL_WATER {
+                    bottom_chunk_row_water += 1;
+                }
+            }
+        }
+        assert_eq!(bottom_chunk_row_water, 0);
+    }
+
+    #[test]
     fn scenario_payloads_exercise_their_named_subsystems() {
         let config = WorldConfig::new(256, 256, 64).unwrap();
         let sand = ScenarioFixture::build(ScenarioId::SandFall, config).unwrap();

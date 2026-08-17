@@ -1,4 +1,4 @@
-//! Sand Fall Experiment Evidence Harness worker.
+//! G8-B Experiment Evidence Harness workers.
 //!
 //! This module deliberately lives in the Windows application: it combines the
 //! production simulation tick, the shared deterministic scenario staging path,
@@ -21,6 +21,10 @@ use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
 
 use crate::gallery::RuntimeProvenance;
 use crate::renderer::{CapturedFrame, Renderer};
+
+mod water;
+
+pub use water::{run_water_flow_experiment, WATER_EXPERIMENT_ID};
 
 pub const EXPERIMENT_ID: &str = "g8b-sand-fall-v0";
 pub const TELEMETRY_SCHEMA_VERSION: &str = "powdergame-experiment-telemetry-v0";
@@ -58,6 +62,7 @@ pub enum ExperimentVerdict {
     Pass,
     Fail,
     NeedsHuman,
+    NeedsHumanReview,
 }
 
 impl ExperimentVerdict {
@@ -66,6 +71,7 @@ impl ExperimentVerdict {
             Self::Pass => "PASS",
             Self::Fail => "FAIL",
             Self::NeedsHuman => "NEEDS_HUMAN",
+            Self::NeedsHumanReview => "NEEDS_HUMAN_REVIEW",
         }
     }
 }

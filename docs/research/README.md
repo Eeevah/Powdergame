@@ -53,6 +53,7 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 - `derived/BLOCK_PALETTE_AND_PG2_GAP_REVIEW.md` — Minecraft의 **한 블록=기억할 행동** 설계와 Powder Game 2의 compact element verbs를 참고해, 현재 roster에서 너무 뭉뚱그려진 `Metal / Stone / Plant` family와 adhesion/absorption/foam/contagion/delayed-trigger 빈칸을 재검토한다. Iron/Copper/Lead/Mercury, Basalt/Limestone/Amethyst, Vine/Moss/Fungus/Algae, Sponge/Soapy Water/Nitroglycerin/Fuse 등을 다음 family 후보로 제안한다.
 - `derived/COMMON_SENSE_MATERIAL_CANDIDATE_POOL.md` — Minecraft / Powder Game 2 / The Powder Toy / Doodle God에서 반복되는 행동 문법과 현실의 익숙한 재료를 교차해, 약 70여 개의 현실·상식 후보를 `PROMOTE / STRONG-RESERVE / RESULT·VARIANT / FUTURE / REFERENCE`로 판정한다. 현재 16종 기반 뒤에 우선 검증할 약 30개 후보와 7개 interaction prototype bundle을 제안한다.
 - `derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md` — 현재 16개 기반 + 현실·상식 29개 + graph-derived provisional `Ash` 1개를 **46개 first broad catalog candidate**로 정리한다. 실제 causal graph, material-owned rule ledger, result/variant/reserve/future 판정, Original Gap Bench, 6개 prototype sequence와 promotion gate를 정의한다. M0는 변경하지 않는다.
+- `derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md` — Prototype Bundle P1의 Dirt/Mud, Clay/Wet Clay/Brick, Lava/Basalt/Obsidian, Limestone/Acid/CO2를 구체화한다. identity·palette exposure·density/thermal tuning seed·Material-owned rule card·Discovery event·5개 fixture·telemetry·promotion/fallback gate를 정의하며, 공용 wetness/cooling-history/progress state를 추가하지 않는다.
 
 ## Master Encyclopedia
 

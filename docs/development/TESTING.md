@@ -262,3 +262,40 @@ Important validation runs should record:
 Future Interaction Lab can become a high-volume exploratory/regression testing layer, but M0 does not depend on it.
 
 Current tests should be able to directly construct small world fixtures and headless GPU scenarios without needing the full Lab.
+
+---
+
+## 12. Validation cost and impact
+
+테스트 계층을 모두 매번 실행하지 않는다.
+
+```text
+변경 경로
+→ 영향 등급
+→ 필요한 targeted tests
+→ FULL 필요 여부
+→ minimal smoke
+→ candidate / user review
+```
+
+정본은 `docs/development/VALIDATION_POLICY.md`다.
+
+핵심 규칙:
+
+- Gate 이름은 FULL trigger가 아니다.
+- Engine/Core/WGSL/Layout/Cargo/shared reset 변경만 기본적으로 workspace FULL을 요구한다.
+- Harness/CLI/fixture 변경은 직접 관련 targeted tests와 bounded scenario evidence를 우선한다.
+- Candidate는 map failure, parser error, publication failure 같은 error-path test를 대체하지 않는다.
+- Smoke는 startup/renderer/mode load/정상 종료만 확인하며 장기 lifecycle을 반복하지 않는다.
+- 같은 source SHA에서 성공한 동일 검증은 다시 실행하지 않는다.
+- docs-only closure에는 Rust/GPU FULL을 실행하지 않는다.
+- 자동 verdict, 사용자 승인, official forensic evidence는 별도 상태다.
+
+기계 판독:
+
+```powershell
+pwsh -NoProfile -File tools/dev.ps1 validation-plan -BaseRef <base>
+pwsh -NoProfile -File tools/dev.ps1 audit
+```
+
+`cargo-nextest` 등 새로운 runner는 기존 FULL을 즉시 대체하지 않는다. 동일 clean SHA에서 test inventory, ignored 처리, flake, wall time을 비교한 pilot이 성공한 뒤에만 승격한다.

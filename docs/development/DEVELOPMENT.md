@@ -281,48 +281,65 @@ Simulation Core를 Lab 때문에 복잡하게 만들지 말고 다음 hook 정�
 
 ## 11. Validation Policy
 
-반복 개발 단계에서 매 수정마다 performance benchmark와 전체 smoke matrix를
-반복 실행하지 않는다. 검증은 세 단계로 나눈다.
-
-### FAST ITERATION (매 수정 기본)
+반복 개발에서는 변경 관련 targeted tests를 우선한다.
 
 ```text
 cargo fmt --all -- --check
 cargo check --workspace --all-targets
+관련 targeted tests
 ```
 
-그리고 변경 관련 targeted tests만 실행한다. 예:
+FULL, app smoke, candidate는 고정된 종료 사슬이 아니다. 각 층은 서로 다른 증거를 담당하며, 실제 변경 영향에 따라 선택한다.
 
-```text
-cargo test -p powdergame-gpu --test parallel_integrity -- --test-threads=1
-cargo test -p powdergame-windows
-```
+- docs-only: 문서/audit/diff 검사만
+- harness/coordinator/CLI-only: targeted + minimal smoke + 필요한 candidate
+- fixture-only: fixture pin + bounded scenario GPU + candidate
+- renderer/app/readback/provenance: 영향받는 오류 경로 targeted + minimal smoke; FULL은 영향 범위에 따라 판단
+- Engine/Core/WGSL/Layout/Cargo/shared reset: targeted + workspace FULL + minimal smoke + 필요한 candidate
+- Performance: 명시적 요청 또는 G8-C에서만
 
-### FULL CHECKPOINT (기능 라운드 종료 시 1회)
+같은 source SHA에서 성공한 동일 검증을 문서 수정이나 branch 이동만으로 반복하지 않는다. docs-only closure는 tested source SHA와 docs closure SHA를 분리한다.
 
-```text
-cargo test --workspace -- --test-threads=1
-cargo clippy --workspace --all-targets -- -D warnings
-```
+세부 계약:
 
-그리고 runtime smoke matrix (G0 smoke-frames 60, G2 movement 120, G3 density
-180, G4 thermal 360, G6 parallel-integrity 300 등).
+- `docs/development/VALIDATION_POLICY.md`
+- `docs/development/TESTING.md`
+- `config/development-policy.json`
+- `tools/dev.ps1 validation-plan`
 
-### PERFORMANCE (명시적 요청 또는 Performance Gate에서만)
-
-```text
-cargo test --release -p powdergame-gpu --test movement \
-  coarse_reference_world_perf -- --ignored --nocapture
-```
-
-controlled benchmark 역시 명시 실행만 한다. `coarse_reference_world_perf`는
-기본 test loop에서 제외된 manual performance sanity observation이다
-(`#[ignore = "manual performance sanity..."]`). G8 Performance Gate 이전에
-매 iteration마다 성능 측정을 강제하지 않는다.
+현재까지 확인된 병목은 warm build가 아니라 직렬 GPU/integration FULL 실행이다. 따라서 최적화의 첫 단계는 compiler나 linker 교체가 아니라 불필요한 FULL을 없애는 것이다.
 
 ---
 
-## 12. Definition of Done
+## 12. Development Learning
+
+반복 실수와 병목은 대화에만 남기지 않는다.
+
+```text
+Observe
+→ Classify
+→ Fix one
+→ Verify
+→ Promote
+→ Sweep
+→ Retire
+```
+
+- 원시 timing과 command log는 Git 밖의 artifact root에 둔다.
+- 반복되거나 큰 손실을 만든 교훈은 `LESSONS_LEDGER.md`에 승격한다.
+- standing rule은 문서뿐 아니라 `config/development-policy.json`과 `tools/dev.ps1 audit`로 기계 검사한다.
+- 정본 변경 뒤 stale SHA/status/launcher를 sweep한다.
+- 임시 worktree/script/artifact/exception은 제거 조건을 만족하면 retire한다.
+
+세부 계약:
+
+- `docs/development/DEVELOPMENT_LEARNING_LOOP.md`
+- `docs/development/LESSONS_LEDGER.md`
+- `docs/development/WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md`
+
+---
+
+## 13. Definition of Done
 
 개별 task의 `done`과 Milestone `ACHIEVED`를 구분한다.
 

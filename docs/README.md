@@ -11,15 +11,18 @@
 1. `vision/USER_VISION.md` — 사용자가 원하는 게임의 최상위 제품 원칙
 2. 최신 `architecture/decisions/ADR-*` — 명시적으로 승인된 구조적 결정과 변경 이력
 3. `specs/*` — 현재 구현이 따라야 하는 구체적인 시뮬레이션/물질/반응/결정성 계약
-4. `architecture/ARCHITECTURE.md` — 현재 시스템 구조
-5. `planning/ROADMAP.md` — 장기 제품 방향과 작업 순서
-6. `planning/MILESTONES.md` — 무엇을 증명해야 완료인지 정의하는 Evidence Gate
-7. `planning/STATUS.md` — 현재 실제 상태와 바로 다음 작업
-8. `development/*` — 개발, 테스트, 성능 측정 원칙
-9. `01_MASTER_DESIGN_REPORT.md` — 현재 Foundation 설계를 한 문서로 읽기 위한 종합 보고서
-10. `design-history/*` — 질문, 선택지, 사용자 선택/코멘트, superseded 결정까지 포함한 설계 provenance와 해석 근거
-11. `00_USER_VISION.md` — 기존 경로 호환용 현재 비전 요약; 상세 기준은 `vision/USER_VISION.md`
-12. 초기 프로토타입/실험 코드
+4. 실제 검증 구현, 테스트, `evidence/*`, `architecture/ARCHITECTURE.md` — 실행 결과로 확인된 현재 시스템 진실
+5. `planning/MILESTONES.md` — 무엇을 증명해야 완료인지 정의하는 Evidence Gate
+6. `planning/STATUS.md` — 현재 실제 상태와 바로 다음 작업
+7. `planning/ROADMAP.md` — 장기 제품 방향과 작업 순서
+8. `HANDOFF.md` — 현재 canonical line을 이어받기 위한 실행 안내
+9. `research/materials/*` — Material Wiki. 개념 상태와 구현 상태를 분리하며 별도 승인 전에는 구현 계약이 아님
+10. `research/derived/*`, `research/encyclopedia/*` — 현재 세계 문법으로 재가공한 후보와 개발용 corpus
+11. `research/raw/*` — 출처와 원문 보존
+12. `01_MASTER_DESIGN_REPORT.md`, `design-history/*`, `00_USER_VISION.md` — 종합 맥락, 결정 provenance, 기존 경로 호환 요약
+13. 초기 프로토타입/실험 코드
+
+`development/*`는 개발·테스트·성능 측정 절차를 고정하지만, 위 권위 문서와 실제 검증 결과를 덮어쓰지 않는다.
 
 ### 현재 Q&A의 지위
 
@@ -63,10 +66,20 @@ docs/
 │  ├─ DEVELOPMENT.md
 │  ├─ TESTING.md
 │  └─ PERFORMANCE.md
+├─ research/
+│  ├─ README.md                        # research authority/index
+│  ├─ raw/                             # 원문 보존
+│  ├─ derived/                         # 현재 세계 문법으로 재가공한 후보
+│  ├─ encyclopedia/                    # 넓은 아이디어 corpus
+│  └─ materials/                       # 물질별 개념 Wiki
+│     ├─ README.md
+│     ├─ _TEMPLATE.md
+│     ├─ foundation/                   # 기본 16종 Material 개념/family Wiki
+│     └─ p1/                           # 첫 geology/manufacture prototype family
 └─ HANDOFF.md
 ```
 
-미래의 Life, Agent, Civilization, Magic 등의 문서는 필요해질 때 추가한다. 아직 구현하지 않는 계층을 빈 코드/빈 문서로 미리 확장하지 않는다.
+미래의 Life, Agent, Civilization, Magic 등의 권위 문서는 필요해질 때 추가한다. 아직 구현하지 않는 계층을 빈 코드/빈 SPEC으로 미리 확장하지 않는다. Research에는 장기 후보를 보존할 수 있지만, 존재만으로 구현 범위가 되지는 않는다.
 
 ## 문서 역할
 
@@ -118,6 +131,17 @@ SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않
 ### Adversarial Reviews
 
 `adversarial-reviews/*`는 이미 작성된 적대적 검토를 비차단 이력으로 보존한다. 적대적 리뷰는 기본 절차가 아니며 사용자가 명시적으로 요청한 경우에만 수행·기록한다. 외부 AI reviewer에게 프로젝트 내용을 보내지 않으며, 보고서 자체는 commit/push/PR/release 또는 gate closure 권한을 부여하지 않는다.
+
+### Research
+
+`research/*`는 넓은 조사자료와 콘텐츠 후보를 보존하고, 현재 ADR/SPEC에 맞춰 단계적으로 좁힌다.
+
+- `raw/`: 출처와 원문을 가능한 한 보존
+- `derived/`: behavior family, shortlist, interaction graph, prototype Rule Card
+- `encyclopedia/`: 현실·역사·창작 소재를 폭넓게 추적하는 개발용 corpus
+- `materials/`: 물질마다 **어떤 개념인지, 왜 넣는지, 무엇과 상호작용하는지, 현실과 게임 추상화의 경계가 무엇인지** 관리하는 개념 Wiki
+
+Material Wiki는 개념 상태와 구현 상태를 분리한다. 숫자·threshold는 최신 Rule Card/SPEC에 두고, 개별 페이지는 정체성·의도·관계·Discovery와 미결정 사항을 보존한다.
 
 ## 핵심 문서화 원칙
 

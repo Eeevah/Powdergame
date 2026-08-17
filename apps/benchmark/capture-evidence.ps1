@@ -209,8 +209,8 @@ function Invoke-RecordedProcess {
         $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdoutStream)
         $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderrStream)
         $process.WaitForExit()
-        $stdoutTask.GetAwaiter().GetResult()
-        $stderrTask.GetAwaiter().GetResult()
+        [void]$stdoutTask.GetAwaiter().GetResult()
+        [void]$stderrTask.GetAwaiter().GetResult()
         $exitCode = $process.ExitCode
     }
     catch {
@@ -810,6 +810,27 @@ function Invoke-CaptureSelfTest {
         Write-Utf8NoBomSyncedCreateNew -Path $mismatchedCsv -Text "schema_version,run_id,index`npowdergame-g8a-v5,run-a,0`npowdergame-g8a-v5,run-b,1`n"
         Assert-Throws -Name 'multi-valued CSV run identity is rejected' -ExpectedMessage 'identity is not exactly one' -Action {
             Get-CsvIdentityAndCount -Path $mismatchedCsv -Label 'self-test mismatched'
+        }
+
+        $recordedCommandCase = Join-Path $testRoot 'recorded-text-command'
+        [IO.Directory]::CreateDirectory((Join-Path $recordedCommandCase 'commands')) | Out-Null
+        $savedCaptureRoot = $script:CaptureRoot
+        $savedRecordedCommands = $script:RecordedCommands
+        try {
+            $script:CaptureRoot = $recordedCommandCase
+            $script:RecordedCommands = [Collections.Generic.List[object]]::new()
+            $pwshExecutable = (Get-Command pwsh.exe -ErrorAction Stop).Source
+            $textResults = @(Invoke-RecordedTextCommand -Label 'real-text-probe' -Executable $pwshExecutable -Arguments @('-NoProfile', '-Command', '[Console]::Out.Write("recorded-text-probe")') -WorkingDirectory $script:RepositoryRoot)
+            if ($textResults.Count -ne 1 -or $textResults[0].text -ne 'recorded-text-probe' -or
+                $textResults[0].record.stdout -ne (Join-Path $recordedCommandCase 'commands\real-text-probe\stdout.bin') -or
+                $script:RecordedCommands.Count -ne 1) {
+                throw 'Real recorded text command returned a contaminated or incomplete output shape.'
+            }
+            $passed.Add('real recorded text command returns one uncontaminated result')
+        }
+        finally {
+            $script:CaptureRoot = $savedCaptureRoot
+            $script:RecordedCommands = $savedRecordedCommands
         }
 
         foreach ($name in $passed) {

@@ -15,10 +15,10 @@ automated scenario evidence; do not add a Gate-specific executable or launcher.
 - G7-B: PASS / CLOSED / FROZEN
 - G8: Performance Evidence (IN_PROGRESS; historical v4 remains unbound historical data)
 - G8-A: v5 official capture + independent verification complete / verified evidence candidate; same-SHA user visual validation pending
-- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenarios 1 Sand Fall and 2 Water Flow are user accepted; Water keeps automatic `NEEDS_HUMAN_REVIEW` with a known M0 liquid-surface follow-up; Scenario 3 Fire / Heat candidate is in progress; Scenario 4–5 remain pending; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
+- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenarios 1 Sand Fall and 2 Water Flow are user accepted; Water keeps automatic `NEEDS_HUMAN_REVIEW` with a known M0 liquid-surface follow-up; Scenario 3 Fire / Heat has one sealed automatic-`PASS` candidate at source `1635fdb` but user acceptance is pending; Scenario 4–5 remain pending; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
 - Sand Fall Experiment Harness v0: experiment source `9e1fdac`; pilot automatic **PASS**; Harness review output **APPROVED**; G8-B overall **NOT CLOSED**
 - Water Flow Harness: first v1 candidate remains immutable/superseded; source `5af031f` v2 remediation candidate keeps automatic `NEEDS_HUMAN_REVIEW` and is human `ACCEPTED WITH KNOWN FOLLOW-UP`
-- Fire / Heat Harness: unchanged shared fixture audited; scenario-specific worker/coordinator and one candidate are in progress; user acceptance pending
+- Fire / Heat Harness: source `1635fdb`; exactly one sealed candidate automatic **PASS**; independent recomputation/inventory verification found zero mismatch; user acceptance pending
 - G8-C: official matrix measurement not started
 - Current G8-B work line after closure integration: `feature/m0-g8b-scenario-suite`; retained `feature/g8b-experiment-harness-v0` is aligned at the same later docs-only closure commit. Experiment provenance remains `9e1fdac`; `main` promotion and Gate closure require explicit user direction
 
@@ -51,7 +51,7 @@ The Gallery uses one shared scenario source with the headless harness and starts
 
 Gallery rendering, HUD, wall-clock TPS, and bounded activity-census readback are inspection diagnostics outside official timing. They are not G8-C performance evidence.
 
-Scenario 1 Sand Fall is user accepted. Complete settling followed by all chunks sleeping is its intended successful outcome; do not retune it to manufacture perpetual activity. Scenario 2 Water Flow is user `ACCEPTED WITH KNOWN FOLLOW-UP`; its automatic `NEEDS_HUMAN_REVIEW` and immutable artifacts are unchanged. Scenario 3 Fire / Heat is the active candidate and keeps its fixture and production physics unchanged. Scenario 4–5 remain pending.
+Scenario 1 Sand Fall is user accepted. Complete settling followed by all chunks sleeping is its intended successful outcome; do not retune it to manufacture perpetual activity. Scenario 2 Water Flow is user `ACCEPTED WITH KNOWN FOLLOW-UP`; its automatic `NEEDS_HUMAN_REVIEW` and immutable artifacts are unchanged. Scenario 3 Fire / Heat keeps its fixture and production physics unchanged; its sealed candidate is automatic `PASS` and awaits user acceptance. Scenario 4–5 remain pending.
 
 ## Validated Sand Fall experiment pilot
 
@@ -61,11 +61,11 @@ The approved pilot used the following entry point from clean experiment source `
 run_experiment.bat sand-fall
 ```
 
-The recorded Sand command retains its v0 schema and immutable artifacts. The coordinator dispatches `sand-fall`, `water-flow`, or `fire-heat` and writes each unique run beneath `C:\Users\mdkap\source\Powdergame-artifacts`. It refuses dirty/detached source and existing output paths. `EXPERIMENT_RECEIPT.json` is written last; its absence means the preserved run is incomplete and must not be repaired or reused.
+The recorded Sand command retains its v0 schema and immutable artifacts. The coordinator dispatches `sand-fall`, `water-flow`, or `fire-heat` and writes each unique run beneath `C:\Users\mdkap\source\Powdergame-artifacts`. It refuses dirty/detached source and existing output paths. `EXPERIMENT_RECEIPT.json` is the final write inside the Run directory; its absence means the preserved run is incomplete and must not be repaired or reused. Candidate-only Audit Bundle delivery is a sibling write after that marker.
 
 The run records raw stdout/stderr, telemetry samples/events, worker analysis, 6–10 semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert ChatGPT review prompt, review packet, and SHA-256 inventory outside Git. An automatic `PASS` means the seven hard Sand Fall predicates passed for that run; it does not close G8-B or establish Water Flow/G8-C evidence.
 
-The documented pilot completed as run `g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505`, with automatic verdict `PASS` and `HARNESS REVIEW OUTPUT APPROVED`. The later docs-only closure commit records the result but is not the experiment source. G8-B remains **NOT CLOSED**; Water Flow is separately accepted with a known follow-up, while Fire / Heat and later scenarios remain pending. See `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`.
+The documented pilot completed as run `g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505`, with automatic verdict `PASS` and `HARNESS REVIEW OUTPUT APPROVED`. The later docs-only closure commit records the result but is not the experiment source. G8-B remains **NOT CLOSED**; Water Flow is separately accepted with a known follow-up, Fire / Heat has an automatic-`PASS` candidate awaiting user acceptance, and later scenarios remain pending. See `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`.
 
 ## Water Flow Harness candidate
 
@@ -104,6 +104,17 @@ Candidate mode freezes the executed binary in the unique Run directory and
 publishes a sibling `AUDIT_BUNDLE.zip` plus SHA-256 sidecar after the receipt.
 The ordinary `REVIEW_PACKET.zip` remains a lightweight human-review packet and
 is not presented as a complete source/binary forensic bundle.
+
+The single sealed candidate used source
+`1635fdb9f562192123c92846e137b125c684ede9` and Run ID
+`g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`. It recorded automatic
+`PASS`, zero reaction restarts during the 180-tick post-reaction window, exact
+reset, and no independently detected inventory/digest/telemetry/image mismatch.
+Review Packet, Receipt, and sibling Audit Bundle SHA-256 are respectively
+`2a8e99d14bf0647b71e7ef32e3840655117e93b9f20ad1360af97d62a69eb940`,
+`ed17e75f7515d155f8b6e5a41a0aeb751b2876ec573658a6e49eb6dd72108aff`, and
+`1c1df01dfa9004b9273bc45e4b01d3c784d5c377f98a9417bc0b7594c6a83706`.
+This is evidence for user review, not Scenario 3 acceptance or G8-B closure.
 See `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`.
 
 ## Select a headless fixture

@@ -49,10 +49,10 @@
 - G0-G7: PASS / CLOSED
 - G8: Performance Evidence — IN_PROGRESS
   - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenarios 1 Sand Fall and 2 Water Flow USER ACCEPTED; Water automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up; Scenario 3 Fire / Heat candidate in progress; Scenario 4–5 PENDING; overall USER ACCEPTANCE PENDING / NOT CLOSED
+  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenarios 1 Sand Fall and 2 Water Flow USER ACCEPTED; Water automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up; Scenario 3 Fire / Heat sealed candidate automatic PASS / USER ACCEPTANCE PENDING; Scenario 4–5 PENDING; overall USER ACCEPTANCE PENDING / NOT CLOSED
   - G8-B Sand Fall Experiment Harness v0: experiment source `9e1fdac` pilot PASS / `HARNESS REVIEW OUTPUT APPROVED`; later docs-only closure is separate; G8-B overall NOT CLOSED
   - G8-B Water Flow: first candidate at `d12edbf` preserved as `NEEDS_HUMAN_REVIEW` / human `FIX REQUIRED`; source `5af031f` v2 remediation run automatic `NEEDS_HUMAN_REVIEW` / human `ACCEPTED WITH KNOWN FOLLOW-UP`
-  - G8-B Fire / Heat: unchanged fixture audited; scenario-specific Harness candidate in progress; source seal/FULL/smoke/one candidate/user acceptance pending
+  - G8-B Fire / Heat: unchanged fixture; source `1635fdb`; one sealed candidate automatic PASS; independent verification found zero mismatch; user acceptance pending
   - G8-C Official Matrix: PENDING
 - G9: Playable First World / Product Validation — PENDING
 
@@ -224,10 +224,10 @@ G9는 신규 Matter 수를 늘리는 단계가 아니다. 현재 세트로 먼�
 
 19. Sand Fall Experiment Harness v0 pilot + receipt-last artifact validation — **PASS** at experiment source `9e1fdac`
 20. Harness Contact Sheet/keyframe review — **APPROVED**; compact per-tile metric captions are a non-blocking future improvement
-21. G8-B Windows Gallery user acceptance — Scenarios 1 Sand Fall and 2 Water Flow **ACCEPTED**; Water automatic verdict unchanged / known follow-up; Scenario 3~5 **PENDING**; overall **NOT CLOSED**
+21. G8-B Windows Gallery user acceptance — Scenarios 1 Sand Fall and 2 Water Flow **ACCEPTED**; Water automatic verdict unchanged / known follow-up; Scenario 3 Fire / Heat has an automatic-`PASS` candidate but **USER ACCEPTANCE IS PENDING**; Scenario 4~5 **PENDING**; overall **NOT CLOSED**
 22. Water Flow first candidate — immutable/superseded; automatic `NEEDS_HUMAN_REVIEW`; human `FIX REQUIRED — fixture_representativeness_issue`
 23. Water fixture-only remediation — source `5af031f`, side-wall top `y=90 → 14`, zero leakage, production physics unchanged; human **ACCEPTED WITH KNOWN FOLLOW-UP**
-24. Fire / Heat unchanged-fixture Harness candidate — FAST/clippy → clean source seal/push → one FULL → one Gallery smoke → one candidate, then stop
+24. Fire / Heat unchanged-fixture Harness candidate — source `1635fdb`; FAST/clippy, one FULL, one Gallery smoke, one candidate, and independent verification complete; automatic `PASS`, user acceptance pending
 25. 같은 source SHA의 G8-A user visual validation
 26. Pressure Burst, Heavy Mixed World 및 G8-C는 별도 사용자 지시 전 시작 금지
 27. 사용자 결정 B: G9 Playable First World 진행
@@ -244,7 +244,7 @@ Do not optimize compact active lists / indirect dispatch before G8 measurement i
 
 - Sand Fall — **USER ACCEPTED**; complete settling and all chunks sleeping are success; do not retune for perpetual activity
 - Water Flow — **USER ACCEPTED WITH KNOWN FOLLOW-UP; AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED**
-- Fire / Heat — **HARNESS CANDIDATE IN PROGRESS / NOT YET USER ACCEPTED**
+- Fire / Heat — **SEALED CANDIDATE AUTOMATIC PASS / NOT YET USER ACCEPTED**
 - Pressure Burst — **PENDING / NOT YET USER ACCEPTED**
 - Heavy Mixed World — **PENDING / NOT YET USER ACCEPTED**
 
@@ -272,7 +272,7 @@ Include rendering and simulation+rendering coexistence evidence; calibration-onl
 
 Do not set arbitrary M0 maximum-TPS pass/fail before the official matrix exists.
 
-Current boundary: fixture/staging/selection implementation candidate exists and Scenarios 1–2 are accepted. Water keeps its immutable automatic `NEEDS_HUMAN_REVIEW` and known M0 liquid free-surface follow-up. Scenario 3 Fire / Heat is the active unchanged-fixture Harness candidate; Scenario 4~5 remain pending and **G8-B is NOT CLOSED**. Do not retune accepted Sand Fall/Water or change production physics. No physics/Material/G9/optimization addition belongs to this candidate.
+Current boundary: fixture/staging/selection implementation candidate exists and Scenarios 1–2 are accepted. Water keeps its immutable automatic `NEEDS_HUMAN_REVIEW` and known M0 liquid free-surface follow-up. Scenario 3 Fire / Heat has one sealed unchanged-fixture automatic-`PASS` candidate and awaits user acceptance; Scenario 4~5 remain pending and **G8-B is NOT CLOSED**. Do not retune accepted Sand Fall/Water or change production physics. No physics/Material/G9/optimization addition belongs to this candidate.
 
 ### Sand Fall Experiment Harness v0
 
@@ -282,11 +282,11 @@ Recorded pilot entry point (do not rerun for this closure):
 run_experiment.bat sand-fall
 ```
 
-The shared coordinator dispatches immutable Sand v0, Water remediation v2, and the in-progress Fire / Heat analyzer as distinct contracts, writing every unique run directly below `C:\Users\mdkap\source\Powdergame-artifacts`. Already generated Sand/Water evidence remains immutable. The coordinator preserves raw stdout/stderr, telemetry samples/events, worker analysis/frame manifests, semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert review prompt, review packet, and hashes. `EXPERIMENT_RECEIPT.json` is written last with no filesystem write afterward; no receipt means incomplete, and a failed Run ID is never repaired or reused. Generated artifacts never enter Git.
+The shared coordinator dispatches immutable Sand v0, Water remediation v2, and Fire / Heat as distinct contracts, writing every unique run directly below `C:\Users\mdkap\source\Powdergame-artifacts`. Already generated evidence remains immutable. The coordinator preserves raw stdout/stderr, telemetry samples/events, worker analysis/frame manifests, semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert review prompt, review packet, and hashes. `EXPERIMENT_RECEIPT.json` is the final write inside the Run directory; no receipt means incomplete, and a failed Run ID is never repaired or reused. Candidate-only Audit Bundle/sidecar delivery occurs afterward as siblings outside the Run directory. Generated artifacts never enter Git.
 
 The lifecycle records tick 0, tick 1, peak active, first sleeping chunk, late settling, first observed all sleep in a confirmed three-sample streak, 180 post-sleep ticks, and programmatic `R`-equivalent exact reset. Simulation tick and diagnostic sample sequence remain distinct. Automatic `PASS` requires all seven hard Sand Fall predicates, but does not close G8-B or establish Water Flow/G8-C evidence.
 
-Current Harness state: validated pilot **PASS** at experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`; Harness review output **APPROVED**. The later docs-only closure commit records this result but is not the experiment source. G8-B remains **NOT CLOSED** because Fire / Heat, Pressure Burst, and Heavy Mixed World are pending. Follow `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md` for the authoritative run record.
+Current Harness state: validated pilot **PASS** at experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`; Harness review output **APPROVED**. The later docs-only closure commit records this result but is not the experiment source. G8-B remains **NOT CLOSED** because Fire / Heat user acceptance, Pressure Burst, and Heavy Mixed World are pending. Follow `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md` for the authoritative run record.
 
 ### Water Flow Experiment Harness v2 accepted remediation evidence
 
@@ -306,7 +306,7 @@ Current Water state: first candidate and human finding are preserved. Remediatio
 run_experiment.bat fire-heat
 ```
 
-Fire / Heat reuses the coordinator/provenance/no-overwrite/receipt-last structure but has a distinct analyzer and verdict contract. It stages the unchanged finite fixture, advances only production `Simulation::tick()`, and distinguishes authored tick-0 flags from genuine post-tick Wood/Oil combustion. Whole-world all-sleep is not required. Three reaction-zero diagnostic samples begin a separate 180-tick post-reaction Thermal-tail window; a remaining tail is not itself failure. Source seal, one workspace test checkpoint, one final-SHA Gallery smoke, one candidate, hashes, automatic verdict, and user acceptance remain pending. Follow `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`.
+Fire / Heat reuses the coordinator/provenance/no-overwrite/receipt-last structure but has a distinct analyzer and verdict contract. It stages the unchanged finite fixture, advances only production `Simulation::tick()`, and distinguishes authored tick-0 flags from genuine post-tick Wood/Oil combustion. Whole-world all-sleep is not required. Three reaction-zero diagnostic samples begin a separate 180-tick post-reaction Thermal-tail window; a remaining tail is not itself failure. Source `1635fdb9f562192123c92846e137b125c684ede9` completed the single workspace checkpoint, one Gallery smoke, and exactly one candidate run `g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`. The automatic verdict is `PASS`; independent raw/artifact verification found zero mismatch. User acceptance remains pending, so G8-B is not closed. Follow `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`.
 
 ---
 

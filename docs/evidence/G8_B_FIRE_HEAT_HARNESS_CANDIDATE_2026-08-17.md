@@ -1,10 +1,10 @@
 # G8-B Scenario 3 — Fire / Heat Harness Candidate
 
 Date: 2026-08-17
-Status: **IMPLEMENTATION CANDIDATE — SOURCE SEAL / ONE CANDIDATE RUN / USER ACCEPTANCE PENDING**
+Status: **SEALED CANDIDATE — AUTOMATIC PASS / USER ACCEPTANCE PENDING**
 Branch: `feature/m0-g8b-scenario-suite`
 Starting SHA: `0f5585ba34ec901224a82f4329624abcb66b796b`
-Candidate source SHA: **PENDING SOURCE SEAL**
+Candidate source SHA: `1635fdb9f562192123c92846e137b125c684ede9`
 
 ## 1. Scope and frozen predecessors
 
@@ -168,15 +168,50 @@ not require an Audit Bundle.
 | Fixture audit and pure geometry/field pin | PASS — 1 test, 7 filtered |
 | Bounded production combustion/Smoke/reset GPU test | PASS — 64 production ticks, 1 test, 2 filtered |
 | Rust Fire worker and CLI | IMPLEMENTED; Fire 4/4 and worker CLI 4/4 PASS |
-| Python coordinator/independent recomputation | IMPLEMENTED; Fire focused 5/5 and full Experiment 28/28 PASS |
-| Targeted fmt/check/tests | workspace fmt/check and targeted suites PASS |
+| Python coordinator/independent recomputation | PASS — final Experiment suite 41/41 |
+| Targeted fmt/check/tests | PASS — workspace fmt/check; Windows 59 passed / 1 explicit long-run ignored; strict launcher misuse exits 2 before build |
 | Workspace clippy | PASS — all targets with `-D warnings` |
-| Clean source seal and push | PENDING |
-| One post-seal workspace test checkpoint | PENDING |
-| One final-SHA Gallery release smoke | PENDING |
-| One Fire candidate | PENDING |
-| Automatic verdict / Run ID / packet / receipt | PENDING |
+| Clean source seal and push | PASS — `1635fdb9f562192123c92846e137b125c684ede9`, upstream 0/0 |
+| One post-seal workspace test checkpoint | PASS — 559.745 s; 3 explicit manual/long-run ignores |
+| One final-SHA Gallery release smoke | PASS — 60 frames, RTX 5090 / DX12, 5.818 s |
+| One Fire candidate | COMPLETE — 20.788 s, no rerun |
+| Automatic verdict / Run ID / packet / receipt | `PASS`; identities below |
 | User acceptance | PENDING |
 
-No Fire candidate verdict is declared before the single final-SHA run.
-Pressure Burst, Heavy Mixed World, and G8-C remain stopped after that run.
+## 8. Sealed candidate result
+
+The single candidate run is
+`g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`. Its automatic verdict is
+`PASS`; this is not Scenario 3 user acceptance and does not close G8-B.
+
+- genuine Wood and Oil combustion: first observed tick `1`;
+- Smoke: first tick `1`, sampled peak `12,070` cells at tick `7,864`, final `0`;
+- phase inventory work: first observed tick `712`;
+- sampled Reaction peak: `12,997` cells at tick `7,808`;
+- sampled Thermal peak: `22,577` cells at tick `6,696`;
+- finite fuel: Wood `10,926 → 0`, Oil `1,610 → 475`, total consumed `12,061`;
+- Reaction zero: first sample tick `11,448`, confirmed tick `11,464`;
+- post-Reaction window: 180 ticks to `11,644`, restart samples `0`;
+- Thermal tail: `9,783` at start, `9,773` final, sampled minimum `9,768`;
+- invalid material and non-finite field occurrences: `0 / 0`;
+- programmatic reset exact equivalence: `true`.
+
+Artifact identities:
+
+- Review Packet: `report/REVIEW_PACKET.zip`, SHA-256
+  `2a8e99d14bf0647b71e7ef32e3840655117e93b9f20ad1360af97d62a69eb940`;
+- Receipt: `EXPERIMENT_RECEIPT.json`, SHA-256
+  `ed17e75f7515d155f8b6e5a41a0aeb751b2876ec573658a6e49eb6dd72108aff`;
+- sibling Audit Bundle: SHA-256
+  `1c1df01dfa9004b9273bc45e4b01d3c784d5c377f98a9417bc0b7594c6a83706`;
+- frozen executed binary: SHA-256
+  `0338dfedbfd226f041cfda1b3ee4a81131ba27a2d5b8035abd4e653b552edbb9`;
+- source-input manifest: SHA-256
+  `d962ee6218eee83a64176d586789f89390e0913b8f9e43222bb46dcdcc73bb52`.
+
+Independent read-only verification found no inventory, digest, source/binary,
+telemetry recomputation, PNG/crop/contact-sheet, Review Packet, Audit Bundle, or
+receipt-last mismatch. The Run contains 54 files / 81,996,443 bytes; including
+the sibling bundle and sidecar, delivery size is 86,967,938 bytes. Pressure
+Burst, Heavy Mixed World, and G8-C remain stopped. The unresolved decision is
+human review and acceptance of the Fire / Heat scenes.

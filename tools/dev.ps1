@@ -23,11 +23,12 @@ if (-not (Test-Path -LiteralPath $PolicyPath -PathType Leaf)) {
     throw "Missing development policy: $PolicyPath"
 }
 $Policy = Get-Content -LiteralPath $PolicyPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$GitExe = (Get-Command git -CommandType Application -ErrorAction Stop).Source
 
-function Git {
+function Invoke-RepoGit {
     param([string[]]$Args, [switch]$AllowFailure)
     $safe = $RepoRoot.Replace("\", "/")
-    $lines = @(& git -c "safe.directory=$safe" @Args 2>&1)
+    $lines = @(& $GitExe -c "safe.directory=$safe" @Args 2>&1)
     $rc = $LASTEXITCODE
     $text = ($lines -join [Environment]::NewLine).TrimEnd()
     if ($rc -ne 0 -and -not $AllowFailure) {
@@ -38,7 +39,7 @@ function Git {
 
 function GitText {
     param([string[]]$Args)
-    (Git -Args $Args).Text.Trim()
+    (Invoke-RepoGit -Args $Args).Text.Trim()
 }
 
 function SizeBytes {
@@ -51,7 +52,7 @@ function SizeBytes {
 }
 
 function WorktreeCount {
-    $r = Git -Args @("worktree", "list", "--porcelain") -AllowFailure
+    $r = Invoke-RepoGit -Args @("worktree", "list", "--porcelain") -AllowFailure
     if ($r.ExitCode -ne 0) { return $null }
     @($r.Text -split "`r?`n" | Where-Object { $_ -match "^worktree " }).Count
 }
@@ -94,7 +95,7 @@ function ChangedPaths {
     $set = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $gotRange = $false
     foreach ($range in @("$FromRef...HEAD", "$FromRef..HEAD")) {
-        $r = Git -Args @("diff", "--name-only", "--diff-filter=ACMR", $range) -AllowFailure
+        $r = Invoke-RepoGit -Args @("diff", "--name-only", "--diff-filter=ACMR", $range) -AllowFailure
         if ($r.ExitCode -eq 0) {
             foreach ($line in $r.Text -split "`r?`n") {
                 if ($line) { [void]$set.Add($line.Replace("\", "/")) }
@@ -104,7 +105,7 @@ function ChangedPaths {
         }
     }
     if (-not $gotRange) {
-        $r = Git -Args @("diff", "--name-only", "--diff-filter=ACMR", "HEAD^", "HEAD") -AllowFailure
+        $r = Invoke-RepoGit -Args @("diff", "--name-only", "--diff-filter=ACMR", "HEAD^", "HEAD") -AllowFailure
         if ($r.ExitCode -eq 0) {
             foreach ($line in $r.Text -split "`r?`n") {
                 if ($line) { [void]$set.Add($line.Replace("\", "/")) }
@@ -116,7 +117,7 @@ function ChangedPaths {
         @("diff", "--cached", "--name-only", "--diff-filter=ACMR"),
         @("ls-files", "--others", "--exclude-standard")
     )) {
-        $r = Git -Args $args -AllowFailure
+        $r = Invoke-RepoGit -Args $args -AllowFailure
         if ($r.ExitCode -eq 0) {
             foreach ($line in $r.Text -split "`r?`n") {
                 if ($line) { [void]$set.Add($line.Replace("\", "/")) }

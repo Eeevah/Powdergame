@@ -1122,6 +1122,191 @@ mod tests {
         assert_eq!(bottom_chunk_row_water, 0);
     }
 
+    /// Pins the authored 256x256 Fire / Heat image without using the fixture
+    /// builder's rectangle helpers. The hot Wood seed intentionally overlaps
+    /// 68 cells of the pre-existing Stone column; this test records that input
+    /// exactly for the first Harness candidate and does not retune it.
+    #[test]
+    fn fire_heat_256_pins_authored_geometry_and_fields() {
+        let config = WorldConfig::new(256, 256, 64).unwrap();
+        let fixture = ScenarioFixture::build(ScenarioId::FireHeat, config).unwrap();
+        let width = config.width as usize;
+        let cell_count = config.cell_count().unwrap() as usize;
+
+        let mut expected_materials = initial_material_ids(&config).unwrap();
+        {
+            let mut paint = |x_range: Range<usize>, y_range: Range<usize>, material: u32| {
+                for y in y_range {
+                    for x in x_range.clone() {
+                        expected_materials[y * width + x] = material;
+                    }
+                }
+            };
+            paint(12..244, 222..232, MATERIAL_STONE);
+            paint(24..222, 154..214, MATERIAL_WOOD);
+            paint(32..78, 205..222, MATERIAL_OIL);
+            paint(180..226, 204..222, MATERIAL_OIL);
+            paint(14..26, 144..222, MATERIAL_STONE);
+            paint(88..168, 90..118, MATERIAL_ICE);
+            paint(96..160, 120..144, MATERIAL_WATER);
+        }
+
+        let mut expected_temperatures = vec![TEMPERATURE_REFERENCE; cell_count];
+        {
+            let mut paint = |x_range: Range<usize>, y_range: Range<usize>, temperature: f32| {
+                for y in y_range {
+                    for x in x_range.clone() {
+                        expected_temperatures[y * width + x] = temperature;
+                    }
+                }
+            };
+            paint(14..26, 144..222, 260.0);
+            paint(24..42, 168..202, 500.0);
+            paint(32..48, 205..222, 180.0);
+            paint(88..168, 90..118, -20.0);
+            paint(96..160, 120..144, -20.0);
+        }
+
+        let expected_pressures = vec![PRESSURE_REFERENCE; cell_count];
+        let mut expected_flags = vec![0u32; cell_count];
+        {
+            let mut paint = |x_range: Range<usize>, y_range: Range<usize>| {
+                for y in y_range {
+                    for x in x_range.clone() {
+                        expected_flags[y * width + x] = FLAG_COMBUSTING;
+                    }
+                }
+            };
+            paint(24..42, 168..202);
+            paint(32..48, 205..222);
+        }
+        let expected_edit_wake = vec![0u32; 16];
+
+        assert_eq!(fixture.materials(), expected_materials.as_slice());
+        assert_eq!(
+            fixture
+                .temperatures()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected_temperatures
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            fixture
+                .pressures()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected_pressures
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(fixture.flags(), expected_flags.as_slice());
+        assert_eq!(fixture.chunk_edit_wake(), expected_edit_wake.as_slice());
+
+        let count_material = |material| {
+            fixture
+                .materials()
+                .iter()
+                .filter(|&&value| value == material)
+                .count()
+        };
+        assert_eq!(count_material(MATERIAL_EMPTY), 44_948);
+        assert_eq!(count_material(MATERIAL_BOUNDARY_BLOCK), 1_020);
+        assert_eq!(count_material(MATERIAL_STONE), 3_256);
+        assert_eq!(count_material(MATERIAL_SAND), 0);
+        assert_eq!(count_material(MATERIAL_WATER), 1_536);
+        assert_eq!(count_material(MATERIAL_OIL), 1_610);
+        assert_eq!(count_material(MATERIAL_STEAM), 0);
+        assert_eq!(count_material(MATERIAL_SMOKE), 0);
+        assert_eq!(count_material(MATERIAL_ICE), 2_240);
+        assert_eq!(count_material(MATERIAL_WOOD), 10_926);
+        assert_eq!(cell_count - count_material(MATERIAL_EMPTY), 20_588);
+
+        let count_temperature = |temperature: f32| {
+            fixture
+                .temperatures()
+                .iter()
+                .filter(|value| value.to_bits() == temperature.to_bits())
+                .count()
+        };
+        assert_eq!(count_temperature(-20.0), 3_776);
+        assert_eq!(count_temperature(TEMPERATURE_REFERENCE), 60_008);
+        assert_eq!(count_temperature(180.0), 272);
+        assert_eq!(count_temperature(260.0), 868);
+        assert_eq!(count_temperature(500.0), 612);
+        assert!(fixture
+            .pressures()
+            .iter()
+            .all(|value| value.to_bits() == PRESSURE_REFERENCE.to_bits()));
+
+        let flagged_material_count = |material| {
+            fixture
+                .materials()
+                .iter()
+                .zip(fixture.flags())
+                .filter(|&(material_value, flags)| {
+                    *material_value == material && *flags == FLAG_COMBUSTING
+                })
+                .count()
+        };
+        assert_eq!(
+            fixture
+                .flags()
+                .iter()
+                .filter(|&&flags| flags == FLAG_COMBUSTING)
+                .count(),
+            884
+        );
+        assert_eq!(flagged_material_count(MATERIAL_WOOD), 544);
+        assert_eq!(flagged_material_count(MATERIAL_OIL), 272);
+        // This is an authenticated authored overlap, not a desired material
+        // behavior: production combustion clears these non-combustible bits.
+        assert_eq!(flagged_material_count(MATERIAL_STONE), 68);
+        assert_eq!(
+            (0..cell_count)
+                .filter(|&index| {
+                    fixture.flags()[index] == FLAG_COMBUSTING
+                        && !matches!(
+                            fixture.materials()[index],
+                            MATERIAL_WOOD | MATERIAL_OIL | MATERIAL_STONE
+                        )
+                })
+                .count(),
+            0
+        );
+
+        let assert_cell = |x: usize, y: usize, material: u32, temperature: f32, flags: u32| {
+            let index = cell(&fixture, x, y);
+            assert_eq!(
+                fixture.materials()[index],
+                material,
+                "material at ({x},{y})"
+            );
+            assert_eq!(
+                fixture.temperatures()[index].to_bits(),
+                temperature.to_bits(),
+                "temperature at ({x},{y})"
+            );
+            assert_eq!(fixture.flags()[index], flags, "flags at ({x},{y})");
+        };
+        assert_cell(0, 0, MATERIAL_BOUNDARY_BLOCK, TEMPERATURE_REFERENCE, 0);
+        assert_cell(12, 222, MATERIAL_STONE, TEMPERATURE_REFERENCE, 0);
+        assert_cell(100, 154, MATERIAL_WOOD, TEMPERATURE_REFERENCE, 0);
+        assert_cell(14, 144, MATERIAL_STONE, 260.0, 0);
+        assert_cell(24, 168, MATERIAL_STONE, 500.0, FLAG_COMBUSTING);
+        assert_cell(26, 168, MATERIAL_WOOD, 500.0, FLAG_COMBUSTING);
+        assert_cell(32, 205, MATERIAL_OIL, 180.0, FLAG_COMBUSTING);
+        assert_cell(180, 204, MATERIAL_OIL, TEMPERATURE_REFERENCE, 0);
+        assert_cell(88, 90, MATERIAL_ICE, -20.0, 0);
+        assert_cell(96, 119, MATERIAL_EMPTY, TEMPERATURE_REFERENCE, 0);
+        assert_cell(96, 120, MATERIAL_WATER, -20.0, 0);
+    }
+
     #[test]
     fn scenario_payloads_exercise_their_named_subsystems() {
         let config = WorldConfig::new(256, 256, 64).unwrap();

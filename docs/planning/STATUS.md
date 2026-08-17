@@ -441,9 +441,9 @@ Static Analysis & Formatting:
 
 ### Next Action
 
-1. **Record Water closure**: automatic `NEEDS_HUMAN_REVIEW`와 immutable artifact를 유지한 채 docs-only user acceptance closure를 기록한다.
-2. **Next scenario**: 같은 branch/worktree에서 Scenario 3 Fire / Heat fixture를 먼저 변경 없이 감사하고 Harness candidate를 준비한다.
-3. **Scope stop**: Fire / Heat candidate 뒤 즉시 중단하며 Pressure Burst, Heavy Mixed World, G8-C, G9, optimization, `main`/PR은 시작하지 않는다.
+1. **Fire / Heat candidate**: 같은 branch/worktree에서 unchanged fixture와 production physics를 보존하고 scenario-specific Harness analyzer를 완성한다.
+2. **Single final-SHA sequence**: FAST/targeted checks와 clippy 뒤 clean source를 seal/push하고, workspace test checkpoint 1회 → Gallery release smoke 1회 → Fire candidate 1회를 같은 source SHA에서 수행한다.
+3. **Scope stop**: Fire / Heat candidate와 docs-only closure 뒤 즉시 중단하며 Pressure Burst, Heavy Mixed World, G8-C, G9, optimization, `main`/PR은 시작하지 않는다.
 
 ---
 
@@ -459,7 +459,7 @@ Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical 
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenarios 1–2 user accepted, Water automatic `NEEDS_HUMAN_REVIEW` unchanged with known follow-up, Scenarios 3–5 pending, overall NOT CLOSED; G8-C PENDING).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenarios 1–2 user accepted, Water automatic `NEEDS_HUMAN_REVIEW` unchanged with known follow-up, Scenario 3 Fire / Heat candidate in progress, Scenarios 4–5 pending, overall NOT CLOSED; G8-C PENDING).
 
 M0 `ACHIEVED`: **NO**
 
@@ -524,5 +524,5 @@ build: canonical recovery PRE/POST full workspace, clippy, evidence self-tests, 
 source_freeze_checks: official receipt complete; source/upstream clean and unchanged at 9abec9e; independent verifier passed 11/11 with zero findings
 benchmarks: official G8-A v5 P50 = 865.304 TPS / 1.155663 ms per tick and profiled envelope P50 = 1.018080 ms; historical v4 remains unbound historical data
 adversarial_review: optional and explicit-request-only; existing G8-A report is historical and non-blocking
-m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenario 1 accepted, scenarios 2-5 pending / not yet user accepted, overall not closed; G8-C pending)
+m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenarios 1-2 accepted, Water automatic NEEDS_HUMAN_REVIEW unchanged with known follow-up, Scenario 3 Fire / Heat candidate in progress, scenarios 4-5 pending, overall not closed; G8-C pending)
 ```

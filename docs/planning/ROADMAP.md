@@ -59,7 +59,7 @@ Roadmap의 모든 단계는 이 질문에 더 강한 답을 만들기 위해 존
 - G7 Active / Sleep — PASS / CLOSED
 - G8 Performance Evidence — IN_PROGRESS
   - G8-A Measurement Substrate — V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite — IMPLEMENTATION CANDIDATE; Sand USER ACCEPTED; first Water candidate SUPERSEDED / FIX REQUIRED, remediation candidate pending; overall NOT CLOSED
+    - G8-B Benchmark Scenario Suite — IMPLEMENTATION CANDIDATE; Sand and Water USER ACCEPTED (Water automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up); Fire / Heat candidate in progress; overall NOT CLOSED
   - G8-C Official Matrix Measurement — PENDING
 - G9 Product Validation — PENDING
 
@@ -130,9 +130,9 @@ M0 성능을 하나의 calibration fixture가 아니라 대표 gameplay workload
 ### Current G8-B acceptance sequence
 
 - Sand Fall의 complete-settle/all-sleep behavior와 published Harness pilot은 accepted/immutable이다.
-- Water Flow의 첫 candidate는 `d12edbf` source에서 immutable artifact로 보존되었고 automatic `NEEDS_HUMAN_REVIEW` 뒤 human `FIX REQUIRED — fixture_representativeness_issue`로 superseded되었다. Remediation은 side-wall top만 `y=90 → 14`로 연장하고 zero-leakage predicate를 추가하며 production physics와 all-sleep/plateau policy를 보존한다.
-- Remediation candidate는 clean source/FULL checkpoint 뒤 `run_experiment.bat water-flow`로 fresh Run ID를 정확히 한 번 게시한다. 기존 Run ID와 artifact는 수정·덮어쓰기·재사용하지 않으며 unique/no-overwrite/receipt-last 정책을 유지한다.
-- Fire / Heat, Pressure Burst, Heavy Mixed World, G8-C는 Water 결과 뒤에도 자동 시작하지 않는다. Water 자동 판정은 G8-B closure가 아니다.
+- Water Flow의 첫 candidate는 `d12edbf` source에서 immutable artifact로 보존되었고 automatic `NEEDS_HUMAN_REVIEW` 뒤 human `FIX REQUIRED — fixture_representativeness_issue`로 superseded되었다. Source `5af031f`의 remediation run은 side-wall top만 `y=90 → 14`로 연장하고 zero-leakage predicate를 추가했으며, automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Production physics와 all-sleep/plateau policy는 보존된다.
+- Fire / Heat는 unchanged fixture를 먼저 감사하고 공통 coordinator에 scenario-specific analyzer를 추가한다. Whole-world all-sleep은 요구하지 않으며 reaction termination과 post-reaction Thermal tail을 분리한다.
+- Pressure Burst, Heavy Mixed World, G8-C는 Fire candidate 뒤에도 자동 시작하지 않는다. Scenario별 자동 판정은 G8-B closure가 아니다.
 
 ### Optimization Stop Rule
 

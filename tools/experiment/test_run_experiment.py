@@ -694,6 +694,428 @@ class ExperimentRunnerTests(unittest.TestCase):
         )
         return run_dir
 
+    def create_valid_fire_worker_fixture(
+        self,
+        run_id: str = "g8b-fire-heat-v0-test-run",
+        mode: str = "candidate",
+    ) -> Path:
+        if mode == "scratch" and "-scratch-" not in run_id:
+            run_id = run_id.replace("g8b-fire-heat-v0-", "g8b-fire-heat-v0-scratch-")
+        run_dir, manifest = self.create_manifest(run_id, experiment.FIRE_CONTRACT, mode)
+        logs = run_dir / "logs"
+        logs.mkdir()
+        (logs / "build.stdout.log").write_bytes(b"build stdout\r\n")
+        (logs / "build.stderr.log").write_bytes(b"")
+        (run_dir / "stdout.log").write_bytes(b"worker stdout\r\n")
+        (run_dir / "stderr.log").write_bytes(b"")
+        telemetry = run_dir / "telemetry"
+        frames_dir = run_dir / "work" / "frames"
+        telemetry.mkdir()
+        frames_dir.mkdir(parents=True)
+
+        def sample(
+            tick: int,
+            phase: str,
+            reason: str,
+            *,
+            reaction: int,
+            thermal: int,
+            wood: int,
+            oil: int,
+            smoke: int,
+            ice: int,
+            water: int,
+            steam: int,
+            wood_flame: int = 0,
+            oil_flame: int = 0,
+            wood_progress: int = 0,
+            oil_progress: int = 0,
+            heat: int = 0,
+            changed: int = 2,
+            state_hash: str,
+        ) -> dict:
+            boundary = 1020
+            stone = 3256
+            sand = 0
+            non_empty = boundary + stone + sand + water + oil + steam + smoke + ice + wood
+            counts = [
+                experiment.WORLD_WIDTH * experiment.WORLD_HEIGHT - non_empty,
+                boundary,
+                stone,
+                sand,
+                water,
+                oil,
+                steam,
+                smoke,
+                ice,
+                wood,
+            ]
+            any_active = max(reaction, thermal)
+            return {
+                "schema_version": experiment.FIRE_TELEMETRY_SCHEMA,
+                "experiment_id": experiment.FIRE_CONTRACT.experiment_id,
+                "run_id": run_dir.name,
+                "scenario": experiment.FIRE_CONTRACT.scenario,
+                "source_sha": manifest["source"]["sha"],
+                "git_state": "clean",
+                "build_profile": "release",
+                "binary_sha256": manifest["binary"]["sha256"],
+                "sample_sequence": -1,
+                "sim_tick": tick,
+                "phase": phase,
+                "reason": reason,
+                "world": manifest["world"],
+                "sleep": {"enabled": True, "threshold": 3},
+                "census": {
+                    "total_cells": experiment.WORLD_WIDTH * experiment.WORLD_HEIGHT,
+                    "any_active_cells": any_active,
+                    "matter_active_cells": reaction,
+                    "thermal_active_cells": thermal,
+                    "pressure_active_cells": 0,
+                    "reaction_active_cells": reaction,
+                    "total_chunks": 16,
+                    "active_chunks": 4 if any_active else 0,
+                    "runnable_chunks": 16,
+                    "sleeping_chunks": 0,
+                },
+                "material_counts_by_id": counts,
+                "matter_count": sum(counts[1:]),
+                "wood_count": wood,
+                "oil_count": oil,
+                "smoke_count": smoke,
+                "ice_count": ice,
+                "water_count": water,
+                "steam_count": steam,
+                "combusting_wood_cells": min(wood, 544),
+                "combusting_oil_cells": min(oil, 272),
+                "flame_event_wood_cells": wood_flame,
+                "flame_event_oil_cells": oil_flame,
+                "wood_fuel_progress_sum": wood_progress,
+                "oil_fuel_progress_sum": oil_progress,
+                "heat_propagated_cells": heat,
+                "phase_inventory_changed": (ice, water, steam) != (2240, 1536, 0),
+                "invalid_material_count": 0,
+                "nonfinite_temperature_count": 0,
+                "nonfinite_pressure_count": 0,
+                "changed_chunks": changed,
+                "wake_chunks": 0,
+                "wake_reason_or": 0,
+                "state_hash": state_hash,
+                "physical_state_hash": state_hash,
+            }
+
+        tick0 = sample(
+            0,
+            "initial",
+            "tick0",
+            reaction=884,
+            thermal=3776,
+            wood=10926,
+            oil=1610,
+            smoke=0,
+            ice=2240,
+            water=1536,
+            steam=0,
+            changed=0,
+            state_hash="fnv1a64:0000000000001000",
+        )
+        tick1 = sample(
+            1,
+            "reacting",
+            "tick1",
+            reaction=100,
+            thermal=200,
+            wood=10920,
+            oil=1608,
+            smoke=1,
+            ice=2240,
+            water=1536,
+            steam=0,
+            wood_flame=10,
+            oil_flame=5,
+            wood_progress=10,
+            oil_progress=5,
+            heat=12,
+            state_hash="fnv1a64:0000000000001001",
+        )
+        tick2 = sample(
+            2,
+            "reacting",
+            "early-diagnostic",
+            reaction=120,
+            thermal=250,
+            wood=10000,
+            oil=1500,
+            smoke=10,
+            ice=2230,
+            water=1540,
+            steam=6,
+            wood_progress=100,
+            oil_progress=60,
+            heat=30,
+            state_hash="fnv1a64:0000000000001002",
+        )
+        zero8 = sample(
+            8,
+            "reacting",
+            "diagnostic-cadence",
+            reaction=0,
+            thermal=220,
+            wood=8000,
+            oil=1300,
+            smoke=20,
+            ice=2230,
+            water=1540,
+            steam=6,
+            wood_progress=300,
+            oil_progress=100,
+            heat=50,
+            state_hash="fnv1a64:0000000000001008",
+        )
+        zero16 = copy.deepcopy(zero8)
+        zero16.update({"sim_tick": 16, "state_hash": "fnv1a64:0000000000001010"})
+        zero16["physical_state_hash"] = zero16["state_hash"]
+        zero24 = copy.deepcopy(zero8)
+        zero24.update(
+            {
+                "sim_tick": 24,
+                "census": {**zero24["census"], "thermal_active_cells": 200, "any_active_cells": 200},
+                "state_hash": "fnv1a64:0000000000001018",
+            }
+        )
+        zero24["physical_state_hash"] = zero24["state_hash"]
+        samples = [tick0, tick1, tick2, zero8, zero16, zero24]
+        for offset in range(1, experiment.POST_REACTION_TICKS + 1):
+            thermal = max(20, 200 - offset)
+            post = sample(
+                24 + offset,
+                "post-reaction-confirmation",
+                "post-reaction-tick",
+                reaction=0,
+                thermal=thermal,
+                wood=8000,
+                oil=1300,
+                smoke=25,
+                ice=2230,
+                water=1540,
+                steam=6,
+                wood_progress=300,
+                oil_progress=100,
+                heat=50,
+                state_hash=f"fnv1a64:{0x2000 + offset:016x}",
+            )
+            samples.append(post)
+        reset = copy.deepcopy(tick0)
+        reset.update(
+            {
+                "sim_tick": 0,
+                "phase": "reset",
+                "reason": "programmatic-r-equivalent",
+            }
+        )
+        samples.append(reset)
+        for sequence, item in enumerate(samples):
+            item["sample_sequence"] = sequence
+        (telemetry / "samples.jsonl").write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in samples),
+            encoding="utf-8",
+        )
+
+        def event(name: str, item: dict | None, detail: str = "fixture") -> dict:
+            return {
+                "schema_version": experiment.FIRE_TELEMETRY_SCHEMA,
+                "experiment_id": experiment.FIRE_CONTRACT.experiment_id,
+                "run_id": run_dir.name,
+                "scenario": experiment.FIRE_CONTRACT.scenario,
+                "event_sequence": -1,
+                "event": name,
+                "sim_tick": 0 if item is None else item["sim_tick"],
+                "sample_sequence": None if item is None else item["sample_sequence"],
+                "detail": detail,
+            }
+
+        events = [
+            event("lifecycle_started", None),
+            event("pristine_reset_completed", None),
+            event("tick0_captured", tick0),
+            event("tick1_captured", tick1),
+            event("combustion_observed", tick1),
+            event("smoke_generated", tick1),
+            event("heat_propagated", tick1),
+            event("new_peak_reaction", tick1),
+            event("new_peak_thermal", tick1),
+            event("phase_transition_observed", tick2),
+            event("new_peak_reaction", tick2),
+            event("new_peak_thermal", tick2),
+            event("fuel_substantially_consumed", zero8),
+            event("reaction_zero_streak_started", zero8),
+            event("reaction_zero_confirmed", zero24),
+            event("terminal_selected", zero24),
+            event("post_reaction_confirmation_completed", samples[-2]),
+            event("reset_started", samples[-2]),
+            event("reset_comparison_completed", reset),
+            event("worker_completed", reset, "PASS"),
+        ]
+        for sequence, item in enumerate(events):
+            item["event_sequence"] = sequence
+        (telemetry / "events.jsonl").write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in events),
+            encoding="utf-8",
+        )
+
+        frame_specs = (
+            ("tick0", tick0, "pristine-reset"),
+            ("tick1", tick1, "after-one-production-tick"),
+            ("first-combustion", tick1, "both-fuels-production-combustion"),
+            ("first-smoke", tick1, "smoke-count-above-tick0"),
+            ("peak-reaction", tick2, "highest-observed-reaction-cells"),
+            ("peak-thermal", tick2, "highest-observed-thermal-cells"),
+            ("first-phase-transition", tick2, "phase-inventory-differs-from-tick0"),
+            (
+                "fuel-substantially-consumed",
+                zero8,
+                "at-least-25-percent-initial-fuel-consumed",
+            ),
+            ("reaction-zero", zero8, "first-sample-of-confirmed-reaction-zero-streak"),
+            ("post-reaction-tail", samples[-2], "post-reaction-confirmation-complete"),
+            ("terminal", zero24, "reaction-zero-confirmed"),
+            ("reset", reset, "programmatic-r-equivalent"),
+        )
+        raw_size = experiment.RENDERER_WIDTH * experiment.RENDERER_HEIGHT * 4
+        frames = []
+        for ordinal, (kind, item, reason) in enumerate(frame_specs):
+            filename = f"{ordinal:02}-{kind}.rgba"
+            color = bytes(((ordinal * 29) % 256, (ordinal * 41) % 256, 96, 255))
+            (frames_dir / filename).write_bytes(color * (raw_size // 4))
+            frames.append(
+                {
+                    "ordinal": ordinal,
+                    "kind": kind,
+                    "relative_path": f"work/frames/{filename}",
+                    "width": experiment.RENDERER_WIDTH,
+                    "height": experiment.RENDERER_HEIGHT,
+                    "rgba_bytes": raw_size,
+                    "reason": reason,
+                    "sim_tick": item["sim_tick"],
+                    "sample_sequence": item["sample_sequence"],
+                    "state_hash": item["state_hash"],
+                }
+            )
+        (run_dir / "work" / "frames.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": experiment.FRAMES_SCHEMA,
+                    "experiment_id": experiment.FIRE_CONTRACT.experiment_id,
+                    "run_id": run_dir.name,
+                    "scenario": experiment.FIRE_CONTRACT.scenario,
+                    "binary_sha256": manifest["binary"]["sha256"],
+                    "frame_count": len(frames),
+                    "pixel_encoding": "rgba8-tightly-packed",
+                    "frames": frames,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        initial_fuel = tick0["wood_count"] + tick0["oil_count"]
+        threshold = (initial_fuel + 3) // 4
+        final = samples[-2]
+        predicates = {
+            name: {"status": "pass", "detail": f"fixture {name}"}
+            for name in experiment.FIRE_PREDICATE_NAMES
+        }
+        analysis = {
+            "schema_version": experiment.FIRE_ANALYSIS_SCHEMA,
+            "experiment_id": experiment.FIRE_CONTRACT.experiment_id,
+            "run_id": run_dir.name,
+            "scenario": experiment.FIRE_CONTRACT.scenario,
+            "binary_sha256": manifest["binary"]["sha256"],
+            "provenance": {
+                "source_sha": manifest["source"]["sha"],
+                "git_state": "clean",
+                "build_profile": "release",
+            },
+            "world": manifest["world"],
+            "sleep": {"enabled": True, "threshold": 3},
+            "lifecycle": {
+                "max_ticks": experiment.MAX_TICKS,
+                "diagnostic_interval_ticks": experiment.DIAGNOSTIC_INTERVAL,
+                "consecutive_reaction_zero_samples": experiment.CONSECUTIVE_REACTION_ZERO,
+                "post_reaction_confirmation_ticks": experiment.POST_REACTION_TICKS,
+                "terminal_reason": "reaction-zero",
+                "first_reaction_zero_sim_tick": 8,
+                "first_reaction_zero_sample_sequence": zero8["sample_sequence"],
+                "confirmed_reaction_zero_sim_tick": 24,
+                "confirmed_reaction_zero_sample_sequence": zero24["sample_sequence"],
+                "post_reaction_end_tick": 204,
+                "post_reaction_restart_samples": 0,
+                "sample_count": len(samples),
+            },
+            "baseline": {
+                "matter_count": tick0["matter_count"],
+                "wood_count": tick0["wood_count"],
+                "oil_count": tick0["oil_count"],
+                "smoke_count": tick0["smoke_count"],
+                "ice_count": tick0["ice_count"],
+                "water_count": tick0["water_count"],
+                "steam_count": tick0["steam_count"],
+                "fuel_count": initial_fuel,
+                "wood_fuel_progress_sum": 0,
+                "oil_fuel_progress_sum": 0,
+                "substantial_fuel_consumption_threshold": threshold,
+                "substantial_fuel_remaining_threshold": initial_fuel - threshold,
+            },
+            "metrics": {
+                "first_combustion_tick": 1,
+                "first_combustion_sample_sequence": tick1["sample_sequence"],
+                "first_smoke_tick": 1,
+                "first_smoke_sample_sequence": tick1["sample_sequence"],
+                "first_phase_transition_tick": 2,
+                "first_phase_transition_sample_sequence": tick2["sample_sequence"],
+                "fuel_substantially_consumed_tick": 8,
+                "fuel_substantially_consumed_sample_sequence": zero8["sample_sequence"],
+                "peak_reaction_cells": 120,
+                "peak_reaction_tick": 2,
+                "peak_reaction_sample_sequence": tick2["sample_sequence"],
+                "peak_thermal_cells": 250,
+                "peak_thermal_tick": 2,
+                "peak_thermal_sample_sequence": tick2["sample_sequence"],
+                "peak_smoke_count": 25,
+                "peak_smoke_tick": 25,
+                "peak_smoke_sample_sequence": samples[6]["sample_sequence"],
+                "max_heat_propagated_cells": 50,
+                "reaction_zero_tick": 8,
+                "confirmed_reaction_zero_tick": 24,
+                "post_reaction_thermal_cells": 200,
+                "post_reaction_final_thermal_cells": 20,
+                "post_reaction_min_thermal_cells": 20,
+                "post_reaction_thermal_decrease": True,
+                "post_reaction_reaction_restart_ticks": 0,
+                "post_reaction_restart_samples": 0,
+                "final_matter_count": final["matter_count"],
+                "final_wood_count": final["wood_count"],
+                "final_oil_count": final["oil_count"],
+                "final_smoke_count": final["smoke_count"],
+                "final_ice_count": final["ice_count"],
+                "final_water_count": final["water_count"],
+                "final_steam_count": final["steam_count"],
+                "wood_count_delta": final["wood_count"] - tick0["wood_count"],
+                "oil_count_delta": final["oil_count"] - tick0["oil_count"],
+                "fuel_count_delta": final["wood_count"] + final["oil_count"] - initial_fuel,
+                "fuel_consumed": initial_fuel - final["wood_count"] - final["oil_count"],
+                "invalid_material_occurrences": 0,
+                "nonfinite_field_occurrences": 0,
+                "reset_exact_equivalence": True,
+            },
+            "predicates": predicates,
+            "verdict": "PASS",
+            "raw_frame_count": len(frames),
+        }
+        (run_dir / "work" / "analysis.json").write_text(
+            json.dumps(analysis), encoding="utf-8"
+        )
+        return run_dir
+
     def test_manifest_is_strict_and_round_trips(self) -> None:
         run_dir, manifest = self.create_manifest()
         self.assertEqual(set(manifest), experiment.MANIFEST_TOP_KEYS)
@@ -1630,6 +2052,149 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertIn("telemetry/samples.jsonl", names)
         self.assertNotIn("HASHES.sha256", names)
         self.assertNotIn("EXPERIMENT_RECEIPT.json", names)
+        with self.assertRaisesRegex(experiment.ExperimentError, "receipt"):
+            experiment.postprocess_run(run_dir)
+
+    def test_fire_manifest_and_worker_command_are_scenario_specific(self) -> None:
+        run_dir, manifest = self.create_manifest(
+            "g8b-fire-heat-v0-manifest-test", experiment.FIRE_CONTRACT
+        )
+        self.assertEqual(manifest["schema_version"], experiment.FIRE_MANIFEST_SCHEMA)
+        self.assertEqual(manifest["run_mode"], "candidate")
+        self.assertEqual(
+            manifest["experiment"],
+            {
+                "max_ticks": 20_000,
+                "diagnostic_interval_ticks": 8,
+                "consecutive_reaction_zero": 3,
+                "post_reaction_ticks": 180,
+            },
+        )
+        command = manifest["commands"]["worker"]
+        self.assertEqual(command[0], str(self.source / "target" / "release" / "powdergame-windows.exe"))
+        self.assertIn("fire-heat", command)
+        self.assertEqual(command[-4:], ["--consecutive-reaction-zero", "3", "--post-reaction-ticks", "180"])
+        self.assertNotIn("--consecutive-all-sleep", command)
+        self.assertNotIn("--post-sleep-ticks", command)
+        scratch = experiment.generate_run_id(
+            contract=experiment.FIRE_CONTRACT, run_mode="scratch"
+        )
+        self.assertIn("g8b-fire-heat-v0-scratch-", scratch)
+        self.assertEqual(run_dir.name, manifest["run_id"])
+
+    def test_fire_telemetry_is_independently_recomputed(self) -> None:
+        run_dir = self.create_valid_fire_worker_fixture()
+        manifest = experiment.read_and_validate_manifest(run_dir / "EXPERIMENT_MANIFEST.toml")
+        analysis, frames, samples, events = experiment.validate_telemetry(run_dir, manifest)
+        self.assertEqual(analysis["verdict"], "PASS")
+        self.assertEqual(analysis["metrics"]["first_combustion_tick"], 1)
+        self.assertEqual(analysis["metrics"]["first_smoke_tick"], 1)
+        self.assertEqual(analysis["metrics"]["first_phase_transition_tick"], 2)
+        self.assertEqual(analysis["metrics"]["reaction_zero_tick"], 8)
+        self.assertEqual(analysis["metrics"]["confirmed_reaction_zero_tick"], 24)
+        self.assertEqual(analysis["metrics"]["peak_smoke_count"], 25)
+        self.assertEqual(analysis["metrics"]["post_reaction_thermal_cells"], 200)
+        self.assertEqual(analysis["metrics"]["post_reaction_final_thermal_cells"], 20)
+        self.assertEqual(frames["frame_count"], 12)
+        self.assertEqual(len(samples), 187)
+        self.assertEqual(len(events), 20)
+
+        analysis_path = run_dir / "work" / "analysis.json"
+        mutated = copy.deepcopy(analysis)
+        mutated["metrics"]["peak_smoke_count"] = 24
+        analysis_path.write_text(json.dumps(mutated), encoding="utf-8")
+        with self.assertRaisesRegex(experiment.ExperimentError, "peak_smoke_count"):
+            experiment.validate_telemetry(run_dir, manifest)
+
+    def test_fire_rejects_reaction_zero_and_tail_mutations(self) -> None:
+        reaction_dir = self.create_valid_fire_worker_fixture(
+            "g8b-fire-heat-v0-reaction-mutation"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            reaction_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        samples_path = reaction_dir / "telemetry" / "samples.jsonl"
+        samples = [
+            json.loads(line) for line in samples_path.read_text(encoding="utf-8").splitlines()
+        ]
+        tick16 = next(item for item in samples if item["sim_tick"] == 16)
+        tick16["census"]["reaction_active_cells"] = 1
+        tick16["census"]["matter_active_cells"] = 1
+        samples_path.write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in samples),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "reaction-zero"):
+            experiment.validate_telemetry(reaction_dir, manifest)
+
+        tail_dir = self.create_valid_fire_worker_fixture("g8b-fire-heat-v0-tail-mutation")
+        tail_manifest = experiment.read_and_validate_manifest(
+            tail_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        analysis_path = tail_dir / "work" / "analysis.json"
+        tail_analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        tail_analysis["metrics"]["post_reaction_min_thermal_cells"] = 21
+        analysis_path.write_text(json.dumps(tail_analysis), encoding="utf-8")
+        with self.assertRaisesRegex(experiment.ExperimentError, "post_reaction_min"):
+            experiment.validate_telemetry(tail_dir, tail_manifest)
+
+    def test_fire_contact_sheet_caption_is_compact_and_direct(self) -> None:
+        item = {
+            "ordinal": 4,
+            "reason": "highest-observed-reaction-cells",
+            "sim_tick": 2,
+            "sample_sequence": 2,
+            "state_hash": "fnv1a64:0123456789abcdef",
+        }
+        sample = {
+            "scenario": "fire-heat",
+            "sample_sequence": 2,
+            "state_hash": "fnv1a64:0123456789abcdef",
+            "wood_count": 10000,
+            "oil_count": 1500,
+            "smoke_count": 10,
+            "ice_count": 2230,
+            "water_count": 1540,
+            "steam_count": 6,
+            "census": {"reaction_active_cells": 120, "thermal_active_cells": 250},
+        }
+        self.assertEqual(
+            experiment.contact_sheet_caption_lines(item, sample),
+            (
+                "#4 highest-observed-reaction-cells | sim 2 | sample 2",
+                "Reaction 120 | Thermal 250 | Wood 10000 | Oil 1500",
+                "Smoke 10 | Ice/Water/Steam 2230/1540/6",
+                "State fnv1a64:0123456789abcdef",
+            ),
+        )
+
+    def test_fire_packet_and_receipt_remain_create_new_and_receipt_last(self) -> None:
+        run_dir = self.create_valid_fire_worker_fixture("g8b-fire-heat-v0-packet-test")
+        publication_log: list[str] = []
+        receipt_path = experiment.postprocess_run(run_dir, publication_log)
+        self.assertEqual(publication_log[-1], "EXPERIMENT_RECEIPT.json")
+        report = json.loads((run_dir / "report" / "REPORT.json").read_text(encoding="utf-8"))
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["schema_version"], experiment.FIRE_REPORT_SCHEMA)
+        self.assertEqual(receipt["schema_version"], experiment.FIRE_RECEIPT_SCHEMA)
+        self.assertEqual(report["run_mode"], "candidate")
+        self.assertEqual(receipt["run_mode"], "candidate")
+        self.assertEqual(report["fire_heat"], receipt["fire_heat"])
+        self.assertEqual(report["fire_heat"]["peak_smoke_count"], 25)
+        self.assertTrue(report["scope"]["fire_heat"])
+        self.assertFalse(report["review_guidance"]["g8b_closed"])
+        prompt = (run_dir / "report" / "CHATGPT_REVIEW_PROMPT.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("was not sent to an AI", prompt)
+        self.assertIn("remaining Thermal tail is not itself a failure", prompt)
+        packet = run_dir / "report" / "REVIEW_PACKET.zip"
+        with zipfile.ZipFile(packet) as archive:
+            names = set(archive.namelist())
+        self.assertIn("report/CONTACT_SHEET.png", names)
+        self.assertIn("telemetry/samples.jsonl", names)
+        self.assertNotIn("EXPERIMENT_RECEIPT.json", names)
+        self.assertEqual(receipt["review_packet_sha256"], experiment.sha256_file(packet))
         with self.assertRaisesRegex(experiment.ExperimentError, "receipt"):
             experiment.postprocess_run(run_dir)
 

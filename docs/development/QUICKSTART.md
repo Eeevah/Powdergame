@@ -10,9 +10,10 @@ Read this first when entering the repo.
 - G7-B: PASS / CLOSED / FROZEN
 - G8: Performance Evidence (IN_PROGRESS; historical v4 remains unbound historical data)
 - G8-A: v5 official capture + independent verification complete / verified evidence candidate; same-SHA user visual validation pending
-- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2 first Water candidate SUPERSEDED / FIX REQUIRED and fixture remediation candidate pending; Scenario 3–5 remain pending; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
+- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenarios 1 Sand Fall and 2 Water Flow are user accepted; Water keeps automatic `NEEDS_HUMAN_REVIEW` with a known M0 liquid-surface follow-up; Scenario 3 Fire / Heat candidate is in progress; Scenario 4–5 remain pending; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
 - Sand Fall Experiment Harness v0: experiment source `9e1fdac`; pilot automatic **PASS**; Harness review output **APPROVED**; G8-B overall **NOT CLOSED**
-- Water Flow Harness: first v1 candidate preserved with automatic `NEEDS_HUMAN_REVIEW` and human fixture-representativeness finding; Water v2 remediation extends only outer walls and adds zero-leakage evidence; source seal, FULL checkpoint, smoke, one new candidate and verdict pending
+- Water Flow Harness: first v1 candidate remains immutable/superseded; source `5af031f` v2 remediation candidate keeps automatic `NEEDS_HUMAN_REVIEW` and is human `ACCEPTED WITH KNOWN FOLLOW-UP`
+- Fire / Heat Harness: unchanged shared fixture audited; scenario-specific worker/coordinator and one candidate are in progress; user acceptance pending
 - G8-C: official matrix measurement not started
 - Current G8-B work line after closure integration: `feature/m0-g8b-scenario-suite`; retained `feature/g8b-experiment-harness-v0` is aligned at the same later docs-only closure commit. Experiment provenance remains `9e1fdac`; `main` promotion and Gate closure require explicit user direction
 
@@ -45,7 +46,7 @@ The Gallery uses one shared scenario source with the headless harness and starts
 
 Gallery rendering, HUD, wall-clock TPS, and bounded activity-census readback are inspection diagnostics outside official timing. They are not G8-C performance evidence.
 
-Scenario 1 Sand Fall is user accepted. Complete settling followed by all chunks sleeping is its intended successful outcome; do not retune it to manufacture perpetual activity. Scenario 2 Water Flow remains not user accepted. Its first candidate is immutable/superseded after Water bypassed side walls that began below the reservoirs. The remediation raises only those wall tops from `y=90` to `y=14`; it does not change Water/Oil staging, internal geometry, production physics, or all-sleep policy. Scenario 3–5 remain pending and are outside this task.
+Scenario 1 Sand Fall is user accepted. Complete settling followed by all chunks sleeping is its intended successful outcome; do not retune it to manufacture perpetual activity. Scenario 2 Water Flow is user `ACCEPTED WITH KNOWN FOLLOW-UP`; its automatic `NEEDS_HUMAN_REVIEW` and immutable artifacts are unchanged. Scenario 3 Fire / Heat is the active candidate and keeps its fixture and production physics unchanged. Scenario 4–5 remain pending.
 
 ## Validated Sand Fall experiment pilot
 
@@ -55,25 +56,46 @@ The approved pilot used the following entry point from clean experiment source `
 run_experiment.bat sand-fall
 ```
 
-The recorded Sand command retains its v0 schema and immutable artifacts. The coordinator now dispatches only `sand-fall` or `water-flow` and writes each unique run beneath `C:\Users\mdkap\source\Powdergame-artifacts`. It refuses dirty/detached source and existing output paths. `EXPERIMENT_RECEIPT.json` is written last; its absence means the preserved run is incomplete and must not be repaired or reused.
+The recorded Sand command retains its v0 schema and immutable artifacts. The coordinator dispatches `sand-fall`, `water-flow`, or `fire-heat` and writes each unique run beneath `C:\Users\mdkap\source\Powdergame-artifacts`. It refuses dirty/detached source and existing output paths. `EXPERIMENT_RECEIPT.json` is written last; its absence means the preserved run is incomplete and must not be repaired or reused.
 
 The run records raw stdout/stderr, telemetry samples/events, worker analysis, 6–10 semantic RGBA frames, derived full/crop PNGs, reports, contact sheet, inert ChatGPT review prompt, review packet, and SHA-256 inventory outside Git. An automatic `PASS` means the seven hard Sand Fall predicates passed for that run; it does not close G8-B or establish Water Flow/G8-C evidence.
 
-The documented pilot completed as run `g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505`, with automatic verdict `PASS` and `HARNESS REVIEW OUTPUT APPROVED`. The later docs-only closure commit records the result but is not the experiment source. G8-B remains **NOT CLOSED**; Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World, and G8-C remain pending. See `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`.
+The documented pilot completed as run `g8b-sand-fall-v0-20260817T065311878587Z-3ebd7505`, with automatic verdict `PASS` and `HARNESS REVIEW OUTPUT APPROVED`. The later docs-only closure commit records the result but is not the experiment source. G8-B remains **NOT CLOSED**; Water Flow is separately accepted with a known follow-up, while Fire / Heat and later scenarios remain pending. See `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`.
 
 ## Water Flow Harness candidate
 
 The Water worker reuses pristine `ScenarioId::WaterFlow` staging and production ticks. At 256×256×64, the remediated tick 0 contains Water 15,244, Oil 2,240, Stone 8,104, Boundary Block 1,020, and Empty 38,928 cells. The destination observation mask remains the 6,216 tick-0 `EMPTY` cells inside `[18,238) × [200,230)`; it is diagnostic only. The outer-basin interior is `[18,238) × [14,230)`.
 
-The first candidate and its human classification are already immutable. After remediation FAST, the one required FULL checkpoint, and source seal, create one fresh candidate exactly once:
+The first candidate and its human classification are immutable. The sealed remediation candidate is also immutable and must not be rerun:
 
 ```bat
-run_experiment.bat water-flow
+rem Run ID: g8b-water-flow-v0-20260817T110906547252Z-8b808e66
 ```
 
 The default Water mode is `candidate`; scratch Run IDs contain `-scratch-`. Both modes use create-new directories, exact schema validation, hashes, and receipt-last publication. The preserved first candidate used Water v1. The remediation uses Water v2 with ten tri-state predicates: the previous nine plus `water_outside_outer_basin_cells`, which passes only when its maximum is zero. A stable plateau may terminate collection but remains `unknown` for `stable_bulk_before_max`, producing `NEEDS_HUMAN_REVIEW` rather than silently claiming `PASS`.
 
-Remediation FAST checks passed: workspace fmt/check; scenario library 7/7; shared GPU reset 1/1; bounded Water destination/conservation/leak/reset GPU test 1/1; Windows Sand/Water experiment 16/16; Python coordinator/analyzer 23/23. The single FULL workspace test/clippy/diff checkpoint and 60-frame RTX 5090/DX12 Gallery release smoke passed. Source SHA, new Run ID, artifact hashes and remediation verdict remain pending. The prior candidate remains immutable. See `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`.
+Remediation FAST checks, the single FULL checkpoint, and the 60-frame release smoke passed. Source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`, Run ID `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`, outer-basin maximum/final `0 / 0`, conservation/movement/cross/destination/integrity/reset pass, and final active partition `64 = 51 Water/EMPTY + 1 Water/Oil + 12 other` are recorded. The automatic verdict stays `NEEDS_HUMAN_REVIEW`; the human verdict is `ACCEPTED WITH KNOWN FOLLOW-UP`. See `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`.
+
+## Fire / Heat Harness candidate
+
+The unchanged 256×256×64 fixture contains finite Wood 10,926, Oil 1,610,
+Ice 2,240, and Water 1,536. It stages authored hot/combusting seeds but no
+scenario-specific outcome. Tick-0 flags are not accepted as production
+combustion evidence because 68 flagged cells overlap non-combustible Stone.
+
+After the clean source seal and the single post-seal checkpoint, the candidate
+entry point is:
+
+```bat
+run_experiment.bat fire-heat
+```
+
+The Fire analyzer separates reaction termination from its later thermal tail;
+it does not require whole-world all-sleep and does not fail merely because heat
+remains after reaction work ends. It records genuine post-tick Wood/Oil
+combustion, Smoke, heat propagation, phase inventory change, finite fuel use,
+reaction-zero, post-reaction restart/tail, field integrity, and exact reset.
+See `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`.
 
 ## Select a headless fixture
 

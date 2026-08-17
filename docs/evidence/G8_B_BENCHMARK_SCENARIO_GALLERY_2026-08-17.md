@@ -8,7 +8,7 @@
 - **Candidate source SHA**: assigned only after the implementation/documentation seal
 - **Water Harness base**: `b884abcfbab8e104bdf34e2e8d19635b157c1638`
 - **Water remediation base**: `d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268`
-- **Status**: Scenario 1 Sand Fall **USER ACCEPTED**; Scenario 2 first Water candidate **SUPERSEDED / FIX REQUIRED**, remediation candidate pending; Scenario 3–5 **UNACCEPTED**; G8-B overall **USER ACCEPTANCE PENDING / NOT CLOSED**
+- **Status**: Scenarios 1 Sand Fall and 2 Water Flow **USER ACCEPTED**; Water automatic `NEEDS_HUMAN_REVIEW` remains unchanged with a known follow-up; Scenario 3 Fire / Heat candidate in progress; Scenario 4–5 **UNACCEPTED**; G8-B overall **USER ACCEPTANCE PENDING / NOT CLOSED**
 - **G8-C official matrix**: not started
 
 This candidate implements deterministic workload construction, shared production-simulation staging, a Windows inspection Gallery, and headless scenario selection. It does not declare G8-B closed and does not contain official five-scenario performance results.
@@ -22,8 +22,8 @@ The change adds no production physics Rule, shader/pass-graph behavior, Material
 | Slot | CLI slug | Role | Acceptance | Intended workload |
 |---:|---|---|---|---|
 | 1 | `sand-fall` | Official G8-B | **USER ACCEPTED — 2026-08-17** | Dense Powder movement, collision, arbitration, shelves/funnels/catch basin |
-| 2 | `water-flow` | Official G8-B | UNACCEPTED | Liquid movement, density displacement, reservoir/channel/basin flow |
-| 3 | `fire-heat` | Official G8-B | UNACCEPTED | Thermal propagation, combustion, Smoke, hot/cold phase work |
+| 2 | `water-flow` | Official G8-B | **USER ACCEPTED WITH KNOWN FOLLOW-UP — 2026-08-17** | Liquid movement, density displacement, reservoir/channel/basin flow |
+| 3 | `fire-heat` | Official G8-B | CANDIDATE IN PROGRESS / NOT YET USER ACCEPTED | Thermal propagation, combustion, Smoke, hot/cold phase work |
 | 4 | `pressure-burst` | Official G8-B | UNACCEPTED | Steam expansion, Pressure diffusion, rupture/vent relief seam |
 | 5 | `heavy-mixed-world` | Official G8-B | UNACCEPTED | Simultaneous movement, density, heat, reaction, Pressure workload |
 | 6 | `active-sleep-g7` | G7 regression only | prior G7 regression; not G8-B acceptance | Frozen Activity/Sleep observatory geometry and exact edit-wake snapshot |
@@ -34,13 +34,13 @@ Slot 6 is not a sixth official G8-B matrix workload. It must use exactly 256×25
 
 The user accepted Sand Fall with complete settling and all chunks eventually entering sleep. That terminal state is the intended success signal: the workload demonstrates production Powder movement, collision/arbitration, convergence, and Active/Sleep behavior. Do not add a perpetual source, artificial wake, oscillation, or geometry/threshold retuning merely to keep the benchmark visibly active. Any future change to this accepted interpretation requires a new explicit user decision.
 
-Scenarios 2–5 remain unaccepted, so Scenario 1 approval does not close G8-B. The first Water candidate is preserved at Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`; automatic `NEEDS_HUMAN_REVIEW` was followed by human `FIX REQUIRED — fixture_representativeness_issue`. The correction is fixture-only and does not establish a production-physics defect. Fire / Heat, Pressure Burst, Heavy Mixed World and G8-C must not begin automatically.
+Scenarios 3–5 remain unaccepted, so approval of Scenarios 1–2 does not close G8-B. The first Water candidate is preserved at Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`; automatic `NEEDS_HUMAN_REVIEW` was followed by human `FIX REQUIRED — fixture_representativeness_issue`. The source `5af031f` remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66` keeps automatic `NEEDS_HUMAN_REVIEW` and is human `ACCEPTED WITH KNOWN FOLLOW-UP`. The correction is fixture-only and does not establish a production-physics defect. Fire / Heat is the active unchanged-fixture candidate; Pressure Burst, Heavy Mixed World and G8-C must not begin automatically.
 
 ### 2.2 Scenario 2 candidate boundary
 
 Water Flow uses a finite 256×256×64 tick-0 fixture. Direct review found that its outer walls started at `y=90`, below Water starting at `y=22` and `y=34`, allowing an exterior-bottom bypass. The remediation changes only the side walls from `[10,18) × [90,238)` / `[238,246) × [90,238)` to `[10,18) × [14,238)` / `[238,246) × [14,238)`. Water remains 15,244, Oil 2,240, Boundary Block 1,020, and the 6,216-cell destination mask remains unchanged; Stone becomes 8,104 and Empty 38,928. Internal channel, central geometry, basin floor, Water/Oil staging, shared reset, and production physics are unchanged.
 
-The new `run_experiment.bat water-flow` remediation candidate is generated exactly once with a fresh Run ID after the FULL checkpoint and source seal. The prior run remains immutable. Unique/create-new/no-overwrite storage, hashes, and final `EXPERIMENT_RECEIPT.json` publication remain unchanged. Water telemetry/analysis/report/receipt advance to v2 while manifest remains v1 and frames remain v0. The tenth hard predicate, `water_outside_outer_basin_cells`, requires a maximum of zero outside `[18,238) × [14,230)`. All-sleep and plateau verdict policy are unchanged.
+The `run_experiment.bat water-flow` remediation candidate was generated once with a fresh Run ID after the FULL checkpoint and source seal. Both Water runs remain immutable. Unique/create-new/no-overwrite storage, hashes, and final `EXPERIMENT_RECEIPT.json` publication remain unchanged. Water telemetry/analysis/report/receipt use v2 while manifest remains v1 and frames remain v0. The tenth hard predicate, `water_outside_outer_basin_cells`, requires a maximum of zero outside `[18,238) × [14,230)`. The accepted remediation observed max/final `0 / 0`; all-sleep and plateau verdict policy remain unchanged, and automatic `NEEDS_HUMAN_REVIEW` was not rewritten.
 
 ---
 
@@ -162,7 +162,7 @@ The following checks were reported during this implementation round:
 
 These are targeted implementation checks, not user acceptance and not G8-C measurement. No broad demo smoke matrix, long headless performance run, five-scenario official matrix, generated evidence capture, or external adversarial review was run for this candidate.
 
-Water remediation FAST checks passed: workspace fmt/check, scenarios library 7/7, shared all-six GPU reset 1/1, bounded Water destination/conservation/leak/reset GPU test 1/1, Windows Sand/Water experiment 16/16, and Python coordinator/analyzer 23/23. The single FULL workspace test/clippy/diff checkpoint and one 60-frame RTX 5090/DX12 Gallery release smoke also passed. Candidate source SHA, the one new candidate, artifact hashes, automatic verdict, and direct user review remain pending.
+Water remediation FAST checks passed: workspace fmt/check, scenarios library 7/7, shared all-six GPU reset 1/1, bounded Water destination/conservation/leak/reset GPU test 1/1, Windows Sand/Water experiment 16/16, and Python coordinator/analyzer 23/23. The single FULL workspace test/clippy/diff checkpoint and one 60-frame RTX 5090/DX12 Gallery release smoke also passed. Source `5af031f` candidate `g8b-water-flow-v0-20260817T110906547252Z-8b808e66` retained automatic `NEEDS_HUMAN_REVIEW` and received human `ACCEPTED WITH KNOWN FOLLOW-UP`; packet/receipt hashes remain recorded in the Water evidence document.
 
 ---
 
@@ -174,8 +174,8 @@ Before G8-B may be described as closed:
 2. preserve the accepted Scenario 1 settling/sleep contract without retuning;
 3. receive separate user acceptance or concrete findings for Scenario 2–5;
 4. confirm that the remaining slots have distinct, understandable workload identities and correct pristine reset/control behavior;
-5. preserve the superseded first Water candidate, publish exactly one clean-source fixture-remediation candidate with a fresh Run ID, receive direct user acceptance or findings, and record each remaining scenario decision.
+5. preserve both immutable Water candidates and record each remaining scenario decision without rewriting their automatic verdicts.
 
 G8-C remains separate. It must establish the official repeated performance matrix, production throughput, profiled GPU timing, rendering cost, simulation/render coexistence, provenance, and bottleneck decision without treating Gallery diagnostics as timed evidence.
 
-**Current result: IMPLEMENTATION CANDIDATE — SCENARIO 1 USER ACCEPTED; SCENARIO 2 FIRST WATER CANDIDATE SUPERSEDED / FIXTURE REMEDIATION CANDIDATE PENDING; SCENARIO 3–5 UNACCEPTED; G8-B OVERALL NOT CLOSED.**
+**Current result: IMPLEMENTATION CANDIDATE — SCENARIOS 1–2 USER ACCEPTED; WATER AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED / KNOWN FOLLOW-UP; SCENARIO 3 FIRE / HEAT CANDIDATE IN PROGRESS; SCENARIO 4–5 UNACCEPTED; G8-B OVERALL NOT CLOSED.**

@@ -499,7 +499,7 @@ Activity reason census의 Matter / Thermal / Pressure / Reaction category는 서
 
 ## 19. Benchmark Scenarios
 
-M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 shared deterministic fixture, Windows inspection Gallery, headless `--scenario` selection까지 구현 candidate가 존재한다. Scenario 1 Sand Fall은 사용자 승인되었고 Scenario 2~5는 **PENDING / NOT YET USER ACCEPTED**다. G8-B 전체 상태는 **USER ACCEPTANCE PENDING / NOT CLOSED**이며, 아직 G8-C official matrix 결과가 아니다.
+M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 shared deterministic fixture, Windows inspection Gallery, headless `--scenario` selection까지 구현 candidate가 존재한다. Scenario 1 Sand Fall과 Scenario 2 Water Flow는 사용자 승인되었고, Water의 automatic `NEEDS_HUMAN_REVIEW`는 알려진 M0 liquid free-surface 후속 과제와 함께 그대로 유지된다. Scenario 3 Fire / Heat candidate가 진행 중이며 Scenario 4~5는 **PENDING / NOT YET USER ACCEPTED**다. G8-B 전체 상태는 **USER ACCEPTANCE PENDING / NOT CLOSED**이며, 아직 G8-C official matrix 결과가 아니다.
 
 ### Sand Fall
 
@@ -512,14 +512,14 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - Liquid movement
 - density displacement
 - stable bulk
-- **FIRST CANDIDATE SUPERSEDED / FIXTURE REMEDIATION CANDIDATE / NOT YET USER ACCEPTED**: first candidate는 immutable이며, base `d12edbf`에서 side-wall top만 수정하고 production physics와 Water/Oil/internal geometry를 보존한 fresh candidate를 준비한다.
+- **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-17)**: first candidate는 immutable/superseded다. Source `5af031f` remediation run은 automatic `NEEDS_HUMAN_REVIEW`를 유지하며, outer-basin Water `0 / 0`, conservation/movement/destination/reset을 기록했다. 알려진 후속 과제는 M0 local-liquid free-surface 소수 셀의 지속 재배열이며 production-physics defect 증거는 없다.
 
 ### Fire / Heat
 
 - Thermal propagation
 - combustion
 - Smoke
-- **PENDING / NOT YET USER ACCEPTED**
+- **HARNESS CANDIDATE IN PROGRESS / NOT YET USER ACCEPTED**: unchanged finite fixture와 production physics에서 combustion, Smoke, phase inventory, reaction termination, separate Thermal tail, exact reset을 관찰한다.
 
 ### Pressure Burst
 
@@ -577,13 +577,17 @@ Automatic `PASS`는 actual fall, Matter conservation, zero invalid Material, zer
 
 Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic `PASS`, Harness review output `APPROVED`로 검증되었다. 이는 performance benchmark나 G8-C evidence가 아니며, 이후 docs-only closure commit과 experiment source provenance를 구분한다. 전체 lifecycle, 수치, artifact hash, review 경계는 `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`를 따른다.
 
-#### Water Flow v2 fixture-remediation candidate
+#### Water Flow v2 accepted remediation evidence
 
-Water Flow는 같은 coordinator/provenance/screenshot/report/contact-sheet/hash/receipt-last 기반 위에 scenario-specific analyzer만 분리한다. 첫 candidate `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`는 immutable/superseded이며 automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`를 기록했다. Remediation은 좌우 외벽 시작만 `y=90 → 14`로 올리고 Water/Oil·내부 channel·production physics를 보존한다. 새 `run_experiment.bat water-flow` candidate는 clean source seal과 FULL checkpoint 뒤 fresh Run ID로 정확히 한 번 생성한다. unique Run ID, create-new/no-overwrite, failed-run preservation, receipt-last 정책을 유지하며 generated artifact는 Git 밖에 둔다.
+Water Flow는 같은 coordinator/provenance/screenshot/report/contact-sheet/hash/receipt-last 기반 위에 scenario-specific analyzer만 분리한다. 첫 candidate `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`는 immutable/superseded이며 automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`를 기록했다. Remediation은 좌우 외벽 시작만 `y=90 → 14`로 올리고 Water/Oil·내부 channel·production physics를 보존했다. Source `5af031f`의 run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. unique Run ID, create-new/no-overwrite, failed-run preservation, receipt-last 정책을 유지하며 generated artifact는 Git 밖에 둔다.
 
 Remediation telemetry/analysis/report/receipt는 `powdergame-experiment-*-v2`를 사용하고 manifest v1과 shared frame manifest v0를 유지한다. 기존 아홉 predicate에 `water_outside_outer_basin_cells`를 추가한다. 이 predicate는 `[18,238) × [14,230)` 밖의 Water가 모든 non-reset sample에서 0일 때만 pass한다. 모든 열 개 status가 pass일 때만 `PASS`, 하나라도 fail이면 `FAIL`, unknown이 남으면 `NEEDS_HUMAN_REVIEW`다. Eight-sample stable plateau는 terminal observation이 될 수 있지만 finite fixture의 all-sleep proof를 대신해 `stable_bulk_before_max`를 pass로 만들지 않는다. all-sleep 실패 시 마지막 active cell은 cardinal 4-neighbor 기준 Water/Oil interface, Water/EMPTY surface, other로 분류하며 정책 완화에는 사용하지 않는다.
 
-256×256×64의 remediated tick-0 census는 Water 15,244 / Oil 2,240 / Stone 8,104 / Boundary Block 1,020 / Empty 38,928이다. destination은 `[18,238) × [200,230)` 안의 tick-0 EMPTY 6,216-cell mask이며 staging outcome이 아니라 observation region이다. FAST 기록은 workspace fmt/check PASS, scenarios 7/7, shared GPU reset 1/1, bounded Water GPU 1/1, Windows Sand/Water experiment 16/16, Python 23/23다. Single FULL workspace test/clippy/diff checkpoint와 60-frame RTX 5090/DX12 Gallery release smoke도 PASS다. Candidate source SHA, one fresh candidate와 verdict는 pending이며 Water는 아직 사용자 승인되지 않았다.
+256×256×64의 remediated tick-0 census는 Water 15,244 / Oil 2,240 / Stone 8,104 / Boundary Block 1,020 / Empty 38,928이다. destination은 `[18,238) × [200,230)` 안의 tick-0 EMPTY 6,216-cell mask이며 staging outcome이 아니라 observation region이다. FAST 기록은 workspace fmt/check PASS, scenarios 7/7, shared GPU reset 1/1, bounded Water GPU 1/1, Windows Sand/Water experiment 16/16, Python 23/23다. Single FULL workspace test/clippy/diff checkpoint와 60-frame RTX 5090/DX12 Gallery release smoke도 PASS다. Candidate source SHA는 `5af031f1a04af866127616d4f1b0faa6c85e4d8e`; human acceptance는 automatic verdict를 소급 변경하지 않으며 G8-B를 닫지 않는다.
+
+#### Fire / Heat Harness candidate
+
+Fire / Heat는 같은 coordinator와 receipt-last artifact 구조를 재사용하지만 Sand/Water 판정으로 fall through하지 않는 별도 analyzer를 사용한다. Tick 0의 authored combustion flags에는 Wood 544, Oil 272뿐 아니라 hot-seed/Stone-column overlap 68 cells가 포함되므로 production tick 이후 Wood와 Oil의 flame/fuel-progress signal을 모두 관찰해야 genuine combustion으로 기록한다. Whole-world all-sleep은 요구하지 않는다. Reaction zero를 세 diagnostic sample로 확인한 뒤 180 production ticks의 Thermal tail을 별도로 기록하며, tail이 남아 있다는 사실만으로 실패시키지 않는다. Fire candidate의 exact fixture, lifecycle, predicates, artifact 경계는 `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`를 따른다.
 
 ---
 

@@ -57,8 +57,8 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
 use experiment::{
-    run_sand_fall_experiment, run_water_flow_experiment, ExperimentWorkerConfig, EXPERIMENT_ID,
-    WATER_EXPERIMENT_ID,
+    run_fire_heat_experiment, run_sand_fall_experiment, run_water_flow_experiment,
+    ExperimentWorkerConfig, EXPERIMENT_ID, FIRE_EXPERIMENT_ID, WATER_EXPERIMENT_ID,
 };
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
@@ -495,7 +495,7 @@ impl App {
 
         if let Some(config) = self.experiment.as_ref() {
             let provenance = RuntimeProvenance::from_build();
-            if config.scenario == ScenarioId::WaterFlow {
+            if config.scenario != ScenarioId::SandFall {
                 println!(
                     "[powdergame][experiment] starting experiment_id={} scenario={} run_id={} source_sha={} git_state={} build_profile={}",
                     config.experiment_id,
@@ -523,22 +523,38 @@ impl App {
                 ScenarioId::WaterFlow => {
                     run_water_flow_experiment(&mut simulation, &mut renderer, &provenance, config)
                 }
+                ScenarioId::FireHeat => {
+                    run_fire_heat_experiment(&mut simulation, &mut renderer, &provenance, config)
+                }
                 scenario => Err(format!("no experiment worker is registered for {scenario}")),
             }
             .map_err(|error| GpuError::Other(format!("experiment worker failed: {error}")))?;
-            println!(
-                "[powdergame][experiment] completed run_id={} verdict={} samples={} raw_frames={} first_all_sleep_sim_tick={} first_all_sleep_diagnostic_sample_tick={}",
-                outcome.run_id,
-                outcome.verdict.as_str(),
-                outcome.sample_count,
-                outcome.raw_frame_count,
-                outcome
-                    .first_all_sleep_sim_tick
-                    .map_or_else(|| "null".to_string(), |value| value.to_string()),
-                outcome
-                    .first_all_sleep_sample_sequence
-                    .map_or_else(|| "null".to_string(), |value| value.to_string())
-            );
+            if config.scenario == ScenarioId::FireHeat {
+                println!(
+                    "[powdergame][experiment] completed run_id={} scenario=fire-heat verdict={} samples={} raw_frames={} post_reaction_end_tick={}",
+                    outcome.run_id,
+                    outcome.verdict.as_str(),
+                    outcome.sample_count,
+                    outcome.raw_frame_count,
+                    outcome
+                        .post_sleep_end_tick
+                        .map_or_else(|| "null".to_string(), |value| value.to_string())
+                );
+            } else {
+                println!(
+                    "[powdergame][experiment] completed run_id={} verdict={} samples={} raw_frames={} first_all_sleep_sim_tick={} first_all_sleep_diagnostic_sample_tick={}",
+                    outcome.run_id,
+                    outcome.verdict.as_str(),
+                    outcome.sample_count,
+                    outcome.raw_frame_count,
+                    outcome
+                        .first_all_sleep_sim_tick
+                        .map_or_else(|| "null".to_string(), |value| value.to_string()),
+                    outcome
+                        .first_all_sleep_sample_sequence
+                        .map_or_else(|| "null".to_string(), |value| value.to_string())
+                );
+            }
             self.window = Some(window);
             self.simulation = Some(simulation);
             self.renderer = Some(renderer);
@@ -2049,12 +2065,15 @@ where
                 | "--diagnostic-interval"
                 | "--consecutive-all-sleep"
                 | "--post-sleep-ticks"
+                | "--consecutive-reaction-zero"
+                | "--post-reaction-ticks"
         )
     });
     if !worker_requested {
         if experiment_option_present {
             return Err(
-                "experiment options require '--experiment-worker sand-fall|water-flow'".to_string(),
+                "experiment options require '--experiment-worker sand-fall|water-flow|fire-heat'"
+                    .to_string(),
             );
         }
         return Ok(None);
@@ -2068,6 +2087,8 @@ where
     let mut diagnostic_interval_ticks = None;
     let mut consecutive_all_sleep = None;
     let mut post_sleep_ticks = None;
+    let mut consecutive_reaction_zero = None;
+    let mut post_reaction_ticks = None;
     let mut index = 0usize;
     while index < args.len() {
         let option = &args[index];
@@ -2089,9 +2110,10 @@ where
                 scenario = Some(match selected.as_str() {
                     "sand-fall" => ScenarioId::SandFall,
                     "water-flow" => ScenarioId::WaterFlow,
+                    "fire-heat" => ScenarioId::FireHeat,
                     _ => {
                         return Err(format!(
-                            "experiment worker supports only 'sand-fall' or 'water-flow', got '{selected}'"
+                            "experiment worker supports only 'sand-fall', 'water-flow', or 'fire-heat', got '{selected}'"
                         ));
                     }
                 });
@@ -2153,6 +2175,25 @@ where
                         .map_err(|error| format!("invalid --post-sleep-ticks '{raw}': {error}"))?,
                 );
             }
+            "--consecutive-reaction-zero" => {
+                if consecutive_reaction_zero.is_some() {
+                    return Err("duplicate --consecutive-reaction-zero".to_string());
+                }
+                let raw = value(&mut index)?;
+                consecutive_reaction_zero = Some(raw.parse::<u32>().map_err(|error| {
+                    format!("invalid --consecutive-reaction-zero '{raw}': {error}")
+                })?);
+            }
+            "--post-reaction-ticks" => {
+                if post_reaction_ticks.is_some() {
+                    return Err("duplicate --post-reaction-ticks".to_string());
+                }
+                let raw = value(&mut index)?;
+                post_reaction_ticks =
+                    Some(raw.parse::<u32>().map_err(|error| {
+                        format!("invalid --post-reaction-ticks '{raw}': {error}")
+                    })?);
+            }
             _ => {
                 return Err(format!("unknown experiment worker argument '{option}'"));
             }
@@ -2163,8 +2204,44 @@ where
     let experiment_id = match scenario {
         ScenarioId::SandFall => EXPERIMENT_ID,
         ScenarioId::WaterFlow => WATER_EXPERIMENT_ID,
-        _ => unreachable!("worker parser accepts only Sand Fall and Water Flow"),
+        ScenarioId::FireHeat => FIRE_EXPERIMENT_ID,
+        _ => unreachable!("worker parser accepts only Sand Fall, Water Flow, and Fire / Heat"),
     };
+    let (consecutive_all_sleep, post_sleep_ticks, consecutive_reaction_zero, post_reaction_ticks) =
+        match scenario {
+            ScenarioId::SandFall | ScenarioId::WaterFlow => {
+                if consecutive_reaction_zero.is_some() || post_reaction_ticks.is_some() {
+                    return Err(
+                        "--consecutive-reaction-zero and --post-reaction-ticks are Fire / Heat-only"
+                            .to_string(),
+                    );
+                }
+                (
+                    consecutive_all_sleep
+                        .ok_or_else(|| "missing --consecutive-all-sleep".to_string())?,
+                    post_sleep_ticks.ok_or_else(|| "missing --post-sleep-ticks".to_string())?,
+                    0,
+                    0,
+                )
+            }
+            ScenarioId::FireHeat => {
+                if consecutive_all_sleep.is_some() || post_sleep_ticks.is_some() {
+                    return Err(
+                        "--consecutive-all-sleep and --post-sleep-ticks are Sand/Water-only"
+                            .to_string(),
+                    );
+                }
+                (
+                    0,
+                    0,
+                    consecutive_reaction_zero
+                        .ok_or_else(|| "missing --consecutive-reaction-zero".to_string())?,
+                    post_reaction_ticks
+                        .ok_or_else(|| "missing --post-reaction-ticks".to_string())?,
+                )
+            }
+            _ => unreachable!("worker parser accepts three scenarios"),
+        };
     Ok(Some(ExperimentWorkerConfig {
         experiment_id: experiment_id.to_string(),
         run_id: run_id.ok_or_else(|| "missing --experiment-run-id".to_string())?,
@@ -2174,10 +2251,10 @@ where
         max_ticks: max_ticks.ok_or_else(|| "missing --max-ticks".to_string())?,
         diagnostic_interval_ticks: diagnostic_interval_ticks
             .ok_or_else(|| "missing --diagnostic-interval".to_string())?,
-        consecutive_all_sleep: consecutive_all_sleep
-            .ok_or_else(|| "missing --consecutive-all-sleep".to_string())?,
-        post_sleep_ticks: post_sleep_ticks
-            .ok_or_else(|| "missing --post-sleep-ticks".to_string())?,
+        consecutive_all_sleep,
+        post_sleep_ticks,
+        consecutive_reaction_zero,
+        post_reaction_ticks,
     }))
 }
 
@@ -2290,6 +2367,8 @@ mod tests {
         assert_eq!(parsed.diagnostic_interval_ticks, 8);
         assert_eq!(parsed.consecutive_all_sleep, 3);
         assert_eq!(parsed.post_sleep_ticks, 180);
+        assert_eq!(parsed.consecutive_reaction_zero, 0);
+        assert_eq!(parsed.post_reaction_ticks, 0);
     }
 
     #[test]
@@ -2317,15 +2396,54 @@ mod tests {
         assert_eq!(parsed.experiment_id, "g8b-water-flow-v0");
         assert_eq!(parsed.scenario, ScenarioId::WaterFlow);
         assert_eq!(parsed.run_id, "g8b-water-flow-v0-test");
+        assert_eq!(parsed.consecutive_reaction_zero, 0);
+        assert_eq!(parsed.post_reaction_ticks, 0);
+    }
+
+    #[test]
+    fn experiment_worker_cli_selects_fire_specific_lifecycle() {
+        let parsed = experiment_worker_from_args([
+            "--experiment-worker",
+            "fire-heat",
+            "--experiment-run-dir",
+            r"C:\outside\fire-run",
+            "--experiment-run-id",
+            "g8b-fire-heat-v0-test",
+            "--binary-sha256",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--max-ticks",
+            "20000",
+            "--diagnostic-interval",
+            "8",
+            "--consecutive-reaction-zero",
+            "3",
+            "--post-reaction-ticks",
+            "180",
+        ])
+        .expect("valid Fire worker arguments")
+        .expect("Fire worker selected");
+        assert_eq!(parsed.experiment_id, "g8b-fire-heat-v0");
+        assert_eq!(parsed.scenario, ScenarioId::FireHeat);
+        assert_eq!(parsed.consecutive_all_sleep, 0);
+        assert_eq!(parsed.post_sleep_ticks, 0);
+        assert_eq!(parsed.consecutive_reaction_zero, 3);
+        assert_eq!(parsed.post_reaction_ticks, 180);
     }
 
     #[test]
     fn experiment_worker_cli_rejects_missing_unknown_and_unsupported_modes() {
         assert!(experiment_worker_from_args(["--experiment-run-id", "orphan"]).is_err());
-        assert!(experiment_worker_from_args(["--experiment-worker", "fire-heat"]).is_err());
+        assert!(experiment_worker_from_args(["--experiment-worker", "pressure-burst"]).is_err());
         assert!(
             experiment_worker_from_args(["--experiment-worker", "sand-fall", "--unknown"]).is_err()
         );
+        assert!(experiment_worker_from_args([
+            "--experiment-worker",
+            "fire-heat",
+            "--consecutive-all-sleep",
+            "3"
+        ])
+        .is_err());
         assert!(experiment_worker_from_args(["--benchmark-gallery"])
             .expect("non-worker arguments are unchanged")
             .is_none());

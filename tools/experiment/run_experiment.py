@@ -39,6 +39,12 @@ WATER_TELEMETRY_SCHEMA = "powdergame-experiment-telemetry-v2"
 WATER_REPORT_SCHEMA = "powdergame-experiment-report-v2"
 WATER_RECEIPT_SCHEMA = "powdergame-experiment-receipt-v2"
 
+FIRE_MANIFEST_SCHEMA = "powdergame-fire-heat-manifest-v0"
+FIRE_ANALYSIS_SCHEMA = "powdergame-fire-heat-analysis-v0"
+FIRE_TELEMETRY_SCHEMA = "powdergame-fire-heat-telemetry-v0"
+FIRE_REPORT_SCHEMA = "powdergame-fire-heat-report-v0"
+FIRE_RECEIPT_SCHEMA = "powdergame-fire-heat-receipt-v0"
+
 WORLD_WIDTH = 256
 WORLD_HEIGHT = 256
 CHUNK_SIZE = 64
@@ -47,6 +53,8 @@ DIAGNOSTIC_INTERVAL = 8
 CONSECUTIVE_ALL_SLEEP = 3
 CONSECUTIVE_STABLE_PLATEAU = 8
 POST_SLEEP_TICKS = 180
+CONSECUTIVE_REACTION_ZERO = 3
+POST_REACTION_TICKS = 180
 
 RENDERER_WIDTH = 1_600
 RENDERER_HEIGHT = 900
@@ -77,6 +85,21 @@ WATER_PREDICATE_NAMES = frozenset({
     "post_settle_stable",
     "exact_reset",
     "water_outside_outer_basin_cells",
+})
+FIRE_ALLOWED_VERDICTS = frozenset({"PASS", "FAIL", "NEEDS_HUMAN_REVIEW"})
+FIRE_PREDICATE_NAMES = frozenset({
+    "combustion_observed",
+    "smoke_generated",
+    "heat_propagated",
+    "phase_work_observed",
+    "fuel_consumed",
+    "reaction_terminated_before_max",
+    "post_reaction_no_restart",
+    "thermal_tail_observed",
+    "thermal_tail_decreased",
+    "no_invalid_materials",
+    "no_nonfinite_fields",
+    "exact_reset",
 })
 WATER_ACTIVE_CLASSIFICATION_RULE = (
     "cardinal-4-in-bounds;water-oil-first;water-empty-second;other-remainder"
@@ -137,6 +160,23 @@ WATER_FRAME_KINDS = frozenset(
         "late",
         "terminal",
         "post-settle",
+        "reset",
+        "diagnostic-observation",
+    }
+)
+FIRE_FRAME_KINDS = frozenset(
+    {
+        "tick0",
+        "tick1",
+        "first-combustion",
+        "first-smoke",
+        "peak-reaction",
+        "peak-thermal",
+        "first-phase-transition",
+        "fuel-substantially-consumed",
+        "reaction-zero",
+        "post-reaction-tail",
+        "terminal",
         "reset",
         "diagnostic-observation",
     }
@@ -235,9 +275,25 @@ WATER_CONTRACT = ScenarioContract(
     title="Water Flow",
     records_run_mode=True,
 )
+FIRE_CONTRACT = ScenarioContract(
+    scenario="fire-heat",
+    experiment_id="g8b-fire-heat-v0",
+    manifest_schema=FIRE_MANIFEST_SCHEMA,
+    telemetry_schema=FIRE_TELEMETRY_SCHEMA,
+    analysis_schema=FIRE_ANALYSIS_SCHEMA,
+    frames_schema=FRAMES_SCHEMA,
+    report_schema=FIRE_REPORT_SCHEMA,
+    receipt_schema=FIRE_RECEIPT_SCHEMA,
+    predicate_names=FIRE_PREDICATE_NAMES,
+    allowed_verdicts=FIRE_ALLOWED_VERDICTS,
+    needs_human_verdict="NEEDS_HUMAN_REVIEW",
+    title="Fire / Heat",
+    records_run_mode=True,
+)
 SCENARIO_CONTRACTS = {
     SAND_CONTRACT.scenario: SAND_CONTRACT,
     WATER_CONTRACT.scenario: WATER_CONTRACT,
+    FIRE_CONTRACT.scenario: FIRE_CONTRACT,
 }
 RUN_MODES = frozenset({"candidate", "scratch"})
 WATER_FINDING_CLASSIFICATIONS = (
@@ -324,12 +380,20 @@ class ManifestData:
 
     def as_dict(self) -> dict[str, Any]:
         validate_run_mode(self.contract, self.run_mode)
-        experiment = {
-            "max_ticks": MAX_TICKS,
-            "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
-            "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
-            "post_sleep_ticks": POST_SLEEP_TICKS,
-        }
+        if self.contract is FIRE_CONTRACT:
+            experiment = {
+                "max_ticks": MAX_TICKS,
+                "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+                "consecutive_reaction_zero": CONSECUTIVE_REACTION_ZERO,
+                "post_reaction_ticks": POST_REACTION_TICKS,
+            }
+        else:
+            experiment = {
+                "max_ticks": MAX_TICKS,
+                "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+                "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
+                "post_sleep_ticks": POST_SLEEP_TICKS,
+            }
         if self.contract is WATER_CONTRACT:
             experiment["stable_plateau_consecutive_samples"] = (
                 CONSECUTIVE_STABLE_PLATEAU
@@ -584,6 +648,13 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
     if created.tzinfo is None or created.utcoffset() != timezone.utc.utcoffset(created):
         raise ExperimentError("manifest created_utc must identify UTC")
     expected_sections = {name: set(keys) for name, keys in MANIFEST_SECTION_KEYS.items()}
+    if contract is FIRE_CONTRACT:
+        expected_sections["experiment"] = {
+            "max_ticks",
+            "diagnostic_interval_ticks",
+            "consecutive_reaction_zero",
+            "post_reaction_ticks",
+        }
     if contract is WATER_CONTRACT:
         expected_sections["experiment"].add("stable_plateau_consecutive_samples")
     for section, expected in expected_sections.items():
@@ -614,12 +685,21 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
         "chunk_size": CHUNK_SIZE,
     }:
         raise ExperimentError("manifest world must be exactly 256x256 with chunk size 64")
-    expected_experiment = {
-        "max_ticks": MAX_TICKS,
-        "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
-        "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
-        "post_sleep_ticks": POST_SLEEP_TICKS,
-    }
+    expected_experiment = (
+        {
+            "max_ticks": MAX_TICKS,
+            "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+            "consecutive_reaction_zero": CONSECUTIVE_REACTION_ZERO,
+            "post_reaction_ticks": POST_REACTION_TICKS,
+        }
+        if contract is FIRE_CONTRACT
+        else {
+            "max_ticks": MAX_TICKS,
+            "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+            "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
+            "post_sleep_ticks": POST_SLEEP_TICKS,
+        }
+    )
     if contract is WATER_CONTRACT:
         expected_experiment["stable_plateau_consecutive_samples"] = (
             CONSECUTIVE_STABLE_PLATEAU
@@ -1162,12 +1242,248 @@ def validate_water_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) 
         raise ExperimentError("Water analysis raw_frame_count must be between 8 and 12")
 
 
+def validate_fire_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
+    expected_keys = {
+        "schema_version",
+        "experiment_id",
+        "run_id",
+        "scenario",
+        "binary_sha256",
+        "provenance",
+        "world",
+        "sleep",
+        "lifecycle",
+        "baseline",
+        "metrics",
+        "predicates",
+        "verdict",
+        "raw_frame_count",
+    }
+    require_exact_keys(analysis, expected_keys, "Fire analysis")
+    for key in ("experiment_id", "run_id", "scenario", "binary_sha256"):
+        expected = manifest["binary"]["sha256"] if key == "binary_sha256" else manifest[key]
+        if analysis[key] != expected:
+            raise ExperimentError(f"Fire analysis {key} does not match manifest")
+    if analysis["schema_version"] != FIRE_CONTRACT.analysis_schema:
+        raise ExperimentError("Fire analysis schema_version mismatch")
+    provenance = analysis["provenance"]
+    if not isinstance(provenance, dict):
+        raise ExperimentError("Fire analysis provenance must be an object")
+    require_exact_keys(
+        provenance, {"source_sha", "git_state", "build_profile"}, "Fire analysis provenance"
+    )
+    if provenance != {
+        "source_sha": manifest["source"]["sha"],
+        "git_state": "clean",
+        "build_profile": "release",
+    }:
+        raise ExperimentError("Fire analysis provenance mismatch")
+    if analysis["world"] != manifest["world"]:
+        raise ExperimentError("Fire analysis world does not match manifest")
+    sleep = analysis["sleep"]
+    if not isinstance(sleep, dict):
+        raise ExperimentError("Fire analysis sleep must be an object")
+    require_exact_keys(sleep, {"enabled", "threshold"}, "Fire analysis sleep")
+    if not isinstance(sleep["enabled"], bool):
+        raise ExperimentError("Fire analysis sleep enabled must be boolean")
+    require_nonnegative_int(sleep["threshold"], "Fire analysis sleep threshold")
+
+    lifecycle = analysis["lifecycle"]
+    lifecycle_keys = {
+        "max_ticks",
+        "diagnostic_interval_ticks",
+        "consecutive_reaction_zero_samples",
+        "post_reaction_confirmation_ticks",
+        "terminal_reason",
+        "first_reaction_zero_sim_tick",
+        "first_reaction_zero_sample_sequence",
+        "confirmed_reaction_zero_sim_tick",
+        "confirmed_reaction_zero_sample_sequence",
+        "post_reaction_end_tick",
+        "post_reaction_restart_samples",
+        "sample_count",
+    }
+    if not isinstance(lifecycle, dict):
+        raise ExperimentError("Fire analysis lifecycle must be an object")
+    require_exact_keys(lifecycle, lifecycle_keys, "Fire analysis lifecycle")
+    expected_lifecycle = {
+        "max_ticks": MAX_TICKS,
+        "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+        "consecutive_reaction_zero_samples": CONSECUTIVE_REACTION_ZERO,
+        "post_reaction_confirmation_ticks": POST_REACTION_TICKS,
+    }
+    for key, expected in expected_lifecycle.items():
+        if lifecycle[key] != expected:
+            raise ExperimentError(f"Fire analysis lifecycle {key} mismatch")
+    if lifecycle["terminal_reason"] not in {"reaction-zero", "max-ticks"}:
+        raise ExperimentError("Fire analysis terminal_reason is invalid")
+    require_optional_identity_pair(
+        lifecycle["first_reaction_zero_sim_tick"],
+        lifecycle["first_reaction_zero_sample_sequence"],
+        "Fire analysis first reaction-zero",
+    )
+    require_optional_identity_pair(
+        lifecycle["confirmed_reaction_zero_sim_tick"],
+        lifecycle["confirmed_reaction_zero_sample_sequence"],
+        "Fire analysis confirmed reaction-zero",
+    )
+    require_optional_nonnegative_int(
+        lifecycle["post_reaction_end_tick"], "Fire analysis post_reaction_end_tick"
+    )
+    require_nonnegative_int(
+        lifecycle["post_reaction_restart_samples"],
+        "Fire analysis post_reaction_restart_samples",
+    )
+    require_nonnegative_int(lifecycle["sample_count"], "Fire analysis sample_count")
+
+    baseline = analysis["baseline"]
+    baseline_keys = {
+        "matter_count",
+        "wood_count",
+        "oil_count",
+        "smoke_count",
+        "ice_count",
+        "water_count",
+        "steam_count",
+        "fuel_count",
+        "wood_fuel_progress_sum",
+        "oil_fuel_progress_sum",
+        "substantial_fuel_consumption_threshold",
+        "substantial_fuel_remaining_threshold",
+    }
+    if not isinstance(baseline, dict):
+        raise ExperimentError("Fire analysis baseline must be an object")
+    require_exact_keys(baseline, baseline_keys, "Fire analysis baseline")
+    for key, value in baseline.items():
+        require_nonnegative_int(value, f"Fire analysis baseline {key}")
+
+    metrics = analysis["metrics"]
+    metrics_keys = {
+        "first_combustion_tick",
+        "first_combustion_sample_sequence",
+        "first_smoke_tick",
+        "first_smoke_sample_sequence",
+        "first_phase_transition_tick",
+        "first_phase_transition_sample_sequence",
+        "fuel_substantially_consumed_tick",
+        "fuel_substantially_consumed_sample_sequence",
+        "peak_reaction_cells",
+        "peak_reaction_tick",
+        "peak_reaction_sample_sequence",
+        "peak_thermal_cells",
+        "peak_thermal_tick",
+        "peak_thermal_sample_sequence",
+        "peak_smoke_count",
+        "peak_smoke_tick",
+        "peak_smoke_sample_sequence",
+        "max_heat_propagated_cells",
+        "reaction_zero_tick",
+        "confirmed_reaction_zero_tick",
+        "post_reaction_thermal_cells",
+        "post_reaction_final_thermal_cells",
+        "post_reaction_min_thermal_cells",
+        "post_reaction_thermal_decrease",
+        "post_reaction_reaction_restart_ticks",
+        "post_reaction_restart_samples",
+        "final_matter_count",
+        "final_wood_count",
+        "final_oil_count",
+        "final_smoke_count",
+        "final_ice_count",
+        "final_water_count",
+        "final_steam_count",
+        "wood_count_delta",
+        "oil_count_delta",
+        "fuel_count_delta",
+        "fuel_consumed",
+        "invalid_material_occurrences",
+        "nonfinite_field_occurrences",
+        "reset_exact_equivalence",
+    }
+    if not isinstance(metrics, dict):
+        raise ExperimentError("Fire analysis metrics must be an object")
+    require_exact_keys(metrics, metrics_keys, "Fire analysis metrics")
+    for prefix in (
+        "first_combustion",
+        "first_smoke",
+        "first_phase_transition",
+        "fuel_substantially_consumed",
+    ):
+        require_optional_identity_pair(
+            metrics[f"{prefix}_tick"],
+            metrics[f"{prefix}_sample_sequence"],
+            f"Fire analysis metrics {prefix}",
+        )
+    for prefix in ("peak_reaction", "peak_thermal"):
+        require_nonnegative_int(metrics[f"{prefix}_cells"], f"Fire analysis {prefix}_cells")
+        require_optional_identity_pair(
+            metrics[f"{prefix}_tick"],
+            metrics[f"{prefix}_sample_sequence"],
+            f"Fire analysis {prefix}",
+        )
+    require_nonnegative_int(metrics["peak_smoke_count"], "Fire analysis peak_smoke_count")
+    require_nonnegative_int(metrics["peak_smoke_tick"], "Fire analysis peak_smoke_tick")
+    require_nonnegative_int(
+        metrics["peak_smoke_sample_sequence"],
+        "Fire analysis peak_smoke_sample_sequence",
+    )
+    for key in (
+        "max_heat_propagated_cells",
+        "post_reaction_thermal_cells",
+        "post_reaction_final_thermal_cells",
+        "post_reaction_min_thermal_cells",
+        "post_reaction_reaction_restart_ticks",
+        "post_reaction_restart_samples",
+        "final_matter_count",
+        "final_wood_count",
+        "final_oil_count",
+        "final_smoke_count",
+        "final_ice_count",
+        "final_water_count",
+        "final_steam_count",
+        "fuel_consumed",
+        "invalid_material_occurrences",
+        "nonfinite_field_occurrences",
+    ):
+        require_nonnegative_int(metrics[key], f"Fire analysis metrics {key}")
+    for key in ("reaction_zero_tick", "confirmed_reaction_zero_tick"):
+        require_optional_nonnegative_int(metrics[key], f"Fire analysis metrics {key}")
+    for key in ("wood_count_delta", "oil_count_delta", "fuel_count_delta"):
+        if isinstance(metrics[key], bool) or not isinstance(metrics[key], int):
+            raise ExperimentError(f"Fire analysis metrics {key} must be an integer")
+    for key in ("post_reaction_thermal_decrease", "reset_exact_equivalence"):
+        if not isinstance(metrics[key], bool):
+            raise ExperimentError(f"Fire analysis metrics {key} must be boolean")
+
+    predicates = analysis["predicates"]
+    if not isinstance(predicates, dict) or set(predicates) != FIRE_CONTRACT.predicate_names:
+        raise ExperimentError("Fire analysis predicates must contain the exact twelve checks")
+    for name, predicate in predicates.items():
+        if not isinstance(predicate, dict) or set(predicate) != {"status", "detail"}:
+            raise ExperimentError(f"Fire analysis predicate {name} keys mismatch")
+        if predicate["status"] not in PREDICATE_STATUSES:
+            raise ExperimentError(f"Fire analysis predicate {name} has invalid status")
+        if not isinstance(predicate["detail"], str):
+            raise ExperimentError(f"Fire analysis predicate {name} detail must be a string")
+    if analysis["verdict"] not in FIRE_CONTRACT.allowed_verdicts:
+        raise ExperimentError("Fire analysis verdict is invalid")
+    raw_frame_count = require_nonnegative_int(
+        analysis["raw_frame_count"], "Fire analysis raw_frame_count"
+    )
+    if not 8 <= raw_frame_count <= 12:
+        raise ExperimentError("Fire analysis raw_frame_count must be between 8 and 12")
+
+
 def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
     contract = contract_for_manifest(manifest)
     if contract is SAND_CONTRACT:
         validate_sand_analysis(analysis, manifest)
-    else:
+    elif contract is WATER_CONTRACT:
         validate_water_analysis(analysis, manifest)
+    elif contract is FIRE_CONTRACT:
+        validate_fire_analysis(analysis, manifest)
+    else:
+        raise ExperimentError(f"unsupported analysis contract: {contract.scenario}")
 
 
 def safe_relative_worker_path(run_dir: Path, value: Any) -> Path:
@@ -1235,8 +1551,10 @@ def validate_frames(
         raise ExperimentError("frames.json must contain at least one frame")
     if frames_doc["frame_count"] != len(frames):
         raise ExperimentError("frames frame_count does not match frames array")
-    if contract is WATER_CONTRACT and not 8 <= len(frames) <= 12:
-        raise ExperimentError("Water frames.json must contain between 8 and 12 frames")
+    if contract in {WATER_CONTRACT, FIRE_CONTRACT} and not 8 <= len(frames) <= 12:
+        raise ExperimentError(
+            f"{contract.title} frames.json must contain between 8 and 12 frames"
+        )
     if frames_doc["pixel_encoding"] != "rgba8-tightly-packed":
         raise ExperimentError("frames pixel_encoding mismatch")
     required_frame = {
@@ -1261,10 +1579,14 @@ def validate_frames(
             raise ExperimentError("frame ordinals must be contiguous and zero-based")
         if not isinstance(frame["kind"], str) or not frame["kind"]:
             raise ExperimentError(f"frame {expected_ordinal} kind must be non-empty")
-        if contract is WATER_CONTRACT:
-            if frame["kind"] not in WATER_FRAME_KINDS:
+        if contract in {WATER_CONTRACT, FIRE_CONTRACT}:
+            allowed_kinds = (
+                WATER_FRAME_KINDS if contract is WATER_CONTRACT else FIRE_FRAME_KINDS
+            )
+            if frame["kind"] not in allowed_kinds:
                 raise ExperimentError(
-                    f"Water frame {expected_ordinal} has unsupported kind {frame['kind']!r}"
+                    f"{contract.title} frame {expected_ordinal} has unsupported kind "
+                    f"{frame['kind']!r}"
                 )
             if (
                 frame["kind"] == "diagnostic-observation"
@@ -1628,12 +1950,213 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
             raise ExperimentError(f"sample {index} wake census and wake_reason_or disagree")
 
 
+FIRE_PHASES = frozenset({"initial", "reacting", "post-reaction-confirmation", "reset"})
+FIRE_REASONS = frozenset(
+    {
+        "tick0",
+        "tick1",
+        "early-diagnostic",
+        "diagnostic-cadence",
+        "max-tick",
+        "post-reaction-tick",
+        "programmatic-r-equivalent",
+    }
+)
+
+
+def validate_fire_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
+    expected_keys = {
+        "schema_version",
+        "experiment_id",
+        "run_id",
+        "scenario",
+        "source_sha",
+        "git_state",
+        "build_profile",
+        "binary_sha256",
+        "sample_sequence",
+        "sim_tick",
+        "phase",
+        "reason",
+        "world",
+        "sleep",
+        "census",
+        "material_counts_by_id",
+        "matter_count",
+        "wood_count",
+        "oil_count",
+        "smoke_count",
+        "ice_count",
+        "water_count",
+        "steam_count",
+        "combusting_wood_cells",
+        "combusting_oil_cells",
+        "flame_event_wood_cells",
+        "flame_event_oil_cells",
+        "wood_fuel_progress_sum",
+        "oil_fuel_progress_sum",
+        "heat_propagated_cells",
+        "phase_inventory_changed",
+        "invalid_material_count",
+        "nonfinite_temperature_count",
+        "nonfinite_pressure_count",
+        "changed_chunks",
+        "wake_chunks",
+        "wake_reason_or",
+        "state_hash",
+        "physical_state_hash",
+    }
+    census_keys = {
+        "total_cells",
+        "any_active_cells",
+        "matter_active_cells",
+        "thermal_active_cells",
+        "pressure_active_cells",
+        "reaction_active_cells",
+        "total_chunks",
+        "active_chunks",
+        "runnable_chunks",
+        "sleeping_chunks",
+    }
+    expected_reasons = {
+        "initial": {"tick0"},
+        "reacting": {"tick1", "early-diagnostic", "diagnostic-cadence", "max-tick"},
+        "post-reaction-confirmation": {"post-reaction-tick"},
+        "reset": {"programmatic-r-equivalent"},
+    }
+    total_chunks = (WORLD_WIDTH // CHUNK_SIZE) * (WORLD_HEIGHT // CHUNK_SIZE)
+    for index, sample in enumerate(samples):
+        require_exact_keys(sample, expected_keys, f"Fire sample {index}")
+        if sample["schema_version"] != FIRE_CONTRACT.telemetry_schema:
+            raise ExperimentError(f"Fire sample {index} schema_version mismatch")
+        identity = {
+            "experiment_id": manifest["experiment_id"],
+            "run_id": manifest["run_id"],
+            "scenario": FIRE_CONTRACT.scenario,
+            "source_sha": manifest["source"]["sha"],
+            "git_state": "clean",
+            "build_profile": "release",
+            "binary_sha256": manifest["binary"]["sha256"],
+        }
+        for key, expected in identity.items():
+            if sample[key] != expected:
+                raise ExperimentError(f"Fire sample {index} {key} mismatch")
+        if require_nonnegative_int(sample["sample_sequence"], "Fire sample sequence") != index:
+            raise ExperimentError("Fire sample_sequence must be contiguous and zero-based")
+        require_nonnegative_int(sample["sim_tick"], f"Fire sample {index} sim_tick")
+        if sample["phase"] not in FIRE_PHASES:
+            raise ExperimentError(f"Fire sample {index} phase is invalid")
+        if sample["reason"] not in FIRE_REASONS:
+            raise ExperimentError(f"Fire sample {index} reason is invalid")
+        if sample["reason"] not in expected_reasons[sample["phase"]]:
+            raise ExperimentError(f"Fire sample {index} phase/reason mismatch")
+        if sample["world"] != manifest["world"]:
+            raise ExperimentError(f"Fire sample {index} world mismatch")
+        sleep = sample["sleep"]
+        if not isinstance(sleep, dict):
+            raise ExperimentError(f"Fire sample {index} sleep must be an object")
+        require_exact_keys(sleep, {"enabled", "threshold"}, f"Fire sample {index} sleep")
+        if not isinstance(sleep["enabled"], bool):
+            raise ExperimentError(f"Fire sample {index} sleep enabled must be boolean")
+        require_nonnegative_int(sleep["threshold"], f"Fire sample {index} sleep threshold")
+        census = sample["census"]
+        if not isinstance(census, dict):
+            raise ExperimentError(f"Fire sample {index} census must be an object")
+        require_exact_keys(census, census_keys, f"Fire sample {index} census")
+        for key, value in census.items():
+            require_nonnegative_int(value, f"Fire sample {index} census {key}")
+        if census["total_cells"] != WORLD_WIDTH * WORLD_HEIGHT:
+            raise ExperimentError(f"Fire sample {index} census total_cells mismatch")
+        if census["total_chunks"] != total_chunks:
+            raise ExperimentError(f"Fire sample {index} census total_chunks mismatch")
+        for key in ("active_chunks", "runnable_chunks", "sleeping_chunks"):
+            if census[key] > total_chunks:
+                raise ExperimentError(f"Fire sample {index} census {key} exceeds total chunks")
+        if census["runnable_chunks"] + census["sleeping_chunks"] != total_chunks:
+            raise ExperimentError(f"Fire sample {index} chunk-state census is incomplete")
+        for key in (
+            "matter_active_cells",
+            "thermal_active_cells",
+            "pressure_active_cells",
+            "reaction_active_cells",
+        ):
+            if census[key] > census["any_active_cells"]:
+                raise ExperimentError(
+                    f"Fire sample {index} census {key} exceeds any-active cells"
+                )
+        counts = sample["material_counts_by_id"]
+        if not isinstance(counts, list) or len(counts) != 10:
+            raise ExperimentError(f"Fire sample {index} material_counts_by_id mismatch")
+        for material_id, value in enumerate(counts):
+            require_nonnegative_int(value, f"Fire sample {index} material count {material_id}")
+        scalar_keys = (
+            "matter_count",
+            "wood_count",
+            "oil_count",
+            "smoke_count",
+            "ice_count",
+            "water_count",
+            "steam_count",
+            "combusting_wood_cells",
+            "combusting_oil_cells",
+            "flame_event_wood_cells",
+            "flame_event_oil_cells",
+            "wood_fuel_progress_sum",
+            "oil_fuel_progress_sum",
+            "heat_propagated_cells",
+            "invalid_material_count",
+            "nonfinite_temperature_count",
+            "nonfinite_pressure_count",
+            "changed_chunks",
+            "wake_chunks",
+            "wake_reason_or",
+        )
+        for key in scalar_keys:
+            require_nonnegative_int(sample[key], f"Fire sample {index} {key}")
+        if not isinstance(sample["phase_inventory_changed"], bool):
+            raise ExperimentError(f"Fire sample {index} phase_inventory_changed must be boolean")
+        if sample["matter_count"] != sum(counts[1:]):
+            raise ExperimentError(f"Fire sample {index} matter_count disagrees with material census")
+        named_counts = {
+            "water_count": counts[4],
+            "oil_count": counts[5],
+            "steam_count": counts[6],
+            "smoke_count": counts[7],
+            "ice_count": counts[8],
+            "wood_count": counts[9],
+        }
+        for key, expected in named_counts.items():
+            if sample[key] != expected:
+                raise ExperimentError(f"Fire sample {index} {key} disagrees with material census")
+        if sum(counts) + sample["invalid_material_count"] != WORLD_WIDTH * WORLD_HEIGHT:
+            raise ExperimentError(f"Fire sample {index} material census does not cover the world")
+        for flag_count, material_count in (
+            ("combusting_wood_cells", "wood_count"),
+            ("combusting_oil_cells", "oil_count"),
+            ("flame_event_wood_cells", "wood_count"),
+            ("flame_event_oil_cells", "oil_count"),
+        ):
+            if sample[flag_count] > sample[material_count]:
+                raise ExperimentError(
+                    f"Fire sample {index} {flag_count} exceeds {material_count}"
+                )
+        for key in ("state_hash", "physical_state_hash"):
+            if not isinstance(sample[key], str) or not STATE_HASH.fullmatch(sample[key]):
+                raise ExperimentError(f"Fire sample {index} {key} is invalid")
+        if (sample["wake_chunks"] == 0) != (sample["wake_reason_or"] == 0):
+            raise ExperimentError(f"Fire sample {index} wake census and wake_reason_or disagree")
+
+
 def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
     contract = contract_for_manifest(manifest)
     if contract is SAND_CONTRACT:
         validate_sand_samples(samples, manifest)
-    else:
+    elif contract is WATER_CONTRACT:
         validate_water_samples(samples, manifest)
+    elif contract is FIRE_CONTRACT:
+        validate_fire_samples(samples, manifest)
+    else:
+        raise ExperimentError(f"unsupported sample contract: {contract.scenario}")
 
 
 def validate_events(events: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
@@ -1649,7 +2172,7 @@ def validate_events(events: list[dict[str, Any]], manifest: dict[str, Any]) -> N
             "sample_sequence",
             "detail",
         }
-        if contract is WATER_CONTRACT:
+        if contract.records_run_mode:
             required.add("scenario")
         require_exact_keys(event, required, f"event {index}")
         if event["schema_version"] != contract.telemetry_schema:
@@ -1658,7 +2181,7 @@ def validate_events(events: list[dict[str, Any]], manifest: dict[str, Any]) -> N
             raise ExperimentError(f"event {index} experiment_id mismatch")
         if event["run_id"] != manifest["run_id"]:
             raise ExperimentError(f"event {index} run_id mismatch")
-        if contract is WATER_CONTRACT and event["scenario"] != contract.scenario:
+        if contract.records_run_mode and event["scenario"] != contract.scenario:
             raise ExperimentError(f"event {index} scenario mismatch")
         sequence = require_nonnegative_int(event["event_sequence"], "event sequence")
         if sequence != index:
@@ -2586,13 +3109,651 @@ def validate_water_telemetry(
     return analysis, frames_doc, samples, events
 
 
+FIRE_DIAGNOSTIC_REASONS = frozenset(
+    {"early-diagnostic", "diagnostic-cadence", "max-tick"}
+)
+FIRE_ALWAYS_EVENTS = frozenset(
+    {
+        "lifecycle_started",
+        "pristine_reset_completed",
+        "tick0_captured",
+        "tick1_captured",
+        "terminal_selected",
+        "reset_started",
+        "reset_comparison_completed",
+        "worker_completed",
+    }
+)
+FIRE_OPTIONAL_EVENTS = frozenset(
+    {
+        "combustion_observed",
+        "smoke_generated",
+        "heat_propagated",
+        "phase_transition_observed",
+        "fuel_substantially_consumed",
+        "new_peak_reaction",
+        "new_peak_thermal",
+        "reaction_zero_streak_started",
+        "reaction_zero_streak_broken",
+        "reaction_zero_confirmed",
+        "post_reaction_confirmation_completed",
+    }
+)
+FIRE_FRAME_REASONS = {
+    "tick0": "pristine-reset",
+    "tick1": "after-one-production-tick",
+    "first-combustion": "both-fuels-production-combustion",
+    "first-smoke": "smoke-count-above-tick0",
+    "peak-reaction": "highest-observed-reaction-cells",
+    "peak-thermal": "highest-observed-thermal-cells",
+    "first-phase-transition": "phase-inventory-differs-from-tick0",
+    "fuel-substantially-consumed": "at-least-25-percent-initial-fuel-consumed",
+    "reaction-zero": "first-sample-of-confirmed-reaction-zero-streak",
+    "post-reaction-tail": "post-reaction-confirmation-complete",
+    "reset": "programmatic-r-equivalent",
+    "diagnostic-observation": "minimum-evidence-observation",
+}
+
+
+def fire_diagnostic_samples(samples: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        sample
+        for sample in samples
+        if sample["phase"] == "reacting" and sample["reason"] in FIRE_DIAGNOSTIC_REASONS
+    ]
+
+
+def confirmed_fire_reaction_zero_streak(
+    samples: list[dict[str, Any]], first_combustion: dict[str, Any] | None
+) -> tuple[list[dict[str, Any]] | None, list[dict[str, Any]], list[dict[str, Any]]]:
+    if first_combustion is None:
+        return None, [], []
+    streak: list[dict[str, Any]] = []
+    starts: list[dict[str, Any]] = []
+    breaks: list[dict[str, Any]] = []
+    for sample in fire_diagnostic_samples(samples):
+        if sample["sim_tick"] < first_combustion["sim_tick"]:
+            continue
+        if sample["census"]["reaction_active_cells"] == 0:
+            if not streak:
+                starts.append(sample)
+            streak.append(sample)
+            if len(streak) == CONSECUTIVE_REACTION_ZERO:
+                return list(streak), starts, breaks
+        elif streak:
+            breaks.append(sample)
+            streak.clear()
+    return None, starts, breaks
+
+
+def require_fire_predicate_statuses(
+    predicates: dict[str, Any], expected: dict[str, str]
+) -> None:
+    for name, expected_status in expected.items():
+        actual = predicates[name]["status"]
+        if actual != expected_status:
+            raise ExperimentError(
+                f"Fire predicate {name} status {actual!r} disagrees with raw telemetry "
+                f"({expected_status!r})"
+            )
+
+
+def validate_fire_event_contract(
+    events: list[dict[str, Any]],
+    samples: list[dict[str, Any]],
+    first_combustion: dict[str, Any] | None,
+    first_smoke: dict[str, Any] | None,
+    first_heat: dict[str, Any] | None,
+    first_phase: dict[str, Any] | None,
+    first_fuel: dict[str, Any] | None,
+    reaction_peak_updates: list[dict[str, Any]],
+    thermal_peak_updates: list[dict[str, Any]],
+    streak_starts: list[dict[str, Any]],
+    streak_breaks: list[dict[str, Any]],
+    zero_streak: list[dict[str, Any]] | None,
+    terminal: dict[str, Any],
+    post_reaction: list[dict[str, Any]],
+) -> None:
+    allowed = FIRE_ALWAYS_EVENTS | FIRE_OPTIONAL_EVENTS
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    by_sequence = {sample["sample_sequence"]: sample for sample in samples}
+    for event in events:
+        if event["event"] not in allowed:
+            raise ExperimentError(f"unsupported Fire event {event['event']!r}")
+        by_name.setdefault(event["event"], []).append(event)
+        sequence = event["sample_sequence"]
+        if sequence is not None:
+            sample = by_sequence.get(sequence)
+            if sample is None or sample["sim_tick"] != event["sim_tick"]:
+                raise ExperimentError(
+                    f"Fire event {event['event']} does not bind to its telemetry sample"
+                )
+    for name in FIRE_ALWAYS_EVENTS:
+        if len(by_name.get(name, [])) != 1:
+            raise ExperimentError(f"Fire event {name} must occur exactly once")
+    mandatory_order = (
+        "lifecycle_started",
+        "pristine_reset_completed",
+        "tick0_captured",
+        "tick1_captured",
+        "terminal_selected",
+        "reset_started",
+        "reset_comparison_completed",
+        "worker_completed",
+    )
+    positions = [by_name[name][0]["event_sequence"] for name in mandatory_order]
+    if positions != sorted(positions):
+        raise ExperimentError("Fire lifecycle events are out of order")
+    for name in ("lifecycle_started", "pristine_reset_completed"):
+        event = by_name[name][0]
+        if event["sim_tick"] != 0 or event["sample_sequence"] is not None:
+            raise ExperimentError(f"Fire event {name} must be a pre-sample tick0 event")
+    identities = {
+        "tick0_captured": samples[0],
+        "tick1_captured": samples[1],
+        "terminal_selected": terminal,
+        "reset_started": samples[-2],
+        "reset_comparison_completed": samples[-1],
+        "worker_completed": samples[-1],
+    }
+    for name, sample in identities.items():
+        event = by_name[name][0]
+        if (event["sim_tick"], event["sample_sequence"]) != sample_identity(sample):
+            raise ExperimentError(f"Fire event {name} identity disagrees with telemetry")
+    one_shot = {
+        "combustion_observed": first_combustion,
+        "smoke_generated": first_smoke,
+        "heat_propagated": first_heat,
+        "phase_transition_observed": first_phase,
+        "fuel_substantially_consumed": first_fuel,
+    }
+    for name, sample in one_shot.items():
+        found = by_name.get(name, [])
+        if sample is None:
+            if found:
+                raise ExperimentError(f"Fire event {name} exists without its signal")
+        elif len(found) != 1:
+            raise ExperimentError(f"Fire event {name} must occur exactly once")
+        elif (found[0]["sim_tick"], found[0]["sample_sequence"]) != sample_identity(sample):
+            raise ExperimentError(f"Fire event {name} identity disagrees with telemetry")
+    repeated = {
+        "new_peak_reaction": reaction_peak_updates,
+        "new_peak_thermal": thermal_peak_updates,
+        "reaction_zero_streak_started": streak_starts,
+        "reaction_zero_streak_broken": streak_breaks,
+    }
+    for name, expected_samples in repeated.items():
+        found = by_name.get(name, [])
+        if len(found) != len(expected_samples):
+            raise ExperimentError(f"Fire event {name} cardinality disagrees with telemetry")
+        for event, sample in zip(found, expected_samples, strict=True):
+            if (event["sim_tick"], event["sample_sequence"]) != sample_identity(sample):
+                raise ExperimentError(f"Fire event {name} identity disagrees with telemetry")
+    confirmed_events = by_name.get("reaction_zero_confirmed", [])
+    if zero_streak is None:
+        if confirmed_events:
+            raise ExperimentError("Fire reaction-zero event exists without confirmation")
+    elif len(confirmed_events) != 1 or (
+        confirmed_events[0]["sim_tick"], confirmed_events[0]["sample_sequence"]
+    ) != sample_identity(zero_streak[-1]):
+        raise ExperimentError("Fire reaction-zero confirmation event is invalid")
+    post_events = by_name.get("post_reaction_confirmation_completed", [])
+    if bool(post_reaction) != (len(post_events) == 1):
+        raise ExperimentError("Fire post-reaction completion event disagrees with lifecycle")
+    if post_reaction and (
+        post_events[0]["sim_tick"], post_events[0]["sample_sequence"]
+    ) != sample_identity(post_reaction[-1]):
+        raise ExperimentError("Fire post-reaction completion event identity is invalid")
+
+
+def validate_fire_frame_contract(
+    frames: list[dict[str, Any]],
+    samples: list[dict[str, Any]],
+    analysis: dict[str, Any],
+    expected_by_kind: dict[str, dict[str, Any] | None],
+) -> None:
+    by_kind: dict[str, list[dict[str, Any]]] = {}
+    by_sequence = {sample["sample_sequence"]: sample for sample in samples}
+    for frame in frames:
+        by_kind.setdefault(frame["kind"], []).append(frame)
+        sample = by_sequence.get(frame["sample_sequence"])
+        if sample is None or (
+            sample["sim_tick"] != frame["sim_tick"]
+            or sample["state_hash"] != frame["state_hash"]
+        ):
+            raise ExperimentError("Fire frame identity disagrees with telemetry")
+        expected_reason = (
+            "reaction-zero-confirmed"
+            if frame["kind"] == "terminal"
+            and analysis["lifecycle"]["terminal_reason"] == "reaction-zero"
+            else "max-tick-reached"
+            if frame["kind"] == "terminal"
+            else FIRE_FRAME_REASONS[frame["kind"]]
+        )
+        if frame["reason"] != expected_reason:
+            raise ExperimentError(f"Fire frame {frame['kind']} reason mismatch")
+    for kind, grouped in by_kind.items():
+        if kind != "diagnostic-observation" and len(grouped) != 1:
+            raise ExperimentError(f"Fire frame kind {kind} occurs more than once")
+    for required in ("tick0", "tick1", "terminal", "reset"):
+        if len(by_kind.get(required, [])) != 1:
+            raise ExperimentError(f"Fire frame kind {required} must occur exactly once")
+    for kind, expected_sample in expected_by_kind.items():
+        found = by_kind.get(kind, [])
+        if expected_sample is None:
+            if found:
+                raise ExperimentError(f"Fire frame kind {kind} exists without its milestone")
+        elif len(found) != 1:
+            raise ExperimentError(f"Fire frame kind {kind} must occur exactly once")
+        elif found[0]["sample_sequence"] != expected_sample["sample_sequence"]:
+            raise ExperimentError(f"Fire frame kind {kind} binds the wrong sample")
+    fallback = by_kind.get("diagnostic-observation", [])
+    missing_optional = any(
+        sample is None
+        for kind, sample in expected_by_kind.items()
+        if kind not in {"tick0", "tick1", "terminal", "reset"}
+    )
+    if fallback and (not missing_optional or len(frames) != 8):
+        raise ExperimentError(
+            "Fire diagnostic-observation frames may only fill incomplete evidence to eight"
+        )
+    diagnostics = fire_diagnostic_samples(samples)
+    for frame in fallback:
+        if by_sequence[frame["sample_sequence"]] not in diagnostics:
+            raise ExperimentError("Fire diagnostic-observation frame is not diagnostic telemetry")
+
+
+def validate_fire_telemetry(
+    run_dir: Path, manifest: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    for path in (
+        run_dir / "stdout.log",
+        run_dir / "stderr.log",
+        run_dir / "logs" / "build.stdout.log",
+        run_dir / "logs" / "build.stderr.log",
+    ):
+        if not path.is_file():
+            raise ExperimentError(f"required raw command log is missing: {path}")
+    analysis = read_json(run_dir / "work" / "analysis.json", "analysis.json")
+    frames_doc = read_json(run_dir / "work" / "frames.json", "frames.json")
+    samples = read_jsonl(run_dir / "telemetry" / "samples.jsonl", "samples.jsonl")
+    events = read_jsonl(run_dir / "telemetry" / "events.jsonl", "events.jsonl")
+    validate_fire_analysis(analysis, manifest)
+    frames = validate_frames(frames_doc, manifest, run_dir)
+    validate_fire_samples(samples, manifest)
+    validate_events(events, manifest)
+    if analysis["raw_frame_count"] != len(frames):
+        raise ExperimentError("Fire analysis raw_frame_count does not match frames.json")
+    if analysis["lifecycle"]["sample_count"] != len(samples):
+        raise ExperimentError("Fire lifecycle sample_count does not match samples.jsonl")
+    if analysis["verdict"] != verdict_from_predicates(analysis["predicates"], FIRE_CONTRACT):
+        raise ExperimentError("Fire verdict disagrees with its twelve predicate statuses")
+    for index, sample in enumerate(samples):
+        if sample["sleep"] != analysis["sleep"]:
+            raise ExperimentError(f"Fire sample {index} sleep settings disagree with analysis")
+    if len(samples) < 4:
+        raise ExperimentError("Fire telemetry must contain tick0, tick1, diagnostics, and reset")
+    tick0, tick1, reset = samples[0], samples[1], samples[-1]
+    if (tick0["sim_tick"], tick0["phase"], tick0["reason"]) != (0, "initial", "tick0"):
+        raise ExperimentError("Fire telemetry must begin with initial tick0")
+    if (tick1["sim_tick"], tick1["phase"], tick1["reason"]) != (1, "reacting", "tick1"):
+        raise ExperimentError("Fire telemetry sample 1 must be reacting tick1")
+    reset_samples = [sample for sample in samples if sample["phase"] == "reset"]
+    if len(reset_samples) != 1 or reset_samples[0] is not reset:
+        raise ExperimentError("Fire telemetry must end with exactly one reset sample")
+    if reset["sim_tick"] != 0 or reset["reason"] != "programmatic-r-equivalent":
+        raise ExperimentError("Fire reset sample must be the programmatic tick0 equivalent")
+    pre_reset = samples[:-1]
+    if any(
+        later["sim_tick"] <= earlier["sim_tick"]
+        for earlier, later in zip(pre_reset, pre_reset[1:])
+    ):
+        raise ExperimentError("Fire pre-reset sim ticks must be strictly increasing")
+    post_reaction = [
+        sample for sample in pre_reset if sample["phase"] == "post-reaction-confirmation"
+    ]
+    if post_reaction and any(
+        sample["phase"] != "post-reaction-confirmation"
+        for sample in pre_reset[pre_reset.index(post_reaction[0]) :]
+    ):
+        raise ExperimentError("Fire post-reaction phase must be contiguous and final")
+    reacting = [sample for sample in pre_reset if sample["phase"] == "reacting"]
+    if not reacting or reacting[0] is not tick1:
+        raise ExperimentError("Fire telemetry lacks its reacting lifecycle")
+
+    baseline_keys = (
+        "matter_count",
+        "wood_count",
+        "oil_count",
+        "smoke_count",
+        "ice_count",
+        "water_count",
+        "steam_count",
+        "wood_fuel_progress_sum",
+        "oil_fuel_progress_sum",
+    )
+    expected_baseline = {key: tick0[key] for key in baseline_keys}
+    initial_fuel = tick0["wood_count"] + tick0["oil_count"]
+    threshold = (initial_fuel + 3) // 4
+    expected_baseline.update(
+        {
+            "fuel_count": initial_fuel,
+            "substantial_fuel_consumption_threshold": threshold,
+            "substantial_fuel_remaining_threshold": initial_fuel - threshold,
+        }
+    )
+    if analysis["baseline"] != expected_baseline:
+        raise ExperimentError("Fire analysis baseline disagrees with tick0 telemetry")
+    for sample in pre_reset:
+        inventory_changed = (
+            sample["ice_count"], sample["water_count"], sample["steam_count"]
+        ) != (tick0["ice_count"], tick0["water_count"], tick0["steam_count"])
+        if sample["phase_inventory_changed"] != inventory_changed:
+            raise ExperimentError("Fire phase_inventory_changed disagrees with raw inventory")
+
+    observed = pre_reset[1:]
+    wood_seen = False
+    oil_seen = False
+    first_combustion = None
+    for sample in reacting:
+        wood_seen |= (
+            sample["flame_event_wood_cells"] > 0
+            or sample["wood_fuel_progress_sum"] > tick0["wood_fuel_progress_sum"]
+        )
+        oil_seen |= (
+            sample["flame_event_oil_cells"] > 0
+            or sample["oil_fuel_progress_sum"] > tick0["oil_fuel_progress_sum"]
+        )
+        if wood_seen and oil_seen:
+            first_combustion = sample
+            break
+    first_smoke = first_matching(observed, lambda sample: sample["smoke_count"] > tick0["smoke_count"])
+    first_heat = first_matching(observed, lambda sample: sample["heat_propagated_cells"] > 0)
+    first_phase = first_matching(observed, lambda sample: sample["phase_inventory_changed"])
+    first_fuel = first_matching(
+        observed,
+        lambda sample: sample["wood_count"] + sample["oil_count"]
+        <= expected_baseline["substantial_fuel_remaining_threshold"],
+    )
+
+    reaction_peak = None
+    thermal_peak = None
+    reaction_peak_cells = 0
+    thermal_peak_cells = 0
+    reaction_peak_updates: list[dict[str, Any]] = []
+    thermal_peak_updates: list[dict[str, Any]] = []
+    for sample in observed:
+        if sample["census"]["reaction_active_cells"] > reaction_peak_cells:
+            reaction_peak = sample
+            reaction_peak_cells = sample["census"]["reaction_active_cells"]
+            reaction_peak_updates.append(sample)
+        if sample["census"]["thermal_active_cells"] > thermal_peak_cells:
+            thermal_peak = sample
+            thermal_peak_cells = sample["census"]["thermal_active_cells"]
+            thermal_peak_updates.append(sample)
+    max_heat = max(sample["heat_propagated_cells"] for sample in observed)
+    peak_smoke = tick0
+    peak_smoke_count = tick0["smoke_count"]
+    for sample in observed:
+        if sample["smoke_count"] > peak_smoke_count:
+            peak_smoke = sample
+            peak_smoke_count = sample["smoke_count"]
+
+    diagnostics = fire_diagnostic_samples(reacting)
+    lifecycle = analysis["lifecycle"]
+    terminal_reason = lifecycle["terminal_reason"]
+    zero_streak, streak_starts, streak_breaks = confirmed_fire_reaction_zero_streak(
+        reacting, first_combustion
+    )
+    if terminal_reason == "reaction-zero":
+        if zero_streak is None:
+            raise ExperimentError("Fire reaction-zero terminal lacks a three-sample streak")
+        terminal = zero_streak[-1]
+        if (
+            lifecycle["first_reaction_zero_sim_tick"],
+            lifecycle["first_reaction_zero_sample_sequence"],
+            lifecycle["confirmed_reaction_zero_sim_tick"],
+            lifecycle["confirmed_reaction_zero_sample_sequence"],
+        ) != (
+            zero_streak[0]["sim_tick"],
+            zero_streak[0]["sample_sequence"],
+            terminal["sim_tick"],
+            terminal["sample_sequence"],
+        ):
+            raise ExperimentError("Fire reaction-zero lifecycle identity mismatch")
+    else:
+        terminal = diagnostics[-1] if diagnostics else None
+        if terminal is None or terminal["sim_tick"] != MAX_TICKS or terminal["reason"] != "max-tick":
+            raise ExperimentError("Fire max-ticks terminal is not bound to max-tick telemetry")
+        if zero_streak is not None or any(
+            lifecycle[key] is not None
+            for key in (
+                "first_reaction_zero_sim_tick",
+                "first_reaction_zero_sample_sequence",
+                "confirmed_reaction_zero_sim_tick",
+                "confirmed_reaction_zero_sample_sequence",
+            )
+        ):
+            raise ExperimentError("Fire max-ticks lifecycle records reaction-zero confirmation")
+
+    expected_diagnostic_ticks = [2]
+    expected_diagnostic_ticks.extend(
+        range(DIAGNOSTIC_INTERVAL, terminal["sim_tick"] + 1, DIAGNOSTIC_INTERVAL)
+    )
+    if terminal["sim_tick"] == MAX_TICKS and MAX_TICKS not in expected_diagnostic_ticks:
+        expected_diagnostic_ticks.append(MAX_TICKS)
+    expected_diagnostic_ticks = sorted(set(expected_diagnostic_ticks))
+    if [sample["sim_tick"] for sample in diagnostics] != expected_diagnostic_ticks:
+        raise ExperimentError("Fire diagnostic cadence is incomplete or contains extra samples")
+    for sample in diagnostics:
+        expected_reason = (
+            "early-diagnostic"
+            if sample["sim_tick"] == 2
+            else "max-tick"
+            if sample["sim_tick"] == MAX_TICKS
+            else "diagnostic-cadence"
+        )
+        if sample["reason"] != expected_reason:
+            raise ExperimentError("Fire diagnostic reason disagrees with sim tick")
+
+    if terminal_reason == "reaction-zero":
+        if len(post_reaction) != POST_REACTION_TICKS:
+            raise ExperimentError("Fire terminal must have exactly 180 post-reaction samples")
+        expected_ticks = list(
+            range(terminal["sim_tick"] + 1, terminal["sim_tick"] + POST_REACTION_TICKS + 1)
+        )
+        if [sample["sim_tick"] for sample in post_reaction] != expected_ticks:
+            raise ExperimentError("Fire post-reaction ticks must be contiguous")
+        if lifecycle["post_reaction_end_tick"] != expected_ticks[-1]:
+            raise ExperimentError("Fire post_reaction_end_tick disagrees with telemetry")
+    elif post_reaction or lifecycle["post_reaction_end_tick"] is not None:
+        raise ExperimentError("Fire max-ticks terminal must not have a post-reaction window")
+
+    restart_samples = [
+        sample for sample in post_reaction if sample["census"]["reaction_active_cells"] > 0
+    ]
+    if lifecycle["post_reaction_restart_samples"] != len(restart_samples):
+        raise ExperimentError("Fire lifecycle restart count disagrees with telemetry")
+    final_pre_reset = pre_reset[-1]
+    metrics = analysis["metrics"]
+    post_start_thermal = (
+        terminal["census"]["thermal_active_cells"] if post_reaction else 0
+    )
+    post_final_thermal = (
+        post_reaction[-1]["census"]["thermal_active_cells"] if post_reaction else 0
+    )
+    post_min_thermal = (
+        min(
+            [terminal["census"]["thermal_active_cells"]]
+            + [sample["census"]["thermal_active_cells"] for sample in post_reaction]
+        )
+        if post_reaction
+        else 0
+    )
+    invalid_occurrences = sum(sample["invalid_material_count"] for sample in pre_reset)
+    nonfinite_occurrences = sum(
+        sample["nonfinite_temperature_count"] + sample["nonfinite_pressure_count"]
+        for sample in pre_reset
+    )
+    expected_metrics = {
+        "first_combustion_tick": sample_identity(first_combustion)[0],
+        "first_combustion_sample_sequence": sample_identity(first_combustion)[1],
+        "first_smoke_tick": sample_identity(first_smoke)[0],
+        "first_smoke_sample_sequence": sample_identity(first_smoke)[1],
+        "first_phase_transition_tick": sample_identity(first_phase)[0],
+        "first_phase_transition_sample_sequence": sample_identity(first_phase)[1],
+        "fuel_substantially_consumed_tick": sample_identity(first_fuel)[0],
+        "fuel_substantially_consumed_sample_sequence": sample_identity(first_fuel)[1],
+        "peak_reaction_cells": reaction_peak_cells,
+        "peak_reaction_tick": sample_identity(reaction_peak)[0],
+        "peak_reaction_sample_sequence": sample_identity(reaction_peak)[1],
+        "peak_thermal_cells": thermal_peak_cells,
+        "peak_thermal_tick": sample_identity(thermal_peak)[0],
+        "peak_thermal_sample_sequence": sample_identity(thermal_peak)[1],
+        "peak_smoke_count": peak_smoke_count,
+        "peak_smoke_tick": sample_identity(peak_smoke)[0],
+        "peak_smoke_sample_sequence": sample_identity(peak_smoke)[1],
+        "max_heat_propagated_cells": max_heat,
+        "reaction_zero_tick": sample_identity(None if zero_streak is None else zero_streak[0])[0],
+        "confirmed_reaction_zero_tick": sample_identity(
+            None if zero_streak is None else zero_streak[-1]
+        )[0],
+        "post_reaction_thermal_cells": post_start_thermal,
+        "post_reaction_final_thermal_cells": post_final_thermal,
+        "post_reaction_min_thermal_cells": post_min_thermal,
+        "post_reaction_thermal_decrease": post_min_thermal < post_start_thermal,
+        "post_reaction_reaction_restart_ticks": len(restart_samples),
+        "post_reaction_restart_samples": len(restart_samples),
+        "final_matter_count": final_pre_reset["matter_count"],
+        "final_wood_count": final_pre_reset["wood_count"],
+        "final_oil_count": final_pre_reset["oil_count"],
+        "final_smoke_count": final_pre_reset["smoke_count"],
+        "final_ice_count": final_pre_reset["ice_count"],
+        "final_water_count": final_pre_reset["water_count"],
+        "final_steam_count": final_pre_reset["steam_count"],
+        "wood_count_delta": final_pre_reset["wood_count"] - tick0["wood_count"],
+        "oil_count_delta": final_pre_reset["oil_count"] - tick0["oil_count"],
+        "fuel_count_delta": (
+            final_pre_reset["wood_count"]
+            + final_pre_reset["oil_count"]
+            - initial_fuel
+        ),
+        "fuel_consumed": max(
+            0,
+            initial_fuel - final_pre_reset["wood_count"] - final_pre_reset["oil_count"],
+        ),
+        "invalid_material_occurrences": invalid_occurrences,
+        "nonfinite_field_occurrences": nonfinite_occurrences,
+    }
+    for key, expected in expected_metrics.items():
+        if metrics[key] != expected:
+            raise ExperimentError(f"Fire analysis metric {key} disagrees with telemetry")
+
+    reset_keys = (
+        "world",
+        "sleep",
+        "census",
+        "material_counts_by_id",
+        "matter_count",
+        "wood_count",
+        "oil_count",
+        "smoke_count",
+        "ice_count",
+        "water_count",
+        "steam_count",
+        "combusting_wood_cells",
+        "combusting_oil_cells",
+        "flame_event_wood_cells",
+        "flame_event_oil_cells",
+        "wood_fuel_progress_sum",
+        "oil_fuel_progress_sum",
+        "heat_propagated_cells",
+        "phase_inventory_changed",
+        "invalid_material_count",
+        "nonfinite_temperature_count",
+        "nonfinite_pressure_count",
+        "state_hash",
+        "physical_state_hash",
+    )
+    reset_equal = all(reset[key] == tick0[key] for key in reset_keys)
+    if metrics["reset_exact_equivalence"] and not reset_equal:
+        raise ExperimentError("Fire exact reset claim disagrees with observable telemetry")
+    no_invalid = invalid_occurrences == 0
+    no_nonfinite = nonfinite_occurrences == 0
+    completed_post = terminal_reason == "reaction-zero" and len(post_reaction) == POST_REACTION_TICKS
+    expected_predicates = {
+        "combustion_observed": "pass" if first_combustion is not None else "fail",
+        "smoke_generated": "pass" if first_smoke is not None else "fail",
+        "heat_propagated": "pass" if first_heat is not None else "fail",
+        "phase_work_observed": "pass" if first_phase is not None else "fail",
+        "fuel_consumed": "pass" if metrics["fuel_consumed"] > 0 else "fail",
+        "reaction_terminated_before_max": (
+            "pass"
+            if terminal_reason == "reaction-zero" and terminal["sim_tick"] < MAX_TICKS
+            else "fail"
+        ),
+        "post_reaction_no_restart": (
+            "unknown"
+            if not completed_post
+            else "pass"
+            if not restart_samples
+            else "fail"
+        ),
+        "thermal_tail_observed": "pass" if post_start_thermal > 0 else "unknown",
+        "thermal_tail_decreased": (
+            "pass" if post_min_thermal < post_start_thermal else "unknown"
+        ),
+        "no_invalid_materials": "pass" if no_invalid else "fail",
+        "no_nonfinite_fields": "pass" if no_nonfinite else "fail",
+        "exact_reset": "pass" if metrics["reset_exact_equivalence"] else "fail",
+    }
+    require_fire_predicate_statuses(analysis["predicates"], expected_predicates)
+
+    validate_fire_event_contract(
+        events,
+        samples,
+        first_combustion,
+        first_smoke,
+        first_heat,
+        first_phase,
+        first_fuel,
+        reaction_peak_updates,
+        thermal_peak_updates,
+        streak_starts,
+        streak_breaks,
+        zero_streak,
+        terminal,
+        post_reaction,
+    )
+    expected_frames = {
+        "tick0": tick0,
+        "tick1": tick1,
+        "first-combustion": first_combustion,
+        "first-smoke": first_smoke,
+        "peak-reaction": reaction_peak,
+        "peak-thermal": thermal_peak,
+        "first-phase-transition": first_phase,
+        "fuel-substantially-consumed": first_fuel,
+        "reaction-zero": None if zero_streak is None else zero_streak[0],
+        "post-reaction-tail": post_reaction[-1] if post_reaction else None,
+        "terminal": terminal,
+        "reset": reset,
+    }
+    validate_fire_frame_contract(frames, samples, analysis, expected_frames)
+    return analysis, frames_doc, samples, events
+
+
 def validate_telemetry(
     run_dir: Path, manifest: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     contract = contract_for_manifest(manifest)
     if contract is SAND_CONTRACT:
         return validate_sand_telemetry(run_dir, manifest)
-    return validate_water_telemetry(run_dir, manifest)
+    if contract is WATER_CONTRACT:
+        return validate_water_telemetry(run_dir, manifest)
+    if contract is FIRE_CONTRACT:
+        return validate_fire_telemetry(run_dir, manifest)
+    raise ExperimentError(f"unsupported telemetry contract: {contract.scenario}")
 
 
 def pillow_modules() -> tuple[Any, Any, Any]:
@@ -2668,6 +3829,20 @@ def contact_sheet_caption_lines(
     if "state_hash" in item and item["state_hash"] != sample["state_hash"]:
         raise ExperimentError("contact-sheet telemetry join has a state-hash mismatch")
     census = sample["census"]
+    if sample.get("scenario") == FIRE_CONTRACT.scenario:
+        return (
+            identity,
+            (
+                f"Reaction {census['reaction_active_cells']} | "
+                f"Thermal {census['thermal_active_cells']} | "
+                f"Wood {sample['wood_count']} | Oil {sample['oil_count']}"
+            ),
+            (
+                f"Smoke {sample['smoke_count']} | Ice/Water/Steam "
+                f"{sample['ice_count']}/{sample['water_count']}/{sample['steam_count']}"
+            ),
+            f"State {sample['state_hash']}",
+        )
     return (
         identity,
         (
@@ -2744,6 +3919,38 @@ def water_remediation_summary(analysis: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def fire_heat_summary(analysis: dict[str, Any]) -> dict[str, Any]:
+    metrics = analysis["metrics"]
+    lifecycle = analysis["lifecycle"]
+    return {
+        "first_combustion_tick": metrics["first_combustion_tick"],
+        "first_smoke_tick": metrics["first_smoke_tick"],
+        "first_phase_transition_tick": metrics["first_phase_transition_tick"],
+        "fuel_substantially_consumed_tick": metrics[
+            "fuel_substantially_consumed_tick"
+        ],
+        "peak_reaction_cells": metrics["peak_reaction_cells"],
+        "peak_reaction_tick": metrics["peak_reaction_tick"],
+        "peak_thermal_cells": metrics["peak_thermal_cells"],
+        "peak_thermal_tick": metrics["peak_thermal_tick"],
+        "peak_smoke_count": metrics["peak_smoke_count"],
+        "peak_smoke_tick": metrics["peak_smoke_tick"],
+        "terminal_reason": lifecycle["terminal_reason"],
+        "reaction_zero_tick": metrics["reaction_zero_tick"],
+        "confirmed_reaction_zero_tick": metrics["confirmed_reaction_zero_tick"],
+        "post_reaction_thermal_cells": metrics["post_reaction_thermal_cells"],
+        "post_reaction_final_thermal_cells": metrics[
+            "post_reaction_final_thermal_cells"
+        ],
+        "post_reaction_min_thermal_cells": metrics["post_reaction_min_thermal_cells"],
+        "post_reaction_restart_samples": metrics["post_reaction_restart_samples"],
+        "fuel_consumed": metrics["fuel_consumed"],
+        "wood_count_delta": metrics["wood_count_delta"],
+        "oil_count_delta": metrics["oil_count_delta"],
+        "reset_exact_equivalence": metrics["reset_exact_equivalence"],
+    }
+
+
 def render_report_markdown(
     manifest: dict[str, Any],
     analysis: dict[str, Any],
@@ -2786,18 +3993,18 @@ def render_report_markdown(
             "",
             (
                 "| # | Kind | Reason | Sim tick | Sample | State hash | Full | World crop |"
-                if contract is WATER_CONTRACT
+                if contract.records_run_mode
                 else "| # | Reason | Sim tick | Sample | State hash | Full | World crop |"
             ),
             (
                 "|---:|---|---|---:|---:|---|---|---|"
-                if contract is WATER_CONTRACT
+                if contract.records_run_mode
                 else "|---:|---|---:|---:|---|---|---|"
             ),
         ]
     )
     for item in screenshots:
-        kind = f" {item['kind']} |" if contract is WATER_CONTRACT else ""
+        kind = f" {item['kind']} |" if contract.records_run_mode else ""
         lines.append(
             f"| {item['ordinal']} |{kind} {item['reason']} | {item['sim_tick']} | "
             f"{item['sample_sequence']} | `{item['state_hash']}` | "
@@ -2831,6 +4038,35 @@ def render_report_markdown(
         lines.extend(f"- `{category}`" for category in WATER_FINDING_CLASSIFICATIONS)
         lines.extend(["", "## Visual questions", ""])
         lines.extend(f"- {question}" for question in WATER_VISUAL_QUESTIONS)
+    elif contract is FIRE_CONTRACT:
+        summary = fire_heat_summary(analysis)
+        lines.extend(
+            [
+                "",
+                "## Fire / Heat telemetry",
+                "",
+                f"- First combustion / Smoke / phase transition ticks: "
+                f"{summary['first_combustion_tick']} / {summary['first_smoke_tick']} / "
+                f"{summary['first_phase_transition_tick']}",
+                f"- Peak Reaction / Thermal cells: {summary['peak_reaction_cells']} at "
+                f"{summary['peak_reaction_tick']} / {summary['peak_thermal_cells']} at "
+                f"{summary['peak_thermal_tick']}",
+                f"- Peak Smoke count: {summary['peak_smoke_count']} at "
+                f"{summary['peak_smoke_tick']}",
+                f"- Terminal / first zero / confirmed zero: "
+                f"{summary['terminal_reason']} / {summary['reaction_zero_tick']} / "
+                f"{summary['confirmed_reaction_zero_tick']}",
+                f"- Thermal tail start / final / minimum: "
+                f"{summary['post_reaction_thermal_cells']} / "
+                f"{summary['post_reaction_final_thermal_cells']} / "
+                f"{summary['post_reaction_min_thermal_cells']}",
+                f"- Post-reaction restart samples: "
+                f"{summary['post_reaction_restart_samples']}",
+                f"- Fuel consumed; Wood / Oil deltas: {summary['fuel_consumed']}; "
+                f"{summary['wood_count_delta']} / {summary['oil_count_delta']}",
+                f"- Exact reset: {summary['reset_exact_equivalence']}",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -2887,6 +4123,31 @@ and matching telemetry samples:
 Report missing evidence and ambiguity explicitly. Do not infer other scenarios, G8-C,
 performance readiness, or G8-B closure. No action, code change, upload, or external
 message is authorized by this prompt.
+"""
+    if contract is FIRE_CONTRACT:
+        summary = fire_heat_summary(analysis)
+        return f"""# Human Review Prompt — Powdergame Fire / Heat Experiment
+
+This prompt was generated locally and was not sent to an AI or external service.
+Review only `REVIEW_PACKET.zip` for experiment `{manifest['experiment_id']}`, run
+`{manifest['run_id']}` in `{manifest['run_mode']}` mode, source
+`{manifest['source']['sha']}`, binary `{manifest['binary']['sha256']}`. Treat automatic
+verdict `{analysis['verdict']}` as a telemetry claim, not user acceptance or closure.
+
+Check the causal sequence in the full frames, crops, contact sheet, raw samples, and events:
+Wood/Oil production combustion, Smoke creation, heat propagation, Ice/Water/Steam phase
+inventory work, finite fuel consumption, three diagnostic Reaction-zero samples, and the
+180-tick post-reaction Thermal tail. Report whether the tail remains visible and decreases;
+a remaining Thermal tail is not itself a failure. The recorded terminal is
+`{summary['terminal_reason']}` with first/confirmed zero ticks
+`{summary['reaction_zero_tick']}` / `{summary['confirmed_reaction_zero_tick']}` and tail
+start/final/minimum cells `{summary['post_reaction_thermal_cells']}` /
+`{summary['post_reaction_final_thermal_cells']}` /
+`{summary['post_reaction_min_thermal_cells']}`.
+
+Report concrete mismatches, missing evidence, and ambiguity. Do not infer other scenarios,
+G8-C performance, product readiness, or G8-B closure. No upload, external message, code
+change, or other action is authorized by this prompt.
 """
     return f"""# ChatGPT Review Prompt — Powdergame Sand Fall Experiment
 
@@ -2963,7 +4224,7 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
     contract = contract_for_manifest(manifest)
     analysis, frames_doc, samples, events = validate_telemetry(run_dir, manifest)
     screenshots = create_screenshots(run_dir, frames_doc["frames"], log)
-    if contract is WATER_CONTRACT:
+    if contract.records_run_mode:
         for screenshot, frame in zip(screenshots, frames_doc["frames"], strict=True):
             screenshot["kind"] = frame["kind"]
 
@@ -3000,8 +4261,11 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
             "ai_contacted": False,
         },
     }
-    if contract is WATER_CONTRACT:
+    if contract is FIRE_CONTRACT:
+        report_json["scope"]["fire_heat"] = True
+    if contract.records_run_mode:
         report_json["run_mode"] = manifest["run_mode"]
+    if contract is WATER_CONTRACT:
         report_json["water_remediation"] = water_remediation_summary(analysis)
         report_json["review_guidance"] = {
             "classification_categories": list(WATER_FINDING_CLASSIFICATIONS),
@@ -3009,6 +4273,13 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
             "categories_are_findings": False,
             "active_cell_classification_rule": WATER_ACTIVE_CLASSIFICATION_RULE,
             "active_cell_classes_are_worker_aggregates": True,
+        }
+    elif contract is FIRE_CONTRACT:
+        report_json["fire_heat"] = fire_heat_summary(analysis)
+        report_json["review_guidance"] = {
+            "thermal_tail_is_not_failure_by_itself": True,
+            "automatic_verdict_is_user_acceptance": False,
+            "g8b_closed": False,
         }
     write_new_text(
         report_dir / "REPORT.json",
@@ -3046,9 +4317,12 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
         "hash_entry_count": len(hashable_files(run_dir)),
         "receipt_is_final_publication_marker": True,
     }
-    if contract is WATER_CONTRACT:
+    if contract.records_run_mode:
         receipt["run_mode"] = manifest["run_mode"]
+    if contract is WATER_CONTRACT:
         receipt["water_remediation"] = water_remediation_summary(analysis)
+    elif contract is FIRE_CONTRACT:
+        receipt["fire_heat"] = fire_heat_summary(analysis)
     write_new_text(
         receipt_path,
         json.dumps(receipt, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
@@ -3068,7 +4342,7 @@ def worker_command(
     run_mode: str = "candidate",
 ) -> tuple[str, ...]:
     validate_run_mode(contract, run_mode)
-    return (
+    common = (
         str(binary),
         "--experiment-worker",
         contract.scenario,
@@ -3082,6 +4356,15 @@ def worker_command(
         str(MAX_TICKS),
         "--diagnostic-interval",
         str(DIAGNOSTIC_INTERVAL),
+    )
+    if contract is FIRE_CONTRACT:
+        return common + (
+            "--consecutive-reaction-zero",
+            str(CONSECUTIVE_REACTION_ZERO),
+            "--post-reaction-ticks",
+            str(POST_REACTION_TICKS),
+        )
+    return common + (
         "--consecutive-all-sleep",
         str(CONSECUTIVE_ALL_SLEEP),
         "--post-sleep-ticks",
@@ -3163,7 +4446,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--mode",
         choices=sorted(RUN_MODES),
         default="candidate",
-        help="Water Flow publication mode (default: candidate)",
+        help="scenario publication mode (default: candidate)",
     )
     parser.add_argument(
         "--artifact-root",

@@ -1,10 +1,10 @@
 use powdergame_core::{
-    is_valid_cell_material_value, WorldConfig, ACTIVITY_ALL_BITS, ACTIVITY_MATTER,
+    fuel_progress, is_valid_cell_material_value, WorldConfig, ACTIVITY_ALL_BITS, ACTIVITY_MATTER,
     ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE,
-    CHUNK_STATE_SLEEPING, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_WATER,
-    PRESSURE_REFERENCE, TEMPERATURE_REFERENCE, WAKE_REASON_ALWAYS_ACTIVE,
-    WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE, WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_SETTLING,
-    WAKE_REASON_USER_EDIT,
+    CHUNK_STATE_SLEEPING, FLAG_FLAME_EVENT, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_OIL,
+    MATERIAL_SMOKE, MATERIAL_WATER, MATERIAL_WOOD, PRESSURE_REFERENCE, TEMPERATURE_REFERENCE,
+    WAKE_REASON_ALWAYS_ACTIVE, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE,
+    WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_SETTLING, WAKE_REASON_USER_EDIT,
 };
 use powdergame_gpu::Simulation;
 use powdergame_scenarios::{
@@ -371,4 +371,86 @@ fn water_flow_reaches_destination_with_conserved_finite_matter_and_resets_exactl
     let reset = snapshot(&simulation);
     assert_tick_zero_matches_fixture(scenario, &fixture, &reset);
     assert_eq!(reset, baseline, "Water Flow exact pristine reset");
+}
+
+/// A small Fire / Heat production-path check. It authenticates that the
+/// unchanged authored seed reaches the generic combustion and Smoke paths;
+/// long-run reaction termination, phase work, and thermal-tail acceptance
+/// remain evidence-Harness responsibilities rather than test thresholds.
+#[test]
+fn fire_heat_seed_progresses_wood_and_oil_and_generates_smoke_then_resets_exactly() {
+    const MAX_TICKS: u64 = 64;
+
+    let scenario = ScenarioId::FireHeat;
+    let config = WorldConfig::new(256, 256, 64).expect("test config");
+    let mut simulation = match pollster::block_on(Simulation::new(config)) {
+        Ok(simulation) => simulation,
+        Err(error) => {
+            eprintln!("Skipping bounded Fire / Heat GPU test (GPU unavailable): {error}");
+            return;
+        }
+    };
+    simulation.set_sleep_enabled(true);
+    simulation.set_sleep_threshold(7);
+
+    let fixture = ScenarioFixture::build(scenario, config).expect("build Fire / Heat fixture");
+    reset_and_stage_scenario(&mut simulation, scenario).expect("initial Fire / Heat staging");
+    let baseline = snapshot(&simulation);
+    assert_tick_zero_matches_fixture(scenario, &fixture, &baseline);
+
+    for _ in 0..MAX_TICKS {
+        simulation.tick().expect("bounded Fire / Heat tick");
+    }
+    assert_eq!(simulation.tick_count, MAX_TICKS);
+    let after = snapshot(&simulation);
+    assert_state_integrity(scenario, config, &after);
+
+    let progressed = |material| {
+        after
+            .materials
+            .iter()
+            .zip(&after.flags)
+            .filter(|&(cell_material, flags)| {
+                *cell_material == material && fuel_progress(*flags) != 0
+            })
+            .count()
+    };
+    let flame_events = after
+        .materials
+        .iter()
+        .zip(&after.flags)
+        .filter(|&(material, flags)| {
+            matches!(*material, MATERIAL_WOOD | MATERIAL_OIL) && *flags & FLAG_FLAME_EVENT != 0
+        })
+        .count();
+    let smoke = after
+        .materials
+        .iter()
+        .filter(|&&material| material == MATERIAL_SMOKE)
+        .count();
+    assert!(progressed(MATERIAL_WOOD) > 0, "Wood fuel did not progress");
+    assert!(progressed(MATERIAL_OIL) > 0, "Oil fuel did not progress");
+    assert!(
+        flame_events > 0,
+        "no production flame event remained observable"
+    );
+    assert!(smoke > 0, "no Smoke was generated within {MAX_TICKS} ticks");
+    assert!(after
+        .cell_activity
+        .iter()
+        .any(|activity| activity & ACTIVITY_REACTION != 0));
+    assert!(after
+        .cell_activity
+        .iter()
+        .any(|activity| activity & ACTIVITY_THERMAL != 0));
+
+    reset_and_stage_scenario(&mut simulation, scenario).expect("Fire / Heat reset staging");
+    assert_eq!(simulation.tick_count, 0);
+    assert!(simulation.sleep_enabled);
+    assert_eq!(simulation.sleep_threshold, 7);
+    assert_eq!(
+        snapshot(&simulation),
+        baseline,
+        "Fire / Heat exact pristine reset"
+    );
 }

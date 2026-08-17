@@ -1,0 +1,161 @@
+# G8-B Scenario 3 — Fire / Heat Harness Candidate
+
+Date: 2026-08-17
+Status: **IMPLEMENTATION CANDIDATE — SOURCE SEAL / ONE CANDIDATE RUN / USER ACCEPTANCE PENDING**
+Branch: `feature/m0-g8b-scenario-suite`
+Starting SHA: `0f5585ba34ec901224a82f4329624abcb66b796b`
+Candidate source SHA: **PENDING SOURCE SEAL**
+
+## 1. Scope and frozen predecessors
+
+This work extends the existing one-command Experiment Evidence Harness to
+`run_experiment.bat fire-heat`. It reuses the Sand/Water coordinator,
+build-bound provenance, external unique Run directory, create-new writes,
+renderer-output frames, reports, packet, hashes, and receipt-last publication.
+
+- Sand Fall remains user accepted and its immutable pilot is unchanged.
+- Water Flow remains human `ACCEPTED WITH KNOWN FOLLOW-UP`; its automatic
+  `NEEDS_HUMAN_REVIEW`, candidate Run ID, packet, receipt, fixture, physics,
+  and artifacts are unchanged.
+- Fire / Heat staging and production physics are not tuned before the first
+  candidate.
+- Pressure Burst, Heavy Mixed World, G8-C, new Material work, physics changes,
+  build optimization, `main`, and PR work are outside this task.
+
+The Harness is an acceptance-evidence path. Its rendering, screenshots,
+readback, and diagnostic samples are not part of any G8-C timed benchmark.
+
+## 2. Audited finite tick-0 fixture
+
+The shared `powdergame-scenarios` fixture is staged through the same
+`reset_and_stage_scenario(..., ScenarioId::FireHeat)` call used by the Windows
+Gallery and headless benchmark. The authored 256×256×64 image is finite and
+contains no fuel or heat source that is replenished by scenario code.
+
+| Authored region | Half-open rectangle | Initial state |
+|---|---|---|
+| Stone floor | `[12,244) × [222,232)` | Stone |
+| Wood slab | `[24,222) × [154,214)` | Wood |
+| Left Oil pocket | `[32,78) × [205,222)` | Oil |
+| Right Oil pocket | `[180,226) × [204,222)` | Oil |
+| Hot Stone column | `[14,26) × [144,222)` | Stone, 260 °C |
+| Hot seed | `[24,42) × [168,202)` | 500 °C, authored `COMBUSTING` |
+| Oil seed | `[32,48) × [205,222)` | 180 °C, authored `COMBUSTING` |
+| Ice block | `[88,168) × [90,118)` | Ice, -20 °C |
+| Water block | `[96,160) × [120,144)` | Water, -20 °C |
+
+Exact tick-0 Material counts are Empty 44,948; Boundary 1,020; Stone 3,256;
+Water 1,536; Oil 1,610; Ice 2,240; Wood 10,926; Sand/Steam/Smoke 0. Total
+non-empty Matter is 20,588 and finite Wood+Oil fuel is 12,536.
+
+Temperature counts are `-20=3,776`, `0=60,008`, `180=272`, `260=868`, and
+`500=612`. Pressure is reference-zero everywhere. Authored combustion flags
+cover 884 cells: Wood 544, Oil 272, and Stone 68. The 68 Stone cells are the
+geometric overlap between the hot seed and pre-existing Stone column. They are
+authenticated input, not evidence of real combustion; production clears
+non-combustible combustion bits. Therefore tick-0 flags alone must never be
+reported as first combustion.
+
+## 3. Expected production causal chain
+
+The worker advances only `Simulation::tick()` and stages no scripted result.
+The production order is movement, thermal conduction, phase transition,
+decay, combustion, Smoke commit, then pressure work.
+
+The candidate observes, rather than assumes, this chain:
+
+1. post-tick Wood and Oil expose genuine flame/fuel-progress signals;
+2. finite Wood/Oil fuel is consumed;
+3. Smoke is generated and later participates in reaction/decay work;
+4. temperature changes propagate outside the authored hot mask;
+5. the global `(Ice, Water, Steam)` inventory departs from tick 0;
+6. reaction activity reaches a confirmed zero streak;
+7. a separate post-reaction thermal tail is observed and checked for decrease;
+8. programmatic reset reproduces the full pristine state.
+
+The initial Ice and Water are exactly -20 °C while phase thresholds are strict,
+and Empty gaps do not conduct. Phase work therefore depends on later
+production interactions and is evidence to collect, not a staging guarantee.
+`ACTIVITY_REACTION` also includes Smoke decay, so reaction-zero can occur later
+than the last visible flame. `ACTIVITY_THERMAL` is reported as thermal activity,
+not as an energy measurement.
+
+## 4. Lifecycle and keyframes
+
+The fixed candidate contract uses max tick 20,000, an eight-tick diagnostic
+cadence, three consecutive reaction-zero diagnostic samples, and 180 contiguous
+post-reaction production ticks. Whole-world all-sleep is not required.
+
+Candidate keyframe roles are tick 0, tick 1, first genuine combustion, first
+Smoke, sampled peak reaction, sampled peak thermal, first phase-inventory
+change, 25%-combined-fuel-consumed, first reaction-zero, post-reaction thermal
+tail, terminal observation, and exact reset. When multiple roles share one
+sample, aliases remain explicit. A missing milestone is never relabelled;
+honest diagnostic observations fill only the minimum evidence count.
+
+The report distinguishes simulation tick from diagnostic sample sequence.
+First/peak values are first-observed or sampled values at the declared cadence,
+not claims about unobserved ticks between readbacks.
+
+## 5. Telemetry and automatic verdict
+
+Every sample binds source SHA, clean state, release profile, binary SHA-256,
+Run ID, WorldConfig, sleep settings, simulation tick, diagnostic sequence,
+activity census, chunk census, material inventory, invalid IDs, non-finite
+fields, wake/change diagnostics, and state hashes. Fire-specific fields include
+Wood/Oil/Smoke/Ice/Water/Steam counts, Wood/Oil combustion and fuel-progress
+signals, propagated-heat cells, phase-inventory change, Smoke/reaction/thermal
+peaks, fuel deltas, reaction-zero identities, and post-reaction tail values.
+
+The exact automatic predicates are:
+
+- `combustion_observed`
+- `smoke_generated`
+- `heat_propagated`
+- `phase_work_observed`
+- `fuel_consumed`
+- `reaction_terminated_before_max`
+- `post_reaction_no_restart`
+- `thermal_tail_observed`
+- `thermal_tail_decreased`
+- `no_invalid_materials`
+- `no_nonfinite_fields`
+- `exact_reset`
+
+Permanent reaction, absent fuel consumption, absent Smoke, absent phase work,
+invalid Material, non-finite fields, or reset mismatch are concrete automatic
+finding candidates. The two thermal-tail predicates can remain unknown and
+produce `NEEDS_HUMAN_REVIEW`; a residual thermal tail is not itself a failure.
+Ambiguous visual evidence also remains for human review. An automatic result
+does not accept Scenario 3 or close G8-B.
+
+## 6. Artifact and publication contract
+
+Artifacts are written outside Git under
+`C:\Users\mdkap\source\Powdergame-artifacts\<unique-run-id>`. Run IDs are never
+reused, existing files are never overwritten, failed runs remain without a
+receipt, and `EXPERIMENT_RECEIPT.json` is the final publication marker and final
+filesystem write. The packet includes logs, telemetry, report, full PNGs,
+crops, and Contact Sheet. Worker raw RGBA and analysis remain in the complete
+Run directory and hash inventory even when excluded from the curated packet.
+No generated artifact is committed.
+
+## 7. Validation and result
+
+| Item | State |
+|---|---|
+| Fixture audit and pure geometry/field pin | PASS — 1 test, 7 filtered |
+| Bounded production combustion/Smoke/reset GPU test | PASS — 64 production ticks, 1 test, 2 filtered |
+| Rust Fire worker and CLI | IMPLEMENTED; Fire 4/4 and worker CLI 4/4 PASS |
+| Python coordinator/independent recomputation | IMPLEMENTED; Fire focused 5/5 and full Experiment 28/28 PASS |
+| Targeted fmt/check/tests | workspace fmt/check and targeted suites PASS |
+| Workspace clippy | PASS — all targets with `-D warnings` |
+| Clean source seal and push | PENDING |
+| One post-seal workspace test checkpoint | PENDING |
+| One final-SHA Gallery release smoke | PENDING |
+| One Fire candidate | PENDING |
+| Automatic verdict / Run ID / packet / receipt | PENDING |
+| User acceptance | PENDING |
+
+No Fire candidate verdict is declared before the single final-SHA run.
+Pressure Burst, Heavy Mixed World, and G8-C remain stopped after that run.

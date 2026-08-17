@@ -108,7 +108,7 @@ M0의 목적은 콘텐츠를 많이 넣는 것이 아니다.
 - G0-G7: PASS / CLOSED
 - G8: IN_PROGRESS
   - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2 first Water candidate SUPERSEDED / FIX REQUIRED and fixture-remediation candidate pending; Scenario 3–5 UNACCEPTED; overall USER ACCEPTANCE PENDING / NOT CLOSED
+  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenarios 1 Sand Fall and 2 Water Flow USER ACCEPTED (Water automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up); Scenario 3 Fire / Heat candidate in progress; Scenario 4–5 UNACCEPTED; overall USER ACCEPTANCE PENDING / NOT CLOSED
   - G8-C Official Matrix Measurement: PENDING
 - G9: PENDING
 - M0 `ACHIEVED`: NO
@@ -405,7 +405,7 @@ Current implementation candidate:
 - `powdergame-scenarios`가 다섯 official fixture의 deterministic CPU image와 production `Simulation` reset/staging을 공유한다.
 - Windows `--benchmark-gallery`는 동일 fixture를 1~5 slot에서 paused inspection할 수 있다.
 - headless `powdergame-benchmark -- --scenario <slug>`는 동일 fixture를 각 prewarm/trial/overhead window 전에 pristine reset/stage한다.
-- Scenario Experiment coordinator는 immutable Sand v0와 Water analyzer를 공통 provenance/no-overwrite/receipt-last 구조에서 dispatch한다. Preserved Water v1 evidence와 remediation v2 schema를 구분하며 Water는 `scratch`와 `candidate` mode를 유지한다.
+- Scenario Experiment coordinator는 immutable Sand v0와 Water analyzer를 공통 provenance/no-overwrite/receipt-last 구조에서 dispatch한다. Preserved Water v1 evidence와 remediation v2 schema를 구분하며 Water는 `scratch`와 `candidate` mode를 유지한다. Fire / Heat는 같은 coordinator에 별도 analyzer를 추가하되 Sand/Water schema와 published artifacts를 변경하지 않는다.
 - 여섯 번째 `active-sleep-g7`은 official G8-B workload가 아니라 exact 256×256×64 G7 regression fixture다.
 - Gallery rendering/HUD/wall-clock TPS/bounded census는 official timing에서 제외한다.
 - production physics, Material, G9, optimization은 이 candidate의 범위가 아니다.
@@ -414,8 +414,8 @@ Acceptance boundary:
 
 - targeted automated checks는 fixture/staging/selection contract를 검증할 수 있지만 사용자 수용을 대신하지 않는다.
 - Scenario 1 Sand Fall은 사용자 승인되었다. 완전 정착과 모든 chunk의 sleep 수렴이 성공이며, activity를 계속 보이게 만들기 위한 retuning은 금지한다.
-- Scenario 2 Water Flow 첫 candidate는 Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`, automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`로 immutable/superseded다. Remediation base `d12edbf`는 side-wall top만 `y=90 → 14`로 연장하고 Water/Oil·internal geometry·production physics·all-sleep policy를 보존하며 zero-leakage hard predicate를 추가한다. FULL/smoke, one fresh candidate, verdict와 사용자 승인은 pending이다.
-- Scenario 3~5는 미승인이며 현재 task 범위 밖이다. Water candidate 뒤 Fire / Heat로 자동 진행하지 않는다.
+- Scenario 2 Water Flow first candidate는 Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`, automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`로 immutable/superseded다. Source `5af031f`의 remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 소급 변경하지 않은 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Outer-basin Water max/final은 `0 / 0`; 알려진 후속 과제는 M0 local-liquid free-surface 소수 셀의 지속 재배열이며 production-physics defect 증거는 없다.
+- Scenario 3 Fire / Heat는 unchanged fixture와 production physics를 보존한 Harness candidate가 현재 범위다. Scenario 4~5와 G8-C는 이 candidate 뒤에도 자동 시작하지 않는다.
 - 남은 official fixture의 identity, pristine reset, pause/step/play 동작을 사용자가 각각 확인하고 승인하기 전까지 G8-B는 **USER ACCEPTANCE PENDING / NOT CLOSED**다.
 - G8-C official matrix measurement와 G8-B closure를 혼동하지 않는다.
 

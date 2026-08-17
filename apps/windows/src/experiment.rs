@@ -22,8 +22,10 @@ use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
 use crate::gallery::RuntimeProvenance;
 use crate::renderer::{CapturedFrame, Renderer};
 
+mod fire;
 mod water;
 
+pub use fire::{run_fire_heat_experiment, FIRE_EXPERIMENT_ID};
 pub use water::{run_water_flow_experiment, WATER_EXPERIMENT_ID};
 
 pub const EXPERIMENT_ID: &str = "g8b-sand-fall-v0";
@@ -54,6 +56,10 @@ pub struct ExperimentWorkerConfig {
     pub diagnostic_interval_ticks: u64,
     pub consecutive_all_sleep: u32,
     pub post_sleep_ticks: u32,
+    /// Fire / Heat-only diagnostic confirmation. Zero for sealed Sand/Water contracts.
+    pub consecutive_reaction_zero: u32,
+    /// Fire / Heat-only production tail. Zero for sealed Sand/Water contracts.
+    pub post_reaction_ticks: u32,
 }
 
 /// The semantic verdict produced from the seven hard Sand Fall predicates.

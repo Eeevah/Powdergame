@@ -338,12 +338,16 @@ class ExperimentRunnerTests(unittest.TestCase):
             changed: int,
             state_hash: str,
             outside: int = 0,
+            outside_outer_basin: int = 0,
             vacated: int = 0,
             bottom: int = 0,
             destination: int = 0,
             spread: int = 0,
             water_chunks: int = 10,
             water_y_sum: int = 1_000_000,
+            active_water_empty: int | None = None,
+            active_water_oil: int = 0,
+            active_other: int = 0,
         ) -> dict:
             return {
                 "schema_version": experiment.WATER_TELEMETRY_SCHEMA,
@@ -385,6 +389,7 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "water_occupied_chunks": water_chunks,
                 "oil_occupied_chunks": 4,
                 "water_outside_initial_mask": outside,
+                "water_outside_outer_basin_cells": outside_outer_basin,
                 "initial_water_cells_vacated": vacated,
                 "bottom_chunk_row_water_cells": bottom,
                 "destination_water_cells": destination,
@@ -397,6 +402,11 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "wake_reason_or": 0,
                 "state_hash": state_hash,
                 "physical_state_hash": state_hash,
+                "active_water_empty_surface_cells": (
+                    active if active_water_empty is None else active_water_empty
+                ),
+                "active_water_oil_interface_cells": active_water_oil,
+                "active_other_cells": active_other,
             }
 
         samples = [
@@ -654,12 +664,20 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "max_destination_spread_x": 15,
                 "max_destination_spread_tick": 8,
                 "max_destination_spread_sample_sequence": 3,
+                "max_water_outside_outer_basin_cells": 0,
                 "final_matter_count": 25392,
                 "final_water_count": 15244,
                 "final_oil_count": 2240,
                 "final_water_occupied_chunks": 13,
                 "final_oil_occupied_chunks": 4,
                 "final_sleeping_chunks": 16,
+                "final_water_outside_outer_basin_cells": 0,
+                "final_active_water_empty_surface_cells": 0,
+                "final_active_water_oil_interface_cells": 0,
+                "final_active_other_cells": 0,
+                "active_cell_classification_rule": (
+                    experiment.WATER_ACTIVE_CLASSIFICATION_RULE
+                ),
                 "matter_count_delta": 0,
                 "water_count_delta": 0,
                 "oil_count_delta": 0,
@@ -771,6 +789,383 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertEqual(len(samples), 187)
         self.assertEqual(frames["frame_count"], 8)
         self.assertEqual(len(events), 18)
+        self.assertEqual(
+            analysis["schema_version"], "powdergame-experiment-analysis-v2"
+        )
+        self.assertEqual(
+            samples[0]["schema_version"], "powdergame-experiment-telemetry-v2"
+        )
+        self.assertEqual(
+            analysis["metrics"]["max_water_outside_outer_basin_cells"], 0
+        )
+        self.assertEqual(
+            analysis["predicates"]["water_outside_outer_basin_cells"]["status"],
+            "pass",
+        )
+
+    def test_water_outer_basin_hard_predicate_recomputes_zero_and_leak(self) -> None:
+        zero_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-outer-zero-test"
+        )
+        zero_manifest = experiment.read_and_validate_manifest(
+            zero_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        zero_analysis, _, _, _ = experiment.validate_telemetry(
+            zero_dir, zero_manifest
+        )
+        self.assertEqual(
+            zero_analysis["predicates"]["water_outside_outer_basin_cells"]["status"],
+            "pass",
+        )
+
+        leak_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-outer-leak-test"
+        )
+        sample_path = leak_dir / "telemetry" / "samples.jsonl"
+        samples = [
+            json.loads(line)
+            for line in sample_path.read_text(encoding="utf-8").splitlines()
+        ]
+        samples[2]["water_outside_outer_basin_cells"] = 3
+        sample_path.write_text(
+            "".join(json.dumps(item) + "\n" for item in samples), encoding="utf-8"
+        )
+        analysis_path = leak_dir / "work" / "analysis.json"
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        analysis["metrics"]["max_water_outside_outer_basin_cells"] = 3
+        analysis["predicates"]["water_outside_outer_basin_cells"] = {
+            "status": "fail",
+            "detail": "fixture observed three Water cells outside the outer basin",
+        }
+        analysis["verdict"] = "FAIL"
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        leak_manifest = experiment.read_and_validate_manifest(
+            leak_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        leak_analysis, _, _, _ = experiment.validate_telemetry(
+            leak_dir, leak_manifest
+        )
+        self.assertEqual(
+            leak_analysis["predicates"]["water_outside_outer_basin_cells"]["status"],
+            "fail",
+        )
+        self.assertEqual(leak_analysis["verdict"], "FAIL")
+
+    def test_water_outer_basin_analysis_max_and_final_are_bound(self) -> None:
+        for key in (
+            "max_water_outside_outer_basin_cells",
+            "final_water_outside_outer_basin_cells",
+        ):
+            with self.subTest(metric=key):
+                run_dir = self.create_valid_water_worker_fixture(
+                    f"g8b-water-flow-v0-{key}-test"
+                )
+                analysis_path = run_dir / "work" / "analysis.json"
+                analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+                analysis["metrics"][key] = 1
+                analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+                manifest = experiment.read_and_validate_manifest(
+                    run_dir / "EXPERIMENT_MANIFEST.toml"
+                )
+                with self.assertRaisesRegex(experiment.ExperimentError, key):
+                    experiment.validate_telemetry(run_dir, manifest)
+
+    def test_water_max_ticks_final_metrics_exclude_reset_sample(self) -> None:
+        run_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-max-ticks-final-test"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        sample_path = run_dir / "telemetry" / "samples.jsonl"
+        original_samples = [
+            json.loads(line)
+            for line in sample_path.read_text(encoding="utf-8").splitlines()
+        ]
+        tick0 = copy.deepcopy(original_samples[0])
+        tick1 = copy.deepcopy(original_samples[1])
+        tick2 = copy.deepcopy(original_samples[2])
+        diagnostic_template = copy.deepcopy(original_samples[3])
+        samples = [tick0, tick1, tick2]
+        for tick in range(8, experiment.MAX_TICKS + 1, experiment.DIAGNOSTIC_INTERVAL):
+            item = copy.deepcopy(diagnostic_template)
+            item.update(
+                {
+                    "sim_tick": tick,
+                    "phase": "flowing",
+                    "reason": (
+                        "max-tick"
+                        if tick == experiment.MAX_TICKS
+                        else "diagnostic-cadence"
+                    ),
+                    "water_outside_outer_basin_cells": (
+                        7 if tick == experiment.MAX_TICKS else 0
+                    ),
+                    "active_water_empty_surface_cells": 6,
+                    "active_water_oil_interface_cells": 4,
+                    "active_other_cells": 2,
+                    "changed_chunks": 1,
+                    "state_hash": f"fnv1a64:{tick:016x}",
+                    "physical_state_hash": f"fnv1a64:{tick:016x}",
+                }
+            )
+            item["census"].update(
+                {
+                    "any_active_cells": 12,
+                    "matter_active_cells": 12,
+                    "active_chunks": 2,
+                    "runnable_chunks": 15,
+                    "sleeping_chunks": 1,
+                }
+            )
+            samples.append(item)
+
+        terminal = samples[-1]
+        reset = copy.deepcopy(tick0)
+        reset.update(
+            {
+                "sim_tick": 0,
+                "phase": "reset",
+                "reason": "programmatic-r-equivalent",
+                "water_outside_outer_basin_cells": 999,
+                "active_water_empty_surface_cells": 80,
+                "active_water_oil_interface_cells": 15,
+                "active_other_cells": 5,
+                "state_hash": "fnv1a64:fffffffffffffffe",
+                "physical_state_hash": "fnv1a64:fffffffffffffffe",
+            }
+        )
+        samples.append(reset)
+        for sequence, item in enumerate(samples):
+            item["sample_sequence"] = sequence
+        sample_path.write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in samples),
+            encoding="utf-8",
+        )
+
+        tick8 = samples[3]
+
+        def event(name: str, item: dict | None, detail: str = "fixture") -> dict:
+            return {
+                "schema_version": experiment.WATER_TELEMETRY_SCHEMA,
+                "experiment_id": experiment.WATER_CONTRACT.experiment_id,
+                "run_id": run_dir.name,
+                "scenario": experiment.WATER_CONTRACT.scenario,
+                "event_sequence": -1,
+                "event": name,
+                "sim_tick": 0 if item is None else item["sim_tick"],
+                "sample_sequence": None if item is None else item["sample_sequence"],
+                "detail": detail,
+            }
+
+        events = [
+            event("lifecycle_started", None),
+            event("pristine_reset_completed", None),
+            event("tick0_captured", tick0),
+            event("tick1_captured", tick1),
+            event("water_movement_observed", tick1),
+            event("new_peak_active", tick1),
+            event("cross_chunk_flow_observed", tick2),
+            event("first_sleeping_chunk_observed", tick1),
+            event("destination_arrival_observed", tick8),
+            event("new_max_destination_spread", tick8),
+            event("terminal_selected", terminal),
+            event("reset_started", terminal),
+            event("reset_comparison_completed", reset),
+            event("worker_completed", reset, "FAIL"),
+        ]
+        for sequence, item in enumerate(events):
+            item["event_sequence"] = sequence
+        (run_dir / "telemetry" / "events.jsonl").write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in events),
+            encoding="utf-8",
+        )
+
+        frames_dir = run_dir / "work" / "frames"
+        peak_path = frames_dir / "peak-alias.rgba"
+        peak_path.write_bytes((frames_dir / "01-tick1.rgba").read_bytes())
+        frame_specs = (
+            ("tick0", tick0, "pristine-reset", "work/frames/00-tick0.rgba"),
+            ("tick1", tick1, "tick1", "work/frames/01-tick1.rgba"),
+            (
+                "cross-chunk-flow",
+                tick2,
+                "cross-chunk-flow",
+                "work/frames/02-cross-chunk-flow.rgba",
+            ),
+            (
+                "destination-arrival",
+                tick8,
+                "destination-arrival",
+                "work/frames/03-destination-arrival.rgba",
+            ),
+            (
+                "peak-active",
+                tick1,
+                "highest-observed-active-cells",
+                "work/frames/peak-alias.rgba",
+            ),
+            (
+                "late",
+                samples[-3],
+                "observation-before-terminal-diagnostic",
+                "work/frames/04-late.rgba",
+            ),
+            (
+                "terminal",
+                terminal,
+                "max-tick-reached",
+                "work/frames/05-terminal.rgba",
+            ),
+            (
+                "reset",
+                reset,
+                "programmatic-reset",
+                "work/frames/07-reset.rgba",
+            ),
+        )
+        raw_size = experiment.RENDERER_WIDTH * experiment.RENDERER_HEIGHT * 4
+        frames = [
+            {
+                "ordinal": ordinal,
+                "kind": kind,
+                "relative_path": relative_path,
+                "width": experiment.RENDERER_WIDTH,
+                "height": experiment.RENDERER_HEIGHT,
+                "rgba_bytes": raw_size,
+                "reason": reason,
+                "sim_tick": item["sim_tick"],
+                "sample_sequence": item["sample_sequence"],
+                "state_hash": item["state_hash"],
+            }
+            for ordinal, (kind, item, reason, relative_path) in enumerate(frame_specs)
+        ]
+        frames_path = run_dir / "work" / "frames.json"
+        frames_doc = json.loads(frames_path.read_text(encoding="utf-8"))
+        frames_doc["frame_count"] = len(frames)
+        frames_doc["frames"] = frames
+        frames_path.write_text(json.dumps(frames_doc), encoding="utf-8")
+
+        analysis_path = run_dir / "work" / "analysis.json"
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        analysis["lifecycle"].update(
+            {
+                "terminal_reason": "max-ticks",
+                "first_all_sleep_sim_tick": None,
+                "first_all_sleep_sample_sequence": None,
+                "confirmed_all_sleep_sim_tick": None,
+                "first_stable_plateau_sim_tick": None,
+                "first_stable_plateau_sample_sequence": None,
+                "confirmed_stable_plateau_sim_tick": None,
+                "terminal_sim_tick": experiment.MAX_TICKS,
+                "terminal_sample_sequence": terminal["sample_sequence"],
+                "post_settle_end_tick": None,
+                "post_settle_change_ticks": 0,
+                "post_settle_wake_ticks": 0,
+                "sample_count": len(samples),
+            }
+        )
+        analysis["metrics"].update(
+            {
+                "max_water_outside_outer_basin_cells": 7,
+                "final_water_outside_outer_basin_cells": 7,
+                "final_active_water_empty_surface_cells": 6,
+                "final_active_water_oil_interface_cells": 4,
+                "final_active_other_cells": 2,
+                "final_sleeping_chunks": 1,
+                "post_settle_state_changes": 0,
+                "post_settle_spontaneous_wakes": 0,
+                "reset_exact_equivalence": False,
+            }
+        )
+        predicate_statuses = {
+            name: "pass" for name in experiment.WATER_PREDICATE_NAMES
+        }
+        predicate_statuses.update(
+            {
+                "water_outside_outer_basin_cells": "fail",
+                "stable_bulk_before_max": "unknown",
+                "post_settle_stable": "unknown",
+                "exact_reset": "fail",
+            }
+        )
+        analysis["predicates"] = {
+            name: {"status": status, "detail": f"fixture {name} {status}"}
+            for name, status in predicate_statuses.items()
+        }
+        analysis["verdict"] = "FAIL"
+        analysis["raw_frame_count"] = len(frames)
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+
+        validated, _, validated_samples, _ = experiment.validate_water_telemetry(
+            run_dir, manifest
+        )
+        final_non_reset = validated_samples[-2]
+        reset_sample = validated_samples[-1]
+        metrics = validated["metrics"]
+        self.assertEqual(validated["lifecycle"]["terminal_reason"], "max-ticks")
+        self.assertEqual(final_non_reset["sim_tick"], experiment.MAX_TICKS)
+        self.assertEqual(metrics["max_water_outside_outer_basin_cells"], 7)
+        self.assertEqual(
+            metrics["final_water_outside_outer_basin_cells"],
+            final_non_reset["water_outside_outer_basin_cells"],
+        )
+        self.assertEqual(
+            (
+                metrics["final_active_water_empty_surface_cells"],
+                metrics["final_active_water_oil_interface_cells"],
+                metrics["final_active_other_cells"],
+            ),
+            (
+                final_non_reset["active_water_empty_surface_cells"],
+                final_non_reset["active_water_oil_interface_cells"],
+                final_non_reset["active_other_cells"],
+            ),
+        )
+        self.assertEqual(reset_sample["water_outside_outer_basin_cells"], 999)
+        self.assertNotEqual(
+            metrics["max_water_outside_outer_basin_cells"],
+            reset_sample["water_outside_outer_basin_cells"],
+        )
+        self.assertNotEqual(
+            metrics["final_active_other_cells"], reset_sample["active_other_cells"]
+        )
+
+    def test_water_final_active_classification_is_exactly_bound(self) -> None:
+        run_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-active-class-test"
+        )
+        sample_path = run_dir / "telemetry" / "samples.jsonl"
+        samples = [
+            json.loads(line)
+            for line in sample_path.read_text(encoding="utf-8").splitlines()
+        ]
+        samples[-2]["active_other_cells"] = 1
+        sample_path.write_text(
+            "".join(json.dumps(item) + "\n" for item in samples), encoding="utf-8"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        with self.assertRaisesRegex(
+            experiment.ExperimentError, "active-cell classifications"
+        ):
+            experiment.validate_telemetry(run_dir, manifest)
+
+        metric_dir = self.create_valid_water_worker_fixture(
+            "g8b-water-flow-v0-active-class-metric-test"
+        )
+        analysis_path = metric_dir / "work" / "analysis.json"
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        analysis["metrics"]["final_active_other_cells"] = 1
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+        metric_manifest = experiment.read_and_validate_manifest(
+            metric_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        with self.assertRaisesRegex(
+            experiment.ExperimentError, "final_active_other_cells"
+        ):
+            experiment.validate_telemetry(metric_dir, metric_manifest)
 
     def test_water_named_peak_frame_may_share_the_tick1_identity(self) -> None:
         run_dir = self.create_valid_water_worker_fixture(
@@ -1207,6 +1602,15 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertEqual(receipt["run_mode"], "candidate")
         self.assertEqual(report["schema_version"], experiment.WATER_REPORT_SCHEMA)
         self.assertEqual(report["run_mode"], "candidate")
+        self.assertEqual(
+            report["water_remediation"]["active_cell_classification_rule"],
+            experiment.WATER_ACTIVE_CLASSIFICATION_RULE,
+        )
+        self.assertEqual(
+            report["water_remediation"]["max_water_outside_outer_basin_cells"], 0
+        )
+        self.assertEqual(report["water_remediation"]["final_any_active_cells"], 0)
+        self.assertEqual(report["water_remediation"], receipt["water_remediation"])
         self.assertEqual(report["screenshots"][0]["kind"], "tick0")
         self.assertFalse(report["scope"]["ai_contacted"])
         self.assertFalse(
@@ -1218,6 +1622,7 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertIn("was not sent to an AI", prompt)
         self.assertIn("actual_physics_defect", prompt)
         self.assertIn("Does Water visibly leave", prompt)
+        self.assertIn(experiment.WATER_ACTIVE_CLASSIFICATION_RULE, prompt)
         packet = run_dir / "report" / "REVIEW_PACKET.zip"
         with zipfile.ZipFile(packet) as archive:
             names = set(archive.namelist())

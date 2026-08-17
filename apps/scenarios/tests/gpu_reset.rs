@@ -1,13 +1,16 @@
 use powdergame_core::{
     is_valid_cell_material_value, WorldConfig, ACTIVITY_ALL_BITS, ACTIVITY_MATTER,
     ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE,
-    CHUNK_STATE_SLEEPING, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, PRESSURE_REFERENCE,
-    TEMPERATURE_REFERENCE, WAKE_REASON_ALWAYS_ACTIVE, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE,
-    WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_SETTLING, WAKE_REASON_USER_EDIT,
+    CHUNK_STATE_SLEEPING, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_WATER,
+    PRESSURE_REFERENCE, TEMPERATURE_REFERENCE, WAKE_REASON_ALWAYS_ACTIVE,
+    WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE, WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_SETTLING,
+    WAKE_REASON_USER_EDIT,
 };
 use powdergame_gpu::Simulation;
 use powdergame_scenarios::{
     reset_and_stage_scenario, ScenarioFixture, ScenarioId, GALLERY_SCENARIOS,
+    WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE, WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE,
+    WATER_FLOW_OUTER_BASIN_MIN_X, WATER_FLOW_OUTER_BASIN_MIN_Y,
 };
 
 #[derive(Debug, PartialEq)]
@@ -242,4 +245,130 @@ fn all_six_scenarios_reset_exactly_and_survive_one_production_tick() {
             "{scenario}: tick-1 result after repeated reset"
         );
     }
+}
+
+/// A single bounded Water Flow acceptance check. Intermediate observations use
+/// material-only readback at the Harness cadence; full state is read only at
+/// tick 0, tick 256, and reset.
+#[test]
+fn water_flow_reaches_destination_with_conserved_finite_matter_and_resets_exactly() {
+    const MAX_TICKS: u64 = 256;
+    const DESTINATION_MIN_Y: u32 = 200;
+
+    let scenario = ScenarioId::WaterFlow;
+    let config = WorldConfig::new(256, 256, 64).expect("test config");
+    let mut simulation = match pollster::block_on(Simulation::new(config)) {
+        Ok(simulation) => simulation,
+        Err(error) => {
+            eprintln!("Skipping bounded Water Flow GPU test (GPU unavailable): {error}");
+            return;
+        }
+    };
+    simulation.set_sleep_enabled(true);
+    simulation.set_sleep_threshold(7);
+
+    let fixture = ScenarioFixture::build(scenario, config).expect("build Water Flow fixture");
+    reset_and_stage_scenario(&mut simulation, scenario).expect("initial Water Flow staging");
+    assert_eq!(simulation.tick_count, 0);
+    let baseline = snapshot(&simulation);
+    assert_tick_zero_matches_fixture(scenario, &fixture, &baseline);
+
+    let count_material =
+        |materials: &[u32], material| materials.iter().filter(|&&value| value == material).count();
+    let count_matter = |materials: &[u32]| {
+        materials
+            .iter()
+            .filter(|&&material| material != MATERIAL_EMPTY)
+            .count()
+    };
+    let baseline_water = count_material(&baseline.materials, MATERIAL_WATER);
+    let baseline_oil = count_material(&baseline.materials, MATERIAL_OIL);
+    let baseline_matter = count_matter(&baseline.materials);
+    assert_eq!(baseline_water, 15_244);
+    assert_eq!(baseline_oil, 2_240);
+
+    let width = config.width as usize;
+    let destination_empty_mask: Vec<bool> = baseline
+        .materials
+        .iter()
+        .enumerate()
+        .map(|(index, &material)| {
+            let x = (index % width) as u32;
+            let y = (index / width) as u32;
+            material == MATERIAL_EMPTY
+                && (WATER_FLOW_OUTER_BASIN_MIN_X..WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE)
+                    .contains(&x)
+                && (DESTINATION_MIN_Y..WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE).contains(&y)
+        })
+        .collect();
+    let count_water_outside_basin = |materials: &[u32]| {
+        materials
+            .iter()
+            .enumerate()
+            .filter(|&(_, material)| *material == MATERIAL_WATER)
+            .filter(|&(index, _)| {
+                let x = (index % width) as u32;
+                let y = (index / width) as u32;
+                !(WATER_FLOW_OUTER_BASIN_MIN_X..WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE).contains(&x)
+                    || !(WATER_FLOW_OUTER_BASIN_MIN_Y..WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE)
+                        .contains(&y)
+            })
+            .count()
+    };
+
+    let mut first_destination_arrival_tick = None;
+    for expected_tick in 1..=MAX_TICKS {
+        simulation.tick().expect("bounded Water Flow tick");
+        if expected_tick <= 2 || expected_tick.is_multiple_of(8) {
+            let materials = simulation
+                .world
+                .read_material_all(&simulation.context.device, &simulation.context.queue)
+                .expect("Water Flow material-only observation");
+            assert_eq!(
+                count_material(&materials, MATERIAL_WATER),
+                baseline_water,
+                "Water count at observation tick {expected_tick}"
+            );
+            assert_eq!(
+                count_material(&materials, MATERIAL_OIL),
+                baseline_oil,
+                "Oil count at observation tick {expected_tick}"
+            );
+            assert_eq!(
+                count_matter(&materials),
+                baseline_matter,
+                "non-empty matter count at observation tick {expected_tick}"
+            );
+            assert_eq!(
+                count_water_outside_basin(&materials),
+                0,
+                "Water outside shared outer basin at observation tick {expected_tick}"
+            );
+
+            let destination_water = destination_empty_mask
+                .iter()
+                .zip(&materials)
+                .filter(|(was_empty, material)| **was_empty && **material == MATERIAL_WATER)
+                .count();
+            if destination_water > 0 && first_destination_arrival_tick.is_none() {
+                first_destination_arrival_tick = Some(expected_tick);
+            }
+        }
+    }
+    assert_eq!(simulation.tick_count, MAX_TICKS);
+    assert!(
+        first_destination_arrival_tick.is_some(),
+        "Water did not reach a tick-0 EMPTY destination cell in [18,238)x[200,230) at Harness observation cadence within {MAX_TICKS} ticks"
+    );
+
+    let after = snapshot(&simulation);
+    assert_state_integrity(scenario, config, &after);
+
+    reset_and_stage_scenario(&mut simulation, scenario).expect("Water Flow reset staging");
+    assert_eq!(simulation.tick_count, 0);
+    assert!(simulation.sleep_enabled);
+    assert_eq!(simulation.sleep_threshold, 7);
+    let reset = snapshot(&simulation);
+    assert_tick_zero_matches_fixture(scenario, &fixture, &reset);
+    assert_eq!(reset, baseline, "Water Flow exact pristine reset");
 }

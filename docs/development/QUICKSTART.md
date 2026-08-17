@@ -10,9 +10,9 @@ Read this first when entering the repo.
 - G7-B: PASS / CLOSED / FROZEN
 - G8: Performance Evidence (IN_PROGRESS; historical v4 remains unbound historical data)
 - G8-A: v5 official capture + independent verification complete / verified evidence candidate; same-SHA user visual validation pending
-- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2 Water Flow Harness implementation candidate exists from base `b884abc` but is NOT USER ACCEPTED; Scenario 3–5 remain pending; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
+- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenario 1 Sand Fall USER ACCEPTED; Scenario 2 first Water candidate SUPERSEDED / FIX REQUIRED and fixture remediation candidate pending; Scenario 3–5 remain pending; **overall USER ACCEPTANCE PENDING / NOT CLOSED**
 - Sand Fall Experiment Harness v0: experiment source `9e1fdac`; pilot automatic **PASS**; Harness review output **APPROVED**; G8-B overall **NOT CLOSED**
-- Water Flow Harness candidate: Water v1 source/tests/docs implemented on `feature/m0-g8b-scenario-suite`; fixture/physics unchanged; FAST checks recorded; source seal, FULL checkpoint, smoke, scratch/candidate runs and verdict pending
+- Water Flow Harness: first v1 candidate preserved with automatic `NEEDS_HUMAN_REVIEW` and human fixture-representativeness finding; Water v2 remediation extends only outer walls and adds zero-leakage evidence; source seal, FULL checkpoint, smoke, one new candidate and verdict pending
 - G8-C: official matrix measurement not started
 - Current G8-B work line after closure integration: `feature/m0-g8b-scenario-suite`; retained `feature/g8b-experiment-harness-v0` is aligned at the same later docs-only closure commit. Experiment provenance remains `9e1fdac`; `main` promotion and Gate closure require explicit user direction
 
@@ -45,7 +45,7 @@ The Gallery uses one shared scenario source with the headless harness and starts
 
 Gallery rendering, HUD, wall-clock TPS, and bounded activity-census readback are inspection diagnostics outside official timing. They are not G8-C performance evidence.
 
-Scenario 1 Sand Fall is user accepted. Complete settling followed by all chunks sleeping is its intended successful outcome; do not retune it to manufacture perpetual activity. Scenario 2 Water Flow is the active Harness candidate but remains not user accepted; its first run must use the unchanged finite fixture. Scenario 3–5 remain pending and are outside this task.
+Scenario 1 Sand Fall is user accepted. Complete settling followed by all chunks sleeping is its intended successful outcome; do not retune it to manufacture perpetual activity. Scenario 2 Water Flow remains not user accepted. Its first candidate is immutable/superseded after Water bypassed side walls that began below the reservoirs. The remediation raises only those wall tops from `y=90` to `y=14`; it does not change Water/Oil staging, internal geometry, production physics, or all-sleep policy. Scenario 3–5 remain pending and are outside this task.
 
 ## Validated Sand Fall experiment pilot
 
@@ -63,18 +63,17 @@ The documented pilot completed as run `g8b-sand-fall-v0-20260817T065311878587Z-3
 
 ## Water Flow Harness candidate
 
-The Water worker reuses the same pristine `ScenarioId::WaterFlow` staging and production ticks without changing the finite fixture or physics. At 256×256×64, tick 0 contains Water 15,244, Oil 2,240, Stone 6,888, Boundary Block 1,020, and Empty 40,144 cells. Its destination observation mask is the 6,216 tick-0 `EMPTY` cells inside `[18,238) × [200,230)`; it is diagnostic only.
+The Water worker reuses pristine `ScenarioId::WaterFlow` staging and production ticks. At 256×256×64, the remediated tick 0 contains Water 15,244, Oil 2,240, Stone 8,104, Boundary Block 1,020, and Empty 38,928 cells. The destination observation mask remains the 6,216 tick-0 `EMPTY` cells inside `[18,238) × [200,230)`; it is diagnostic only. The outer-basin interior is `[18,238) × [14,230)`.
 
-Development must create the first immutable scratch run before interpreting or changing the fixture. After source seal and the one required FULL checkpoint, create the candidate exactly once:
+The first candidate and its human classification are already immutable. After remediation FAST, the one required FULL checkpoint, and source seal, create one fresh candidate exactly once:
 
 ```bat
-run_experiment.bat water-flow --mode scratch
 run_experiment.bat water-flow
 ```
 
-The default Water mode is `candidate`; scratch Run IDs contain `-scratch-`. Both modes use create-new directories, exact schema validation, hashes, and receipt-last publication. Water v1 has nine tri-state predicates: movement, cross-chunk flow, destination arrival, Water conservation, no invalid IDs, no non-finite fields, stable bulk before max, post-settle stability, and exact reset. A stable plateau may terminate collection but remains `unknown` for `stable_bulk_before_max`, producing `NEEDS_HUMAN_REVIEW` rather than silently claiming `PASS`.
+The default Water mode is `candidate`; scratch Run IDs contain `-scratch-`. Both modes use create-new directories, exact schema validation, hashes, and receipt-last publication. The preserved first candidate used Water v1. The remediation uses Water v2 with ten tri-state predicates: the previous nine plus `water_outside_outer_basin_cells`, which passes only when its maximum is zero. A stable plateau may terminate collection but remains `unknown` for `stable_bulk_before_max`, producing `NEEDS_HUMAN_REVIEW` rather than silently claiming `PASS`.
 
-Recorded FAST checks: workspace fmt/check passed; scenario library 7/7; Windows experiment tests 16/16; Python coordinator/analyzer tests 19/19; shared GPU reset 1/1. No Water scratch or candidate run has been created. Candidate source SHA, FULL workspace checkpoint, release smoke, run IDs, artifact hashes and verdict remain pending. See `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`.
+Remediation FAST checks passed: workspace fmt/check; scenario library 7/7; shared GPU reset 1/1; bounded Water destination/conservation/leak/reset GPU test 1/1; Windows Sand/Water experiment 16/16; Python coordinator/analyzer 23/23. The single FULL workspace test/clippy/diff checkpoint and 60-frame RTX 5090/DX12 Gallery release smoke passed. Source SHA, new Run ID, artifact hashes and remediation verdict remain pending. The prior candidate remains immutable. See `docs/evidence/G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md`.
 
 ## Select a headless fixture
 

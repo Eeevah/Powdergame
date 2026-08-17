@@ -59,7 +59,7 @@ Roadmap의 모든 단계는 이 질문에 더 강한 답을 만들기 위해 존
 - G7 Active / Sleep — PASS / CLOSED
 - G8 Performance Evidence — IN_PROGRESS
   - G8-A Measurement Substrate — V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite — IMPLEMENTATION CANDIDATE; Sand USER ACCEPTED; Water Harness candidate implemented but runs/user acceptance PENDING; overall NOT CLOSED
+  - G8-B Benchmark Scenario Suite — IMPLEMENTATION CANDIDATE; Sand USER ACCEPTED; first Water candidate SUPERSEDED / FIX REQUIRED, remediation candidate pending; overall NOT CLOSED
   - G8-C Official Matrix Measurement — PENDING
 - G9 Product Validation — PENDING
 
@@ -130,8 +130,8 @@ M0 성능을 하나의 calibration fixture가 아니라 대표 gameplay workload
 ### Current G8-B acceptance sequence
 
 - Sand Fall의 complete-settle/all-sleep behavior와 published Harness pilot은 accepted/immutable이다.
-- Water Flow는 같은 `feature/m0-g8b-scenario-suite` line에서 finite fixture와 production physics를 변경하지 않은 Harness v1 implementation candidate다. FAST checks만 기록되었고 exact source SHA, FULL/smoke, first scratch run, one candidate run, automatic verdict와 user acceptance는 pending이다.
-- Water candidate는 `run_experiment.bat water-flow --mode scratch`로 첫 raw observation을 보존한 뒤 clean source에서 기본 candidate mode를 정확히 한 번 게시한다. unique/no-overwrite/receipt-last 정책을 유지한다.
+- Water Flow의 첫 candidate는 `d12edbf` source에서 immutable artifact로 보존되었고 automatic `NEEDS_HUMAN_REVIEW` 뒤 human `FIX REQUIRED — fixture_representativeness_issue`로 superseded되었다. Remediation은 side-wall top만 `y=90 → 14`로 연장하고 zero-leakage predicate를 추가하며 production physics와 all-sleep/plateau policy를 보존한다.
+- Remediation candidate는 clean source/FULL checkpoint 뒤 `run_experiment.bat water-flow`로 fresh Run ID를 정확히 한 번 게시한다. 기존 Run ID와 artifact는 수정·덮어쓰기·재사용하지 않으며 unique/no-overwrite/receipt-last 정책을 유지한다.
 - Fire / Heat, Pressure Burst, Heavy Mixed World, G8-C는 Water 결과 뒤에도 자동 시작하지 않는다. Water 자동 판정은 G8-B closure가 아니다.
 
 ### Optimization Stop Rule

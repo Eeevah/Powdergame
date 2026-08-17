@@ -34,10 +34,10 @@ SAND_REPORT_SCHEMA = "powdergame-experiment-report-v0"
 SAND_RECEIPT_SCHEMA = "powdergame-experiment-receipt-v0"
 
 WATER_MANIFEST_SCHEMA = "powdergame-experiment-manifest-v1"
-WATER_ANALYSIS_SCHEMA = "powdergame-experiment-analysis-v1"
-WATER_TELEMETRY_SCHEMA = "powdergame-experiment-telemetry-v1"
-WATER_REPORT_SCHEMA = "powdergame-experiment-report-v1"
-WATER_RECEIPT_SCHEMA = "powdergame-experiment-receipt-v1"
+WATER_ANALYSIS_SCHEMA = "powdergame-experiment-analysis-v2"
+WATER_TELEMETRY_SCHEMA = "powdergame-experiment-telemetry-v2"
+WATER_REPORT_SCHEMA = "powdergame-experiment-report-v2"
+WATER_RECEIPT_SCHEMA = "powdergame-experiment-receipt-v2"
 
 WORLD_WIDTH = 256
 WORLD_HEIGHT = 256
@@ -76,7 +76,11 @@ WATER_PREDICATE_NAMES = frozenset({
     "stable_bulk_before_max",
     "post_settle_stable",
     "exact_reset",
+    "water_outside_outer_basin_cells",
 })
+WATER_ACTIVE_CLASSIFICATION_RULE = (
+    "cardinal-4-in-bounds;water-oil-first;water-empty-second;other-remainder"
+)
 WATER_PHASES = frozenset(
     {"initial", "flowing", "post-settle-confirmation", "reset"}
 )
@@ -250,6 +254,8 @@ WATER_VISUAL_QUESTIONS = (
     "Does the Water/Oil arrangement remain visually plausible for the staged fixture?",
     "Do the late, terminal, and post-settle frames support the telemetry classification?",
     "Do HUD values and visible state agree with the joined sample caption?",
+    "Is any Water visibly outside the intended outer basin boundary?",
+    "Does final residual activity visually align with the reported interface classes?",
 )
 
 # Sand v0 compatibility aliases are intentionally retained for existing callers,
@@ -1065,12 +1071,18 @@ def validate_water_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) 
         "max_destination_spread_x",
         "max_destination_spread_tick",
         "max_destination_spread_sample_sequence",
+        "max_water_outside_outer_basin_cells",
         "final_matter_count",
         "final_water_count",
         "final_oil_count",
         "final_water_occupied_chunks",
         "final_oil_occupied_chunks",
         "final_sleeping_chunks",
+        "final_water_outside_outer_basin_cells",
+        "final_active_water_empty_surface_cells",
+        "final_active_water_oil_interface_cells",
+        "final_active_other_cells",
+        "active_cell_classification_rule",
         "matter_count_delta",
         "water_count_delta",
         "oil_count_delta",
@@ -1089,12 +1101,17 @@ def validate_water_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) 
         "max_bottom_chunk_row_water_cells",
         "max_destination_water_cells",
         "max_destination_spread_x",
+        "max_water_outside_outer_basin_cells",
         "final_matter_count",
         "final_water_count",
         "final_oil_count",
         "final_water_occupied_chunks",
         "final_oil_occupied_chunks",
         "final_sleeping_chunks",
+        "final_water_outside_outer_basin_cells",
+        "final_active_water_empty_surface_cells",
+        "final_active_water_oil_interface_cells",
+        "final_active_other_cells",
         "post_settle_state_changes",
         "post_settle_spontaneous_wakes",
     ):
@@ -1121,10 +1138,12 @@ def validate_water_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) 
             raise ExperimentError(f"analysis metrics {key} must be an integer")
     if not isinstance(metrics["reset_exact_equivalence"], bool):
         raise ExperimentError("analysis metrics reset_exact_equivalence must be boolean")
+    if metrics["active_cell_classification_rule"] != WATER_ACTIVE_CLASSIFICATION_RULE:
+        raise ExperimentError("analysis active-cell classification rule mismatch")
 
     predicates = analysis["predicates"]
     if not isinstance(predicates, dict) or set(predicates) != WATER_CONTRACT.predicate_names:
-        raise ExperimentError("analysis predicates must contain the exact nine Water checks")
+        raise ExperimentError("analysis predicates must contain the exact ten Water checks")
     for name, predicate in predicates.items():
         if not isinstance(predicate, dict) or set(predicate) != {"status", "detail"}:
             raise ExperimentError(f"analysis predicate {name} keys mismatch")
@@ -1422,6 +1441,7 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
         "water_occupied_chunks",
         "oil_occupied_chunks",
         "water_outside_initial_mask",
+        "water_outside_outer_basin_cells",
         "initial_water_cells_vacated",
         "bottom_chunk_row_water_cells",
         "destination_water_cells",
@@ -1434,6 +1454,9 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
         "wake_reason_or",
         "state_hash",
         "physical_state_hash",
+        "active_water_empty_surface_cells",
+        "active_water_oil_interface_cells",
+        "active_other_cells",
     }
     census_keys = {
         "total_cells",
@@ -1526,6 +1549,7 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
             "water_occupied_chunks",
             "oil_occupied_chunks",
             "water_outside_initial_mask",
+            "water_outside_outer_basin_cells",
             "initial_water_cells_vacated",
             "bottom_chunk_row_water_cells",
             "destination_water_cells",
@@ -1536,6 +1560,9 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
             "changed_chunks",
             "wake_chunks",
             "wake_reason_or",
+            "active_water_empty_surface_cells",
+            "active_water_oil_interface_cells",
+            "active_other_cells",
         )
         for key in scalar_counts:
             require_nonnegative_int(sample[key], f"sample {index} {key}")
@@ -1567,6 +1594,7 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
                 raise ExperimentError(f"sample {index} {key} exceeds total chunks")
         for key in (
             "water_outside_initial_mask",
+            "water_outside_outer_basin_cells",
             "bottom_chunk_row_water_cells",
             "destination_water_cells",
         ):
@@ -1578,6 +1606,16 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
             raise ExperimentError(f"sample {index} empty destination must have zero spread")
         if sample["destination_spread_x"] >= WORLD_WIDTH:
             raise ExperimentError(f"sample {index} destination spread is out of range")
+        active_classified = (
+            sample["active_water_empty_surface_cells"]
+            + sample["active_water_oil_interface_cells"]
+            + sample["active_other_cells"]
+        )
+        if active_classified != census["any_active_cells"]:
+            raise ExperimentError(
+                f"sample {index} active-cell classifications do not partition "
+                "census any_active_cells"
+            )
         if not isinstance(sample["state_hash"], str) or not STATE_HASH.fullmatch(
             sample["state_hash"]
         ):
@@ -2162,7 +2200,7 @@ def validate_water_telemetry(
     )
     if analysis["verdict"] != recomputed_verdict:
         raise ExperimentError(
-            "analysis verdict disagrees with its nine Water predicate statuses"
+            "analysis verdict disagrees with its ten Water predicate statuses"
         )
     for index, sample in enumerate(samples):
         if sample["sleep"] != analysis["sleep"]:
@@ -2250,6 +2288,9 @@ def validate_water_telemetry(
     max_active_chunks = max(sample["census"]["active_chunks"] for sample in signal_samples)
     max_bottom = max(sample["bottom_chunk_row_water_cells"] for sample in signal_samples)
     max_destination = max(sample["destination_water_cells"] for sample in signal_samples)
+    max_outside_outer_basin = max(
+        sample["water_outside_outer_basin_cells"] for sample in pre_reset
+    )
     spread_updates: list[dict[str, Any]] = []
     current_spread = tick0["destination_spread_x"]
     max_spread = tick0 if current_spread != 0 else None
@@ -2395,12 +2436,23 @@ def validate_water_telemetry(
         "max_destination_spread_x": current_spread,
         "max_destination_spread_tick": sample_identity(max_spread)[0],
         "max_destination_spread_sample_sequence": sample_identity(max_spread)[1],
+        "max_water_outside_outer_basin_cells": max_outside_outer_basin,
         "final_matter_count": final_pre_reset["matter_count"],
         "final_water_count": final_pre_reset["water_count"],
         "final_oil_count": final_pre_reset["oil_count"],
         "final_water_occupied_chunks": final_pre_reset["water_occupied_chunks"],
         "final_oil_occupied_chunks": final_pre_reset["oil_occupied_chunks"],
         "final_sleeping_chunks": final_pre_reset["census"]["sleeping_chunks"],
+        "final_water_outside_outer_basin_cells": final_pre_reset[
+            "water_outside_outer_basin_cells"
+        ],
+        "final_active_water_empty_surface_cells": final_pre_reset[
+            "active_water_empty_surface_cells"
+        ],
+        "final_active_water_oil_interface_cells": final_pre_reset[
+            "active_water_oil_interface_cells"
+        ],
+        "final_active_other_cells": final_pre_reset["active_other_cells"],
         "matter_count_delta": final_pre_reset["matter_count"] - tick0["matter_count"],
         "water_count_delta": final_pre_reset["water_count"] - tick0["water_count"],
         "oil_count_delta": final_pre_reset["oil_count"] - tick0["oil_count"],
@@ -2410,6 +2462,17 @@ def validate_water_telemetry(
     for key, expected in expected_metrics.items():
         if metrics[key] != expected:
             raise ExperimentError(f"Water analysis metric {key} disagrees with telemetry")
+    if metrics["active_cell_classification_rule"] != WATER_ACTIVE_CLASSIFICATION_RULE:
+        raise ExperimentError("Water analysis active-cell classification rule mismatch")
+    final_active_classified = (
+        metrics["final_active_water_empty_surface_cells"]
+        + metrics["final_active_water_oil_interface_cells"]
+        + metrics["final_active_other_cells"]
+    )
+    if final_active_classified != final_pre_reset["census"]["any_active_cells"]:
+        raise ExperimentError(
+            "Water final active-cell classifications do not partition any_active_cells"
+        )
 
     conserved = all(
         (sample["matter_count"], sample["water_count"], sample["oil_count"])
@@ -2448,6 +2511,7 @@ def validate_water_telemetry(
             "water_occupied_chunks",
             "oil_occupied_chunks",
             "water_outside_initial_mask",
+            "water_outside_outer_basin_cells",
             "initial_water_cells_vacated",
             "bottom_chunk_row_water_cells",
             "destination_water_cells",
@@ -2457,6 +2521,9 @@ def validate_water_telemetry(
             "nonfinite_pressure_count",
             "state_hash",
             "physical_state_hash",
+            "active_water_empty_surface_cells",
+            "active_water_oil_interface_cells",
+            "active_other_cells",
         )
     )
     if metrics["reset_exact_equivalence"] and not reset_observable_equal:
@@ -2478,6 +2545,9 @@ def validate_water_telemetry(
             "unknown" if not settled_window else "pass" if post_stable else "fail"
         ),
         "exact_reset": "pass" if metrics["reset_exact_equivalence"] else "fail",
+        "water_outside_outer_basin_cells": (
+            "pass" if max_outside_outer_basin == 0 else "fail"
+        ),
     }
     require_water_predicate_statuses(analysis["predicates"], expected_predicates)
 
@@ -2646,6 +2716,34 @@ def create_contact_sheet_bytes(
     return png_bytes(sheet)
 
 
+def water_remediation_summary(analysis: dict[str, Any]) -> dict[str, Any]:
+    metrics = analysis["metrics"]
+    final_any_active_cells = (
+        metrics["final_active_water_empty_surface_cells"]
+        + metrics["final_active_water_oil_interface_cells"]
+        + metrics["final_active_other_cells"]
+    )
+    return {
+        "active_cell_classification_rule": metrics[
+            "active_cell_classification_rule"
+        ],
+        "max_water_outside_outer_basin_cells": metrics[
+            "max_water_outside_outer_basin_cells"
+        ],
+        "final_water_outside_outer_basin_cells": metrics[
+            "final_water_outside_outer_basin_cells"
+        ],
+        "final_active_water_empty_surface_cells": metrics[
+            "final_active_water_empty_surface_cells"
+        ],
+        "final_active_water_oil_interface_cells": metrics[
+            "final_active_water_oil_interface_cells"
+        ],
+        "final_active_other_cells": metrics["final_active_other_cells"],
+        "final_any_active_cells": final_any_active_cells,
+    }
+
+
 def render_report_markdown(
     manifest: dict[str, Any],
     analysis: dict[str, Any],
@@ -2707,8 +2805,22 @@ def render_report_markdown(
             f"[{Path(item['crop_png']).name}](../{item['crop_png']}) |"
         )
     if contract is WATER_CONTRACT:
+        remediation = water_remediation_summary(analysis)
         lines.extend(
             [
+                "",
+                "## Water remediation telemetry",
+                "",
+                f"- Outside outer basin, maximum / final cells: "
+                f"{remediation['max_water_outside_outer_basin_cells']} / "
+                f"{remediation['final_water_outside_outer_basin_cells']}",
+                f"- Final active Water/Empty surface cells: "
+                f"{remediation['final_active_water_empty_surface_cells']}",
+                f"- Final active Water/Oil interface cells: "
+                f"{remediation['final_active_water_oil_interface_cells']}",
+                f"- Final active Other cells: {remediation['final_active_other_cells']}",
+                f"- Final any-active total: {remediation['final_any_active_cells']}",
+                f"- Classification rule: `{remediation['active_cell_classification_rule']}`",
                 "",
                 "## Review classification guide",
                 "",
@@ -2741,6 +2853,7 @@ def render_report_markdown(
 def render_review_prompt(manifest: dict[str, Any], analysis: dict[str, Any]) -> str:
     contract = contract_for_manifest(manifest)
     if contract is WATER_CONTRACT:
+        remediation = water_remediation_summary(analysis)
         categories = "\n".join(
             f"- `{category}`" for category in WATER_FINDING_CLASSIFICATIONS
         )
@@ -2753,6 +2866,16 @@ run `{manifest['run_id']}` in `{manifest['run_mode']}` mode, source
 `{manifest['source']['sha']}`, binary `{manifest['binary']['sha256']}`. The worker
 automatic verdict is `{analysis['verdict']}`; treat it as a telemetry claim to check,
 not as acceptance or a product conclusion.
+
+Water remediation telemetry reports maximum/final outside-outer-basin cells as
+`{remediation['max_water_outside_outer_basin_cells']}` /
+`{remediation['final_water_outside_outer_basin_cells']}`. Final active-cell classes are
+Water/Empty `{remediation['final_active_water_empty_surface_cells']}`, Water/Oil
+`{remediation['final_active_water_oil_interface_cells']}`, and Other
+`{remediation['final_active_other_cells']}`, totaling
+`{remediation['final_any_active_cells']}` under rule
+`{remediation['active_cell_classification_rule']}`. The packet has aggregate counts,
+not per-cell neighbor records; do not independently infer the class partition from pixels.
 
 Classify each concrete observation cautiously using one of these review labels:
 {categories}
@@ -2879,10 +3002,13 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
     }
     if contract is WATER_CONTRACT:
         report_json["run_mode"] = manifest["run_mode"]
+        report_json["water_remediation"] = water_remediation_summary(analysis)
         report_json["review_guidance"] = {
             "classification_categories": list(WATER_FINDING_CLASSIFICATIONS),
             "visual_questions": list(WATER_VISUAL_QUESTIONS),
             "categories_are_findings": False,
+            "active_cell_classification_rule": WATER_ACTIVE_CLASSIFICATION_RULE,
+            "active_cell_classes_are_worker_aggregates": True,
         }
     write_new_text(
         report_dir / "REPORT.json",
@@ -2922,6 +3048,7 @@ def postprocess_run(run_dir: Path, publication_log: list[str] | None = None) -> 
     }
     if contract is WATER_CONTRACT:
         receipt["run_mode"] = manifest["run_mode"]
+        receipt["water_remediation"] = water_remediation_summary(analysis)
     write_new_text(
         receipt_path,
         json.dumps(receipt, indent=2, ensure_ascii=False, sort_keys=True) + "\n",

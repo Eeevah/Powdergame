@@ -7,7 +7,8 @@
 - **Candidate base**: local canonical recovery commit `ca79bb20b27041758ab4d4a224e491c171189393`
 - **Candidate source SHA**: assigned only after the implementation/documentation seal
 - **Water Harness base**: `b884abcfbab8e104bdf34e2e8d19635b157c1638`
-- **Status**: Scenario 1 Sand Fall **USER ACCEPTED**; Scenario 2 Water Flow Harness implementation candidate / **UNACCEPTED**; Scenario 3–5 **UNACCEPTED**; G8-B overall **USER ACCEPTANCE PENDING / NOT CLOSED**
+- **Water remediation base**: `d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268`
+- **Status**: Scenario 1 Sand Fall **USER ACCEPTED**; Scenario 2 first Water candidate **SUPERSEDED / FIX REQUIRED**, remediation candidate pending; Scenario 3–5 **UNACCEPTED**; G8-B overall **USER ACCEPTANCE PENDING / NOT CLOSED**
 - **G8-C official matrix**: not started
 
 This candidate implements deterministic workload construction, shared production-simulation staging, a Windows inspection Gallery, and headless scenario selection. It does not declare G8-B closed and does not contain official five-scenario performance results.
@@ -33,13 +34,13 @@ Slot 6 is not a sixth official G8-B matrix workload. It must use exactly 256×25
 
 The user accepted Sand Fall with complete settling and all chunks eventually entering sleep. That terminal state is the intended success signal: the workload demonstrates production Powder movement, collision/arbitration, convergence, and Active/Sleep behavior. Do not add a perpetual source, artificial wake, oscillation, or geometry/threshold retuning merely to keep the benchmark visibly active. Any future change to this accepted interpretation requires a new explicit user decision.
 
-Scenarios 2–5 remain unaccepted, so Scenario 1 approval does not close G8-B. Water Flow is now the active Harness candidate, but its unchanged fixture must be observed in a first scratch run before any correction or retuning. Fire / Heat, Pressure Burst, Heavy Mixed World and G8-C must not begin automatically.
+Scenarios 2–5 remain unaccepted, so Scenario 1 approval does not close G8-B. The first Water candidate is preserved at Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`; automatic `NEEDS_HUMAN_REVIEW` was followed by human `FIX REQUIRED — fixture_representativeness_issue`. The correction is fixture-only and does not establish a production-physics defect. Fire / Heat, Pressure Burst, Heavy Mixed World and G8-C must not begin automatically.
 
 ### 2.2 Scenario 2 candidate boundary
 
-Water Flow uses a finite 256×256×64 tick-0 fixture with Water 15,244, Oil 2,240, Stone 6,888, Boundary Block 1,020, and Empty 40,144 cells. The 6,216 tick-0 EMPTY cells inside `[18,238) × [200,230)` are an observation-only destination mask. The Harness candidate reuses shared staging and production physics; it adds no source, force, Material, scripted result, or fixture geometry change.
+Water Flow uses a finite 256×256×64 tick-0 fixture. Direct review found that its outer walls started at `y=90`, below Water starting at `y=22` and `y=34`, allowing an exterior-bottom bypass. The remediation changes only the side walls from `[10,18) × [90,238)` / `[238,246) × [90,238)` to `[10,18) × [14,238)` / `[238,246) × [14,238)`. Water remains 15,244, Oil 2,240, Boundary Block 1,020, and the 6,216-cell destination mask remains unchanged; Stone becomes 8,104 and Empty 38,928. Internal channel, central geometry, basin floor, Water/Oil staging, shared reset, and production physics are unchanged.
 
-`run_experiment.bat water-flow --mode scratch` preserves the first observation. The default `run_experiment.bat water-flow` is the post-seal candidate mode and is generated exactly once after the FULL checkpoint. Both modes retain unique Run IDs, create-new/no-overwrite storage, hashes, and a final `EXPERIMENT_RECEIPT.json` publication marker. Water manifest/telemetry/analysis/report/receipt use v1 schemas and nine tri-state predicates; no Water run or verdict exists yet.
+The new `run_experiment.bat water-flow` remediation candidate is generated exactly once with a fresh Run ID after the FULL checkpoint and source seal. The prior run remains immutable. Unique/create-new/no-overwrite storage, hashes, and final `EXPERIMENT_RECEIPT.json` publication remain unchanged. Water telemetry/analysis/report/receipt advance to v2 while manifest remains v1 and frames remain v0. The tenth hard predicate, `water_outside_outer_basin_cells`, requires a maximum of zero outside `[18,238) × [14,230)`. All-sleep and plateau verdict policy are unchanged.
 
 ---
 
@@ -161,7 +162,7 @@ The following checks were reported during this implementation round:
 
 These are targeted implementation checks, not user acceptance and not G8-C measurement. No broad demo smoke matrix, long headless performance run, five-scenario official matrix, generated evidence capture, or external adversarial review was run for this candidate.
 
-Water Harness FAST checks recorded after the `b884abc` base: workspace fmt/check PASS; scenarios library 7/7; Windows experiment 16/16; Python coordinator/analyzer 19/19; shared GPU reset 1/1. Candidate source SHA, FULL workspace/clippy/diff checkpoint, Windows release smoke, scratch run, candidate run, artifact hashes, automatic verdict and direct user review remain pending.
+Water remediation FAST checks passed: workspace fmt/check, scenarios library 7/7, shared all-six GPU reset 1/1, bounded Water destination/conservation/leak/reset GPU test 1/1, Windows Sand/Water experiment 16/16, and Python coordinator/analyzer 23/23. The single FULL workspace test/clippy/diff checkpoint and one 60-frame RTX 5090/DX12 Gallery release smoke also passed. Candidate source SHA, the one new candidate, artifact hashes, automatic verdict, and direct user review remain pending.
 
 ---
 
@@ -173,8 +174,8 @@ Before G8-B may be described as closed:
 2. preserve the accepted Scenario 1 settling/sleep contract without retuning;
 3. receive separate user acceptance or concrete findings for Scenario 2–5;
 4. confirm that the remaining slots have distinct, understandable workload identities and correct pristine reset/control behavior;
-5. preserve and classify the first Water scratch run, publish exactly one clean-source Water candidate, receive direct user acceptance or findings, and record each remaining scenario decision.
+5. preserve the superseded first Water candidate, publish exactly one clean-source fixture-remediation candidate with a fresh Run ID, receive direct user acceptance or findings, and record each remaining scenario decision.
 
 G8-C remains separate. It must establish the official repeated performance matrix, production throughput, profiled GPU timing, rendering cost, simulation/render coexistence, provenance, and bottleneck decision without treating Gallery diagnostics as timed evidence.
 
-**Current result: IMPLEMENTATION CANDIDATE — SCENARIO 1 USER ACCEPTED; SCENARIO 2 WATER HARNESS IMPLEMENTED BUT RUNS/VERDICT/USER ACCEPTANCE PENDING; SCENARIO 3–5 UNACCEPTED; G8-B OVERALL NOT CLOSED.**
+**Current result: IMPLEMENTATION CANDIDATE — SCENARIO 1 USER ACCEPTED; SCENARIO 2 FIRST WATER CANDIDATE SUPERSEDED / FIXTURE REMEDIATION CANDIDATE PENDING; SCENARIO 3–5 UNACCEPTED; G8-B OVERALL NOT CLOSED.**

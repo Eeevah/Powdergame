@@ -1,18 +1,30 @@
-# G8-B Scenario 2 — Water Flow Harness Candidate
+# G8-B Scenario 2 — Water Flow Harness Candidate and Fixture Remediation
 
 Date: 2026-08-17
-Status: **IMPLEMENTATION CANDIDATE — RUNS / VERDICT / USER ACCEPTANCE PENDING**
+Status: **FIRST CANDIDATE SUPERSEDED — FIXTURE REMEDIATION CANDIDATE / USER ACCEPTANCE PENDING**
 Branch: `feature/m0-g8b-scenario-suite`
-Required starting SHA: `b884abcfbab8e104bdf34e2e8d19635b157c1638`
+Remediation starting SHA: `d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268`
 Candidate source SHA: **PENDING SOURCE SEAL**
 
 ## 1. Scope and frozen baseline
 
-This work prepares the existing shared Water Flow fixture for one automated
-Harness candidate and later direct user inspection. The first scratch run and
-the candidate must observe the fixture exactly as it existed at the starting
-SHA. They must not tune the fixture for appearance or alter production physics
-before that evidence is preserved and classified.
+The first clean-source Water candidate is preserved as immutable evidence at
+Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`. Its automatic
+verdict was `NEEDS_HUMAN_REVIEW`. Direct review classified the result as
+`FIX REQUIRED — fixture_representativeness_issue`, with
+`expected_local_movement_artifact` secondary; no production-physics defect was
+established. Water moved, crossed a chunk boundary, reached the destination,
+preserved Water/Oil/Matter, retained valid finite fields, and reset exactly.
+
+The diagnosed fixture issue was geometric: both outer walls began at `y=90`,
+below the Water reservoir tops at `y=22` and `y=34`. Water could therefore pass
+over a wall and spread along the world bottom outside the intended basin. The
+remediation changes only those two wall tops and adds direct leakage evidence.
+The rejected candidate and every generated artifact remain unmodified.
+
+- Artifact root: `C:\Users\mdkap\source\Powdergame-artifacts\g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`
+- Receipt SHA-256: `443ee6d2a56a9af6ff883977b02a5eccb5040f200a8fbf218d13ffb76849db1a`
+- Review Packet SHA-256: `2aca0476cbaa47c9f486b8785e2e049a814b7ebefde33d44700c121ec3e83cc3`
 
 The already accepted Sand Fall fixture, its approval record, and its generated
 artifacts remain frozen. Fire / Heat, Pressure Burst, Heavy Mixed World, G8-C,
@@ -22,17 +34,18 @@ Current execution state:
 
 | Item | State |
 |---|---|
-| Water Harness implementation | IMPLEMENTED CANDIDATE; unsealed |
+| First Water candidate | IMMUTABLE / SUPERSEDED; automatic `NEEDS_HUMAN_REVIEW` |
+| Human review | `FIX REQUIRED — fixture_representativeness_issue` |
+| Fixture remediation | IMPLEMENTED CANDIDATE; unsealed |
 | Targeted Rust/Python/Harness tests | FAST PASS recorded |
 | Sand Harness regression | FAST PASS recorded; published Sand run unchanged |
-| Full workspace checkpoint | PENDING |
-| Windows release smoke | PENDING |
-| First Water Flow scratch run | PENDING |
-| Water Flow candidate run | PENDING |
-| Automatic verdict | PENDING |
+| Full workspace checkpoint | PASS |
+| Windows release smoke | PASS; 60 frames, RTX 5090 / DX12 |
+| Remediation candidate run | PENDING; exactly one new Run ID after seal |
+| Remediation automatic verdict | PENDING |
 | User acceptance | PENDING |
 
-No automated or user verdict is recorded in this document.
+No verdict is assigned to the remediation candidate before its run.
 
 ## 2. Audited finite fixture
 
@@ -44,8 +57,8 @@ are:
 | Role | Rectangle `[x0,x1) × [y0,y1)` | Material |
 |---|---|---|
 | basin floor | `[10,246) × [230,238)` | Stone |
-| left wall | `[10,18) × [90,238)` | Stone |
-| right wall | `[238,246) × [90,238)` | Stone |
+| left wall | `[10,18) × [14,238)` | Stone |
+| right wall | `[238,246) × [14,238)` | Stone |
 | left reservoir | `[18,112) × [22,112)` | Water |
 | right reservoir | `[144,238) × [34,130)` | Water |
 | density pocket | `[164,220) × [72,112)` | Oil, overwriting Water |
@@ -61,15 +74,18 @@ The exact tick-0 material census derived from that fill order is:
 |---|---:|
 | Water | 15,244 |
 | Oil | 2,240 |
-| Stone | 6,888 |
+| Stone | 8,104 |
 | Boundary Block | 1,020 |
-| Empty | 40,144 |
+| Empty | 38,928 |
 
 All authored Temperature values are the reference temperature, all Pressure
 values are the reference pressure, Flags are zero, and `chunk_edit_wake` is
-zero. A source-level fixture test pins the full authored material image, these
-counts, the reference fields, and the zero state. The fixture builder and all
-production physics remain unchanged.
+zero. Water remains exactly 15,244 cells and Oil remains exactly 2,240 cells.
+A source-level fixture test pins the full remediated image, counts, fields,
+zero state, sealed wall faces, and observation masks. The floor, internal
+channel, central geometry, destination basin, Water rectangles, and Oil pocket
+remain unchanged. Production movement/density shaders, Sleep/Wake semantics,
+pass graph, and Material descriptors are not changed.
 
 ## 3. Observation regions
 
@@ -82,6 +98,12 @@ The destination observation mask is defined as cells that are `EMPTY` at tick
 Water and zero Oil initially. It lies below the final shelves, inside the side
 walls, and above the floor. This mask is diagnostic metadata only; it does not
 change fixture construction.
+
+The outer-basin interior is the half-open region `[18,238) × [14,230)`.
+`water_outside_outer_basin_cells` counts current Water cells outside that
+region at every diagnostic sample. The remediation candidate hard predicate
+passes only when the maximum observed value is exactly zero; any nonzero value
+is a failure even if Water later returns inside.
 
 The bottom chunk row (`cy=3`, `y=192..255`) contains zero Water at tick 0.
 Water observed there later is therefore a fixture-derived cross-chunk flow
@@ -118,11 +140,19 @@ The implemented analyzer collects:
 - first cross-chunk flow observation;
 - first destination-mask arrival;
 - exact Water count conservation;
+- Water outside the remediated outer basin, including peak and final counts;
 - first sleeping chunk;
 - final all-sleep or a stable plateau candidate;
 - post-settle physical state changes and wake observations;
 - invalid Material IDs and non-finite Temperature/Pressure values;
 - programmatic reset exact equivalence.
+
+Each sample also partitions every active cell using in-bounds cardinal
+neighbors. Water/Oil interfaces take priority, Water/Empty surfaces are second,
+and all remaining active cells are `other`. The three counters sum exactly to
+`any_active_cells`. This supports the required terminal classification if
+outside leakage is zero but all-sleep still does not occur; it does not relax
+the all-sleep predicate or promote a plateau to `PASS`.
 
 Required semantic frames are tick 0, tick 1, first movement, sampled peak
 activity, first cross-chunk flow, first destination arrival, maximum spread,
@@ -137,37 +167,37 @@ One entry point dispatches the scenario-specific analyzer without duplicating
 the common coordinator:
 
 ```bat
-run_experiment.bat water-flow --mode scratch
 run_experiment.bat water-flow
 ```
 
-`scratch` is the required first observation mode and places `-scratch-` in the
-Run ID. The default is `candidate`, used exactly once after the source seal and
-FULL checkpoint. Sand remains candidate-only and preserves its v0 schemas and
-published artifacts.
+The default is `candidate`, used exactly once with a new Run ID after the
+remediation source seal and FULL checkpoint. The already published first Water
+candidate is not repaired, overwritten, or rerun under its old ID. Sand remains
+candidate-only and preserves its v0 schemas and published artifacts.
 
 Water uses these schema identities:
 
 - `powdergame-experiment-manifest-v1`
-- `powdergame-experiment-telemetry-v1`
-- `powdergame-experiment-analysis-v1`
+- `powdergame-experiment-telemetry-v2`
+- `powdergame-experiment-analysis-v2`
 - shared `powdergame-experiment-frames-v0`
-- `powdergame-experiment-report-v1`
-- `powdergame-experiment-receipt-v1`
+- `powdergame-experiment-report-v2`
+- `powdergame-experiment-receipt-v2`
 
-Its nine predicates are:
+Its ten predicates are:
 
 1. `actual_water_movement`
 2. `cross_chunk_flow`
 3. `destination_arrival`
 4. `water_conservation`
-5. `no_invalid_materials`
-6. `no_nonfinite_fields`
-7. `stable_bulk_before_max`
-8. `post_settle_stable`
-9. `exact_reset`
+5. `water_outside_outer_basin_cells`
+6. `no_invalid_materials`
+7. `no_nonfinite_fields`
+8. `stable_bulk_before_max`
+9. `post_settle_stable`
+10. `exact_reset`
 
-All nine must be `pass` for automatic `PASS`. A `fail` produces `FAIL`; any
+All ten must be `pass` for automatic `PASS`. A `fail` produces `FAIL`; any
 remaining `unknown` produces `NEEDS_HUMAN_REVIEW`. Three diagnostic all-sleep
 samples can satisfy stable bulk. Eight identical authoritative-state samples
 may select a stable plateau terminal, but a plateau does not silently convert
@@ -182,28 +212,33 @@ repaired or reused. `EXPERIMENT_RECEIPT.json` is the final filesystem write and
 the only structural completion marker. Generated artifacts must not be
 committed to Git.
 
-## 6. Recorded FAST checks and pending checkpoint
+## 6. Remediation checks and pending checkpoint
 
 | Check | Recorded result |
 |---|---:|
 | `cargo fmt --all -- --check` | PASS |
 | `cargo check --workspace --all-targets` | PASS |
 | scenario library | 7 passed / 0 failed |
-| Windows experiment tests | 16 passed / 0 failed |
-| Python coordinator/analyzer tests | 19 passed / 0 failed |
 | shared GPU reset integration | 1 passed / 0 failed |
+| bounded Water destination/conservation/leak/reset GPU test | 1 passed / 0 failed |
+| Windows Sand/Water experiment tests | 16 passed / 0 failed |
+| Python coordinator/analyzer tests | 23 passed / 0 failed |
+| `cargo test --workspace -- --test-threads=1` | PASS; 3 explicitly ignored manual tests |
+| `cargo clippy --workspace --all-targets -- -D warnings` | PASS |
+| `git diff --check` | PASS; line-ending advisories only |
+| `cargo run --locked --release -p powdergame-windows -- --benchmark-gallery --smoke-frames 60` | PASS; paused tick 0; exit 0 |
 
 These are implementation checks, not Water evidence or user acceptance. The
-one FULL workspace checkpoint, workspace clippy, scoped/full diff check,
-Windows Gallery release smoke, scratch run, candidate run, source SHA, artifact
-hashes and automatic verdict remain pending. No Water artifact has been
-generated or committed.
+remediation source seal/push, candidate run, artifact hashes, and automatic
+verdict remain pending. No remediation artifact has been generated or
+committed.
 
 ## 7. Candidate verdict and anomaly classification
 
-The generated report will use `PASS`, `FAIL`, or `NEEDS_HUMAN_REVIEW`. A first
-unexpected result must be preserved before any fixture change and mapped, with
-its raw observations, to one candidate category:
+The generated report will use `PASS`, `FAIL`, or `NEEDS_HUMAN_REVIEW`. The
+first candidate is already preserved and classified. Any remediation result is
+also preserved before further change and mapped, with raw observations, to one
+candidate category:
 
 - `actual_physics_defect`;
 - `fixture_representativeness_issue`;
@@ -211,5 +246,7 @@ its raw observations, to one candidate category:
 - `presentation_or_capture_issue`;
 - `insufficient_evidence`.
 
-These labels organize follow-up inspection. This pre-run document does not
-assign one and does not declare Water Flow or G8-B accepted or closed.
+If outer-basin leakage is zero but all-sleep still fails, the run remains
+`NEEDS_HUMAN_REVIEW`; its final active-cell partition is reported without
+altering production physics or the all-sleep policy. This document does not
+declare Water Flow or G8-B accepted or closed.

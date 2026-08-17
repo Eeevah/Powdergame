@@ -135,7 +135,7 @@ SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않
 
 ### Evidence
 
-`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B Gallery 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Sand Fall Harness v0의 immutable experiment source `9e1fdac` pilot은 automatic `PASS`와 review output `APPROVED`를 기록했다. Water Flow 문서는 base `b884abc` 위 Harness candidate, finite tick-0 census, destination observation mask, Water v1 artifact contract를 기록하지만 source seal, FULL checkpoint, scratch/candidate run, verdict와 사용자 승인은 pending으로 둔다. Water fixture/physics는 변경되지 않았다. Scenario 1만 사용자 승인되었으므로 전체 기록은 **USER ACCEPTANCE PENDING / NOT CLOSED** 상태다. Gallery diagnostics, Harness 자동 판정, targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
+`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B Gallery 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Sand Fall Harness v0의 immutable experiment source `9e1fdac` pilot은 automatic `PASS`와 review output `APPROVED`를 기록했다. Water Flow 문서는 첫 candidate `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`의 automatic `NEEDS_HUMAN_REVIEW`와 human `FIX REQUIRED — fixture_representativeness_issue`, 그리고 base `d12edbf`에서 시작한 fixture-only 외벽 remediation/Water v2 leakage evidence contract를 기록한다. 기존 candidate는 immutable/superseded이며 새 source seal, FULL checkpoint, one candidate run, verdict와 사용자 승인은 pending이다. Scenario 1만 사용자 승인되었으므로 전체 기록은 **USER ACCEPTANCE PENDING / NOT CLOSED** 상태다. Gallery diagnostics, Harness 자동 판정, targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
 
 ### Adversarial Reviews
 

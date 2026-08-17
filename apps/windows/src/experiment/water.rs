@@ -15,7 +15,11 @@ use powdergame_core::{
     MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_WATER,
 };
 use powdergame_gpu::Simulation;
-use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
+use powdergame_scenarios::{
+    reset_and_stage_scenario, ScenarioId, WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE,
+    WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE, WATER_FLOW_OUTER_BASIN_MIN_X,
+    WATER_FLOW_OUTER_BASIN_MIN_Y,
+};
 
 use crate::gallery::RuntimeProvenance;
 use crate::renderer::Renderer;
@@ -30,8 +34,8 @@ use super::{
 };
 
 pub const WATER_EXPERIMENT_ID: &str = "g8b-water-flow-v0";
-const WATER_TELEMETRY_SCHEMA_VERSION: &str = "powdergame-experiment-telemetry-v1";
-const WATER_ANALYSIS_SCHEMA_VERSION: &str = "powdergame-experiment-analysis-v1";
+const WATER_TELEMETRY_SCHEMA_VERSION: &str = "powdergame-experiment-telemetry-v2";
+const WATER_ANALYSIS_SCHEMA_VERSION: &str = "powdergame-experiment-analysis-v2";
 const WATER_FRAMES_SCHEMA_VERSION: &str = "powdergame-experiment-frames-v0";
 const REQUIRED_STABLE_PLATEAU_SAMPLES: u32 = 8;
 const REQUIRED_MAX_TICKS: u64 = 20_000;
@@ -45,6 +49,8 @@ const DESTINATION_MIN_X: u32 = 18;
 const DESTINATION_MAX_X_EXCLUSIVE: u32 = 238;
 const DESTINATION_MIN_Y: u32 = 200;
 const DESTINATION_MAX_Y_EXCLUSIVE: u32 = 230;
+const ACTIVE_CELL_CLASSIFICATION_RULE: &str =
+    "cardinal-4-in-bounds;water-oil-first;water-empty-second;other-remainder";
 
 #[derive(Clone, Debug)]
 struct WaterBaseline {
@@ -92,9 +98,13 @@ struct WaterSampleMetrics {
     oil_occupied_chunks: u32,
     water_outside_initial_mask: u64,
     initial_water_cells_vacated: u64,
+    water_outside_outer_basin_cells: u64,
     bottom_chunk_row_water_cells: u64,
     destination_water_cells: u64,
     destination_spread_x: u32,
+    active_water_empty_surface_cells: u64,
+    active_water_oil_interface_cells: u64,
+    active_other_cells: u64,
     invalid_material_count: u64,
     nonfinite_temperature_count: u64,
     nonfinite_pressure_count: u64,
@@ -212,6 +222,7 @@ struct WaterPredicates {
     cross_chunk_flow: PredicateResult,
     destination_arrival: PredicateResult,
     water_conservation: PredicateResult,
+    water_outside_outer_basin_cells: PredicateResult,
     no_invalid_materials: PredicateResult,
     no_nonfinite_fields: PredicateResult,
     stable_bulk_before_max: PredicateResult,
@@ -220,12 +231,13 @@ struct WaterPredicates {
 }
 
 impl WaterPredicates {
-    fn statuses(&self) -> [PredicateStatus; 9] {
+    fn statuses(&self) -> [PredicateStatus; 10] {
         [
             self.actual_water_movement.status,
             self.cross_chunk_flow.status,
             self.destination_arrival.status,
             self.water_conservation.status,
+            self.water_outside_outer_basin_cells.status,
             self.no_invalid_materials.status,
             self.no_nonfinite_fields.status,
             self.stable_bulk_before_max.status,
@@ -300,8 +312,12 @@ impl WaterJsonlWriters {
                 "\"water_occupied_chunks\":{},\"oil_occupied_chunks\":{},",
                 "\"water_outside_initial_mask\":{},",
                 "\"initial_water_cells_vacated\":{},",
+                "\"water_outside_outer_basin_cells\":{},",
                 "\"bottom_chunk_row_water_cells\":{},",
                 "\"destination_water_cells\":{},\"destination_spread_x\":{},",
+                "\"active_water_empty_surface_cells\":{},",
+                "\"active_water_oil_interface_cells\":{},",
+                "\"active_other_cells\":{},",
                 "\"invalid_material_count\":{},",
                 "\"nonfinite_temperature_count\":{},",
                 "\"nonfinite_pressure_count\":{},\"changed_chunks\":{},",
@@ -348,9 +364,13 @@ impl WaterJsonlWriters {
             metrics.oil_occupied_chunks,
             metrics.water_outside_initial_mask,
             metrics.initial_water_cells_vacated,
+            metrics.water_outside_outer_basin_cells,
             metrics.bottom_chunk_row_water_cells,
             metrics.destination_water_cells,
             metrics.destination_spread_x,
+            metrics.active_water_empty_surface_cells,
+            metrics.active_water_oil_interface_cells,
+            metrics.active_other_cells,
             metrics.invalid_material_count,
             metrics.nonfinite_temperature_count,
             metrics.nonfinite_pressure_count,
@@ -444,6 +464,7 @@ struct WaterObservations {
     max_destination_water_cells: u64,
     max_destination_spread_x: u32,
     max_destination_spread: Option<SampleIdentity>,
+    max_water_outside_outer_basin_cells: u64,
     latest: WaterSampleMetrics,
 }
 
@@ -468,6 +489,7 @@ impl WaterObservations {
             max_destination_spread_x: tick0.destination_spread_x,
             max_destination_spread: (tick0.destination_spread_x != 0)
                 .then(|| SampleIdentity::from_metrics(tick0)),
+            max_water_outside_outer_basin_cells: tick0.water_outside_outer_basin_cells,
             latest: tick0.clone(),
         }
     }
@@ -533,6 +555,9 @@ impl WaterObservations {
             self.max_destination_spread_x = metrics.destination_spread_x;
             self.max_destination_spread = Some(identity);
         }
+        self.max_water_outside_outer_basin_cells = self
+            .max_water_outside_outer_basin_cells
+            .max(metrics.water_outside_outer_basin_cells);
         self.latest = metrics.clone();
 
         ObservationUpdate {
@@ -581,6 +606,94 @@ fn baseline_from_tick0(
         destination_water_cells: metrics.destination_water_cells,
         destination_spread_x: metrics.destination_spread_x,
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct ActiveCellClassification {
+    water_empty_surface_cells: u64,
+    water_oil_interface_cells: u64,
+    other_cells: u64,
+}
+
+impl ActiveCellClassification {
+    const fn total(self) -> u64 {
+        self.water_empty_surface_cells
+            .saturating_add(self.water_oil_interface_cells)
+            .saturating_add(self.other_cells)
+    }
+}
+
+const fn forms_unordered_material_pair(left: u32, right: u32, a: u32, b: u32) -> bool {
+    (left == a && right == b) || (left == b && right == a)
+}
+
+/// Partitions every nonzero-activity cell using `material_current` only.
+///
+/// The active cell and each in-bounds cardinal neighbor are treated as an
+/// unordered interface pair. Water/Oil wins when both Water/Oil and
+/// Water/Empty touch the same active cell; Water/Empty is second; every other
+/// active cell is the remainder. Either side of an interface can therefore be
+/// classified, and the three counters exactly sum to `any_active_cells`.
+fn classify_active_cells(
+    materials: &[u32],
+    cell_activity: &[u32],
+    world: WorldConfig,
+) -> Result<ActiveCellClassification, String> {
+    let width = world.width as usize;
+    let height = world.height as usize;
+    let expected_cells = width
+        .checked_mul(height)
+        .ok_or_else(|| "WorldConfig dimensions overflow usize".to_string())?;
+    if materials.len() != expected_cells || cell_activity.len() != expected_cells {
+        return Err("active-cell classification vectors do not match WorldConfig".to_string());
+    }
+
+    let mut classification = ActiveCellClassification::default();
+    for (index, &activity) in cell_activity.iter().enumerate() {
+        if activity == 0 {
+            continue;
+        }
+        let x = index % width;
+        let y = index / width;
+        let material = materials[index];
+        let mut touches_water_oil = false;
+        let mut touches_water_empty = false;
+        let mut observe_neighbor = |neighbor_index: usize| {
+            let neighbor = materials[neighbor_index];
+            touches_water_oil |=
+                forms_unordered_material_pair(material, neighbor, MATERIAL_WATER, MATERIAL_OIL);
+            touches_water_empty |=
+                forms_unordered_material_pair(material, neighbor, MATERIAL_WATER, MATERIAL_EMPTY);
+        };
+        if x != 0 {
+            observe_neighbor(index - 1);
+        }
+        if x + 1 < width {
+            observe_neighbor(index + 1);
+        }
+        if y != 0 {
+            observe_neighbor(index - width);
+        }
+        if y + 1 < height {
+            observe_neighbor(index + width);
+        }
+
+        if touches_water_oil {
+            classification.water_oil_interface_cells =
+                classification.water_oil_interface_cells.saturating_add(1);
+        } else if touches_water_empty {
+            classification.water_empty_surface_cells =
+                classification.water_empty_surface_cells.saturating_add(1);
+        } else {
+            classification.other_cells = classification.other_cells.saturating_add(1);
+        }
+    }
+
+    let any_active_cells = cell_activity.iter().filter(|&&value| value != 0).count() as u64;
+    if classification.total() != any_active_cells {
+        return Err("active-cell classification did not partition any_active_cells".to_string());
+    }
+    Ok(classification)
 }
 
 fn water_metrics_from_snapshot(
@@ -635,6 +748,7 @@ fn water_metrics_from_snapshot(
     let mut water_chunks = vec![false; expected_chunks];
     let mut oil_chunks = vec![false; expected_chunks];
     let mut water_outside_initial_mask = 0u64;
+    let mut water_outside_outer_basin_cells = 0u64;
     let mut bottom_chunk_row_water_cells = 0u64;
     let mut destination_water_cells = 0u64;
     let mut destination_min_x = None;
@@ -669,6 +783,13 @@ fn water_metrics_from_snapshot(
             water_chunks[chunk_index] = true;
             if baseline.is_some_and(|value| !value.initial_water_mask[index]) {
                 water_outside_initial_mask = water_outside_initial_mask.saturating_add(1);
+            }
+            let inside_outer_basin =
+                (WATER_FLOW_OUTER_BASIN_MIN_X..WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE).contains(&x)
+                    && (WATER_FLOW_OUTER_BASIN_MIN_Y..WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE)
+                        .contains(&y);
+            if !inside_outer_basin {
+                water_outside_outer_basin_cells = water_outside_outer_basin_cells.saturating_add(1);
             }
             if y / world.chunk_size == BOTTOM_CHUNK_ROW {
                 bottom_chunk_row_water_cells = bottom_chunk_row_water_cells.saturating_add(1);
@@ -716,11 +837,9 @@ fn water_metrics_from_snapshot(
         .iter()
         .filter(|bits| !f32::from_bits(**bits).is_finite())
         .count() as u64;
-    let any_active_cells = snapshot
-        .cell_activity
-        .iter()
-        .filter(|&&value| value != 0)
-        .count() as u64;
+    let active_classification =
+        classify_active_cells(&snapshot.material_current, &snapshot.cell_activity, world)?;
+    let any_active_cells = active_classification.total();
     let active_chunks = snapshot
         .chunk_activity
         .iter()
@@ -776,9 +895,13 @@ fn water_metrics_from_snapshot(
         oil_occupied_chunks: oil_chunks.iter().filter(|&&occupied| occupied).count() as u32,
         water_outside_initial_mask,
         initial_water_cells_vacated,
+        water_outside_outer_basin_cells,
         bottom_chunk_row_water_cells,
         destination_water_cells,
         destination_spread_x,
+        active_water_empty_surface_cells: active_classification.water_empty_surface_cells,
+        active_water_oil_interface_cells: active_classification.water_oil_interface_cells,
+        active_other_cells: active_classification.other_cells,
         invalid_material_count,
         nonfinite_temperature_count,
         nonfinite_pressure_count,
@@ -981,20 +1104,20 @@ fn validate_water_worker_config(
     }
     if config.scenario != ScenarioId::WaterFlow {
         return Err(format!(
-            "Water experiment v1 supports only WaterFlow, got {}",
+            "Water experiment v2 supports only WaterFlow, got {}",
             config.scenario
         ));
     }
     if simulation.world.config != REQUIRED_WORLD {
         return Err(format!(
-            "Water experiment v1 requires WorldConfig 256x256x64, got {}x{}x{}",
+            "Water experiment v2 requires WorldConfig 256x256x64, got {}x{}x{}",
             simulation.world.config.width,
             simulation.world.config.height,
             simulation.world.config.chunk_size
         ));
     }
     if !simulation.sleep_enabled {
-        return Err("Water experiment v1 requires simulation sleep to be enabled".to_string());
+        return Err("Water experiment v2 requires simulation sleep to be enabled".to_string());
     }
     if config.max_ticks != REQUIRED_MAX_TICKS {
         return Err(format!("Water max_ticks must be {REQUIRED_MAX_TICKS}"));
@@ -1071,6 +1194,16 @@ fn build_water_predicates(
             "Matter, Water, or Oil count differed from tick 0 in a non-reset sample",
         )
     };
+    let water_outside_outer_basin_cells = if observations.max_water_outside_outer_basin_cells == 0 {
+        PredicateResult::pass(format!(
+                "maximum Water cells outside outer basin [{WATER_FLOW_OUTER_BASIN_MIN_X},{WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE})x[{WATER_FLOW_OUTER_BASIN_MIN_Y},{WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE}) was zero across every non-reset sample"
+            ))
+    } else {
+        PredicateResult::fail(format!(
+                "maximum Water cells outside outer basin [{WATER_FLOW_OUTER_BASIN_MIN_X},{WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE})x[{WATER_FLOW_OUTER_BASIN_MIN_Y},{WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE}) was {} across non-reset samples",
+                observations.max_water_outside_outer_basin_cells
+            ))
+    };
     let no_invalid_materials = if observations.invalid_material_total == 0 {
         PredicateResult::pass("invalid material count was zero in every non-reset sample")
     } else {
@@ -1144,6 +1277,7 @@ fn build_water_predicates(
         cross_chunk_flow,
         destination_arrival,
         water_conservation,
+        water_outside_outer_basin_cells,
         no_invalid_materials,
         no_nonfinite_fields,
         stable_bulk_before_max,
@@ -1239,6 +1373,10 @@ fn write_water_analysis_json(
         predicate_json("cross_chunk_flow", &predicates.cross_chunk_flow),
         predicate_json("destination_arrival", &predicates.destination_arrival),
         predicate_json("water_conservation", &predicates.water_conservation),
+        predicate_json(
+            "water_outside_outer_basin_cells",
+            &predicates.water_outside_outer_basin_cells,
+        ),
         predicate_json("no_invalid_materials", &predicates.no_invalid_materials),
         predicate_json("no_nonfinite_fields", &predicates.no_nonfinite_fields),
         predicate_json("stable_bulk_before_max", &predicates.stable_bulk_before_max),
@@ -1314,6 +1452,12 @@ fn write_water_analysis_json(
             "\"max_destination_spread_x\":{},",
             "\"max_destination_spread_tick\":{},",
             "\"max_destination_spread_sample_sequence\":{},",
+            "\"max_water_outside_outer_basin_cells\":{},",
+            "\"final_water_outside_outer_basin_cells\":{},",
+            "\"active_cell_classification_rule\":\"{}\",",
+            "\"final_active_water_empty_surface_cells\":{},",
+            "\"final_active_water_oil_interface_cells\":{},",
+            "\"final_active_other_cells\":{},",
             "\"final_matter_count\":{},\"final_water_count\":{},",
             "\"final_oil_count\":{},\"final_water_occupied_chunks\":{},",
             "\"final_oil_occupied_chunks\":{},\"final_sleeping_chunks\":{},",
@@ -1381,6 +1525,12 @@ fn write_water_analysis_json(
         observations.max_destination_spread_x,
         json_opt_u64(max_spread_tick),
         json_opt_u64(max_spread_sample),
+        observations.max_water_outside_outer_basin_cells,
+        latest.water_outside_outer_basin_cells,
+        json_escape(ACTIVE_CELL_CLASSIFICATION_RULE),
+        latest.active_water_empty_surface_cells,
+        latest.active_water_oil_interface_cells,
+        latest.active_other_cells,
         latest.matter_count,
         latest.water_count,
         latest.oil_count,
@@ -2083,9 +2233,9 @@ mod tests {
     fn water_baseline_and_moved() -> (WaterBaseline, WaterSampleMetrics, WaterSampleMetrics) {
         let cell_count = (REQUIRED_WORLD.width * REQUIRED_WORLD.height) as usize;
         let mut initial = vec![MATERIAL_EMPTY; cell_count];
-        initial[cell(10, 10)] = MATERIAL_WATER;
         initial[cell(20, 20)] = MATERIAL_WATER;
-        initial[cell(30, 30)] = MATERIAL_OIL;
+        initial[cell(30, 30)] = MATERIAL_WATER;
+        initial[cell(40, 30)] = MATERIAL_OIL;
         let initial_snapshot = snapshot_with_materials(initial);
         let initial_metrics = water_metrics_from_snapshot(
             &initial_snapshot,
@@ -2100,8 +2250,8 @@ mod tests {
         let baseline = baseline_from_tick0(&initial_snapshot, &initial_metrics, REQUIRED_WORLD);
 
         let mut moved = initial_snapshot.material_current.clone();
-        moved[cell(10, 10)] = MATERIAL_EMPTY;
         moved[cell(20, 20)] = MATERIAL_EMPTY;
+        moved[cell(30, 30)] = MATERIAL_EMPTY;
         moved[cell(18, 200)] = MATERIAL_WATER;
         moved[cell(100, 205)] = MATERIAL_WATER;
         let moved_snapshot = snapshot_with_materials(moved);
@@ -2126,12 +2276,111 @@ mod tests {
         assert_eq!(initial.destination_water_cells, 0);
         assert_eq!(moved.water_count, baseline.water_count);
         assert_eq!(moved.oil_count, baseline.oil_count);
+        assert_eq!(initial.water_outside_outer_basin_cells, 0);
+        assert_eq!(moved.water_outside_outer_basin_cells, 0);
         assert_eq!(moved.water_outside_initial_mask, 2);
         assert_eq!(moved.initial_water_cells_vacated, 2);
         assert_eq!(moved.bottom_chunk_row_water_cells, 2);
         assert_eq!(moved.destination_water_cells, 2);
         assert_eq!(moved.destination_spread_x, 83);
         assert!(moved.movement_observed());
+    }
+
+    #[test]
+    fn outer_basin_metric_uses_shared_half_open_boundaries() {
+        let cell_count = (REQUIRED_WORLD.width * REQUIRED_WORLD.height) as usize;
+        let mut materials = vec![MATERIAL_EMPTY; cell_count];
+        for (x, y) in [
+            (WATER_FLOW_OUTER_BASIN_MIN_X, WATER_FLOW_OUTER_BASIN_MIN_Y),
+            (
+                WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE - 1,
+                WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE - 1,
+            ),
+            (
+                WATER_FLOW_OUTER_BASIN_MIN_X - 1,
+                WATER_FLOW_OUTER_BASIN_MIN_Y,
+            ),
+            (
+                WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE,
+                WATER_FLOW_OUTER_BASIN_MIN_Y,
+            ),
+            (
+                WATER_FLOW_OUTER_BASIN_MIN_X,
+                WATER_FLOW_OUTER_BASIN_MIN_Y - 1,
+            ),
+            (
+                WATER_FLOW_OUTER_BASIN_MIN_X,
+                WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE,
+            ),
+        ] {
+            materials[cell(x, y)] = MATERIAL_WATER;
+        }
+
+        let metrics = water_metrics_from_snapshot(
+            &snapshot_with_materials(materials),
+            REQUIRED_WORLD,
+            None,
+            0,
+            0,
+            "initial",
+            "tick0",
+        )
+        .expect("boundary metrics");
+
+        assert_eq!(metrics.water_count, 6);
+        assert_eq!(metrics.water_outside_outer_basin_cells, 4);
+    }
+
+    #[test]
+    fn active_cell_classification_is_partitioned_with_water_oil_priority() {
+        let world = WorldConfig {
+            width: 5,
+            height: 3,
+            chunk_size: 1,
+        };
+        let mut materials = vec![MATERIAL_STONE; 15];
+        let index = |x: usize, y: usize| y * world.width as usize + x;
+        materials[index(0, 1)] = MATERIAL_EMPTY;
+        materials[index(1, 1)] = MATERIAL_WATER;
+        materials[index(2, 1)] = MATERIAL_OIL;
+        let mut activity = vec![0; 15];
+        for (x, y) in [(0, 1), (1, 1), (2, 1), (4, 1)] {
+            activity[index(x, y)] = 1;
+        }
+
+        let classification =
+            classify_active_cells(&materials, &activity, world).expect("classification");
+
+        assert_eq!(classification.water_empty_surface_cells, 1);
+        assert_eq!(classification.water_oil_interface_cells, 2);
+        assert_eq!(classification.other_cells, 1);
+        assert_eq!(classification.total(), 4);
+        assert_eq!(
+            ACTIVE_CELL_CLASSIFICATION_RULE,
+            "cardinal-4-in-bounds;water-oil-first;water-empty-second;other-remainder"
+        );
+    }
+
+    #[test]
+    fn active_cell_classification_does_not_wrap_across_rows() {
+        let world = WorldConfig {
+            width: 3,
+            height: 2,
+            chunk_size: 1,
+        };
+        let mut materials = vec![MATERIAL_STONE; 6];
+        materials[2] = MATERIAL_OIL;
+        materials[3] = MATERIAL_WATER;
+        let mut activity = vec![0; 6];
+        activity[2] = 1;
+        activity[3] = 1;
+
+        let classification =
+            classify_active_cells(&materials, &activity, world).expect("classification");
+
+        assert_eq!(classification.water_empty_surface_cells, 0);
+        assert_eq!(classification.water_oil_interface_cells, 0);
+        assert_eq!(classification.other_cells, 2);
     }
 
     #[test]
@@ -2230,8 +2479,27 @@ mod tests {
             0,
             true,
         );
-        assert_eq!(predicates.statuses(), [PredicateStatus::Pass; 9]);
+        assert_eq!(predicates.statuses(), [PredicateStatus::Pass; 10]);
         assert_eq!(predicates.verdict(), ExperimentVerdict::Pass);
+
+        let mut escaped = observations.clone();
+        escaped.max_water_outside_outer_basin_cells = 1;
+        let predicates = build_water_predicates(
+            &escaped,
+            TerminalReason::AllSleep,
+            Some(8),
+            Some(24),
+            100,
+            Some(188),
+            0,
+            0,
+            true,
+        );
+        assert_eq!(
+            predicates.water_outside_outer_basin_cells.status,
+            PredicateStatus::Fail
+        );
+        assert_eq!(predicates.verdict(), ExperimentVerdict::Fail);
 
         let missing = WaterObservations::new(&initial);
         let predicates = build_water_predicates(

@@ -512,7 +512,7 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - Liquid movement
 - density displacement
 - stable bulk
-- **HARNESS IMPLEMENTATION CANDIDATE / NOT YET USER ACCEPTED**: base `b884abc`의 finite fixture와 production physics는 그대로 두고, 첫 scratch/candidate observation을 준비한다.
+- **FIRST CANDIDATE SUPERSEDED / FIXTURE REMEDIATION CANDIDATE / NOT YET USER ACCEPTED**: first candidate는 immutable이며, base `d12edbf`에서 side-wall top만 수정하고 production physics와 Water/Oil/internal geometry를 보존한 fresh candidate를 준비한다.
 
 ### Fire / Heat
 
@@ -577,13 +577,13 @@ Automatic `PASS`는 actual fall, Matter conservation, zero invalid Material, zer
 
 Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic `PASS`, Harness review output `APPROVED`로 검증되었다. 이는 performance benchmark나 G8-C evidence가 아니며, 이후 docs-only closure commit과 experiment source provenance를 구분한다. 전체 lifecycle, 수치, artifact hash, review 경계는 `docs/evidence/G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md`를 따른다.
 
-#### Water Flow v1 candidate
+#### Water Flow v2 fixture-remediation candidate
 
-Water Flow는 같은 coordinator/provenance/screenshot/report/contact-sheet/hash/receipt-last 기반 위에 scenario-specific analyzer만 분리한다. `run_experiment.bat water-flow --mode scratch`는 fixture 변경 전 첫 진단 run이고, `run_experiment.bat water-flow`는 clean source seal과 FULL checkpoint 뒤 정확히 한 번 생성할 candidate다. 두 mode 모두 unique Run ID, create-new/no-overwrite, failed-run preservation, receipt-last 정책을 유지하며 generated artifact는 Git 밖에 둔다.
+Water Flow는 같은 coordinator/provenance/screenshot/report/contact-sheet/hash/receipt-last 기반 위에 scenario-specific analyzer만 분리한다. 첫 candidate `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`는 immutable/superseded이며 automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`를 기록했다. Remediation은 좌우 외벽 시작만 `y=90 → 14`로 올리고 Water/Oil·내부 channel·production physics를 보존한다. 새 `run_experiment.bat water-flow` candidate는 clean source seal과 FULL checkpoint 뒤 fresh Run ID로 정확히 한 번 생성한다. unique Run ID, create-new/no-overwrite, failed-run preservation, receipt-last 정책을 유지하며 generated artifact는 Git 밖에 둔다.
 
-Water manifest/telemetry/analysis/report/receipt는 `powdergame-experiment-*-v1`을 사용하고 shared frame manifest는 v0를 유지한다. 아홉 predicate는 `actual_water_movement`, `cross_chunk_flow`, `destination_arrival`, `water_conservation`, `no_invalid_materials`, `no_nonfinite_fields`, `stable_bulk_before_max`, `post_settle_stable`, `exact_reset`이다. 모든 status가 pass일 때만 `PASS`, 하나라도 fail이면 `FAIL`, unknown이 남으면 `NEEDS_HUMAN_REVIEW`다. Eight-sample stable plateau는 terminal observation이 될 수 있지만 finite fixture의 all-sleep proof를 대신해 `stable_bulk_before_max`를 pass로 만들지 않는다.
+Remediation telemetry/analysis/report/receipt는 `powdergame-experiment-*-v2`를 사용하고 manifest v1과 shared frame manifest v0를 유지한다. 기존 아홉 predicate에 `water_outside_outer_basin_cells`를 추가한다. 이 predicate는 `[18,238) × [14,230)` 밖의 Water가 모든 non-reset sample에서 0일 때만 pass한다. 모든 열 개 status가 pass일 때만 `PASS`, 하나라도 fail이면 `FAIL`, unknown이 남으면 `NEEDS_HUMAN_REVIEW`다. Eight-sample stable plateau는 terminal observation이 될 수 있지만 finite fixture의 all-sleep proof를 대신해 `stable_bulk_before_max`를 pass로 만들지 않는다. all-sleep 실패 시 마지막 active cell은 cardinal 4-neighbor 기준 Water/Oil interface, Water/EMPTY surface, other로 분류하며 정책 완화에는 사용하지 않는다.
 
-256×256×64의 untuned tick-0 census는 Water 15,244 / Oil 2,240 / Stone 6,888 / Boundary Block 1,020 / Empty 40,144이다. destination은 `[18,238) × [200,230)` 안의 tick-0 EMPTY 6,216-cell mask이며 staging outcome이 아니라 observation region이다. FAST 기록은 fmt/check, scenarios 7/7, Windows experiment 16/16, Python 19/19, GPU reset 1/1이다. Candidate source SHA, FULL checkpoint, release smoke, scratch/candidate run과 verdict는 pending이며 Water는 아직 사용자 승인되지 않았다.
+256×256×64의 remediated tick-0 census는 Water 15,244 / Oil 2,240 / Stone 8,104 / Boundary Block 1,020 / Empty 38,928이다. destination은 `[18,238) × [200,230)` 안의 tick-0 EMPTY 6,216-cell mask이며 staging outcome이 아니라 observation region이다. FAST 기록은 workspace fmt/check PASS, scenarios 7/7, shared GPU reset 1/1, bounded Water GPU 1/1, Windows Sand/Water experiment 16/16, Python 23/23다. Single FULL workspace test/clippy/diff checkpoint와 60-frame RTX 5090/DX12 Gallery release smoke도 PASS다. Candidate source SHA, one fresh candidate와 verdict는 pending이며 Water는 아직 사용자 승인되지 않았다.
 
 ---
 

@@ -18,6 +18,14 @@ const G7_CHUNK_SIZE: u32 = 64;
 const KNOWN_FLAGS: u32 =
     FLAG_COMBUSTING | FLAG_FLAME_EVENT | FLAG_FUEL_PROGRESS_MASK | FLAG_DECAY_AGE_MASK;
 
+/// Authored Water Flow outer-basin interior bounds. These are exact cell
+/// coordinates for the 256x256 Harness and reference coordinates for scaled
+/// official fixtures.
+pub const WATER_FLOW_OUTER_BASIN_MIN_X: u32 = 18;
+pub const WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE: u32 = 238;
+pub const WATER_FLOW_OUTER_BASIN_MIN_Y: u32 = 14;
+pub const WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE: u32 = 230;
+
 /// Stable identities for the five G8-B workloads plus the frozen G7
 /// Active/Sleep regression fixture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -699,8 +707,20 @@ fn build_sand_fall(builder: &mut FixtureBuilder) -> Result<(), ScenarioError> {
 
 fn build_water_flow(builder: &mut FixtureBuilder) -> Result<(), ScenarioError> {
     builder.fill_material_ref(10, 246, 230, 238, MATERIAL_STONE)?;
-    builder.fill_material_ref(10, 18, 90, 238, MATERIAL_STONE)?;
-    builder.fill_material_ref(238, 246, 90, 238, MATERIAL_STONE)?;
+    builder.fill_material_ref(
+        10,
+        WATER_FLOW_OUTER_BASIN_MIN_X,
+        WATER_FLOW_OUTER_BASIN_MIN_Y,
+        238,
+        MATERIAL_STONE,
+    )?;
+    builder.fill_material_ref(
+        WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE,
+        246,
+        WATER_FLOW_OUTER_BASIN_MIN_Y,
+        238,
+        MATERIAL_STONE,
+    )?;
     builder.fill_material_ref(18, 112, 22, 112, MATERIAL_WATER)?;
     builder.fill_material_ref(144, 238, 34, 130, MATERIAL_WATER)?;
     // A lighter Oil pocket embedded above the right Water reservoir drives
@@ -966,13 +986,13 @@ mod tests {
     }
 
     #[test]
-    fn water_flow_256_pins_finite_authored_geometry_and_observation_mask() {
+    fn water_flow_256_pins_remediated_basin_geometry_and_observation_mask() {
         let config = WorldConfig::new(256, 256, 64).unwrap();
         let fixture = ScenarioFixture::build(ScenarioId::WaterFlow, config).unwrap();
 
         // Reconstruct the authored half-open rectangles independently of
-        // `build_water_flow`. This freezes the untuned Scenario 2 candidate
-        // geometry before the first Harness run.
+        // `build_water_flow`. This pins the fixture-only side-wall remediation
+        // without changing either liquid rectangle or internal channel.
         let mut expected = initial_material_ids(&config).unwrap();
         {
             let mut paint = |x_range: Range<usize>, y_range: Range<usize>, material: u32| {
@@ -983,8 +1003,16 @@ mod tests {
                 }
             };
             paint(10..246, 230..238, MATERIAL_STONE);
-            paint(10..18, 90..238, MATERIAL_STONE);
-            paint(238..246, 90..238, MATERIAL_STONE);
+            paint(
+                10..WATER_FLOW_OUTER_BASIN_MIN_X as usize,
+                WATER_FLOW_OUTER_BASIN_MIN_Y as usize..238,
+                MATERIAL_STONE,
+            );
+            paint(
+                WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE as usize..246,
+                WATER_FLOW_OUTER_BASIN_MIN_Y as usize..238,
+                MATERIAL_STONE,
+            );
             paint(18..112, 22..112, MATERIAL_WATER);
             paint(144..238, 34..130, MATERIAL_WATER);
             paint(164..220, 72..112, MATERIAL_OIL);
@@ -1005,9 +1033,9 @@ mod tests {
         };
         assert_eq!(count(MATERIAL_WATER), 15_244);
         assert_eq!(count(MATERIAL_OIL), 2_240);
-        assert_eq!(count(MATERIAL_STONE), 6_888);
+        assert_eq!(count(MATERIAL_STONE), 8_104);
         assert_eq!(count(MATERIAL_BOUNDARY_BLOCK), 1_020);
-        assert_eq!(count(MATERIAL_EMPTY), 40_144);
+        assert_eq!(count(MATERIAL_EMPTY), 38_928);
 
         assert!(fixture
             .temperatures()
@@ -1020,14 +1048,51 @@ mod tests {
         assert!(fixture.flags().iter().all(|value| *value == 0));
         assert!(fixture.chunk_edit_wake().iter().all(|value| *value == 0));
 
+        let mut outside_initial_water = 0usize;
+        for (index, &material) in fixture.materials().iter().enumerate() {
+            if material != MATERIAL_WATER {
+                continue;
+            }
+            let x = index % config.width as usize;
+            let y = index / config.width as usize;
+            let inside = (WATER_FLOW_OUTER_BASIN_MIN_X as usize
+                ..WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE as usize)
+                .contains(&x)
+                && (WATER_FLOW_OUTER_BASIN_MIN_Y as usize
+                    ..WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE as usize)
+                    .contains(&y);
+            if !inside {
+                outside_initial_water += 1;
+            }
+        }
+        assert_eq!(outside_initial_water, 0);
+
+        // Both side-wall faces are closed from above the Water rectangles to
+        // the basin floor, so Water cannot take an exterior x-side bypass.
+        for y in
+            WATER_FLOW_OUTER_BASIN_MIN_Y as usize..WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE as usize
+        {
+            assert_eq!(
+                fixture.materials()[cell(&fixture, WATER_FLOW_OUTER_BASIN_MIN_X as usize - 1, y,)],
+                MATERIAL_STONE
+            );
+            assert_eq!(
+                fixture.materials()
+                    [cell(&fixture, WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE as usize, y,)],
+                MATERIAL_STONE
+            );
+        }
+
         // Harness observation contract: the destination is the tick-0 EMPTY
         // mask inside the lower basin bounds. It is observation-only and does
         // not add a source, target material, or scripted scenario result.
         let mut destination_mask_cells = 0usize;
         let mut destination_water_cells = 0usize;
         let mut destination_oil_cells = 0usize;
-        for y in 200..230 {
-            for x in 18..238 {
+        for y in 200..WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE as usize {
+            for x in WATER_FLOW_OUTER_BASIN_MIN_X as usize
+                ..WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE as usize
+            {
                 let material = fixture.materials()[cell(&fixture, x, y)];
                 if material == MATERIAL_EMPTY {
                     destination_mask_cells += 1;

@@ -12,7 +12,7 @@ use std::path::Path;
 use powdergame_core::{
     is_valid_cell_material_value, WorldConfig, ACTIVITY_MATTER, ACTIVITY_PRESSURE,
     ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING,
-    MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_STONE, MATERIAL_WATER,
+    MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_WATER,
 };
 use powdergame_gpu::Simulation;
 use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
@@ -2047,6 +2047,7 @@ pub fn run_water_flow_experiment(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use powdergame_core::MATERIAL_STONE;
 
     fn snapshot_with_materials(materials: Vec<u32>) -> GpuSnapshot {
         let cell_count = materials.len();

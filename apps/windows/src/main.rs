@@ -446,7 +446,12 @@ impl App {
                 println!("[powdergame] activity demo: shared ActiveSleepG7 fixture staged");
             }
             DemoMode::Gallery => {
-                if self.experiment.is_none() {
+                if let Some(experiment) = self.experiment.as_ref() {
+                    println!(
+                        "[powdergame][experiment] worker owns the pristine shared {} reset/stage",
+                        experiment.scenario.name()
+                    );
+                } else {
                     let initial = GalleryState::new().scenario();
                     reset_and_stage_scenario(&mut simulation, initial).map_err(|error| {
                         GpuError::Other(format!("shared Gallery staging failed: {error}"))
@@ -454,15 +459,6 @@ impl App {
                     println!(
                         "[powdergame] G8-B Gallery: scenario 1/6 {} staged through shared benchmark fixture",
                         initial.name()
-                    );
-                } else {
-                    println!(
-                        "[powdergame][experiment] worker owns the pristine shared {} reset/stage",
-                        self.experiment
-                            .as_ref()
-                            .expect("experiment branch")
-                            .scenario
-                            .name()
                     );
                 }
             }

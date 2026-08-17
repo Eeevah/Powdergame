@@ -67,6 +67,19 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 - 설명이 약한 항목은 기존 Powdergame 법칙 → 현실 조사 → 독자 상상 순서로 보강한다.
 - 실제 게임 Dictionary는 이 master corpus를 그대로 공개하는 답안지가 아니라 **플레이어가 관찰한 현상만 드러나는 발견 도감**으로 파생해야 한다.
 
+## Material Wiki
+
+`materials/`는 넓은 Encyclopedia와 구현용 Rule Card 사이를 잇는 **물질별 개념 위키**다.
+
+- `materials/README.md` — 상태, 페이지 계약, 링크와 관리 원칙
+- `materials/_TEMPLATE.md` — 새 Material 문서 템플릿
+- `materials/p1/README.md` — P1 geology/manufacture family index
+- `materials/p1/*.md` — Dirt, Mud, Clay, Wet Clay, Brick, Basalt, Obsidian, Limestone, Carbon Dioxide 개별 페이지
+
+각 페이지는 `무엇인가 / 왜 넣는가 / 핵심 동사 / 세계 역할 / 인과 사슬 / 현실 앵커와 게임 추상화 / palette·discovery 정책 / 실패 모드 / 미결정 사항`을 기록한다.
+
+개념 상태(`reference/candidate/prototype/adopted`)와 구현 상태(`not_registered/registered/implemented/validated`)를 분리하며, 수치와 threshold는 개념 페이지에 복제하지 않고 최신 SPEC·Rule Card를 참조한다.
+
 핵심 변환은 다음과 같다.
 
 ```text
@@ -77,6 +90,7 @@ source name / lore
 → real/historical coverage check
 → block/material family differentiation
 → interaction graph / result-state split
+→ Material concept page
 → only then original gap-filler
 → user review
 → ADR / SPEC / content registration
@@ -99,6 +113,8 @@ Candidate extraction
   └─ future / meta
   ↓
 Interaction graph / ownership / discovery event
+  ↓
+Material concept page
   ↓
 Prototype bundle / pass evidence
   ↓

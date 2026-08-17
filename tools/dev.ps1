@@ -23,7 +23,7 @@ if (-not (Test-Path -LiteralPath $PolicyPath -PathType Leaf)) {
     throw "Missing development policy: $PolicyPath"
 }
 $Policy = Get-Content -LiteralPath $PolicyPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$GitExe = (Get-Command git -CommandType Application -ErrorAction Stop).Source
+$GitExe = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 
 function Invoke-RepoGit {
     param([string[]]$Args, [switch]$AllowFailure)

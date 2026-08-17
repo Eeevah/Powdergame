@@ -118,6 +118,8 @@ STATIC이 너무 인공적이면 shared low-mobility LIQUID 대안을 시험한�
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Stone](../foundation/stone.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

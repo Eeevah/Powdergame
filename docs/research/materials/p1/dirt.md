@@ -119,6 +119,11 @@ Water가 멀리 있다는 이유만으로 전체 지형이 즉시 Mud가 되면 
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Stone](../foundation/stone.md)
+- [Foundation: Sand](../foundation/sand.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Seed](../foundation/seed.md)
+- [Foundation: Plant](../foundation/plant.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

@@ -73,12 +73,16 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 
 - `materials/README.md` — 상태, 페이지 계약, 링크와 관리 원칙
 - `materials/_TEMPLATE.md` — 새 Material 문서 템플릿
+- `materials/foundation/README.md` — M0 baseline 9종과 초기 catalog 방향 7종의 Foundation family index
+- `materials/foundation/*.md` — Boundary Block부터 Glass까지 16개 기본 개념 페이지
 - `materials/p1/README.md` — P1 geology/manufacture family index
 - `materials/p1/*.md` — Dirt, Mud, Clay, Wet Clay, Brick, Basalt, Obsidian, Limestone, Carbon Dioxide 개별 페이지
 
 각 페이지는 `무엇인가 / 왜 넣는가 / 핵심 동사 / 세계 역할 / 인과 사슬 / 현실 앵커와 게임 추상화 / palette·discovery 정책 / 실패 모드 / 미결정 사항`을 기록한다.
 
 개념 상태(`reference/candidate/prototype/adopted`)와 구현 상태(`not_registered/registered/implemented/validated`)를 분리하며, 수치와 threshold는 개념 페이지에 복제하지 않고 최신 SPEC·Rule Card를 참조한다.
+
+Foundation 페이지는 현재 구현된 M0 identity와 아직 등록되지 않은 catalog 방향을 한 목록 안에서 구분한다. 문서에 존재하거나 research에서 `M0_VALIDATED`라고 불린다는 이유만으로 구현·제품 검증 상태를 승격하지 않는다.
 
 핵심 변환은 다음과 같다.
 

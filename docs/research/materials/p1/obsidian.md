@@ -119,6 +119,11 @@ Basalt와 동일한 구조재라면 필요 없다. 급랭이라는 생성 경로
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Lava](../foundation/lava.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Ice](../foundation/ice.md)
+- [Foundation: Steam](../foundation/steam.md)
+- [Foundation: Glass](../foundation/glass.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

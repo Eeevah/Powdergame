@@ -126,7 +126,35 @@ GitHub에서 읽히도록 일반 상대 링크를 사용한다.
 
 ## 현재 컬렉션
 
-현재는 첫 구현 후보인 P1부터 시작한다. 기존 foundation Material도 같은 형식으로 옮기되, 구현 우선순위와 함께 확장한다.
+Foundation은 현재 세계의 기본 어휘와 초기 catalog 방향을, P1은 그 어휘를 확장하는 첫 prototype 묶음을 관리한다.
+
+### Foundation — 16
+
+- [Foundation index](foundation/README.md)
+
+#### M0 baseline
+
+- [Boundary Block](foundation/boundary-block.md)
+- [Stone](foundation/stone.md)
+- [Sand](foundation/sand.md)
+- [Ice](foundation/ice.md)
+- [Water](foundation/water.md)
+- [Steam](foundation/steam.md)
+- [Smoke](foundation/smoke.md)
+- [Wood](foundation/wood.md)
+- [Oil](foundation/oil.md)
+
+#### Existing catalog direction
+
+- [Acid](foundation/acid.md)
+- [Seed](foundation/seed.md)
+- [Plant](foundation/plant.md)
+- [Salt](foundation/salt.md)
+- [Lava](foundation/lava.md)
+- [Metal](foundation/metal.md)
+- [Glass](foundation/glass.md)
+
+Foundation의 9개 M0 identity는 별도 구현 브랜치의 실제 Registry를 확인해 `implemented`로 기록했지만, 개별 Product Gate 증거 없이 `validated`로 올리지 않는다. 나머지 7개는 문서화와 무관하게 `candidate / not_registered`다.
 
 ### P1 — Geology & Irreversible Manufacture
 

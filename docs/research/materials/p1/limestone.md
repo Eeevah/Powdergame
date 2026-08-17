@@ -120,6 +120,9 @@ Stone은 안정 baseline이고 Limestone은 Acid에 반응하고 Gas를 만든�
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Stone](../foundation/stone.md)
+- [Foundation: Acid](../foundation/acid.md)
+- [Foundation: Water](../foundation/water.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

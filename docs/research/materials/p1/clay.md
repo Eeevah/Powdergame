@@ -119,6 +119,9 @@ Wet Clay와 Brick이 단순히 Clay의 색만 바뀐 모습이면 안 된다. Wa
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Sand](../foundation/sand.md)
+- [Foundation: Stone](../foundation/stone.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

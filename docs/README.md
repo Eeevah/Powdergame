@@ -67,6 +67,7 @@ docs/
 │  └─ materials/                       # 물질별 개념 Wiki
 │     ├─ README.md
 │     ├─ _TEMPLATE.md
+│     ├─ foundation/                   # 기본 16종 Material 개념/family Wiki
 │     └─ p1/                           # 첫 geology/manufacture prototype family
 └─ HANDOFF.md
 ```

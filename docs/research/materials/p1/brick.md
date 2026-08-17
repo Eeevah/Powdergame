@@ -121,6 +121,8 @@ Stone과 물성·시각·발견 의미가 모두 같으면 별도 Material일 �
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Stone](../foundation/stone.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

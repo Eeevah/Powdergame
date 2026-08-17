@@ -123,6 +123,12 @@ Steam과 완전히 같은 움직임이면 gas identity가 읽히지 않는다. P
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Acid](../foundation/acid.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Steam](../foundation/steam.md)
+- [Foundation: Smoke](../foundation/smoke.md)
+- [Foundation: Wood](../foundation/wood.md)
+- [Foundation: Oil](../foundation/oil.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

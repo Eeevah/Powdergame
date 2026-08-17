@@ -57,6 +57,17 @@ Limestone + Acid
 → CO2 + Water abstraction
 ```
 
+## Foundation dependencies
+
+P1은 새 범용 물리층을 만들지 않고 [Foundation Material](../foundation/README.md)의 기존·후보 어휘를 조합한다.
+
+- [Water](../foundation/water.md), [Ice](../foundation/ice.md), [Steam](../foundation/steam.md) — 젖음, 건조, 급랭, 상변화 환경
+- [Lava](../foundation/lava.md) — Basalt/Obsidian 냉각 분기의 source identity 후보
+- [Acid](../foundation/acid.md) — Limestone/CO2 반응의 liquid reactant 후보
+- [Stone](../foundation/stone.md), [Sand](../foundation/sand.md) — 구조·Powder baseline과 결과 비교
+- [Smoke](../foundation/smoke.md) — CO2가 달라야 하는 기존 Gas 비교점
+- [Seed](../foundation/seed.md), [Plant](../foundation/plant.md) — Dirt의 생태 연결은 future scope이며 P1 Rule에는 포함하지 않음
+
 ## 페이지
 
 ### 자연 원료

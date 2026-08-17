@@ -119,6 +119,8 @@ Water처럼 빠르게 퍼지면 독립성이 없다. 건조와 젖음이 매 Tic
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Sand](../foundation/sand.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

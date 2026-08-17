@@ -119,6 +119,10 @@ Obsidian과 생성 비율이 구별되지 않거나 Stone의 재색칠처럼 보
 
 - [P1 family index](README.md)
 - [Material Wiki](../README.md)
+- [Foundation: Lava](../foundation/lava.md)
+- [Foundation: Stone](../foundation/stone.md)
+- [Foundation: Water](../foundation/water.md)
+- [Foundation: Acid](../foundation/acid.md)
 - [P1 Rule Cards](../../derived/P1_GEOLOGY_AND_MANUFACTURE_RULE_CARDS.md)
 - [Interaction Graph & Catalog Decisions](../../derived/INTERACTION_GRAPH_AND_CATALOG_DECISIONS.md)
 - [Material Specification](../../../specs/MATERIAL_SPEC.md)

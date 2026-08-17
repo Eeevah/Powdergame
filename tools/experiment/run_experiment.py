@@ -253,8 +253,9 @@ def validate_external_artifact_root(source_root: Path, artifact_root: Path) -> N
 
 
 def git_text(source_root: Path, *args: str) -> str:
+    safe_root = str(source_root.resolve())
     completed = subprocess.run(
-        ["git", *args],
+        ["git", "-c", f"safe.directory={safe_root}", *args],
         cwd=source_root,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

@@ -308,6 +308,26 @@ class ExperimentRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(experiment.ExperimentError, "artifact_root/run_id"):
             experiment.validate_manifest_dict(wrong_run_dir)
 
+    def test_git_queries_scope_safe_directory_to_the_exact_source_root(self) -> None:
+        completed = mock.Mock(returncode=0, stdout=b"feature/test\n", stderr=b"")
+        with mock.patch.object(experiment.subprocess, "run", return_value=completed) as run:
+            value = experiment.git_text(self.source, "branch", "--show-current")
+
+        self.assertEqual(value, "feature/test")
+        run.assert_called_once_with(
+            [
+                "git",
+                "-c",
+                f"safe.directory={self.source.resolve()}",
+                "branch",
+                "--show-current",
+            ],
+            cwd=self.source,
+            stdout=experiment.subprocess.PIPE,
+            stderr=experiment.subprocess.PIPE,
+            check=False,
+        )
+
     def test_external_root_and_create_new_contracts(self) -> None:
         self.assertEqual(
             str(experiment.DEFAULT_ARTIFACT_ROOT),

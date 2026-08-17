@@ -12,6 +12,7 @@
 | PG-L006 | 2026-08-17 | adopted | Candidate, smoke, FULL이 서로 다른 증거 역할인데 같은 correctness 검사를 반복했다. | targeted error paths, minimal smoke, candidate, FULL의 역할을 분리하고 서로 대체하지 않는다. | `VALIDATION_POLICY.md` role table | G8-B Sand/Water/Fire review |
 | PG-L007 | 2026-08-17 | adopted | 사용자가 매번 장기 실행을 기다리고 수동 screenshot/HUD transcription을 해야 했다. | Harness가 keyframe·telemetry·report를 만들고 사람은 `NEEDS_HUMAN_REVIEW` 장면만 추가 관찰한다. | Experiment Harness, Contact Sheet, Review Packet | Sand pilot / Water candidate |
 | PG-L008 | 2026-08-17 | adopted | 자동 verdict나 Review Packet 하나를 더 넓은 Gate 승인 또는 forensic proof로 오해할 위험이 있었다. | 자동 판정, 사용자 승인, forensic audit bundle의 범위를 분리한다. | evidence contract와 review prompt boundary | Sand Review Prompt and adversarial review |
+| PG-L009 | 2026-08-17 | adopted | 첫 policy audit 구현에서 PowerShell 함수명이 `Git` 실행파일을 가렸고, 다음 수정에서는 자동 변수 `$Args`와 같은 이름을 써 Git argument가 비어 두 차례 CI가 실패했다. | 외부 명령 wrapper는 command 이름·PowerShell 자동 변수와 겹치지 않게 하고, 실행파일을 하나 선택한 뒤 named array parameter로 전달한다. 새 guard는 실제 CI에서 PASS하기 전 채택하지 않는다. | `tools/dev.ps1`의 `Invoke-RepoGit -GitArgs`, GitHub Actions `Development policy audit` | failed runs `32036149706`, `32036356485`, `32036736080`; passing run `32036953896` |
 
 ## Entry template
 

@@ -107,8 +107,8 @@ M0의 목적은 콘텐츠를 많이 넣는 것이 아니다.
 
 - G0-G7: PASS / CLOSED
 - G8: IN_PROGRESS
-  - G8-A Measurement Substrate: V5 REMEDIATION SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED
-  - G8-B Benchmark Scenario Suite: OUT OF SCOPE FOR THIS BRANCH
+  - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
+  - G8-B Benchmark Scenario Suite: PENDING
   - G8-C Official Matrix Measurement: PENDING
 - G9: PENDING
 - M0 `ACHIEVED`: NO
@@ -385,6 +385,8 @@ Required evidence:
 - application-tracked GPU memory accounting
 - dirty run의 source snapshot/full diff, executed binary, exact argv/stdout/stderr/exit code와 CSV run ID를 해시로 연결하는 capture receipt
 - aggregate/raw artifact를 기존 파일 overwrite 없이 stage/sync 후 raw-first/aggregate-last 순서로 공개
+
+Clean source `9abec9e`의 official v5 packet과 independent-verifier record는 verified candidate의 technical evidence contract를 충족한다. 같은 SHA의 user visual validation은 pending이다.
 
 ### G8-B — Benchmark Scenario Suite
 

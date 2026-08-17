@@ -43,8 +43,8 @@
 
 - G0-G7: PASS / CLOSED
 - G8: Performance Evidence — IN_PROGRESS
-  - G8-A Measurement Substrate: V5 REMEDIATION SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED
-  - G8-B Benchmark Scenario Suite: OUT OF SCOPE FOR THIS BRANCH
+  - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
+  - G8-B Benchmark Scenario Suite: PENDING
   - G8-C Official Matrix: PENDING
 - G9: Playable First World / Product Validation — PENDING
 
@@ -62,24 +62,22 @@ G9에서 사용자가 직접 Matter를 놓고, 지우고, 가열하고, 구조�
 
 ---
 
-## 3. Immediate G8-A Remediation Work
+## 3. Current Canonical Recovery State
 
-현재 작업 branch는 `fix/g8a-evidence-remediation-v5`이며 base는 `a67abaf959aba0423627f35b79fce7c82d8ec9b5`다.
+현재 local integration branch는 `integration/canonical-recovery`다.
 
-detached dirty correction은 reset/stash/rebase/pull 없이 이 branch에 연결했고, 연결 전 tracked/untracked 전체 binary patch를 저장소 밖에 보존했다.
+- 검증 구현 기준: `fix/g8a-evidence-remediation-v5` at `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`
+- 최신 research/Foundation Wiki: `feature/foundation-material-wiki` at `ccd0d7b00fb99128e8750ef09e5c4cce068bce09`
+- Foundation base: `origin/main` at `1304b71a15df140a994737becb5f47f421758801`
+- recovery merge: `e5871bdc53093700c44562826860c4d482f31ba5`
+- G8-A official capture: `g8a-v5-9abec9e-20260817T032827206Z`
+- independent verification: 11/11 checks passed, zero findings
 
-현재 목표는 다음 순서로 G8-A evidence candidate를 봉합하는 것이다.
+G8-A의 clean source publish, official capture, independent verification은 끝났다. 같은 SHA의 user visual validation은 아직 durable approval record가 없어 pending이다.
 
-- source/test/docs만 commit
-- full checkpoint와 GPU/Windows smoke 수행
-- clean source SHA를 전용 remote branch에 push
-- source를 더 바꾸지 않고 외부 새 빈 디렉터리에서 official capture 정확히 1회
-- 별도 verifier로 hash/provenance/raw/aggregate/inventory/receipt 확인
-- 실패 Capture ID는 receipt 없이 보존하고 재사용하지 않음
+Canonical Recovery는 local integration branch에서 구현선과 research/Material Wiki를 결합했다. 이 branch는 push되지 않았고 recovery PR도 생성되지 않았으며 `main`도 갱신되지 않았다. Draft PR #1은 open/draft 상태로 보존한다.
 
-`CAPTURE_RECEIPT.json`이 없는 capture는 incomplete다. v4는 historical data로만 남는다.
-
-Canonical Recovery, G8-B/G8-C/G9, 새 Material, 성능 최적화, `main` merge는 현재 금지 범위다.
+다음 기능 Gate는 자동으로 시작하지 않는다. 사용자 결정 전에는 G8-B/G8-C, G9, P1 identity/descriptor 등록, 새 Material, 최적화를 수행하지 않는다.
 
 ---
 
@@ -208,14 +206,16 @@ G9는 신규 Matter 수를 늘리는 단계가 아니다. 현재 세트로 먼�
 13. Combustion
 14. Pressure/rupture
 15. Active/Sleep — G7 Completed / Frozen
-16. Measurement substrate — v5 remediation branch, clean checkpoint/push, official receipt, and independent verification workflow
+16. Measurement substrate — v5 clean source, official capture, and independent verification complete; verified evidence candidate
+17. Canonical Recovery — verified runtime/evidence line + latest research/Foundation Material Wiki merged into a tested local integration branch
 
 현재 이후 순서:
 
-17. G8-A v5 source/test/docs commit → full checkpoint → clean branch push
-18. 동일 source SHA의 official capture 1회 → independent verification → user visual run
-19. 이 branch 종료. Canonical Recovery와 G8-B 이후 작업은 별도 승인/작업
-20. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
+18. 같은 source SHA의 G8-A user visual validation
+19. 사용자 결정 A: G8-B/G8-C performance evidence 계속
+20. 사용자 결정 B: G9 Playable First World 진행
+21. 사용자 결정 C: M0 승인 이후에만 P1 identity/descriptor 등록 검토
+22. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
 
 Do not start with aggressive packing/f16/indirect dispatch.
 

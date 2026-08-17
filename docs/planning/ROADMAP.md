@@ -58,12 +58,12 @@ Roadmap의 모든 단계는 이 질문에 더 강한 답을 만들기 위해 존
 - G6 Parallel Integrity — PASS / CLOSED
 - G7 Active / Sleep — PASS / CLOSED
 - G8 Performance Evidence — IN_PROGRESS
-  - G8-A Measurement Substrate — V5 REMEDIATION SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED
-  - G8-B Benchmark Scenario Suite — OUT OF SCOPE FOR THE V5 REMEDIATION BRANCH
+  - G8-A Measurement Substrate — V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
+  - G8-B Benchmark Scenario Suite — PENDING
   - G8-C Official Matrix Measurement — PENDING
 - G9 Product Validation — PENDING
 
-G8-A correction worktree는 2048×2048 reference world와 실제 production pass를 측정할 수 있는 기반을 만들었다. 기존 v4 원자료는 later source/binary와의 실행 연결 및 raw census가 없으므로 historical data로만 보존한다. 현재 작업은 `fix/g8a-evidence-remediation-v5`의 source/test/docs를 동결하고 clean SHA에서 단 한 번 공식 capture한 뒤 별도 verifier로 확인하는 것이다.
+G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`에서 2048×2048 reference world와 실제 production pass를 측정했고, official capture와 독립 검증을 완료했다. 현재 상태는 verified evidence candidate이며 같은 SHA의 user visual validation은 pending이다. 기존 v4 원자료는 later source/binary 실행 연결과 raw census가 없으므로 historical data로만 보존한다.
 
 이 결과로 “GPU 세계가 성립하는가”라는 초기 위험은 크게 낮아졌다. 이제 가장 큰 위험은 다음이다.
 
@@ -73,35 +73,20 @@ G8-A correction worktree는 2048×2048 reference world와 실제 production pass
 
 ---
 
-## 4. Immediate Work — G8-A Remediation v5 Seal
+## 4. Current Repository State — Canonical Recovery Integrated Locally
 
-현재 목표는 Canonical Recovery나 다음 기능 Gate가 아니다.
+Canonical Recovery는 기능 Gate가 아니라 분기된 구현·증거선과 연구·문서선을 다시 하나의 검증 가능한 후보선으로 묶는 운영 작업이다.
 
-1. preserved dirty correction을 전용 branch의 source/test/docs commit으로 고정한다.
-2. full workspace, clippy, GPU integration, Windows release smoke checkpoint를 수행한다.
-3. 통과한 clean SHA를 원격 branch에 push한다.
-4. source를 더 바꾸지 않고 저장소 밖 새 빈 디렉터리에서 official capture를 한 번 실행한다.
-5. 별도 verifier로 package/hash/provenance/raw/aggregate/inventory/receipt를 확인한다.
+- verified runtime/evidence parent: `fix/g8a-evidence-remediation-v5` at `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`
+- research/Foundation parent: `feature/foundation-material-wiki` at `ccd0d7b00fb99128e8750ef09e5c4cce068bce09`
+- local recovery merge: `e5871bdc53093700c44562826860c4d482f31ba5` on `integration/canonical-recovery`
+- recovery 결과의 Cargo, apps, engine, WGSL, test tree는 `9abec9e`와 동일하다. Merge commit의 `docs/research` tree는 `ccd0d7b`와 동일하며, 후속 reconciliation은 P1 frontmatter의 비정식 movement 값 두 개만 canonical enum으로 정규화했다.
+- PRE/POST full workspace, clippy, evidence-script self-test, verifier fixture, Windows release smoke, document/link 검증을 통과했다.
+- 이 branch는 local-only다. recovery branch push, recovery PR 생성, `main` 승격은 수행하지 않았다.
+- Draft PR #1은 open/draft 상태로 보존하며, 그 product-first 문서는 더 최신 evidence correction과 함께 `9abec9e`에 이미 포함되어 있으므로 merge/cherry-pick하지 않는다.
+- personal-infra-wiki의 위치·운영 계약은 바뀌지 않았으므로 별도 프로젝트 페이지를 임의로 만들지 않았다.
 
-이 branch에서는 G8-B/G8-C/G9, 새 Material, 최적화, `main` merge를 수행하지 않는다.
-
-### Later repository prerequisite — Canonical Recovery
-
-현재 `main`의 연구/문서 진행선과 `feature/m0-g8-performance-evidence`의 구현/증거 진행선이 분기되어 있다.
-
-G8-A v5 candidate 봉합 이후 별도 승인과 작업으로, 다음 제품 작업을 시작하기 전에 하나의 buildable canonical line으로 통합한다.
-
-목표:
-
-- 현재 구현 코드와 최신 연구 문서를 깨끗한 integration branch에서 결합
-- `README.md`, Vision, Roadmap, Milestones, Status, Handoff의 현재 상태 일치
-- 전체 검증 후 명시적인 integration PR로 `main` 갱신
-- 이후 `main`이 현재 buildable product state를 가리키도록 유지
-- canonical SHA가 확정된 뒤 `personal-infra-wiki`에 Powdergame 프로젝트 등록
-
-이 작업은 M0 물리를 바꾸는 기능 Gate가 아니라, 이후 작업이 서로 다른 정본을 따라가는 것을 막는 운영 전제다.
-
-기존 dirty worktree의 사용자 변경은 자동으로 reset, stash, discard 또는 overwrite하지 않는다.
+따라서 local canonical candidate는 만들어졌지만 shared canonical `main`은 아직 갱신되지 않았다. 게시와 다음 Gate 선택은 각각 별도 사용자 결정이다. 기존 dirty worktree의 사용자 변경은 reset, stash, discard 또는 overwrite하지 않는다.
 
 ---
 
@@ -594,14 +579,12 @@ M1 이후 Material 수와 regression surface가 실제로 커져 수동 검증�
 
 ## Current Execution Order
 
-1. **G8-A Remediation v5 Seal** — clean source checkpoint/push, official capture 1회, independent verification, 동일 SHA user visual run.
-2. **Stop this branch** — G8-B/G8-C/G9, 최적화, 새 Material, `main` merge를 시작하지 않는다.
-3. **Canonical Recovery** — 이후 별도 작업에서 구현선과 연구/문서선을 하나의 buildable `main`으로 통합한다.
-4. **G8-B** — 다섯 benchmark fixture를 구현한다.
-5. **G8-C** — 공식 multi-trial matrix와 병목 결론을 기록한다.
-6. **G9-A / G9-B** — sandbox input/edit loop와 user-created open emergence를 검증한다.
-7. **G9-C / G9-D / G9-E** — Discovery, Presentation, direct user play approval을 연결한다.
-8. M0 승인 후에만 **M1 Interaction Grammar Alpha**를 정식 Evidence Gate로 확정한다.
+1. **G8-A verified evidence candidate** — official capture와 independent verification은 완료했다. 동일 source SHA의 user visual validation은 pending이다.
+2. **Canonical Recovery local integration** — 구현/증거선과 연구/문서선의 병합·검증은 완료했다. recovery branch push, recovery PR, `main` 승격은 pending이다.
+3. **User decision** — 다음 실행 범위를 자동 선택하지 않는다. G8-B/G8-C, G9, 또는 M0 이후 P1 검토 중 하나를 별도 승인으로 정한다.
+4. **Dependency boundary** — G8-B 다섯 benchmark fixture와 G8-C 공식 multi-trial matrix를 마쳐야 G8 전체를 닫을 수 있다.
+5. **Product path** — G9-A/G9-B sandbox input·edit loop와 open emergence 뒤 G9-C/G9-D/G9-E Discovery·Presentation·direct user play approval을 연결한다.
+6. M0 승인 후에만 **P1 identity/descriptor 등록**과 **M1 Interaction Grammar Alpha**를 정식 구현·Evidence Gate로 검토한다.
 
 현재 목표는 더 빠른 실험실을 만드는 것이 아니다.
 

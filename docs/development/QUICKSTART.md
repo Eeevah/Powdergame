@@ -9,8 +9,8 @@ Read this first when entering the repo.
 - G7-A: USER VALIDATED / FROZEN
 - G7-B: PASS / CLOSED / FROZEN
 - G8: Performance Evidence (IN_PROGRESS; historical v4 remains unbound historical data)
-- Current work: seal `fix/g8a-evidence-remediation-v5` as a clean-source, receipt-bound G8-A evidence candidate
-- Out of scope here: Canonical Recovery, G8-B/G8-C/G9, new materials, optimization, and `main` merge
+- G8-A: v5 official capture + independent verification complete / verified evidence candidate; same-SHA user visual validation pending
+- Current repository line: tested local `integration/canonical-recovery`; publication/promotion and the next Gate require explicit user direction
 
 ## Windows
 
@@ -19,7 +19,7 @@ Typical repo/worktree root:
 
 Use the gate-specific worktree when present. Never blindly pull/rebase a dirty worktree.
 
-The preserved correction was attached without reset/stash/rebase/pull to `fix/g8a-evidence-remediation-v5` from base `a67abaf959aba0423627f35b79fce7c82d8ec9b5`. Do not repurpose this branch for product work or integration. Its only purpose is the G8-A scope frozen in `docs/evidence/G8_A_REMEDIATION_V5_SCOPE_2026-08-17.md`.
+The preserved correction was attached without reset/stash/rebase/pull to `fix/g8a-evidence-remediation-v5` from base `a67abaf959aba0423627f35b79fce7c82d8ec9b5` and sealed at `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`. Keep that source branch frozen. Canonical Recovery uses it as the implementation parent and merges `feature/foundation-material-wiki` separately.
 
 ## Run current G7 demo
 
@@ -56,7 +56,7 @@ Do not run performance benchmarks during normal build/test loops. G8 is now the 
 
 The historical G8-A v4 aggregate/raw timing CSVs can be numerically reconstructed, but they are not bound to the later dirty source snapshot or executed binary and do not contain raw census buffers. Do not label them an official baseline.
 
-For the next auditable G8-A capture, use `apps/benchmark/capture-evidence.ps1 -Official` instead of invoking the benchmark binary or `cargo run` directly. Official mode requires an attached clean source SHA and a new empty destination outside the repository. It performs an isolated locked release build, records the source snapshot, exact command and raw logs, hashes the executed binary, and links aggregate/raw tick/raw cell/raw chunk CSVs through one run receipt. `CAPTURE_RECEIPT.json` is the final completion marker; without it the capture is incomplete. Never rerun a failed capture under the same Capture ID.
+The verified v5 package for `9abec9e` already has a complete official receipt and independent-verifier record. Do not rerun, replace, or repair that capture. If a future source SHA requires a new auditable capture, use `apps/benchmark/capture-evidence.ps1 -Official` instead of invoking the benchmark binary or `cargo run` directly. Official mode requires an attached clean source SHA, a new Capture ID, and a new empty destination outside the repository. `CAPTURE_RECEIPT.json` remains the final completion marker; without it the capture is incomplete.
 
 ```powershell
 pwsh -NoProfile -File .\apps\benchmark\capture-evidence.ps1 `
@@ -64,7 +64,7 @@ pwsh -NoProfile -File .\apps\benchmark\capture-evidence.ps1 `
   -DestinationRoot <new-empty-directory-outside-the-repository>
 ```
 
-The v5 remediation branch stops after source publication, one official capture, and independent verification. Canonical Recovery and later gates are separate work and are not implied by a v5 receipt.
+The v5 remediation branch stopped after source publication, one official capture, and independent verification. Canonical Recovery is a separate local integration line; its existence does not approve publication, close G8, or select the next product Gate.
 
 **ADVERSARIAL REVIEW — opt-in only**
 

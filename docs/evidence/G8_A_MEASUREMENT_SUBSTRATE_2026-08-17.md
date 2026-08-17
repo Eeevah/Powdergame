@@ -1,14 +1,15 @@
 # G8-A — Performance Measurement Substrate Evidence (2026-08-17)
 
-G8 — Performance Evidence gate, sub-step A (measurement substrate correction candidate).
+G8 — Performance Evidence gate, sub-step A (verified measurement substrate evidence candidate).
 
 - **G7 Frozen Baseline SHA**: `94babb2667c081b5588489e1b4e710cc6efa68be`
 - **G8-A Remediation Base**: `a67abaf959aba0423627f35b79fce7c82d8ec9b5`
 - **Source Branch**: `fix/g8a-evidence-remediation-v5`
+- **Verified Source SHA**: `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`
 - **Historical v4 Run State**: the CSV records `git_state=dirty`; no later source may be rebound to it
 - **Primary Hardware**: NVIDIA GeForce RTX 5090 (`0x10DE:0x2B85`, driver `32.0.15.9636`)
 - **Backend / Build**: DirectX 12 / Cargo release profile
-- **Status**: `V5 SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED`
+- **Status**: `V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING`
 - **Scope**: measurement, validation, and evidence corrections only. No production physics optimization was performed. G7-C and the G8-B five-scenario suite are not implemented.
 
 The v4 calibration below is retained as historical raw data. Its CSV arithmetic can be independently reconstructed, but the packet does not bind that run to the later source snapshot, executable, command, stdout/stderr, and exit code. It is therefore not evidence that the v5 remediation source produced those values.
@@ -80,7 +81,7 @@ The memory report is **application-tracked requested persistent GPU buffer bytes
 
 ---
 
-## 2. Corrected Reference Calibration
+## 2. Historical v4 Reference Calibration (Not an Official Baseline)
 
 Run ID: `g8a-1786916099569`
 
@@ -194,7 +195,7 @@ Independent reconstruction of the historical v4 CSV found:
 - maximum residual reconstruction error `2.22e-16 ms`;
 - the exact 184,576,672-byte memory total.
 
-The v5 remediation source adds the following future-capture contract:
+The v5 remediation source added the following capture contract, which the verified official package exercised:
 
 - schema `powdergame-g8a-v5` emits aggregate, raw tick, raw cell, and raw chunk CSV files;
 - raw cell output has exactly one data row per `cell_activity` value; raw chunk output has exactly one data row per `(chunk_activity, chunk_state)` pair;
@@ -206,7 +207,7 @@ The v5 remediation source adds the following future-capture contract:
 - package creation follows the receipt, and the ZIP SHA-256 is written outside the ZIP as sibling `PACKAGE_SHA256.txt`;
 - independent verification uses `verify-evidence.ps1`, not the capture implementation.
 
-The contract requires one fresh official capture after the clean source SHA is committed, checked, and pushed. The historical v4 values are not rewritten or rebound.
+The contract was exercised once from committed, checked, and published clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`. The historical v4 values remain unchanged and are not rebound to that source.
 
 Narrow implementation checks executed before the full source checkpoint:
 
@@ -219,7 +220,7 @@ Narrow implementation checks executed before the full source checkpoint:
 - PowerShell AST parse of `capture-evidence.ps1`: 0 parse errors;
 - `git diff --check`: exit code 0 with existing LF-to-CRLF working-copy warnings.
 
-The authoritative full workspace, GPU integration, Windows release smoke, source commit/push, official capture, package, and independent-verifier results are external checkpoint/capture records produced after this source text is frozen. They must not be inferred from the narrow checks above.
+The authoritative full workspace, GPU integration, Windows release smoke, source commit/push, official capture, package, and independent-verifier results are external checkpoint/capture records produced after the initial source freeze. The verified facts are recorded in the Gate Declaration below; the earlier narrow checks alone did not establish them.
 
 ### 3.1 Superseded and Current Review Records
 
@@ -234,7 +235,13 @@ An earlier local review report is retained as historical provenance, but its cla
 
 ## 4. Gate Declaration
 
-- **G8-A source candidate**: scope is frozen on `fix/g8a-evidence-remediation-v5`; the current evidence candidate is whichever external v5 package has a complete official receipt and independent-verifier record for the final clean source SHA.
+- **Verified package**: capture `g8a-v5-9abec9e-20260817T032827206Z` binds clean source and upstream SHA `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`; the source manifests are unchanged before/after build and run.
+- **Run and reference calibration**: run `g8a-1786937354490` reports Mode A P50 865.304 TPS / 1.155663 ms per tick and profiled envelope P50 1.018080 ms. These are G8-A calibration facts, not G8-B/G8-C or product validation.
+- **Package SHA-256**: `4b9f44f66c18235f80d33738d15f3418c65c98e68e254aa01d13fc3a66eb6ec8`; the ZIP-external hash record and independent verifier agree.
+- **Receipt**: official and complete; `CAPTURE_RECEIPT.json` SHA-256 is `084012de7549eb8742f8974e40f21407c7d70f5d8bee346c60384a878a0ccbf3`.
+- **Independent verification**: success, 11/11 checks passed, zero findings; verifier record SHA-256 is `143b628e4bcd59a77df94c33aa085d4d4144addb403275e89eff1c3097fd260b`.
+- **Raw evidence shape**: 4,194,304 cell rows, 1,024 chunk rows, 768 tick rows, and 129 aggregate rows.
+- **G8-A evidence candidate**: official capture and independent verification are complete for the final clean source SHA. Same-SHA user visual validation remains pending and is not implied by the receipt.
 - **G8 final PASS**: no.
 - **G8-B official five-scenario suite**: not started.
 - **G7-C compact active lists / indirect dispatch**: not implemented.

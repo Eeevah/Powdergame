@@ -7,7 +7,7 @@ aliases:
 family: mineral-manufacture
 status: prototype
 implementation_state: not_registered
-movement_class: STATIC_BASELINE
+movement_class: STATIC
 palette_policy: hidden_until_discovered_debug_spawnable
 updated: 2026-08-17
 last_verified: 2026-08-17

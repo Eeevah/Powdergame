@@ -14,9 +14,9 @@ Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder
 
 **M0 — First World 구현 진행 중**
 
-G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. 기존 G8-A v4 timing CSV는 historical data로 보존하지만 later source/binary 실행 연결과 raw census가 없다. 현재 작업은 `fix/g8a-evidence-remediation-v5`에서 이 correction을 clean-source, receipt-bound evidence candidate로 봉합하는 것이다. commit/push된 clean SHA의 공식 v5 capture와 독립 검증 전에는 현재 candidate가 성립하지 않는다.
+G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`의 official capture와 독립 검증을 완료한 verified evidence candidate다. 같은 SHA의 user visual validation은 아직 pending이며, 기존 v4 timing CSV는 source/binary 실행 연결과 raw census가 없는 historical data로만 보존한다.
 
-이 브랜치에서는 G8-B/G8-C/G9, 새 Material, 성능 최적화, `main` merge, Canonical Recovery를 수행하지 않는다. 이후 순서는 현재 G8-A 봉합 결과와 별도로 결정한다.
+`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. recovery branch push/recovery PR/`main` 승격은 하지 않았으며, G8-B/G8-C, G9, M0 이후 P1 중 어느 작업을 진행할지는 사용자가 별도로 결정한다.
 
 ## 현재 공식 개발 경로
 

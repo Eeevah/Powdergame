@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). Current work is limited to sealing `fix/g8a-evidence-remediation-v5` through clean checkpoint, push, one official capture, and independent verification.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했으며 게시와 다음 Gate 선택은 별도 사용자 결정이다.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A v5 remediation source/publish/capture/verify only).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A VERIFIED V5 EVIDENCE CANDIDATE, USER VISUAL VALIDATION PENDING; G8-B/G8-C PENDING).**
 
 ### Current Summary
 
@@ -372,7 +372,7 @@ Static Analysis & Formatting:
 
 ### G8 — Performance Evidence (IN_PROGRESS)
 
-- **G8-A (Measurement Substrate)**: **V5 REMEDIATION SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED**
+- **G8-A (Measurement Substrate)**: **V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING**
   - Headless benchmark harness (`powdergame-benchmark` at `apps/benchmark/`) with strict CLI validation and a dimension-safe calibration fixture.
   - Mode A uses a normal production context; Mode B uses a separate timestamp-enabled context on the same adapter.
   - Exact 17-pass timing, 34 raw queries per tick, timestamp-order validation, envelope/pass-sum/residual reconstruction, and per-tick grouped subsystem statistics.
@@ -387,6 +387,9 @@ Static Analysis & Formatting:
   - Schema v5 preserves exactly one row per raw cell and one row per raw chunk, recomputes the aggregate census from that snapshot, and stages/synchronizes four CSVs before raw-cell/raw-chunk/raw-tick/aggregate no-overwrite publication.
   - Official capture accepts only attached clean source, records source/binary/argv/log/exit/artifact hashes, writes the receipt last, and packages with a ZIP-external `PACKAGE_SHA256.txt`.
   - Receipt absence means incomplete capture. Existing v4 remains historical and is not replaced or corrected in place.
+  - Verified v5 source: clean source/upstream `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`; capture `g8a-v5-9abec9e-20260817T032827206Z`; package SHA-256 `4b9f44f66c18235f80d33738d15f3418c65c98e68e254aa01d13fc3a66eb6ec8`.
+  - Independent verification: success, 11/11 checks passed, zero findings. Raw evidence contains 4,194,304 cell rows, 1,024 chunk rows, 768 tick rows, and 129 aggregate rows.
+  - Official v5 reference calibration: Mode A P50 865.304 TPS / 1.155663 ms per tick; profiled envelope P50 1.018080 ms. These are G8-A calibration facts, not G8-B/G8-C or product validation.
   - Historical provenance: external review activity occurred before the policy changed. It is not used as current status support. Adversarial review is explicit-request-only, and the one-time local report is a non-blocking historical record.
   - No production optimization performed; G7-C not implemented; G8 official five-scenario matrix pending G8-B.
   - Evidence: `docs/evidence/G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md`
@@ -395,17 +398,17 @@ Static Analysis & Formatting:
 
 ### Next Action
 
-1. **Freeze and publish v5 source**: Commit only source/test/docs on `fix/g8a-evidence-remediation-v5`, run the full requested checkpoint, and push the clean branch without force.
-2. **Official G8-A capture exactly once**: From that unchanged clean SHA, capture into a new empty external directory. Preserve a failed Capture ID without repair or reuse.
-3. **Independent verification**: Verify source/executable/files/ZIP hashes, commands/exits, run IDs, raw cell/chunk row counts, aggregate reconstruction, inventory, and receipt completeness through a separate code path.
-4. **User visual run**: Use the same source SHA after the automated Windows release smoke and evidence verification.
-5. **Stop**: Canonical Recovery, G8-B/G8-C/G9, new materials, optimization, and `main` merge are not part of this branch.
+1. **Same-SHA user visual validation**: G8-A의 남은 human validation이며 official receipt나 automated smoke가 대신하지 않는다.
+2. **Canonical Recovery publication decision**: local `integration/canonical-recovery`는 병합·검증을 마쳤지만 recovery branch push, recovery PR, `main` 승격은 사용자 승인 전까지 수행하지 않는다.
+3. **Next Gate decision**: G8-B/G8-C, G9, 또는 M0 이후 P1 검토 중 다음 실행 범위를 사용자가 별도로 정한다. 어떤 Gate도 자동으로 시작하지 않는다.
 
 ---
 
 ### Blockers
 
-이 source document는 후속 checkpoint/capture 결과를 선반영하지 않는다. 현재 candidate 여부는 external v5 receipt와 independent-verifier record가 결정한다.
+Canonical Recovery와 v5 technical evidence에는 확인된 기술 blocker가 없다. G8-A를 더 진전시키려면 같은 source SHA의 user visual validation이 필요하고, local recovery branch 게시와 다음 Gate 선택에는 별도 사용자 결정이 필요하다.
+
+Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical Recovery Evidence](../evidence/CANONICAL_RECOVERY_2026-08-17.md)에 기록한다.
 
 ---
 
@@ -413,7 +416,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A v5 remediation source candidate; official receipt and independent verification determine current evidence-candidate state).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B/G8-C PENDING).
 
 M0 `ACHIEVED`: **NO**
 
@@ -425,21 +428,27 @@ M0 `ACHIEVED`: **NO**
 g7_frozen_base_sha: 94babb2667c081b5588489e1b4e710cc6efa68be
 g8a_remediation_base_sha: a67abaf959aba0423627f35b79fce7c82d8ec9b5
 g8a_remediation_branch: fix/g8a-evidence-remediation-v5
+g8a_verified_source_sha: 9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe
 g8a_prebranch_binary_patch_sha256: 9993574e552f2cf9523aa2e1c3ee8b0f7ebe6dae422eebf5a8ecbe2737c0cd5b
 roadmap_update_ref: origin/agent/update-product-roadmap at a5efc1b4bb54cdd9629de9654c8b5eb0c24397b7
-canonical_main_ref: origin/main at c057626c08c5ad8b6b4b2360737e51fc161c28a7
-canonical_recovery: out of scope for this branch
+canonical_main_ref: origin/main at 1304b71a15df140a994737becb5f47f421758801
+canonical_recovery_branch: integration/canonical-recovery (local only)
+canonical_recovery_merge: e5871bdc53093700c44562826860c4d482f31ba5
+canonical_recovery_publication: not pushed; no recovery PR; main unchanged
 evidence_writer_schema: powdergame-g8a-v5
 official_capture_completion_marker: CAPTURE_RECEIPT.json (must be written last)
 official_capture_package_hash: ZIP-external PACKAGE_SHA256.txt
+official_capture_id: g8a-v5-9abec9e-20260817T032827206Z
+official_capture_package_sha256: 4b9f44f66c18235f80d33738d15f3418c65c98e68e254aa01d13fc3a66eb6ec8
+independent_verification: success (11/11 checks passed; zero findings)
 build_id: local-cargo-2026-08-17
 platform: Windows
 primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
-build: authoritative v5 full-workspace checkpoint pending; targeted benchmark compilation occurred through the tests and package clippy recorded below
-source_freeze_checks: targeted census recount/recompute/raw writers/staged publication and benchmark clippy completed; authoritative full/GPU/smoke/capture/verifier results live outside this pre-capture source document
-benchmarks: historical G8-A v4/schema-v3 2048x2048 dirty-worktree artifacts report Mode A TPS P50 = 948.9 and Mode B Envelope P50 = 1.0204 ms, but are not bound to the later source snapshot/binary; only a complete external v5 receipt may identify the current candidate
+build: canonical recovery PRE/POST full workspace, clippy, evidence self-tests, verifier fixtures, and Windows release smoke passed; 385 tests passed, 3 expected ignored, 0 failed in each workspace run
+source_freeze_checks: official receipt complete; source/upstream clean and unchanged at 9abec9e; independent verifier passed 11/11 with zero findings
+benchmarks: official G8-A v5 P50 = 865.304 TPS / 1.155663 ms per tick and profiled envelope P50 = 1.018080 ms; historical v4 remains unbound historical data
 adversarial_review: optional and explicit-request-only; existing G8-A report is historical and non-blocking
-m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A v5 remediation source/publish/capture/verify only; later gates pending)
+m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B/C pending)
 ```

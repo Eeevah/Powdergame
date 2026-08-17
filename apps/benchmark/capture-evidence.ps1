@@ -320,6 +320,17 @@ function Assert-InventoryShape {
     }
 }
 
+function Format-SourceInventoryRow {
+    param(
+        [Parameter(Mandatory)][string]$SizeBytes,
+        [Parameter(Mandatory)][string]$Sha256,
+        [Parameter(Mandatory)][string]$RepositoryRelativePath,
+        [Parameter(Mandatory)][string]$SnapshotRelativePath
+    )
+
+    return @('true', $SizeBytes, $Sha256, $RepositoryRelativePath, $SnapshotRelativePath) -join "`t"
+}
+
 function Get-TrackedPaths {
     param(
         [Parameter(Mandatory)][string]$Label,
@@ -370,7 +381,7 @@ function Write-SourceState {
                 throw "Unexpected snapshot path for source input: $relativePath"
             }
         }
-        $rows.Add(('true`t{0}`t{1}`t{2}`t{3}' -f $size, $sha, $relativePath, $snapshotRelative))
+        $rows.Add((Format-SourceInventoryRow -SizeBytes $size -Sha256 $sha -RepositoryRelativePath $relativePath -SnapshotRelativePath $snapshotRelative))
     }
     Assert-InventoryShape -Paths $paths -RowCount ($rows.Count - 1)
     Write-Utf8NoBomSyncedCreateNew -Path $manifestPath -Text (($rows -join "`n") + "`n")
@@ -795,6 +806,18 @@ function Invoke-CaptureSelfTest {
         Assert-Throws -Name 'empty inventory path is rejected' -Action {
             Assert-InventoryShape -Paths @('a', '') -RowCount 2
         }
+
+        $inventorySha = 'a' * 64
+        $inventoryRow = Format-SourceInventoryRow -SizeBytes '68' -Sha256 $inventorySha -RepositoryRelativePath '.gitignore' -SnapshotRelativePath 'source/snapshot/.gitignore'
+        $inventoryColumns = @($inventoryRow.Split("`t", [StringSplitOptions]::None))
+        $inventoryTabBytes = @([Text.Encoding]::UTF8.GetBytes($inventoryRow) | Where-Object { $_ -eq 0x09 }).Count
+        if ($inventoryColumns.Count -ne 5 -or $inventoryTabBytes -ne 4 -or $inventoryRow.Contains('`t') -or
+            $inventoryColumns[0] -ne 'true' -or $inventoryColumns[1] -ne '68' -or
+            $inventoryColumns[2] -ne $inventorySha -or $inventoryColumns[3] -ne '.gitignore' -or
+            $inventoryColumns[4] -ne 'source/snapshot/.gitignore') {
+            throw 'Source inventory formatter did not emit five columns separated by four real tab bytes.'
+        }
+        $passed.Add('source inventory rows contain four real tab separators')
 
         $csvCase = Join-Path $testRoot 'csv-identity'
         [IO.Directory]::CreateDirectory($csvCase) | Out-Null

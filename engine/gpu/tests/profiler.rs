@@ -4,7 +4,7 @@
 //! - A. Ordinary Simulation::tick remains available and does not require TIMESTAMP_QUERY.
 //! - B. A profiled simulation tick executes the exact same production pass sequence.
 //! - C. Matching profiled vs unprofiled simulations from identical state (Material, Flags, Temperature, Pressure exact).
-//! - D. Timestamp results (17 pass records, valid envelope, non-negative durations).
+//! - D. Timestamp results (17 ordered positive pass records and a valid envelope).
 //! - E. Activity census works out-of-band and does not perturb world state.
 //! - F. Tracked memory report accounts for all world, scratch, activity, uniform, and profiler allocations.
 
@@ -76,39 +76,58 @@ fn test_profiled_simulation_tick_produces_17_valid_pass_timings() {
         .write_temperature(&sim.context.queue, 64, 68, 500.0)
         .unwrap();
 
-    let report = sim
+    let first = sim
         .tick_profiled(&mut profiler)
         .expect("tick_profiled must succeed");
+    let report = sim
+        .tick_profiled(&mut profiler)
+        .expect("repeated tick_profiled must succeed");
 
-    assert_eq!(report.tick_index, 0);
+    assert_eq!(first.tick_index, 0);
+    assert_eq!(report.tick_index, 1);
+    assert_ne!(
+        first.raw_timestamps, report.raw_timestamps,
+        "each profiled tick must overwrite the reused query results"
+    );
+    assert!(
+        report.raw_timestamps[0] >= first.raw_timestamps[33],
+        "the second resolved query set must follow the first on the GPU timeline"
+    );
     assert_eq!(report.passes.len(), PASS_COUNT);
     assert_eq!(PASS_COUNT, 17);
 
     for (i, pass) in report.passes.iter().enumerate() {
         assert_eq!(pass.name, PASS_NAMES[i]);
+        assert_eq!(pass.raw_start, report.raw_timestamps[i * 2]);
+        assert_eq!(pass.raw_end, report.raw_timestamps[i * 2 + 1]);
         assert!(
-            pass.duration_ms >= 0.0,
-            "pass duration must be non-negative"
+            pass.raw_end > pass.raw_start,
+            "pass must have positive duration"
         );
+        if i > 0 {
+            assert!(pass.raw_start >= report.passes[i - 1].raw_end);
+        }
+        assert!(pass.duration_ms > 0.0, "pass duration must be positive");
         assert!(pass.duration_ms.is_finite(), "pass duration must be finite");
     }
 
+    assert!(report.gpu_tick_envelope_ms > 0.0);
+    assert!(report.gpu_pass_sum_ms > 0.0);
+    assert!(report.residual_ms >= 0.0);
+    assert!(report.residual_ms.is_finite());
+    assert!(report.gpu_pass_sum_ms <= report.gpu_tick_envelope_ms);
     assert!(
-        report.gpu_tick_envelope_ms >= 0.0,
-        "envelope must be non-negative"
-    );
-    assert!(
-        report.gpu_pass_sum_ms >= 0.0,
-        "pass sum must be non-negative"
+        (report.gpu_pass_sum_ms + report.residual_ms - report.gpu_tick_envelope_ms).abs() < 1.0e-12
     );
 
     let grouped = report.grouped_summary();
-    assert!(grouped.matter_movement_ms >= 0.0);
-    assert!(grouped.ownership_claim_ms >= 0.0);
-    assert!(grouped.thermal_ms >= 0.0);
-    assert!(grouped.reaction_phase_ms >= 0.0);
-    assert!(grouped.pressure_structure_ms >= 0.0);
-    assert!(grouped.active_sleep_ms >= 0.0);
+    let grouped_sum = grouped.matter_movement_ms
+        + grouped.ownership_claim_ms
+        + grouped.thermal_ms
+        + grouped.reaction_phase_ms
+        + grouped.pressure_structure_ms
+        + grouped.active_sleep_ms;
+    assert!((grouped_sum - report.gpu_pass_sum_ms).abs() < 1.0e-12);
 }
 
 #[test]
@@ -333,6 +352,13 @@ fn test_tracked_gpu_allocation_report_structure() {
 
     // Profiler: 34 * 8 * 2 = 544 bytes
     assert_eq!(mem.profiler_bytes, 544);
+
+    // Exact persistent inventory: 4 uniforms + marker + 9 property/table
+    // buffers. This assertion must fail if tracked_memory_report omits one of
+    // the allocations made by Simulation::with_context.
+    assert_eq!(mem.uniforms_and_tables_bytes, 2_176);
+
+    assert_eq!(mem.total_tracked_gpu_bytes, 184_576_672);
 
     assert_eq!(
         mem.total_tracked_gpu_bytes,

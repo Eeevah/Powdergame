@@ -20,5 +20,7 @@ pub use profiler::{
     GpuProfiler, GroupedSubsystemSummary, PassTiming, ProfiledTickReport, PASS_COUNT, PASS_NAMES,
     QUERY_COUNT,
 };
-pub use simulation::{ActivityCensusReport, Simulation, TrackedMemoryReport};
+pub use simulation::{
+    ActivityCensusReport, ActivityCensusSnapshot, Simulation, TrackedMemoryReport,
+};
 pub use world::GpuWorld;

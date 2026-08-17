@@ -1,745 +1,556 @@
-//! G8-A Headless Performance Benchmark & Measurement Harness.
+//! G8-A headless performance measurement harness.
 //!
-//! Features:
-//! 1. Mode A: Production Throughput Mode (unprofiled Simulation::tick(), batch-submitted, GPU wait ONCE at end).
-//! 2. Mode B: GPU Breakdown Mode (timestamp-profiled Simulation::tick_profiled(), 17 raw passes + tick envelope).
-//! 3. Out-of-band Activity Census (cells + chunks).
-//! 4. Application-tracked GPU Allocation Memory Report.
-//! 5. Statistical Aggregations (P50, P95, Mean, Min, Max across trials).
-//! 6. Dual Output: Concise human-readable console summary + machine-readable CSV.
+//! Mode A uses a normal production context and batch-submitted `tick()` calls.
+//! Mode B uses a separately created profiling context and isolated synchronized
+//! `tick_profiled()` calls. Durable evidence is emitted as aggregate, raw tick,
+//! raw cell-census, and raw chunk-census CSV files.
 
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
+mod config;
+mod evidence;
+mod fixture;
+mod stats;
+
 use std::time::Instant;
 
+use config::{parse_cli_args, BenchmarkCliConfig};
+use evidence::{
+    validate_evidence_output_paths, write_evidence, EvidenceBundle, OverheadReport, ProfiledSample,
+    ProfiledTrialResult, RunProvenance, ThroughputTrialResult,
+};
+use fixture::{stage_calibration_fixture, validate_calibration_fixture_config};
 use pollster::block_on;
-use powdergame_core::{
-    WorldConfig, FLAG_COMBUSTING, MATERIAL_OIL, MATERIAL_SAND, MATERIAL_STONE, MATERIAL_WATER,
-    MATERIAL_WOOD,
-};
-use powdergame_gpu::{
-    AdapterReport, GpuContext, GpuProfiler, ProfiledTickReport, Simulation, PASS_COUNT, PASS_NAMES,
-};
-
-/// Command-line configuration for the G8 benchmark.
-#[derive(Debug, Clone)]
-struct BenchmarkCliConfig {
-    pub width: u32,
-    pub height: u32,
-    pub chunk_size: u32,
-    pub sleep_enabled: bool,
-    pub sleep_threshold: u32,
-    pub prewarm_secs: f64,
-    pub throughput_ticks: u32,
-    pub profile_ticks: u32,
-    pub trials: u32,
-    pub csv_output: PathBuf,
-}
-
-impl Default for BenchmarkCliConfig {
-    fn default() -> Self {
-        Self {
-            width: 2048,
-            height: 2048,
-            chunk_size: 64,
-            sleep_enabled: true,
-            sleep_threshold: 16,
-            prewarm_secs: 2.0,
-            throughput_ticks: 1024,
-            profile_ticks: 256,
-            trials: 3,
-            csv_output: PathBuf::from("target/calibration_report.csv"),
-        }
-    }
-}
-
-fn parse_cli_args() -> BenchmarkCliConfig {
-    let mut config = BenchmarkCliConfig::default();
-    let args: Vec<String> = std::env::args().collect();
-    let mut i = 1;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--width" if i + 1 < args.len() => {
-                config.width = args[i + 1].parse().unwrap_or(2048);
-                i += 2;
-            }
-            "--height" if i + 1 < args.len() => {
-                config.height = args[i + 1].parse().unwrap_or(2048);
-                i += 2;
-            }
-            "--chunk" if i + 1 < args.len() => {
-                config.chunk_size = args[i + 1].parse().unwrap_or(64);
-                i += 2;
-            }
-            "--sleep" if i + 1 < args.len() => {
-                config.sleep_enabled = !args[i + 1].eq_ignore_ascii_case("off")
-                    && !args[i + 1].eq_ignore_ascii_case("false");
-                i += 2;
-            }
-            "--threshold" if i + 1 < args.len() => {
-                config.sleep_threshold = args[i + 1].parse().unwrap_or(16);
-                i += 2;
-            }
-            "--prewarm-secs" if i + 1 < args.len() => {
-                config.prewarm_secs = args[i + 1].parse().unwrap_or(2.0);
-                i += 2;
-            }
-            "--throughput-ticks" if i + 1 < args.len() => {
-                config.throughput_ticks = args[i + 1].parse().unwrap_or(1024);
-                i += 2;
-            }
-            "--profile-ticks" if i + 1 < args.len() => {
-                config.profile_ticks = args[i + 1].parse().unwrap_or(256);
-                i += 2;
-            }
-            "--trials" if i + 1 < args.len() => {
-                config.trials = args[i + 1].parse().unwrap_or(3);
-                i += 2;
-            }
-            "--csv" if i + 1 < args.len() => {
-                config.csv_output = PathBuf::from(&args[i + 1]);
-                i += 2;
-            }
-            _ => {
-                i += 1;
-            }
-        }
-    }
-    config
-}
-
-/// Stages a repeatable, rich calibration fixture on the world.
-/// Exercises Sand fall, Water flow, Boiling water heater with Steam expansion pressure,
-/// Burning Wood combustion + Smoke decay, weak Wood rupture opening, and stable Water bulk.
-fn stage_calibration_fixture(sim: &mut Simulation) {
-    let w = sim.world.config.width as usize;
-    let h = sim.world.config.height as usize;
-    let cell_count = w * h;
-
-    let mut materials = powdergame_core::initial_material_ids(&sim.world.config).unwrap();
-    let mut temperatures = vec![0.0f32; cell_count];
-    let mut flags = vec![0u32; cell_count];
-
-    // Quadrant 1: Falling Sand streams
-    for cx in (100..400).step_by(50) {
-        for y in 100..500 {
-            for x in (cx - 10)..(cx + 10) {
-                materials[y * w + x] = MATERIAL_SAND;
-            }
-        }
-    }
-
-    // Quadrant 2: Water & Oil tanks
-    for y in 800..1000 {
-        for x in 100..400 {
-            materials[y * w + x] = MATERIAL_WATER;
-        }
-        for x in 500..800 {
-            materials[y * w + x] = MATERIAL_OIL;
-        }
-    }
-
-    // Quadrant 3: Boiling water boiler with steam expansion pressure
-    for y in 1200..1400 {
-        for x in 200..400 {
-            materials[y * w + x] = MATERIAL_WATER;
-            temperatures[y * w + x] = 120.0;
-        }
-    }
-    // Wood relief walls around boiler
-    for x in 190..410 {
-        materials[1190 * w + x] = MATERIAL_WOOD;
-        materials[1410 * w + x] = MATERIAL_WOOD;
-    }
-    for y in 1190..1410 {
-        materials[y * w + 190] = MATERIAL_WOOD;
-        materials[y * w + 410] = MATERIAL_WOOD;
-    }
-
-    // Quadrant 4: Burning Wood line + Smoke generation
-    for x in 1000..1600 {
-        for y in 300..320 {
-            let idx = y * w + x;
-            materials[idx] = MATERIAL_WOOD;
-            if x % 10 == 0 {
-                flags[idx] = FLAG_COMBUSTING;
-                temperatures[idx] = 500.0;
-            }
-        }
-    }
-
-    // Stable bulk Water in deep basin (for sleep observation)
-    for y in 1500..1900 {
-        for x in 1000..1900 {
-            let idx = y * w + x;
-            materials[idx] = MATERIAL_WATER;
-            temperatures[idx] = 20.0;
-        }
-    }
-    for x in 990..1910 {
-        materials[1900 * w + x] = MATERIAL_STONE;
-    }
-    for y in 1500..1901 {
-        materials[y * w + 990] = MATERIAL_STONE;
-        materials[y * w + 1910] = MATERIAL_STONE;
-    }
-
-    let q = &sim.context.queue;
-    let mut mat_bytes = Vec::with_capacity(cell_count * 4);
-    for m in &materials {
-        mat_bytes.extend_from_slice(&m.to_ne_bytes());
-    }
-    let mut temp_bytes = Vec::with_capacity(cell_count * 4);
-    for t in &temperatures {
-        temp_bytes.extend_from_slice(&t.to_ne_bytes());
-    }
-    let mut flag_bytes = Vec::with_capacity(cell_count * 4);
-    for f in &flags {
-        flag_bytes.extend_from_slice(&f.to_ne_bytes());
-    }
-
-    q.write_buffer(&sim.world.material_current, 0, &mat_bytes);
-    q.write_buffer(&sim.world.material_next, 0, &mat_bytes);
-    q.write_buffer(&sim.world.temperature_current, 0, &temp_bytes);
-    q.write_buffer(&sim.world.temperature_next, 0, &temp_bytes);
-    q.write_buffer(&sim.world.flags_current, 0, &flag_bytes);
-    q.write_buffer(&sim.world.flags_next, 0, &flag_bytes);
-}
-
-/// Computes percentile (0..100) from a sorted f64 slice.
-fn percentile(sorted: &[f64], pct: f64) -> f64 {
-    if sorted.is_empty() {
-        return 0.0;
-    }
-    let idx = (pct / 100.0 * (sorted.len() - 1) as f64).round() as usize;
-    sorted[idx.min(sorted.len() - 1)]
-}
-
-/// Statistics for a series of numeric measurements.
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct StatSummary {
-    pub count: usize,
-    pub p50: f64,
-    pub p95: f64,
-    pub mean: f64,
-    pub min: f64,
-    pub max: f64,
-}
-
-impl StatSummary {
-    pub fn from_slice(values: &[f64]) -> Self {
-        if values.is_empty() {
-            return Self {
-                count: 0,
-                p50: 0.0,
-                p95: 0.0,
-                mean: 0.0,
-                min: 0.0,
-                max: 0.0,
-            };
-        }
-        let mut sorted = values.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        let sum: f64 = sorted.iter().sum();
-        let mean = sum / sorted.len() as f64;
-        let p50 = percentile(&sorted, 50.0);
-        let p95 = percentile(&sorted, 95.0);
-        let min = sorted[0];
-        let max = sorted[sorted.len() - 1];
-        Self {
-            count: sorted.len(),
-            p50,
-            p95,
-            mean,
-            min,
-            max,
-        }
-    }
-}
-
-/// Result of a single production throughput trial.
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct ThroughputTrialResult {
-    pub total_ticks: u32,
-    pub elapsed_wall_ms: f64,
-    pub wall_ms_per_tick: f64,
-    pub sustained_tps: f64,
-}
-
-/// Result of a single GPU breakdown trial.
-#[derive(Debug, Clone)]
-struct ProfiledTrialResult {
-    pub pass_stats: [StatSummary; PASS_COUNT],
-    pub envelope_stats: StatSummary,
-    pub pass_sum_stats: StatSummary,
-    pub residual_stats: StatSummary,
-}
+use powdergame_core::{chunks_x, chunks_y, WorldConfig};
+use powdergame_gpu::{AdapterReport, GpuContext, GpuProfiler, Simulation, PASS_NAMES};
+use stats::{summarize_profiled_reports, StatSummary, GROUP_LABELS};
 
 fn main() {
-    let cli = parse_cli_args();
+    if let Err(error) = run() {
+        eprintln!("FATAL: {error}");
+        std::process::exit(1);
+    }
+}
 
+fn run() -> Result<(), String> {
+    let cli = parse_cli_args()?;
+    let world_config = cli.world_config()?;
+    validate_calibration_fixture_config(&world_config).map_err(|error| error.to_string())?;
+    validate_evidence_output_paths(&cli.csv_output)?;
+    let provenance = RunProvenance::capture();
+
+    print_header(&cli, &world_config, &provenance);
+
+    // Mode A: normal production device, no profiling feature requested.
+    println!("\n--- Initializing Mode A production context ---");
+    let production_context = block_on(GpuContext::new())
+        .map_err(|error| format!("failed to initialize production GPU context: {error}"))?;
+    if production_context.profiling_enabled {
+        return Err("Mode A unexpectedly enabled timestamp profiling".into());
+    }
+    let production_adapter = AdapterReport::from_info(&production_context.adapter_info);
+    println!("{production_adapter}");
+    println!("TIMESTAMP_QUERY requested: NO");
+
+    let mut production_sim = Simulation::with_context(production_context, world_config)
+        .map_err(|error| format!("failed to create production Simulation: {error}"))?;
+    configure_simulation(&mut production_sim, &cli);
+
+    println!(
+        "\n--- Mode A Pre-warm ({:.1}s requested) ---",
+        cli.prewarm_secs
+    );
+    let production_prewarm_ticks = prewarm(&mut production_sim, cli.prewarm_secs)?;
+    println!("Mode A pre-warm completed: {production_prewarm_ticks} ticks");
+
+    println!("\n================================================================================");
+    println!("MODE A: Production Throughput (normal device, batch submit, one end wait)");
+    println!("================================================================================");
+    let throughput_trials = measure_throughput(&mut production_sim, &cli)?;
+    let throughput_tps_values: Vec<f64> = throughput_trials
+        .iter()
+        .map(|trial| trial.sustained_tps)
+        .collect();
+    let throughput_ms_values: Vec<f64> = throughput_trials
+        .iter()
+        .map(|trial| trial.wall_ms_per_tick)
+        .collect();
+    let throughput_tps_stats = StatSummary::from_slice(&throughput_tps_values);
+    let throughput_ms_stats = StatSummary::from_slice(&throughput_ms_values);
+    println!(
+        "Summary: TPS P50 {:.1}, mean {:.1}, min {:.1}, max {:.1}",
+        throughput_tps_stats.p50,
+        throughput_tps_stats.mean,
+        throughput_tps_stats.min,
+        throughput_tps_stats.max
+    );
+    println!(
+        "         wall ms/tick P50 {:.4}, mean {:.4}, min {:.4}, max {:.4}",
+        throughput_ms_stats.p50,
+        throughput_ms_stats.mean,
+        throughput_ms_stats.min,
+        throughput_ms_stats.max
+    );
+
+    // Release the production device before allocating the profiling world.
+    drop(production_sim);
+
+    // Mode B: separate timestamp-enabled device and simulation.
+    println!("\n--- Initializing Mode B profiling context ---");
+    let profiling_context = block_on(GpuContext::with_profiling())
+        .map_err(|error| format!("failed to initialize profiling GPU context: {error}"))?;
+    if !profiling_context.profiling_enabled {
+        return Err("Mode B did not enable timestamp profiling".into());
+    }
+    let profiling_adapter = AdapterReport::from_info(&profiling_context.adapter_info);
+    let profiling_timestamp_period = profiling_context.timestamp_period;
+    println!("{profiling_adapter}");
+    println!("TIMESTAMP_QUERY requested: YES");
+    println!("Timestamp period: {profiling_timestamp_period:.9} ns/tick");
+    verify_same_adapter(&production_adapter, &profiling_adapter)?;
+
+    let mut profiling_sim = Simulation::with_context(profiling_context, world_config)
+        .map_err(|error| format!("failed to create profiling Simulation: {error}"))?;
+    configure_simulation(&mut profiling_sim, &cli);
+    let mut profiler = GpuProfiler::new(&profiling_sim.context)
+        .map_err(|error| format!("failed to create GpuProfiler: {error}"))?;
+    let memory = profiling_sim.tracked_memory_report(Some(&profiler));
+    print_memory_report(&memory);
+
+    println!(
+        "\n--- Mode B Pre-warm ({:.1}s requested) ---",
+        cli.prewarm_secs
+    );
+    let profiling_prewarm_ticks = prewarm(&mut profiling_sim, cli.prewarm_secs)?;
+    println!("Mode B pre-warm completed: {profiling_prewarm_ticks} ordinary ticks");
+
+    println!("\n================================================================================");
+    println!(
+        "MODE B: GPU Breakdown (isolated synchronized profiled ticks; {} ticks x {} trials)",
+        cli.profile_ticks, cli.trials
+    );
+    println!("================================================================================");
+    let (profiled_trials, profiled_samples) =
+        measure_profiled(&mut profiling_sim, &mut profiler, &cli)?;
+    let median_profiled_trial = median_profiled_trial_id(&profiled_trials)?;
+    let median_trial = profiled_trials
+        .iter()
+        .find(|trial| trial.trial == median_profiled_trial)
+        .ok_or_else(|| "median profiled trial disappeared".to_string())?;
+    print_profiled_summary(median_trial);
+
+    // Census is deliberately outside every timed loop.
+    let census_tick = profiling_sim.tick_count;
+    let census = profiling_sim
+        .activity_census_snapshot()
+        .map_err(|error| format!("activity census failed: {error}"))?;
+    print_census(&census.report, census_tick);
+
+    let overhead =
+        measure_profiled_path_overhead(&mut profiling_sim, &mut profiler, cli.overhead_ticks)?;
+    print_overhead(&overhead);
+
+    let evidence = EvidenceBundle {
+        config: &cli,
+        provenance: &provenance,
+        production_adapter: &production_adapter,
+        profiling_adapter: &profiling_adapter,
+        profiling_timestamp_period,
+        production_prewarm_ticks,
+        profiling_prewarm_ticks,
+        throughput_trials: &throughput_trials,
+        throughput_tps_stats: &throughput_tps_stats,
+        throughput_ms_stats: &throughput_ms_stats,
+        profiled_trials: &profiled_trials,
+        median_profiled_trial,
+        profiled_samples: &profiled_samples,
+        memory: &memory,
+        census: &census,
+        census_tick,
+        overhead: &overhead,
+    };
+    let evidence_paths = write_evidence(&evidence)?;
+    println!(
+        "\nAggregate evidence:   {}",
+        evidence_paths.summary.display()
+    );
+    println!(
+        "Raw tick evidence:    {}",
+        evidence_paths.raw_ticks.display()
+    );
+    println!(
+        "Raw cell evidence:    {}",
+        evidence_paths.raw_cells.display()
+    );
+    println!(
+        "Raw chunk evidence:   {}",
+        evidence_paths.raw_chunks.display()
+    );
+
+    println!("\n================================================================================");
+    println!(
+        "G8-A correction-candidate artifact set written; bind it to a capture receipt before use"
+    );
+    println!("================================================================================");
+    Ok(())
+}
+
+fn print_header(cli: &BenchmarkCliConfig, world: &WorldConfig, provenance: &RunProvenance) {
+    let chunk_columns = chunks_x(world.width, world.chunk_size);
+    let chunk_rows = chunks_y(world.height, world.chunk_size);
+    let cell_count = u64::from(world.width) * u64::from(world.height);
     println!("================================================================================");
     println!("Powdergame G8-A Headless Performance Measurement Substrate");
     println!("================================================================================");
-
-    let world_config = WorldConfig {
-        width: cli.width,
-        height: cli.height,
-        chunk_size: cli.chunk_size,
-    };
-
     println!(
-        "World Configuration:  {}x{} (cell count: {})",
-        cli.width,
-        cli.height,
-        cli.width * cli.height
+        "Evidence schema:       {}",
+        evidence::EVIDENCE_SCHEMA_VERSION
+    );
+    println!("Run ID:                {}", provenance.run_id);
+    println!("Commit SHA:            {}", provenance.git.commit_sha);
+    println!("Git state:             {}", provenance.git.state);
+    println!(
+        "World:                 {}x{} ({cell_count} cells)",
+        world.width, world.height
     );
     println!(
-        "Chunk Size:           {}x{} (chunks: {}x{} = {})",
-        cli.chunk_size,
-        cli.chunk_size,
-        cli.width / cli.chunk_size,
-        cli.height / cli.chunk_size,
-        (cli.width / cli.chunk_size) * (cli.height / cli.chunk_size)
+        "Chunks:                {}x{} ({} total, size {})",
+        chunk_columns,
+        chunk_rows,
+        u64::from(chunk_columns) * u64::from(chunk_rows),
+        world.chunk_size
     );
     println!(
-        "Sleep Optimization:   {} (Threshold: {} ticks)",
+        "Sleep:                 {} (threshold {})",
         if cli.sleep_enabled { "ON" } else { "OFF" },
         cli.sleep_threshold
     );
+    println!("Build profile:         {}", provenance.build_profile);
     println!(
-        "Build Profile:        {}",
-        if cfg!(debug_assertions) {
-            "DEBUG (unoptimized)"
-        } else {
-            "RELEASE (opt-level=3)"
-        }
-    );
-    println!("Pre-warm Duration:    {:.1}s", cli.prewarm_secs);
-    println!(
-        "Throughput Ticks:     {} ticks per trial ({} trials)",
+        "Throughput window:     {} ticks x {} trials",
         cli.throughput_ticks, cli.trials
     );
     println!(
-        "Profiled Ticks:       {} ticks per trial ({} trials)",
+        "Profile window:        {} ticks x {} trials",
         cli.profile_ticks, cli.trials
     );
+    println!("Overhead control:      {} ticks", cli.overhead_ticks);
+}
 
-    // 1. Initialize GPU context with profiling
-    let ctx = match block_on(GpuContext::with_profiling()) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("FATAL: Failed to initialize GPU context with TIMESTAMP_QUERY: {e}");
-            std::process::exit(1);
-        }
-    };
-
-    let report = AdapterReport::from_info(&ctx.adapter_info);
-    println!("\n--- Adapter & Hardware Info ---");
-    println!("{}", report);
-    println!("TIMESTAMP_QUERY:      SUPPORTED");
-    println!("Timestamp Period:     {:.6} ns/tick", ctx.timestamp_period);
-
-    let mut sim = Simulation::with_context(ctx, world_config).expect("failed to create Simulation");
+fn configure_simulation(sim: &mut Simulation, cli: &BenchmarkCliConfig) {
     sim.sleep_enabled = cli.sleep_enabled;
     sim.sleep_threshold = cli.sleep_threshold;
     sim.update_uniforms();
+}
 
-    let mut profiler = GpuProfiler::new(&sim.context).expect("failed to create GpuProfiler");
-    let mem_report = sim.tracked_memory_report(Some(&profiler));
+fn reset_and_stage(sim: &mut Simulation) -> Result<(), String> {
+    sim.reset()
+        .map_err(|error| format!("simulation reset failed: {error}"))?;
+    stage_calibration_fixture(sim).map_err(|error| error.to_string())
+}
 
-    println!("\n--- Tracked GPU Buffer Allocations ---");
-    println!(
-        "World Dense State:    {:.2} MB ({} bytes)",
-        mem_report.world_dense_state_bytes as f64 / 1_048_576.0,
-        mem_report.world_dense_state_bytes
-    );
-    println!(
-        "Movement Scratch:     {:.2} MB ({} bytes)",
-        mem_report.movement_scratch_bytes as f64 / 1_048_576.0,
-        mem_report.movement_scratch_bytes
-    );
-    println!(
-        "Activity Diagnostics: {:.2} MB ({} bytes)",
-        mem_report.activity_scratch_bytes as f64 / 1_048_576.0,
-        mem_report.activity_scratch_bytes
-    );
-    println!(
-        "Uniforms & Tables:    {:.2} KB ({} bytes)",
-        mem_report.uniforms_and_tables_bytes as f64 / 1024.0,
-        mem_report.uniforms_and_tables_bytes
-    );
-    println!("Profiler Staging:     {} bytes", mem_report.profiler_bytes);
-    println!(
-        "Total Tracked GPU:    {:.2} MB ({} bytes)",
-        mem_report.total_tracked_gpu_bytes as f64 / 1_048_576.0,
-        mem_report.total_tracked_gpu_bytes
-    );
+fn wait_for_gpu(sim: &Simulation, label: &str) -> Result<(), String> {
+    sim.context
+        .device
+        .poll(wgpu::PollType::Wait)
+        .map(|_| ())
+        .map_err(|error| format!("GPU wait failed during {label}: {error}"))
+}
 
-    // 2. Pre-warm phase
-    println!("\n--- Pre-warm Phase ({:.1}s) ---", cli.prewarm_secs);
-    stage_calibration_fixture(&mut sim);
-    let prewarm_start = Instant::now();
-    let mut prewarm_ticks = 0u64;
-    while prewarm_start.elapsed().as_secs_f64() < cli.prewarm_secs {
+fn reset_stage_and_wait(sim: &mut Simulation, label: &str) -> Result<(), String> {
+    reset_and_stage(sim)?;
+    // Queue writes are scheduled until the next submission; flush them before
+    // the wait so fixture uploads cannot enter the measured tick window.
+    sim.context.queue.submit([]);
+    wait_for_gpu(sim, label)
+}
+
+fn prewarm(sim: &mut Simulation, requested_seconds: f64) -> Result<u64, String> {
+    reset_stage_and_wait(sim, "pre-warm fixture staging")?;
+    let start = Instant::now();
+    let mut ticks = 0u64;
+    while start.elapsed().as_secs_f64() < requested_seconds {
         for _ in 0..128 {
-            sim.tick().expect("prewarm tick failed");
-            prewarm_ticks += 1;
+            sim.tick()
+                .map_err(|error| format!("pre-warm tick failed: {error}"))?;
+            ticks += 1;
         }
-        let _ = sim.context.device.poll(wgpu::PollType::Wait);
+        wait_for_gpu(sim, "pre-warm")?;
     }
-    println!(
-        "Pre-warm completed: {} ticks in {:.2}s",
-        prewarm_ticks,
-        prewarm_start.elapsed().as_secs_f64()
-    );
+    Ok(ticks)
+}
 
-    // 3. Mode A: Production Throughput Measurement
-    println!("\n================================================================================");
-    println!("MODE A: Production Throughput (Unprofiled, Batch-Submitted, End-Wait Once)");
-    println!("================================================================================");
-
-    let mut throughput_results = Vec::new();
+fn measure_throughput(
+    sim: &mut Simulation,
+    cli: &BenchmarkCliConfig,
+) -> Result<Vec<ThroughputTrialResult>, String> {
+    let mut results = Vec::with_capacity(cli.trials as usize);
     for trial in 1..=cli.trials {
-        sim.reset().expect("reset failed");
-        stage_calibration_fixture(&mut sim);
-
-        let t_start = Instant::now();
+        reset_stage_and_wait(sim, &format!("Mode A trial {trial} fixture staging"))?;
+        let start = Instant::now();
         for _ in 0..cli.throughput_ticks {
-            sim.tick().expect("production tick failed");
+            sim.tick()
+                .map_err(|error| format!("Mode A trial {trial} tick failed: {error}"))?;
         }
-        let _ = sim.context.device.poll(wgpu::PollType::Wait);
-        let elapsed = t_start.elapsed();
-        let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
-        let ms_per_tick = elapsed_ms / cli.throughput_ticks as f64;
-        let tps = (cli.throughput_ticks as f64) / elapsed.as_secs_f64();
-
+        wait_for_gpu(sim, &format!("Mode A trial {trial}"))?;
+        let elapsed = start.elapsed();
+        let elapsed_wall_ms = elapsed.as_secs_f64() * 1000.0;
+        let wall_ms_per_tick = elapsed_wall_ms / f64::from(cli.throughput_ticks);
+        let sustained_tps = f64::from(cli.throughput_ticks) / elapsed.as_secs_f64();
         println!(
-            "Trial {}/{}: {} ticks in {:.2} ms -> {:.4} ms/tick | {:.1} TPS",
-            trial, cli.trials, cli.throughput_ticks, elapsed_ms, ms_per_tick, tps
+            "Trial {trial}/{}: {} ticks in {:.2} ms -> {:.4} ms/tick | {:.1} TPS",
+            cli.trials, cli.throughput_ticks, elapsed_wall_ms, wall_ms_per_tick, sustained_tps
         );
-
-        throughput_results.push(ThroughputTrialResult {
+        results.push(ThroughputTrialResult {
+            trial,
             total_ticks: cli.throughput_ticks,
-            elapsed_wall_ms: elapsed_ms,
-            wall_ms_per_tick: ms_per_tick,
-            sustained_tps: tps,
+            elapsed_wall_ms,
+            wall_ms_per_tick,
+            sustained_tps,
         });
     }
+    Ok(results)
+}
 
-    let tps_values: Vec<f64> = throughput_results.iter().map(|r| r.sustained_tps).collect();
-    let ms_values: Vec<f64> = throughput_results
-        .iter()
-        .map(|r| r.wall_ms_per_tick)
-        .collect();
-    let tps_stats = StatSummary::from_slice(&tps_values);
-    let ms_stats = StatSummary::from_slice(&ms_values);
-
-    println!("\nThroughput Summary Across {} Trials:", cli.trials);
-    println!(
-        "  Sustained TPS:  Median = {:.1} TPS | Mean = {:.1} TPS | Min = {:.1} | Max = {:.1}",
-        tps_stats.p50, tps_stats.mean, tps_stats.min, tps_stats.max
-    );
-    println!(
-        "  Wall Time/Tick: Median = {:.4} ms  | Mean = {:.4} ms  | Min = {:.4} | Max = {:.4}",
-        ms_stats.p50, ms_stats.mean, ms_stats.min, ms_stats.max
-    );
-
-    // 4. Mode B: GPU Breakdown Measurement (Profiled)
-    println!("\n================================================================================");
-    println!(
-        "MODE B: GPU Breakdown (17 Timestamp-Profiled Passes, {} ticks, {} trials)",
-        cli.profile_ticks, cli.trials
-    );
-    println!("================================================================================");
-
-    let mut profiled_trials: Vec<ProfiledTrialResult> = Vec::new();
-    let mut all_reports: Vec<ProfiledTickReport> = Vec::new();
-
+fn measure_profiled(
+    sim: &mut Simulation,
+    profiler: &mut GpuProfiler,
+    cli: &BenchmarkCliConfig,
+) -> Result<(Vec<ProfiledTrialResult>, Vec<ProfiledSample>), String> {
+    let mut trials = Vec::with_capacity(cli.trials as usize);
+    let mut samples = Vec::with_capacity((cli.trials * cli.profile_ticks) as usize);
     for trial in 1..=cli.trials {
-        sim.reset().expect("reset failed");
-        stage_calibration_fixture(&mut sim);
-
-        let mut trial_reports: Vec<ProfiledTickReport> = Vec::new();
-        for _ in 0..cli.profile_ticks {
-            let rep = sim
-                .tick_profiled(&mut profiler)
-                .expect("profiled tick failed");
-            trial_reports.push(rep);
+        reset_stage_and_wait(sim, &format!("Mode B trial {trial} fixture staging"))?;
+        let mut reports = Vec::with_capacity(cli.profile_ticks as usize);
+        for sample_id in 0..cli.profile_ticks {
+            let report = sim.tick_profiled(profiler).map_err(|error| {
+                format!("Mode B trial {trial} sample {sample_id} failed: {error}")
+            })?;
+            samples.push(ProfiledSample {
+                trial,
+                sample_id,
+                report: report.clone(),
+            });
+            reports.push(report);
         }
-
-        let envelope_vals: Vec<f64> = trial_reports
-            .iter()
-            .map(|r| r.gpu_tick_envelope_ms)
-            .collect();
-        let pass_sum_vals: Vec<f64> = trial_reports.iter().map(|r| r.gpu_pass_sum_ms).collect();
-        let residual_vals: Vec<f64> = trial_reports.iter().map(|r| r.residual_ms).collect();
-
-        let mut pass_stats: Vec<StatSummary> = Vec::new();
-        for p_idx in 0..PASS_COUNT {
-            let p_vals: Vec<f64> = trial_reports
-                .iter()
-                .map(|r| r.passes[p_idx].duration_ms)
-                .collect();
-            pass_stats.push(StatSummary::from_slice(&p_vals));
-        }
-
-        let trial_res = ProfiledTrialResult {
-            pass_stats: pass_stats.try_into().unwrap(),
-            envelope_stats: StatSummary::from_slice(&envelope_vals),
-            pass_sum_stats: StatSummary::from_slice(&pass_sum_vals),
-            residual_stats: StatSummary::from_slice(&residual_vals),
-        };
-
-        println!("Trial {}/{}: Envelope Median = {:.4} ms (P95 = {:.4} ms), Pass Sum = {:.4} ms, Residual = {:.4} ms",
-            trial, cli.trials, trial_res.envelope_stats.p50, trial_res.envelope_stats.p95, trial_res.pass_sum_stats.p50, trial_res.residual_stats.p50
+        let stats = summarize_profiled_reports(&reports);
+        println!(
+            "Trial {trial}/{}: envelope P50 {:.4} ms (P95 {:.4}), pass sum P50 {:.4}, residual P50 {:.4}",
+            cli.trials,
+            stats.envelope_stats.p50,
+            stats.envelope_stats.p95,
+            stats.pass_sum_stats.p50,
+            stats.residual_stats.p50
         );
-
-        profiled_trials.push(trial_res);
-        all_reports.extend(trial_reports);
+        trials.push(ProfiledTrialResult { trial, stats });
     }
+    Ok((trials, samples))
+}
 
-    // Select median trial based on envelope median
-    profiled_trials.sort_by(|a, b| {
-        a.envelope_stats
+fn median_profiled_trial_id(trials: &[ProfiledTrialResult]) -> Result<u32, String> {
+    if trials.is_empty() {
+        return Err("cannot select a median from zero profiled trials".into());
+    }
+    let mut ordered: Vec<&ProfiledTrialResult> = trials.iter().collect();
+    ordered.sort_by(|left, right| {
+        left.stats
+            .envelope_stats
             .p50
-            .partial_cmp(&b.envelope_stats.p50)
-            .unwrap()
+            .total_cmp(&right.stats.envelope_stats.p50)
     });
-    let median_trial = &profiled_trials[profiled_trials.len() / 2];
+    Ok(ordered[ordered.len() / 2].trial)
+}
 
-    println!("\n--- Raw 17 Pass GPU Timing Breakdown (Median Trial Summary) ---");
+fn print_profiled_summary(trial: &ProfiledTrialResult) {
     println!(
-        "{:<3} | {:<24} | {:>9} | {:>9} | {:>9} | {:>8}",
-        "#", "Pass Name", "P50 (ms)", "P95 (ms)", "Mean (ms)", "% Envelop"
+        "\n--- 17-Pass GPU Timing (median-envelope trial {}) ---",
+        trial.trial
     );
-    println!("----+--------------------------+-----------+-----------+-----------+---------");
-    for (i, &name) in PASS_NAMES.iter().enumerate() {
-        let st = &median_trial.pass_stats[i];
-        let pct = (st.p50 / median_trial.envelope_stats.p50) * 100.0;
+    println!(
+        "{:<3} | {:<24} | {:>9} | {:>9} | {:>9} | {:>12}",
+        "#", "Pass", "P50 ms", "P95 ms", "Mean ms", "P50/Env P50"
+    );
+    for (index, name) in PASS_NAMES.iter().enumerate() {
+        let stats = &trial.stats.pass_stats[index];
+        let ratio_of_p50s = stats.p50 / trial.stats.envelope_stats.p50 * 100.0;
         println!(
-            "{:<3} | {:<24} | {:>9.4} | {:>9.4} | {:>9.4} | {:>7.2}%",
-            i + 1,
+            "{:<3} | {:<24} | {:>9.4} | {:>9.4} | {:>9.4} | {:>11.2}%",
+            index + 1,
             name,
-            st.p50,
-            st.p95,
-            st.mean,
-            pct
+            stats.p50,
+            stats.p95,
+            stats.mean,
+            ratio_of_p50s
         );
     }
-    println!("----+--------------------------+-----------+-----------+-----------+---------");
     println!(
-        "    | {:<24} | {:>9.4} | {:>9.4} | {:>9.4} | {:>7.2}%",
-        "GPU Pass Sum",
-        median_trial.pass_sum_stats.p50,
-        median_trial.pass_sum_stats.p95,
-        median_trial.pass_sum_stats.mean,
-        (median_trial.pass_sum_stats.p50 / median_trial.envelope_stats.p50) * 100.0
-    );
-    println!(
-        "    | {:<24} | {:>9.4} | {:>9.4} | {:>9.4} | {:>7.2}%",
-        "GPU Tick Envelope",
-        median_trial.envelope_stats.p50,
-        median_trial.envelope_stats.p95,
-        median_trial.envelope_stats.mean,
-        100.0
-    );
-    println!(
-        "    | {:<24} | {:>9.4} | {:>9.4} | {:>9.4} | {:>7.2}%",
-        "Diagnostic Residual",
-        median_trial.residual_stats.p50,
-        median_trial.residual_stats.p95,
-        median_trial.residual_stats.mean,
-        (median_trial.residual_stats.p50 / median_trial.envelope_stats.p50) * 100.0
+        "Envelope P50 {:.4} ms | Pass Sum P50 {:.4} ms | Residual P50 {:.4} ms",
+        trial.stats.envelope_stats.p50,
+        trial.stats.pass_sum_stats.p50,
+        trial.stats.residual_stats.p50
     );
 
-    // Grouped summary
-    let matter_p50 = median_trial.pass_stats[1].p50 + median_trial.pass_stats[3].p50;
-    let claim_p50 = median_trial.pass_stats[2].p50
-        + median_trial.pass_stats[6].p50
-        + median_trial.pass_stats[11].p50;
-    let thermal_p50 = median_trial.pass_stats[4].p50;
-    let reaction_p50 = median_trial.pass_stats[5].p50
-        + median_trial.pass_stats[7].p50
-        + median_trial.pass_stats[8].p50
-        + median_trial.pass_stats[9].p50
-        + median_trial.pass_stats[10].p50
-        + median_trial.pass_stats[12].p50;
-    let pressure_p50 = median_trial.pass_stats[13].p50 + median_trial.pass_stats[14].p50;
-    let active_sleep_p50 = median_trial.pass_stats[0].p50
-        + median_trial.pass_stats[15].p50
-        + median_trial.pass_stats[16].p50;
-
-    println!("\n--- Grouped Subsystem Roll-Up (P50) ---");
-    println!(
-        "  Matter Movement (propose + commit):              {:>8.4} ms ({:.1}%)",
-        matter_p50,
-        matter_p50 / median_trial.envelope_stats.p50 * 100.0
-    );
-    println!(
-        "  Ownership / Claim (move + exp + smoke claims):   {:>8.4} ms ({:.1}%)",
-        claim_p50,
-        claim_p50 / median_trial.envelope_stats.p50 * 100.0
-    );
-    println!(
-        "  Thermal Conduction:                              {:>8.4} ms ({:.1}%)",
-        thermal_p50,
-        thermal_p50 / median_trial.envelope_stats.p50 * 100.0
-    );
-    println!(
-        "  Reaction & Phase (phase, exp, decay, combustion):{:>8.4} ms ({:.1}%)",
-        reaction_p50,
-        reaction_p50 / median_trial.envelope_stats.p50 * 100.0
-    );
-    println!(
-        "  Pressure & Rupture:                              {:>8.4} ms ({:.1}%)",
-        pressure_p50,
-        pressure_p50 / median_trial.envelope_stats.p50 * 100.0
-    );
-    println!(
-        "  Active / Sleep Management (wake, prop, red):     {:>8.4} ms ({:.1}%)",
-        active_sleep_p50,
-        active_sleep_p50 / median_trial.envelope_stats.p50 * 100.0
-    );
-
-    // 5. Activity Census Snapshot
-    println!(
-        "\n--- Activity Census Snapshot (at tick {}) ---",
-        sim.tick_count
-    );
-    let census = sim.activity_census().expect("activity census failed");
-    println!("  Cells Total:       {}", census.total_cells);
-    println!(
-        "  Cells Any Active:  {} ({:.2}%)",
-        census.any_active_cells,
-        (census.any_active_cells as f64 / census.total_cells as f64) * 100.0
-    );
-    println!("  Cells Matter:      {}", census.matter_active_cells);
-    println!("  Cells Thermal:     {}", census.thermal_active_cells);
-    println!("  Cells Pressure:    {}", census.pressure_active_cells);
-    println!("  Cells Reaction:    {}", census.reaction_active_cells);
-    println!("  Chunks Total:      {}", census.total_chunks);
-    println!(
-        "  Chunks Active:     {} ({:.1}%)",
-        census.active_chunks,
-        (census.active_chunks as f64 / census.total_chunks as f64) * 100.0
-    );
-    println!(
-        "  Chunks Runnable:   {} ({:.1}%)",
-        census.runnable_chunks,
-        (census.runnable_chunks as f64 / census.total_chunks as f64) * 100.0
-    );
-    println!(
-        "  Chunks Sleeping:   {} ({:.1}%)",
-        census.sleeping_chunks,
-        (census.sleeping_chunks as f64 / census.total_chunks as f64) * 100.0
-    );
-
-    // 6. Profiling Overhead Evaluation
-    // Compare unprofiled 256 ticks vs profiled 256 ticks
-    println!("\n--- Profiling Overhead Evaluation (256-tick matched run) ---");
-    sim.reset().expect("reset failed");
-    stage_calibration_fixture(&mut sim);
-    let t_unprof_start = Instant::now();
-    for _ in 0..256 {
-        sim.tick().unwrap();
-    }
-    let _ = sim.context.device.poll(wgpu::PollType::Wait);
-    let unprof_ms = t_unprof_start.elapsed().as_secs_f64() * 1000.0;
-
-    sim.reset().expect("reset failed");
-    stage_calibration_fixture(&mut sim);
-    let t_prof_start = Instant::now();
-    for _ in 0..256 {
-        sim.tick_profiled(&mut profiler).unwrap();
-    }
-    let _ = sim.context.device.poll(wgpu::PollType::Wait);
-    let prof_ms = t_prof_start.elapsed().as_secs_f64() * 1000.0;
-
-    let overhead_pct = ((prof_ms - unprof_ms) / unprof_ms) * 100.0;
-    println!(
-        "  Unprofiled 256 ticks: {:.2} ms ({:.4} ms/tick)",
-        unprof_ms,
-        unprof_ms / 256.0
-    );
-    println!(
-        "  Profiled 256 ticks:   {:.2} ms ({:.4} ms/tick)",
-        prof_ms,
-        prof_ms / 256.0
-    );
-    println!(
-        "  Observed Overhead:    {:.2}% (readback + map per tick)",
-        overhead_pct
-    );
-
-    // 7. Write Structured Machine-Readable CSV Report
-    if let Some(parent) = cli.csv_output.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    if let Ok(mut f) = File::create(&cli.csv_output) {
-        writeln!(f, "# Powdergame G8-A Calibration Benchmark Report").unwrap();
-        writeln!(f, "metric_type,name,p50_ms,p95_ms,mean_ms,min_ms,max_ms").unwrap();
-        for (i, &name) in PASS_NAMES.iter().enumerate() {
-            let st = &median_trial.pass_stats[i];
-            writeln!(
-                f,
-                "pass,{},{:.6},{:.6},{:.6},{:.6},{:.6}",
-                name, st.p50, st.p95, st.mean, st.min, st.max
-            )
-            .unwrap();
-        }
-        writeln!(
-            f,
-            "envelope,gpu_tick_envelope,{:.6},{:.6},{:.6},{:.6},{:.6}",
-            median_trial.envelope_stats.p50,
-            median_trial.envelope_stats.p95,
-            median_trial.envelope_stats.mean,
-            median_trial.envelope_stats.min,
-            median_trial.envelope_stats.max
-        )
-        .unwrap();
-        writeln!(
-            f,
-            "envelope,gpu_pass_sum,{:.6},{:.6},{:.6},{:.6},{:.6}",
-            median_trial.pass_sum_stats.p50,
-            median_trial.pass_sum_stats.p95,
-            median_trial.pass_sum_stats.mean,
-            median_trial.pass_sum_stats.min,
-            median_trial.pass_sum_stats.max
-        )
-        .unwrap();
-        writeln!(
-            f,
-            "envelope,residual,{:.6},{:.6},{:.6},{:.6},{:.6}",
-            median_trial.residual_stats.p50,
-            median_trial.residual_stats.p95,
-            median_trial.residual_stats.mean,
-            median_trial.residual_stats.min,
-            median_trial.residual_stats.max
-        )
-        .unwrap();
-        writeln!(
-            f,
-            "throughput,wall_ms_per_tick,{:.6},{:.6},{:.6},{:.6},{:.6}",
-            ms_stats.p50, ms_stats.p95, ms_stats.mean, ms_stats.min, ms_stats.max
-        )
-        .unwrap();
-        writeln!(
-            f,
-            "throughput,sustained_tps,{:.2},{:.2},{:.2},{:.2},{:.2}",
-            tps_stats.p50, tps_stats.p95, tps_stats.mean, tps_stats.min, tps_stats.max
-        )
-        .unwrap();
+    println!("\n--- Grouped Subsystem Statistics (percentiles of per-tick sums) ---");
+    for (group_index, group_label) in GROUP_LABELS.iter().enumerate() {
         println!(
-            "\nStructured CSV report saved to: {}",
-            cli.csv_output.display()
+            "  {:<58} P50 {:>8.4} ms | P95 {:>8.4} ms | per-tick envelope ratio P50 {:>6.2}%",
+            group_label,
+            trial.stats.grouped_stats[group_index].p50,
+            trial.stats.grouped_stats[group_index].p95,
+            trial.stats.grouped_envelope_pct_stats[group_index].p50
         );
     }
+}
 
-    println!("\n================================================================================");
-    println!("G8-A Calibration Complete: Trustworthy Measurement Substrate Established");
-    println!("================================================================================");
+fn print_memory_report(memory: &powdergame_gpu::TrackedMemoryReport) {
+    println!("\n--- Persistent Application-Tracked GPU Buffer Allocations ---");
+    println!(
+        "World dense state:          {} bytes",
+        memory.world_dense_state_bytes
+    );
+    println!(
+        "Movement scratch:           {} bytes",
+        memory.movement_scratch_bytes
+    );
+    println!(
+        "Activity scratch:           {} bytes",
+        memory.activity_scratch_bytes
+    );
+    println!(
+        "Uniforms and tables:        {} bytes",
+        memory.uniforms_and_tables_bytes
+    );
+    println!(
+        "Profiler resolve/readback:  {} bytes",
+        memory.profiler_bytes
+    );
+    println!(
+        "Total tracked buffers:      {} bytes",
+        memory.total_tracked_gpu_bytes
+    );
+    println!("Scope: persistent requested buffers, not resident VRAM; transient diagnostic readbacks and opaque query/driver storage excluded");
+}
+
+fn print_census(census: &powdergame_gpu::ActivityCensusReport, tick: u64) {
+    println!("\n--- Out-of-Band Activity Census (tick {tick}) ---");
+    println!(
+        "Cells total / any active: {} / {}",
+        census.total_cells, census.any_active_cells
+    );
+    println!(
+        "Cell bits: Matter {} | Thermal {} | Pressure {} | Reaction {}",
+        census.matter_active_cells,
+        census.thermal_active_cells,
+        census.pressure_active_cells,
+        census.reaction_active_cells
+    );
+    println!(
+        "Chunks: total {} | active {} | runnable {} | sleeping {}",
+        census.total_chunks, census.active_chunks, census.runnable_chunks, census.sleeping_chunks
+    );
+    println!("Note: active is activity-pass output; runnable/sleeping are wake-pass output. Active overlaps those state categories, so all displayed percentages are not expected to sum to 100%.");
+}
+
+fn measure_profiled_path_overhead(
+    sim: &mut Simulation,
+    profiler: &mut GpuProfiler,
+    ticks: u32,
+) -> Result<OverheadReport, String> {
+    println!("\n--- Profiling Cadence Controls ({ticks} ticks each) ---");
+
+    reset_stage_and_wait(sim, "batched overhead control fixture staging")?;
+    let start = Instant::now();
+    for _ in 0..ticks {
+        sim.tick()
+            .map_err(|error| format!("batched overhead control tick failed: {error}"))?;
+    }
+    wait_for_gpu(sim, "batched overhead control")?;
+    let batched_unprofiled_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+    reset_stage_and_wait(sim, "synchronized overhead control fixture staging")?;
+    let start = Instant::now();
+    for _ in 0..ticks {
+        sim.tick()
+            .map_err(|error| format!("synchronized overhead control tick failed: {error}"))?;
+        wait_for_gpu(sim, "per-tick synchronized unprofiled control")?;
+    }
+    let synchronized_unprofiled_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+    reset_stage_and_wait(sim, "profiled overhead control fixture staging")?;
+    let start = Instant::now();
+    for _ in 0..ticks {
+        sim.tick_profiled(profiler)
+            .map_err(|error| format!("profiled overhead tick failed: {error}"))?;
+    }
+    let synchronized_profiled_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+    let percent_delta = |baseline: f64, measured: f64| (measured / baseline - 1.0) * 100.0;
+    Ok(OverheadReport {
+        ticks,
+        batched_unprofiled_ms,
+        synchronized_unprofiled_ms,
+        synchronized_profiled_ms,
+        synchronization_overhead_pct: percent_delta(
+            batched_unprofiled_ms,
+            synchronized_unprofiled_ms,
+        ),
+        profiling_increment_pct: percent_delta(
+            synchronized_unprofiled_ms,
+            synchronized_profiled_ms,
+        ),
+        total_profiled_path_overhead_pct: percent_delta(
+            batched_unprofiled_ms,
+            synchronized_profiled_ms,
+        ),
+    })
+}
+
+fn print_overhead(overhead: &OverheadReport) {
+    println!(
+        "Batched unprofiled:       {:.2} ms",
+        overhead.batched_unprofiled_ms
+    );
+    println!(
+        "Synchronized unprofiled: {:.2} ms",
+        overhead.synchronized_unprofiled_ms
+    );
+    println!(
+        "Synchronized profiled:   {:.2} ms",
+        overhead.synchronized_profiled_ms
+    );
+    println!(
+        "Synchronization overhead control: {:.2}%",
+        overhead.synchronization_overhead_pct
+    );
+    println!(
+        "Profiling increment over synchronized control: {:.2}%",
+        overhead.profiling_increment_pct
+    );
+    println!(
+        "Observed profiled-path overhead vs batch: {:.2}%",
+        overhead.total_profiled_path_overhead_pct
+    );
+    println!("The total is a combined-path delta: timestamp writes, resolve/copy, per-tick synchronization, map/readback, CPU orchestration, and lost pipelining. It is not attributed to one mechanism.");
+    println!("Mode B envelopes describe isolated fully synchronized profiled ticks and are not a one-to-one replacement for sustained Mode A wall time.");
+}
+
+fn verify_same_adapter(
+    production: &AdapterReport,
+    profiling: &AdapterReport,
+) -> Result<(), String> {
+    if production.name == profiling.name
+        && production.vendor == profiling.vendor
+        && production.device == profiling.device
+        && production.backend == profiling.backend
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "Mode A and Mode B selected different adapters: production={} ({}/{}) profiling={} ({}/{})",
+            production.name,
+            production.vendor,
+            production.device,
+            profiling.name,
+            profiling.vendor,
+            profiling.device
+        ))
+    }
 }

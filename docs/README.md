@@ -12,12 +12,14 @@
 2. 최신 `architecture/decisions/ADR-*` — 명시적으로 승인된 구조적 결정과 변경 이력
 3. `specs/*` — 현재 구현이 따라야 하는 구체적인 시뮬레이션/물질/반응/결정성 계약
 4. `architecture/ARCHITECTURE.md` — 현재 시스템 구조
-5. `planning/MILESTONES.md` — 무엇을 증명해야 완료인지 정의하는 Evidence Gate
-6. `development/*` — 개발, 테스트, 성능 측정 원칙
-7. `01_MASTER_DESIGN_REPORT.md` — 현재 Foundation 설계를 한 문서로 읽기 위한 종합 보고서
-8. `design-history/*` — 질문, 선택지, 사용자 선택/코멘트, superseded 결정까지 포함한 설계 provenance와 해석 근거
-9. `00_USER_VISION.md` — 기존 경로 호환용 현재 비전 요약; 상세 기준은 `vision/USER_VISION.md`
-10. 초기 프로토타입/실험 코드
+5. `planning/ROADMAP.md` — 장기 제품 방향과 작업 순서
+6. `planning/MILESTONES.md` — 무엇을 증명해야 완료인지 정의하는 Evidence Gate
+7. `planning/STATUS.md` — 현재 실제 상태와 바로 다음 작업
+8. `development/*` — 개발, 테스트, 성능 측정 원칙
+9. `01_MASTER_DESIGN_REPORT.md` — 현재 Foundation 설계를 한 문서로 읽기 위한 종합 보고서
+10. `design-history/*` — 질문, 선택지, 사용자 선택/코멘트, superseded 결정까지 포함한 설계 provenance와 해석 근거
+11. `00_USER_VISION.md` — 기존 경로 호환용 현재 비전 요약; 상세 기준은 `vision/USER_VISION.md`
+12. 초기 프로토타입/실험 코드
 
 ### 현재 Q&A의 지위
 
@@ -42,6 +44,9 @@ docs/
 │  ├─ ROADMAP.md
 │  ├─ MILESTONES.md
 │  └─ STATUS.md
+├─ adversarial-reviews/
+│  ├─ README.md                       # 선택적 적대적 리뷰 및 보존 규칙
+│  └─ YYYY-MM-DD_<GATE_OR_SCOPE>.md   # 명시적으로 요청된 리뷰 기록
 ├─ architecture/
 │  ├─ ARCHITECTURE.md
 │  └─ decisions/
@@ -102,13 +107,17 @@ SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않
 
 ### Planning
 
-- `ROADMAP.md`: 장기 방향. 약속이 아니라 방향성.
+- `ROADMAP.md`: 장기 제품 방향과 증거 기반 작업 순서. 일정표는 아니다.
 - `MILESTONES.md`: Evidence Gate. 기능 체크리스트가 아니라 증명 계약.
-- `STATUS.md`: 지금 실제로 어디까지 되었는가.
+- `STATUS.md`: 지금 실제로 어디까지 되었고 바로 다음 작업이 무엇인가.
 
 ### Development
 
 개발/테스트/성능 문서는 구현 절차와 측정 철학을 고정한다. 특히 성능 최적화는 추측이 아니라 실제 benchmark 증거를 기반으로 한다.
+
+### Adversarial Reviews
+
+`adversarial-reviews/*`는 이미 작성된 적대적 검토를 비차단 이력으로 보존한다. 적대적 리뷰는 기본 절차가 아니며 사용자가 명시적으로 요청한 경우에만 수행·기록한다. 외부 AI reviewer에게 프로젝트 내용을 보내지 않으며, 보고서 자체는 commit/push/PR/release 또는 gate closure 권한을 부여하지 않는다.
 
 ## 핵심 문서화 원칙
 

@@ -1,198 +1,242 @@
 # G8-A — Performance Measurement Substrate Evidence (2026-08-17)
 
-G8 — Performance Evidence gate, sub-step A (Measurement Substrate).
+G8 — Performance Evidence gate, sub-step A (measurement substrate correction candidate).
 
-- **Frozen Baseline SHA**: `94babb2667c081b5588489e1b4e710cc6efa68be`
-- **Target Branch**: `feature/m0-g8-performance-evidence`
-- **Primary Hardware**: NVIDIA GeForce RTX 5090 (Vendor: `0x10DE`, Device: `0x2B85`, Driver: `32.0.15.9636`)
-- **Backend**: DirectX 12 (`wgpu` DX12 backend)
-- **Status**: `G8-A SUBSTRATE COMPLETE / TRUSTWORTHY MEASUREMENT ESTABLISHED`
-- **Core Principle**: Observational profiling only — observe the exact production pipeline without altering or perturbing simulation semantics.
-- **Production Physics & Optimization Policy**: **NO PRODUCTION OPTIMIZATION PERFORMED**. G7-C (compact active lists, indirect dispatch) is **NOT IMPLEMENTED**. G8 official five-scenario matrix is **NOT STARTED**.
+- **G7 Frozen Baseline SHA**: `94babb2667c081b5588489e1b4e710cc6efa68be`
+- **G8-A Remediation Base**: `a67abaf959aba0423627f35b79fce7c82d8ec9b5`
+- **Source Branch**: `fix/g8a-evidence-remediation-v5`
+- **Historical v4 Run State**: the CSV records `git_state=dirty`; no later source may be rebound to it
+- **Primary Hardware**: NVIDIA GeForce RTX 5090 (`0x10DE:0x2B85`, driver `32.0.15.9636`)
+- **Backend / Build**: DirectX 12 / Cargo release profile
+- **Status**: `V5 SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED`
+- **Scope**: measurement, validation, and evidence corrections only. No production physics optimization was performed. G7-C and the G8-B five-scenario suite are not implemented.
 
----
-
-## 1. Profiling & Measurement Architecture
-
-### 1.1 Observational Pipeline Non-Perturbation
-Production `Simulation::tick()` and timestamp-profiled `Simulation::tick_profiled(&mut profiler)` share the exact same internal orchestrator (`tick_internal`), guaranteeing:
-1. **Pass Ordering**: Identical 17 compute passes executed in identical causal sequence.
-2. **Buffer Copies**: Identical intermediate Current/Next buffer copies and uniform updates.
-3. **Zero Profiling Overhead on Production Path**: When unprofiled, `timestamp_writes` is `None`, with zero query sets bound and zero staging buffer copies.
-4. **Byte-Exact Equivalence**: Matching 50-tick runs from identical active fixtures produce byte-exact equality across Material, Flags, Temperature, and Pressure (`test_profiled_vs_unprofiled_simulation_state_exact_equivalence`).
-
-### 1.2 GPU Timestamp Query Implementation
-- **Capability Check**: Adapter features are queried for `wgpu::Features::TIMESTAMP_QUERY`.
-- **Feature Isolation**: `TIMESTAMP_QUERY` is requested only when profiling is explicitly enabled via `GpuContext::with_profiling()` or `ContextOptions { enable_profiling: true }`. Normal production runtime does not require it.
-- **Timestamp Period**: On NVIDIA GeForce RTX 5090, `queue.get_timestamp_period()` reports `1.000000 ns/tick`.
-- **Per-Pass Timestamp Writes**: `wgpu::ComputePassTimestampWrites` records start and end timestamps at pass boundaries:
-  - Total passes: 17
-  - Total queries per tick: 34 (`2 * 17`)
-  - Pass $i$ begins at query $2i$ and ends at query $2i + 1$.
-- **Query Resolution**: At the end of the profiled command encoder, `resolve_query_set(0..34)` writes to a 272-byte GPU resolve buffer, copied to a staging readback buffer.
-
-### 1.3 The 17 Canonical Simulation Passes
-The profiling substrate measures all 17 passes in execution order:
-
-| # | Pass Name | Subsystem Category | Shader Label |
-|---|---|---|---|
-| 1 | `activity_wake` | Active / Sleep Management | `powdergame-g7b-activity-wake-pass` |
-| 2 | `movement_propose` | Matter Movement | `powdergame-g3-propose-pass` |
-| 3 | `movement_claim` | Ownership / Claim | `powdergame-g3-claim-pass` |
-| 4 | `movement_commit` | Matter Movement | `powdergame-g3-commit-pass` |
-| 5 | `thermal` | Thermal Conduction | `powdergame-g4a-thermal-pass` |
-| 6 | `phase_transition` | Reaction / Phase | `powdergame-g4b-g5b-phase-pass` |
-| 7 | `expansion_claim` | Ownership / Claim | `powdergame-g5b-expansion-claim-pass` |
-| 8 | `expansion_spawn_commit` | Reaction / Phase | `powdergame-g5b-expansion-spawn-commit-pass` |
-| 9 | `expansion_pressure` | Reaction / Phase | `powdergame-g5b-expansion-pressure-pass` |
-| 10 | `decay` | Reaction / Phase | `powdergame-g4d-decay-pass` |
-| 11 | `combustion` | Reaction / Phase | `powdergame-g4c-combustion-pass` |
-| 12 | `smoke_claim` | Ownership / Claim | `powdergame-g4c-smoke-claim-pass` |
-| 13 | `smoke_commit` | Reaction / Phase | `powdergame-g4c-smoke-commit-pass` |
-| 14 | `pressure` | Pressure / Structure | `powdergame-g5a-pressure-pass` |
-| 15 | `rupture` | Pressure / Structure | `powdergame-g5c-rupture-pass` |
-| 16 | `activity_propose` | Active / Sleep Management | `powdergame-g7a-activity-propose-pass` |
-| 17 | `activity_reduce` | Active / Sleep Management | `powdergame-g7a-activity-reduce-pass` |
+The v4 calibration below is retained as historical raw data. Its CSV arithmetic can be independently reconstructed, but the packet does not bind that run to the later source snapshot, executable, command, stdout/stderr, and exit code. It is therefore not evidence that the v5 remediation source produced those values.
 
 ---
 
-## 2. Measurement Modes & Methodology
+## 1. Measurement Architecture
 
-### 2.1 Mode A: Production Sustained Throughput
-- **Execution**: Uses ordinary unprofiled `Simulation::tick()`.
-- **Submission Pattern**: 1024 ticks submitted in batch without per-tick CPU/GPU synchronizations.
-- **End Synchronization**: Calls `device.poll(wgpu::PollType::Wait)` ONCE at the end of the 1024-tick batch.
-- **Rationale**: Waiting after every tick forces artificial CPU-GPU pipeline bubbles, measuring driver synchronization latency rather than GPU pipeline throughput. Batch submission measures true sustained production throughput.
-- **Metrics**: Total elapsed wall time (ms), wall ms/tick, sustained TPS.
+### 1.1 Production and Profiled Paths
 
-### 2.2 Mode B: GPU Breakdown
-- **Execution**: Uses timestamp-profiled `Simulation::tick_profiled(&mut profiler)`.
-- **Timings**: Collects all 17 individual pass durations, plus:
-  - `gpu_tick_envelope_ms`: Query 0 (`activity_wake` start) to Query 33 (`activity_reduce` end).
-  - `gpu_pass_sum_ms`: Sum of 17 pass durations.
-  - `residual_ms`: `gpu_tick_envelope_ms - gpu_pass_sum_ms` (diagnostic residual including intermediate buffer copy times and scheduling overhead).
+`Simulation::tick()` and `Simulation::tick_profiled()` use the same `tick_internal()` pass orchestration. The profiled path adds timestamp writes and readback around the same 17-pass sequence; the ordinary production context does not request `wgpu::Features::TIMESTAMP_QUERY`.
 
-### 2.3 Non-Timed Activity Census
-- Out-of-band diagnostic query returning:
-  - Cell metrics: total cells, any active, Matter active, Thermal active, Pressure active, Reaction active.
-  - Chunk metrics: total chunks, active chunks, runnable chunks, sleeping chunks.
-- **Inviolable Rule**: Census readbacks are NEVER executed inside timed simulation loops.
+The exact-equivalence integration test runs 50 ticks from identical fixtures and compares Material, Flags, Temperature, and Pressure byte-for-byte. This establishes observational semantic equivalence; Mode B timing is still an intentionally synchronized diagnostic path and is not interchangeable with Mode A sustained wall time.
 
-### 2.4 Application-Tracked Memory Accounting
-Reports exact tracked GPU buffer allocation sizes across all world, scratch, activity, uniform, and profiler allocations (`tracked_gpu_allocation_bytes`). Does not claim to represent physical OS driver-reported resident VRAM.
+### 1.2 Timestamp Integrity
 
----
+- 17 compute passes, 34 raw timestamp queries per profiled tick.
+- Query `2i` is pass `i` start and query `2i + 1` is its end.
+- Raw ticks are retained in the tick-level CSV.
+- Conversion rejects non-finite or non-positive timestamp periods, equal/inverted pass endpoints, cross-pass inversions, non-positive envelopes, and pass sums larger than the envelope.
+- `gpu_tick_envelope_ms` spans query 0 through query 33.
+- `gpu_pass_sum_ms` is the sum of the 17 measured pass durations.
+- `residual_ms` is derived in the integer tick domain before conversion and covers work between timestamped passes, including intermediate copies and scheduling gaps.
 
-## 3. Reference Calibration Run Results (RTX 5090 / DX12)
+The measured pass order is:
 
-Configuration: 2048×2048 reference world (4,194,304 cells), 64×64 chunks (1,024 chunks), Sleep Optimization ON (Threshold: 16 ticks), Release Profile (opt-level=3).
+1. `activity_wake`
+2. `movement_propose`
+3. `movement_claim`
+4. `movement_commit`
+5. `thermal`
+6. `phase_transition`
+7. `expansion_claim`
+8. `expansion_spawn_commit`
+9. `expansion_pressure`
+10. `decay`
+11. `combustion`
+12. `smoke_claim`
+13. `smoke_commit`
+14. `pressure`
+15. `rupture`
+16. `activity_propose`
+17. `activity_reduce`
 
-### 3.1 Mode A: Production Sustained Throughput (1024 ticks × 3 trials)
+### 1.3 Two Deliberately Separate Modes
 
-| Trial | Batch Ticks | Total Wall Time (ms) | Wall Time / Tick (ms) | Sustained TPS |
-|---|---|---|---|---|
-| Trial 1 | 1024 | 1176.97 ms | 1.1494 ms | 870.0 TPS |
-| Trial 2 | 1024 | 1198.16 ms | 1.1701 ms | 854.6 TPS |
-| Trial 3 | 1024 | 1175.06 ms | 1.1475 ms | 871.4 TPS |
+**Mode A — production sustained throughput**
 
-**Summary Across 3 Trials**:
-- **Sustained TPS**: **Median = 870.0 TPS** (Mean = 865.4 TPS, Min = 854.6, Max = 871.4)
-- **Wall Time / Tick**: **Median = 1.1494 ms** (Mean = 1.1557 ms, Min = 1.1475, Max = 1.1701)
+- Uses a normal `GpuContext::new()` without timestamp-query capability.
+- Performs one context-level prewarm, then independently resets/restages each trial.
+- Flushes scheduled reset/fixture `Queue::write_buffer` transfers with an empty submission, then waits for that work to complete before starting each trial timer.
+- Submits 1,024 ordinary ticks in a batch and waits once after the measured window.
+- Reports total wall time, wall time per tick, and sustained TPS.
 
-### 3.2 Mode B: GPU Breakdown (256 ticks × 3 trials, Median Trial Summary)
+**Mode B — isolated GPU breakdown**
 
-| # | Pass Name | P50 (ms) | P95 (ms) | Mean (ms) | % of Envelope |
-|---|---|---|---|---|---|
-| 1 | `activity_wake` | 0.0043 ms | 0.0047 ms | 0.0041 ms | 0.42% |
-| 2 | `movement_propose` | 0.0327 ms | 0.0329 ms | 0.0328 ms | 3.20% |
-| 3 | `movement_claim` | 0.0330 ms | 0.0337 ms | 0.0330 ms | 3.23% |
-| 4 | `movement_commit` | 0.0395 ms | 0.0420 ms | 0.0398 ms | 3.86% |
-| 5 | `thermal` | 0.0318 ms | 0.0321 ms | 0.0318 ms | 3.11% |
-| 6 | `phase_transition` | 0.0333 ms | 0.0336 ms | 0.0342 ms | 3.26% |
-| 7 | `expansion_claim` | 0.0332 ms | 0.0348 ms | 0.0340 ms | 3.24% |
-| 8 | `expansion_spawn_commit` | 0.0326 ms | 0.0327 ms | 0.0332 ms | 3.19% |
-| 9 | `expansion_pressure` | 0.0302 ms | 0.0303 ms | 0.0310 ms | 2.96% |
-| 10 | `decay` | 0.0432 ms | 0.0444 ms | 0.0446 ms | 4.23% |
-| 11 | `combustion` | 0.0423 ms | 0.0443 ms | 0.0426 ms | 4.14% |
-| 12 | `smoke_claim` | 0.0331 ms | 0.0352 ms | 0.0332 ms | 3.24% |
-| 13 | `smoke_commit` | 0.0313 ms | 0.0320 ms | 0.0313 ms | 3.06% |
-| 14 | `pressure` | 0.0315 ms | 0.0324 ms | 0.0323 ms | 3.09% |
-| 15 | `rupture` | 0.0318 ms | 0.0320 ms | 0.0318 ms | 3.12% |
-| 16 | `activity_propose` | 0.0377 ms | 0.0388 ms | 0.0393 ms | 3.69% |
-| 17 | `activity_reduce` | 0.2472 ms | 0.2480 ms | 0.2473 ms | 24.20% |
-| **—** | **GPU Pass Sum** | **0.7688 ms** | **0.7740 ms** | **0.7764 ms** | **75.25%** |
-| **—** | **GPU Tick Envelope** | **1.0217 ms** | **1.0307 ms** | **1.0295 ms** | **100.00%** |
-| **—** | **Diagnostic Residual** | **0.2528 ms** | **0.2593 ms** | **0.2532 ms** | **24.75%** |
+- Creates a separate `GpuContext::with_profiling()` and verifies the adapter matches Mode A.
+- Has its own context-level prewarm; each trial waits for reset/staging completion before its first profiled sample.
+- Profiles and synchronously reads back every tick to preserve sample identity and raw query data.
+- Reports each pass, six per-tick subsystem sums, pass sum, envelope, and residual.
 
-### 3.3 Grouped Subsystem Roll-Up (P50)
+Grouped P50/P95 values are percentiles of the **per-tick grouped sums**. They are not sums of independently computed pass percentiles. Group-to-envelope percentages are also computed per tick before percentile aggregation.
 
-- **Matter Movement** (`propose` + `commit`): **0.0722 ms** (7.1%)
-- **Ownership / Claim** (`movement_claim` + `expansion_claim` + `smoke_claim`): **0.0992 ms** (9.7%)
-- **Thermal Conduction** (`thermal`): **0.0318 ms** (3.1%)
-- **Reaction & Phase** (`phase` + `expansion_spawn` + `expansion_pressure` + `decay` + `combustion` + `smoke_commit`): **0.2129 ms** (20.8%)
-- **Pressure & Rupture** (`pressure` + `rupture`): **0.0634 ms** (6.2%)
-- **Active / Sleep Management** (`wake` + `activity_propose` + `activity_reduce`): **0.2892 ms** (28.3%)
+### 1.4 Census and Memory Scope
 
-### 3.4 Out-of-Band Activity Census Snapshot (at Tick 256)
+The activity census runs outside timed loops. Cell categories overlap: a cell can contribute to more than one of Matter, Thermal, Pressure, and Reaction, so category counts must not be summed as a partition. Chunk counts describe their own states.
 
-- **Cells Total**: 4,194,304
-- **Cells Any Active**: 266,016 (6.34%)
-- **Cells Matter Active**: 220,275
-- **Cells Thermal Active**: 79,795
-- **Cells Pressure Active**: 1,898
-- **Cells Reaction Active**: 66,504
-- **Chunks Total**: 1,024
-- **Chunks Active**: 219 (21.4%)
-- **Chunks Runnable**: 381 (37.2%)
-- **Chunks Sleeping**: 643 (62.8%)
-
-### 3.5 Application-Tracked GPU Buffer Allocation Memory Report
-
-- **World Dense State (8 buffers)**: 128.00 MB (134,217,728 bytes)
-- **Movement Arbitration Scratch (2 buffers)**: 32.00 MB (33,554,432 bytes)
-- **Activity Diagnostics (cell + 6 chunk buffers)**: 16.02 MB (16,801,792 bytes)
-- **Uniforms & Tables**: 1.08 KB (1,104 bytes)
-- **Profiler Resolve & Readback Staging**: 544 bytes
-- **Total Application-Tracked GPU Memory**: **176.03 MB** (184,575,600 bytes)
-
-### 3.6 Profiling Overhead Evaluation (256-Tick Matched Run)
-
-- **Unprofiled 256 ticks**: 298.86 ms (1.1674 ms/tick)
-- **Profiled 256 ticks**: 393.19 ms (1.5359 ms/tick)
-- **Observed Overhead**: **31.56%**
-- **Root Cause**: Per-tick synchronous GPU-to-CPU timestamp query buffer map/readback. This overhead is strictly isolated to Mode B and NEVER affects Mode A production throughput.
+The memory report is **application-tracked requested persistent GPU buffer bytes**, not resident VRAM. It includes dense world, movement scratch, activity diagnostics, all persistent uniforms/tables, and profiler resolve/readback buffers. It excludes opaque query-set backing storage, transient census/world/marker staging buffers, pipelines, bind groups, shaders, driver/backend allocations, and `queue.write_buffer` internals.
 
 ---
 
-## 4. Automated Regression Verification
+## 2. Corrected Reference Calibration
 
-The targeted test suite `engine/gpu/tests/profiler.rs` verifies all architectural and observational invariants:
+Run ID: `g8a-1786916099569`
 
-| Test Name | Purpose | Result |
-|---|---|---|
-| `test_ordinary_simulation_tick_does_not_require_profiling_feature` | Ordinary `Simulation::tick()` functions without `TIMESTAMP_QUERY` | **PASSED** |
-| `test_profiled_simulation_tick_produces_17_valid_pass_timings` | Profiler returns 17 valid, non-negative, finite timings and valid envelope | **PASSED** |
-| `test_profiled_vs_unprofiled_simulation_state_exact_equivalence` | 50-tick run produces byte-exact Material, Flags, Temp, Pressure match | **PASSED** |
-| `test_activity_census_reports_accurate_cell_and_chunk_metrics` | Census correctly tracks pristine vs single-cell falling sand activation | **PASSED** |
-| `test_tracked_gpu_allocation_report_structure` | Tracked memory arithmetic matches exact reference byte counts | **PASSED** |
+Configuration: 2,048×2,048 cells, 64×64 chunks, sleep enabled with threshold 16, 2-second requested context prewarm (Mode A 1,920 ticks; Mode B 1,920 ticks), release build.
 
-Full workspace verification (`cargo test --workspace -- --test-threads=1`):
-- **Discovered**: 362 tests
-- **Passed**: 359 passed
-- **Ignored**: 3 (2 manual performance benchmarks, 1 3000-tick DX12 stress lab)
-- **Failed**: 0 failed
+### 2.1 Mode A — 1,024 Ticks × 3 Trials
 
-Static Analysis:
-- `cargo fmt --all -- --check`: **PASS**
-- `cargo clippy --workspace --all-targets -- -D warnings`: **PASS (0 warnings)**
-- `git diff --check`: **PASS**
+| Trial | Wall Time | Wall / Tick | Sustained TPS |
+|---|---:|---:|---:|
+| 1 | 1,083.04 ms | 1.0577 ms | 945.5 |
+| 2 | 1,079.12 ms | 1.0538 ms | 948.9 |
+| 3 | 1,076.32 ms | 1.0511 ms | 951.4 |
+
+- **TPS**: P50 948.9, mean 948.6, min 945.5, max 951.4
+- **Wall / tick**: P50 1.0538 ms, mean 1.0542 ms, min 1.0511 ms, max 1.0577 ms
+
+### 2.2 Mode B — 256 Ticks × 3 Trials
+
+| Trial | Envelope P50 | Envelope P95 | Pass Sum P50 | Residual P50 |
+|---|---:|---:|---:|---:|
+| 1 | 1.0204 ms | 1.0239 ms | 0.7663 ms | 0.2542 ms |
+| 2 | 1.0205 ms | 1.0244 ms | 0.7663 ms | 0.2542 ms |
+| 3 | 1.0201 ms | 1.0239 ms | 0.7662 ms | 0.2539 ms |
+
+Trial 1 is the selected median-envelope trial for the following detailed summaries.
+
+| Pass | P50 | P95 | Mean |
+|---|---:|---:|---:|
+| `activity_wake` | 0.0035 ms | 0.0046 ms | 0.0038 ms |
+| `movement_propose` | 0.0328 ms | 0.0330 ms | 0.0328 ms |
+| `movement_claim` | 0.0331 ms | 0.0336 ms | 0.0331 ms |
+| `movement_commit` | 0.0390 ms | 0.0404 ms | 0.0391 ms |
+| `thermal` | 0.0319 ms | 0.0322 ms | 0.0319 ms |
+| `phase_transition` | 0.0333 ms | 0.0335 ms | 0.0334 ms |
+| `expansion_claim` | 0.0332 ms | 0.0350 ms | 0.0333 ms |
+| `expansion_spawn_commit` | 0.0325 ms | 0.0327 ms | 0.0325 ms |
+| `expansion_pressure` | 0.0303 ms | 0.0304 ms | 0.0303 ms |
+| `decay` | 0.0414 ms | 0.0428 ms | 0.0414 ms |
+| `combustion` | 0.0412 ms | 0.0428 ms | 0.0409 ms |
+| `smoke_claim` | 0.0332 ms | 0.0352 ms | 0.0333 ms |
+| `smoke_commit` | 0.0313 ms | 0.0324 ms | 0.0313 ms |
+| `pressure` | 0.0316 ms | 0.0325 ms | 0.0318 ms |
+| `rupture` | 0.0318 ms | 0.0320 ms | 0.0318 ms |
+| `activity_propose` | 0.0383 ms | 0.0393 ms | 0.0384 ms |
+| `activity_reduce` | 0.2473 ms | 0.2478 ms | 0.2473 ms |
+
+### 2.3 Correct Grouped Subsystem Statistics
+
+| Group | P50 | P95 | Mean | Per-Tick Envelope Ratio P50 |
+|---|---:|---:|---:|---:|
+| Matter Movement | 0.071840 ms | 0.073376 ms | 0.071946 ms | 7.04% |
+| Ownership / Claim | 0.099424 ms | 0.104032 ms | 0.099674 ms | 9.74% |
+| Thermal Conduction | 0.031872 ms | 0.032224 ms | 0.031869 ms | 3.12% |
+| Reaction / Phase | 0.210016 ms | 0.212224 ms | 0.209732 ms | 20.58% |
+| Pressure / Structure | 0.063456 ms | 0.064352 ms | 0.063569 ms | 6.22% |
+| Active / Sleep Management | 0.289472 ms | 0.290848 ms | 0.289530 ms | 28.37% |
+
+These six groups partition the 17 pass durations. Their sum reconstructs `gpu_pass_sum_ms`; the residual is outside the groups.
+
+### 2.4 Activity Census at Tick 256
+
+- Cells: total 4,194,304; any active 266,016; Matter 220,275; Thermal 79,795; Pressure 1,898; Reaction 66,504.
+- Chunks: total 1,024; active 219; runnable 381; sleeping 643.
+- The four subsystem cell counts overlap and are diagnostic, not additive.
+
+### 2.5 Application-Tracked Requested Buffer Bytes
+
+| Category | Bytes |
+|---|---:|
+| Dense world state | 134,217,728 |
+| Movement scratch | 33,554,432 |
+| Activity diagnostics | 16,801,792 |
+| Persistent uniforms and tables | 2,176 |
+| Profiler resolve + mapped readback buffers | 544 |
+| **Total with profiler buffers** | **184,576,672** |
+
+The 2,176-byte static inventory covers all 14 persistent simulation buffers. The 544 profiler bytes are two 272-byte buffers; the query set itself is excluded because `wgpu` does not expose an application-requested byte size for it.
+
+### 2.6 Overhead Controls — 256 Ticks
+
+| Path | Wall Time |
+|---|---:|
+| Batched unprofiled | 268.00 ms |
+| Per-tick synchronized unprofiled | 340.36 ms |
+| Per-tick synchronized profiled | 346.40 ms |
+
+- Synchronizing every unprofiled tick versus batching: **+27.00%**.
+- Profiling increment over the synchronized unprofiled control: **+1.77%**.
+- Combined profiled path versus batched production path: **+29.25%**.
+
+The combined number must not be attributed solely to timestamp profiling: it includes per-tick synchronization and readback behavior. Mode B exists for attribution and raw samples, not sustained-throughput claims.
 
 ---
 
-## 5. Gate Declarations & Scope Boundaries
+## 3. Evidence Artifacts and Validation
 
-- **G8-A Substrate**: `COMPLETE / TRUSTWORTHY MEASUREMENT ESTABLISHED`
-- **G8 Final PASS**: `NO` (G8 is an in-progress milestone; G8-A establishes measurement substrate only).
-- **G7-C (Compaction / Indirect Dispatch)**: `NOT IMPLEMENTED`
-- **Production Physics Optimization**: `NONE PERFORMED`
-- **G8 Official Five-Scenario Matrix**: `NOT STARTED` (Pending G8-B).
+Local ignored artifacts:
+
+- `target/g8a_correction_calibration_v4.csv` — schema `powdergame-g8a-v3`, 129 aggregate rows.
+- `target/g8a_correction_calibration_v4_raw_ticks.csv` — 768 unique tick samples with named start/end tick fields for all 17 passes, pass durations, six group sums, an explicit group definition, pass sum, envelope, and residual.
+- The earlier local v2 and v3 artifacts are retained only as invalidated history. v3 waited without first submitting pending `write_buffer` transfers, so reset/staging copies could still enter Mode A and overhead windows.
+- The v4 source/executable linkage is absent. The collected `main.rs` snapshot was modified after the v4 CSV timestamps, so the packet cannot establish whether v4 ran the later empty-submit fence implementation.
+
+Independent reconstruction of the historical v4 CSV found:
+
+- one consistent provenance set and 768 unique `(trial, sample_id, tick_index)` identities;
+- strict positive/in-order query pairs for every tick;
+- exact envelope reconstruction from raw ticks;
+- maximum pass-sum reconstruction error `2.22e-16 ms`;
+- maximum group-sum reconstruction error `5.55e-17 ms`;
+- maximum residual reconstruction error `2.22e-16 ms`;
+- the exact 184,576,672-byte memory total.
+
+The v5 remediation source adds the following future-capture contract:
+
+- schema `powdergame-g8a-v5` emits aggregate, raw tick, raw cell, and raw chunk CSV files;
+- raw cell output has exactly one data row per `cell_activity` value; raw chunk output has exactly one data row per `(chunk_activity, chunk_state)` pair;
+- the census aggregate is recomputed from the snapshot before any evidence file is written, and a mismatch aborts publication;
+- all four files are staged, flushed, and synchronized before publication; publication order is raw cell, raw chunk, raw tick, then aggregate, and every final path is no-overwrite;
+- the four CSV publications are not represented as a cross-file transaction under process termination, OS crash, or power loss;
+- official `capture-evidence.ps1` rejects dirty/detached source, performs an isolated locked release build outside the source tree, records source/executable/command/log/exit/artifact hashes, and writes `CAPTURE_RECEIPT.json` last;
+- receipt absence means incomplete capture; a failed Capture ID is preserved and never reused;
+- package creation follows the receipt, and the ZIP SHA-256 is written outside the ZIP as sibling `PACKAGE_SHA256.txt`;
+- independent verification uses `verify-evidence.ps1`, not the capture implementation.
+
+The contract requires one fresh official capture after the clean source SHA is committed, checked, and pushed. The historical v4 values are not rewritten or rebound.
+
+Narrow implementation checks executed before the full source checkpoint:
+
+- pure non-GPU census recount unit test: 1 executed, exit code 0;
+- raw cell/chunk rectangular writer test: 1 executed, exit code 0;
+- raw snapshot to census aggregate recomputation test: 1 executed, exit code 0;
+- staged-publication order/failure/no-overwrite tests: 4 executed, exit code 0;
+- `cargo fmt --all -- --check`: exit code 0;
+- benchmark-package clippy with `-D warnings`: exit code 0;
+- PowerShell AST parse of `capture-evidence.ps1`: 0 parse errors;
+- `git diff --check`: exit code 0 with existing LF-to-CRLF working-copy warnings.
+
+The authoritative full workspace, GPU integration, Windows release smoke, source commit/push, official capture, package, and independent-verifier results are external checkpoint/capture records produced after this source text is frozen. They must not be inferred from the narrow checks above.
+
+### 3.1 Superseded and Current Review Records
+
+An earlier local review report is retained as historical provenance, but its claim that v4 was generated after the corrected fence is not supported by the later evidence packet.
+
+- A user-supplied review of `Powdergame-evidence.zip` independently reconstructed the v4 timing and aggregate calculations without finding a numerical mismatch.
+- The same review found that v4 lacks a run-time source/binary/log binding, that the aggregate census cannot be independently recounted without its three raw GPU arrays, and that summary/raw publication can leave a summary-only file on a normal write failure.
+- It also noted two packet-delivery/format items: the sibling `PACKAGE_SHA256.txt` was not attached with the ZIP, and the generated review-target TSV contained two empty-path records. The sibling file exists locally and matches the ZIP; future packet inventories must reject empty paths.
+- No further external review is requested by this correction. Review remains explicit-request-only.
+
+---
+
+## 4. Gate Declaration
+
+- **G8-A source candidate**: scope is frozen on `fix/g8a-evidence-remediation-v5`; the current evidence candidate is whichever external v5 package has a complete official receipt and independent-verifier record for the final clean source SHA.
+- **G8 final PASS**: no.
+- **G8-B official five-scenario suite**: not started.
+- **G7-C compact active lists / indirect dispatch**: not implemented.
+- **Production physics changes**: none.
+- **Publication boundary**: only source/test/docs belong in the v5 branch commit; generated CSVs, receipt, executable, logs, verifier output, ZIP, and package hash remain outside Git.

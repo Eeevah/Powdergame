@@ -12,9 +12,11 @@ Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder
 
 ## 현재 단계
 
-**Foundation Design 확정 → M0 구현 직전**
+**M0 — First World 구현 진행 중**
 
-현재는 초기 HTML/Browser 프로토타입 방향을 더 이상 제품 구조의 기준으로 사용하지 않는다. 2026-08-15 Foundation Design Session에서 실제 구현을 위한 world model, GPU simulation, 물질/반응 철학, 성능 원칙과 M0 Evidence Gate를 구체적으로 확정했다.
+G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. 기존 G8-A v4 timing CSV는 historical data로 보존하지만 later source/binary 실행 연결과 raw census가 없다. 현재 작업은 `fix/g8a-evidence-remediation-v5`에서 이 correction을 clean-source, receipt-bound evidence candidate로 봉합하는 것이다. commit/push된 clean SHA의 공식 v5 capture와 독립 검증 전에는 현재 candidate가 성립하지 않는다.
+
+이 브랜치에서는 G8-B/G8-C/G9, 새 Material, 성능 최적화, `main` merge, Canonical Recovery를 수행하지 않는다. 이후 순서는 현재 G8-A 봉합 결과와 별도로 결정한다.
 
 ## 현재 공식 개발 경로
 
@@ -100,7 +102,9 @@ M0는 많은 콘텐츠를 넣는 단계가 아니라 다음을 실제 RTX 5090�
 - [`docs/specs/MATERIAL_SPEC.md`](docs/specs/MATERIAL_SPEC.md) — Material 구조/물성 계약
 - [`docs/specs/REACTION_SPEC.md`](docs/specs/REACTION_SPEC.md) — Reaction/Rule 계약
 - [`docs/development/PERFORMANCE.md`](docs/development/PERFORMANCE.md) — 성능 철학과 benchmark 기준
+- [`docs/planning/ROADMAP.md`](docs/planning/ROADMAP.md) — 장기 제품 방향과 현재 작업 순서
 - [`docs/planning/MILESTONES.md`](docs/planning/MILESTONES.md) — Evidence Gate
+- [`docs/planning/STATUS.md`](docs/planning/STATUS.md) — 현재 실제 상태와 다음 작업
 - [`docs/design-history/2026-08-15-foundation-design-session.md`](docs/design-history/2026-08-15-foundation-design-session.md) — 질문·선택·사용자 코멘트까지 포함한 설계 provenance
 
 ## 우리가 만들지 않으려는 것

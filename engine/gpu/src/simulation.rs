@@ -76,6 +76,27 @@ const MARKER_SIZE: u64 = 16;
 const ACTIVITY_PARAMS_SIZE: u64 = 48;
 /// G7-B activity wake params uniform: chunks_x, chunks_y, sleep_enabled, sleep_threshold = 16 B.
 const WAKE_PARAMS_SIZE: u64 = 16;
+/// Persistent simulation-owned uniforms, marker, and material/property tables.
+///
+/// Keep this inventory beside the allocation-size constants so the G8 tracked
+/// memory report cannot silently omit a buffer category. It covers all 14
+/// persistent buffers allocated below: params, wake params, arbitration params,
+/// activity params, marker, five 64-byte material tables, phase descriptors,
+/// the combined activity table, decay descriptors, and combustion descriptors.
+const TRACKED_UNIFORMS_AND_TABLES_SIZE: u64 = PARAMS_SIZE
+    + WAKE_PARAMS_SIZE
+    + ARBITRATION_PARAMS_SIZE
+    + ACTIVITY_PARAMS_SIZE
+    + MARKER_SIZE
+    + TABLE_SIZE // movement class
+    + TABLE_SIZE // rupture threshold
+    + TABLE_SIZE // density
+    + TABLE_SIZE // conductivity
+    + TABLE_SIZE // heat capacity
+    + PHASE_TABLE_SIZE
+    + (PHASE_TABLE_SIZE + TABLE_SIZE) // activity phase + conductivity table
+    + DECAY_TABLE_SIZE
+    + COMBUSTION_TABLE_SIZE;
 /// Upper bound for cell indices so the claim encoding `(peer << 2) | kind`
 /// can never overflow or collide with sentinels.
 const MAX_CELL_COUNT: u64 = 1 << 30;
@@ -2137,68 +2158,65 @@ impl Simulation {
     ///
     /// Note: this must NEVER be called inside timed simulation loops.
     pub fn activity_census(&self) -> Result<ActivityCensusReport, GpuError> {
+        self.activity_census_snapshot()
+            .map(|snapshot| snapshot.report)
+    }
+
+    /// Performs an out-of-band non-timed activity census and preserves the
+    /// exact raw GPU readbacks used to produce its report.
+    ///
+    /// Note: this must NEVER be called inside timed simulation loops.
+    pub fn activity_census_snapshot(&self) -> Result<ActivityCensusSnapshot, GpuError> {
         let dev = &self.context.device;
         let q = &self.context.queue;
 
-        let cell_acts = self.world.read_cell_activity_all(dev, q)?;
-        let chunk_acts = self.world.read_chunk_activity_all(dev, q)?;
-        let chunk_states = self.world.read_chunk_state_all(dev, q)?;
+        let cell_activity = self.world.read_cell_activity_all(dev, q)?;
+        let chunk_activity = self.world.read_chunk_activity_all(dev, q)?;
+        let chunk_state = self.world.read_chunk_state_all(dev, q)?;
 
-        let mut any_active_cells = 0u64;
-        let mut matter_active_cells = 0u64;
-        let mut thermal_active_cells = 0u64;
-        let mut pressure_active_cells = 0u64;
-        let mut reaction_active_cells = 0u64;
+        let expected_cells = usize::try_from(self.world.layout.cell_count).map_err(|_| {
+            GpuError::ReadbackFailed(format!(
+                "activity census cell count {} does not fit usize",
+                self.world.layout.cell_count
+            ))
+        })?;
+        let expected_chunks = chunk_count(
+            self.world.config.width,
+            self.world.config.height,
+            self.world.config.chunk_size,
+        ) as usize;
 
-        for &act in &cell_acts {
-            if act != 0 {
-                any_active_cells += 1;
-            }
-            if (act & ACTIVITY_MATTER) != 0 {
-                matter_active_cells += 1;
-            }
-            if (act & ACTIVITY_THERMAL) != 0 {
-                thermal_active_cells += 1;
-            }
-            if (act & ACTIVITY_PRESSURE) != 0 {
-                pressure_active_cells += 1;
-            }
-            if (act & ACTIVITY_REACTION) != 0 {
-                reaction_active_cells += 1;
-            }
+        if cell_activity.len() != expected_cells
+            || chunk_activity.len() != expected_chunks
+            || chunk_state.len() != expected_chunks
+        {
+            return Err(GpuError::ReadbackFailed(format!(
+                "activity census length mismatch: cell_activity={} expected={}, chunk_activity={} expected={}, chunk_state={} expected={}",
+                cell_activity.len(),
+                expected_cells,
+                chunk_activity.len(),
+                expected_chunks,
+                chunk_state.len(),
+                expected_chunks,
+            )));
         }
 
-        let total_chunks = chunk_acts.len() as u32;
-        let mut active_chunks = 0u32;
-        let mut runnable_chunks = 0u32;
-        let mut sleeping_chunks = 0u32;
+        let report = count_activity_census(&cell_activity, &chunk_activity, &chunk_state);
 
-        for i in 0..chunk_acts.len() {
-            if chunk_acts[i] != 0 {
-                active_chunks += 1;
-            }
-            if chunk_states[i] == CHUNK_STATE_RUNNABLE {
-                runnable_chunks += 1;
-            } else if chunk_states[i] == CHUNK_STATE_SLEEPING {
-                sleeping_chunks += 1;
-            }
-        }
-
-        Ok(ActivityCensusReport {
-            total_cells: self.world.layout.cell_count,
-            any_active_cells,
-            matter_active_cells,
-            thermal_active_cells,
-            pressure_active_cells,
-            reaction_active_cells,
-            total_chunks,
-            active_chunks,
-            runnable_chunks,
-            sleeping_chunks,
+        Ok(ActivityCensusSnapshot {
+            report,
+            cell_activity,
+            chunk_activity,
+            chunk_state,
         })
     }
 
-    /// Computes the exact application-tracked GPU allocation bytes.
+    /// Computes the exact persistent application-tracked GPU buffer bytes.
+    ///
+    /// This is an allocation inventory, not driver-resident VRAM. Transient
+    /// readback buffers created by diagnostic helpers are intentionally excluded.
+    /// When supplied, `profiler` contributes its persistent resolve and mapped
+    /// readback buffers; opaque driver/query-set storage is not reported.
     pub fn tracked_memory_report(&self, profiler: Option<&GpuProfiler>) -> TrackedMemoryReport {
         let world_dense_state_bytes = self.world.layout.material_bytes * 2
             + self.world.layout.temperature_bytes * 2
@@ -2212,12 +2230,7 @@ impl Simulation {
         ) as u64
             * 4;
         let activity_scratch_bytes = self.world.layout.material_bytes + chunk_bytes * 6;
-        let uniforms_and_tables_bytes = PARAMS_SIZE
-            + WAKE_PARAMS_SIZE
-            + ARBITRATION_PARAMS_SIZE
-            + MARKER_SIZE
-            + PHASE_TABLE_SIZE
-            + COMBUSTION_TABLE_SIZE;
+        let uniforms_and_tables_bytes = TRACKED_UNIFORMS_AND_TABLES_SIZE;
         let profiler_bytes = profiler.map_or(0, |p| p.tracked_gpu_allocation_bytes());
         let total_tracked_gpu_bytes = world_dense_state_bytes
             + movement_scratch_bytes
@@ -2292,7 +2305,78 @@ pub struct ActivityCensusReport {
     pub sleeping_chunks: u32,
 }
 
-/// Detailed application-tracked GPU allocation report.
+/// Exact raw GPU readbacks and the activity report derived from them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivityCensusSnapshot {
+    pub report: ActivityCensusReport,
+    pub cell_activity: Vec<u32>,
+    pub chunk_activity: Vec<u32>,
+    pub chunk_state: Vec<u32>,
+}
+
+fn count_activity_census(
+    cell_activity: &[u32],
+    chunk_activity: &[u32],
+    chunk_state: &[u32],
+) -> ActivityCensusReport {
+    debug_assert_eq!(chunk_activity.len(), chunk_state.len());
+
+    let mut any_active_cells = 0u64;
+    let mut matter_active_cells = 0u64;
+    let mut thermal_active_cells = 0u64;
+    let mut pressure_active_cells = 0u64;
+    let mut reaction_active_cells = 0u64;
+
+    for &activity in cell_activity {
+        if activity != 0 {
+            any_active_cells += 1;
+        }
+        if (activity & ACTIVITY_MATTER) != 0 {
+            matter_active_cells += 1;
+        }
+        if (activity & ACTIVITY_THERMAL) != 0 {
+            thermal_active_cells += 1;
+        }
+        if (activity & ACTIVITY_PRESSURE) != 0 {
+            pressure_active_cells += 1;
+        }
+        if (activity & ACTIVITY_REACTION) != 0 {
+            reaction_active_cells += 1;
+        }
+    }
+
+    let active_chunks = chunk_activity
+        .iter()
+        .filter(|&&activity| activity != 0)
+        .count() as u32;
+    let runnable_chunks = chunk_state
+        .iter()
+        .filter(|&&state| state == CHUNK_STATE_RUNNABLE)
+        .count() as u32;
+    let sleeping_chunks = chunk_state
+        .iter()
+        .filter(|&&state| state == CHUNK_STATE_SLEEPING)
+        .count() as u32;
+
+    ActivityCensusReport {
+        total_cells: cell_activity.len() as u64,
+        any_active_cells,
+        matter_active_cells,
+        thermal_active_cells,
+        pressure_active_cells,
+        reaction_active_cells,
+        total_chunks: chunk_activity.len() as u32,
+        active_chunks,
+        runnable_chunks,
+        sleeping_chunks,
+    }
+}
+
+/// Detailed persistent application-tracked GPU buffer allocation report.
+///
+/// These requested buffer sizes are not a measurement of driver-resident VRAM.
+/// Diagnostic readback helpers allocate short-lived staging buffers that are
+/// intentionally outside this persistent inventory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrackedMemoryReport {
     /// 8 logical dense world state buffers: material, temperature, pressure, flags (current + next each).
@@ -2301,10 +2385,50 @@ pub struct TrackedMemoryReport {
     pub movement_scratch_bytes: u64,
     /// G7 activity diagnostic buffers: cell_activity + 6 chunk buffers.
     pub activity_scratch_bytes: u64,
-    /// Uniforms, simulation tables, and debug markers.
+    /// All persistent uniforms, simulation tables, and debug markers.
     pub uniforms_and_tables_bytes: u64,
-    /// Profiler resolve and readback staging buffers (if allocated).
+    /// Persistent profiler resolve + readback buffers (0 when profiler absent).
+    /// Opaque query-set/driver storage is not application-countable here.
     pub profiler_bytes: u64,
     /// Sum of all application-tracked GPU buffer allocations.
     pub total_tracked_gpu_bytes: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn activity_census_counts_raw_bitmasks_and_chunk_states() {
+        let report = count_activity_census(
+            &[
+                0,
+                ACTIVITY_MATTER,
+                ACTIVITY_THERMAL | ACTIVITY_PRESSURE,
+                ACTIVITY_MATTER | ACTIVITY_REACTION,
+            ],
+            &[0, ACTIVITY_MATTER, ACTIVITY_THERMAL | ACTIVITY_REACTION],
+            &[
+                CHUNK_STATE_RUNNABLE,
+                CHUNK_STATE_SLEEPING,
+                CHUNK_STATE_RUNNABLE,
+            ],
+        );
+
+        assert_eq!(
+            report,
+            ActivityCensusReport {
+                total_cells: 4,
+                any_active_cells: 3,
+                matter_active_cells: 2,
+                thermal_active_cells: 1,
+                pressure_active_cells: 1,
+                reaction_active_cells: 1,
+                total_chunks: 3,
+                active_chunks: 2,
+                runnable_chunks: 2,
+                sleeping_chunks: 1,
+            }
+        );
+    }
 }

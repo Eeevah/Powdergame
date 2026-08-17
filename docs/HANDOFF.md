@@ -8,6 +8,8 @@
 
 처음 작업하는 에이전트는 코드 수정 전에 **`docs/development/QUICKSTART.md`와 `docs/planning/STATUS.md`를 먼저 읽는다.**
 
+적대적 리뷰는 기본 종료 절차가 아니다. 사용자가 명시적으로 요청한 경우에만 `docs/adversarial-reviews/README.md`를 따라 수행·보고하며, 기존 보고서는 비차단 작업 이력으로만 취급한다. Powdergame 코드·diff·artifact·review prompt를 GPT Pro, Grok 또는 다른 외부 AI reviewer에게 보내지 않는다.
+
 그 다음 반드시 다음 순서로 읽는다.
 
 1. `docs/development/QUICKSTART.md`
@@ -25,8 +27,9 @@
 13. `docs/development/PERFORMANCE.md`
 14. `docs/development/DEVELOPMENT.md`
 15. `docs/development/TESTING.md`
-16. `docs/planning/MILESTONES.md`
-17. `docs/planning/STATUS.md`
+16. `docs/planning/ROADMAP.md`
+17. `docs/planning/MILESTONES.md`
+18. `docs/planning/STATUS.md`
 
 `README.md`, `00_USER_VISION.md`, `01_MASTER_DESIGN_REPORT.md`는 위 문서들과 맞춰 최신화되지만 세부 구현 판단은 위 authoritative 문서를 우선한다.
 
@@ -36,15 +39,51 @@
 
 **M0 — First World**를 구현한다.
 
-현재 M0 상태는 `IN_PROGRESS`. G0-G7은 PASS / CLOSED 완료되었으며, 다음 진입 게이트는 **G8 — Performance Evidence**다. 최신 세부 상태는 반드시 `docs/planning/STATUS.md`를 따른다.
+현재 M0 상태는 `IN_PROGRESS`다.
+
+- G0-G7: PASS / CLOSED
+- G8: Performance Evidence — IN_PROGRESS
+  - G8-A Measurement Substrate: V5 REMEDIATION SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED
+  - G8-B Benchmark Scenario Suite: OUT OF SCOPE FOR THIS BRANCH
+  - G8-C Official Matrix: PENDING
+- G9: Playable First World / Product Validation — PENDING
+
+최신 세부 상태는 반드시 `docs/planning/STATUS.md`를 따른다.
 
 M0의 목적:
 
 > **수백만 개의 매우 싼 Local Rule을 RTX 5090에서 병렬 실행해, 작은 규칙들이 실제로 상호작용하며 살아 있는 첫 Powdergame world를 만든다는 것을 증명한다.**
 
+중요한 현재 해석:
+
+> **G8이 명확한 성능 blocker를 증명하지 않는 한, 다음 기본 경로는 추가 최적화가 아니라 G9 Playable First World다.**
+
+G9에서 사용자가 직접 Matter를 놓고, 지우고, 가열하고, 구조를 만들고, 발견을 기록하고, 다음 실험을 시작할 수 있어야 M0가 닫힌다.
+
 ---
 
-## 3. Non-negotiable Product Principles
+## 3. Immediate G8-A Remediation Work
+
+현재 작업 branch는 `fix/g8a-evidence-remediation-v5`이며 base는 `a67abaf959aba0423627f35b79fce7c82d8ec9b5`다.
+
+detached dirty correction은 reset/stash/rebase/pull 없이 이 branch에 연결했고, 연결 전 tracked/untracked 전체 binary patch를 저장소 밖에 보존했다.
+
+현재 목표는 다음 순서로 G8-A evidence candidate를 봉합하는 것이다.
+
+- source/test/docs만 commit
+- full checkpoint와 GPU/Windows smoke 수행
+- clean source SHA를 전용 remote branch에 push
+- source를 더 바꾸지 않고 외부 새 빈 디렉터리에서 official capture 정확히 1회
+- 별도 verifier로 hash/provenance/raw/aggregate/inventory/receipt 확인
+- 실패 Capture ID는 receipt 없이 보존하고 재사용하지 않음
+
+`CAPTURE_RECEIPT.json`이 없는 capture는 incomplete다. v4는 historical data로만 남는다.
+
+Canonical Recovery, G8-B/G8-C/G9, 새 Material, 성능 최적화, `main` merge는 현재 금지 범위다.
+
+---
+
+## 4. Non-negotiable Product Principles
 
 ### World fantasy
 
@@ -70,6 +109,8 @@ cell 하나는 극도로 싸게
 복잡한 emergent world
 ```
 
+성능은 목적 그 자체가 아니다. 절약한 예산은 더 큰 세계, 더 많은 동시 반응, 발견, Rewind와 Presentation에 다시 투자한다.
+
 ### GPU execution thesis
 
 ```text
@@ -88,9 +129,15 @@ ownership change만 Claim/Resolve.
 
 bit-perfect replay보다 stable valid behavior와 성능이 우선.
 
+### Product validation
+
+고정 observatory가 계약대로 움직이는 것과 사용자가 자유롭게 놀고 싶어지는 것은 다른 증거다.
+
+M0의 최종 증거는 실제 sandbox play다.
+
 ---
 
-## 4. Current Technical Target
+## 5. Current Technical Target
 
 ```text
 Windows
@@ -111,7 +158,7 @@ initial chunk 64 × 64
 
 ---
 
-## 5. M0 Matter / Systems
+## 6. M0 Matter / Systems
 
 Matter:
 
@@ -138,9 +185,13 @@ Systems:
 
 Do not expand M0 with Electricity/Life/Civilization/etc before the current gates are proven.
 
+G9는 신규 Matter 수를 늘리는 단계가 아니다. 현재 세트로 먼저 실제 sandbox 재미를 검증한다.
+
 ---
 
-## 6. Suggested First Coding Sequence
+## 7. Implementation Sequence
+
+완료된 순서:
 
 1. Rust workspace
 2. Windows/winit app
@@ -156,15 +207,23 @@ Do not expand M0 with Electricity/Life/Civilization/etc before the current gates
 12. Temperature / Ice-Water-Steam
 13. Combustion
 14. Pressure/rupture
-15. Active/Sleep (G7 — Completed & Frozen)
-16. Performance Evidence / benchmark harness (G8 — Immediate Next Work)
+15. Active/Sleep — G7 Completed / Frozen
+16. Measurement substrate — v5 remediation branch, clean checkpoint/push, official receipt, and independent verification workflow
+
+현재 이후 순서:
+
+17. G8-A v5 source/test/docs commit → full checkpoint → clean branch push
+18. 동일 source SHA의 official capture 1회 → independent verification → user visual run
+19. 이 branch 종료. Canonical Recovery와 G8-B 이후 작업은 별도 승인/작업
+20. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
 
 Do not start with aggressive packing/f16/indirect dispatch.
-Do not optimize compact active lists / indirect dispatch before G8 measurement identifies them as a real bottleneck.
+
+Do not optimize compact active lists / indirect dispatch before G8 measurement identifies them as a real blocker.
 
 ---
 
-## 7. Required Benchmarks
+## 8. Required G8 Benchmarks
 
 - Sand Fall
 - Water Flow
@@ -174,11 +233,53 @@ Do not optimize compact active lists / indirect dispatch before G8 measurement i
 
 Record subsystem cost separately.
 
-Do not set arbitrary M0 numeric performance pass/fail before baseline exists.
+Include rendering and simulation+rendering coexistence evidence; calibration-only headless TPS is not the entire product performance result.
+
+Do not set arbitrary M0 maximum-TPS pass/fail before the official matrix exists.
 
 ---
 
-## 8. Important Deferred Item
+## 9. Required G9 Product Slice
+
+### Sandbox interaction
+
+- Matter selection
+- draw / erase
+- brush size
+- Heat or Temperature tool
+- pause / play / step / speed / reset
+- pan / zoom
+- preset load
+
+### Discovery MVP
+
+Record meaningful first observations from actual simulation state/events.
+
+- phase change
+- combustion
+- pressure generation
+- rupture / vent
+- transformation
+
+Hide exact threshold and remaining discovery count.
+
+### Presentation
+
+Simulation Truth and Presentation remain separated.
+
+At minimum, the player must be able to read key combustion, smoke/heat and rupture/vent events more clearly than raw diagnostic colors alone. Presentation must not invent gameplay results.
+
+### User approval
+
+The strongest success signal is not “the expected boiler ruptured.”
+
+It is:
+
+> **the user voluntarily starts another experiment.**
+
+---
+
+## 10. Important Deferred Item
 
 ### Interaction Lab
 
@@ -188,9 +289,11 @@ It is not a Material generator.
 
 It is currently deferred because the game itself is more important.
 
+Reconsider after M1 when Material count and regression surface make manual validation a real bottleneck.
+
 ---
 
-## 9. What Not to Reintroduce
+## 11. What Not to Reintroduce
 
 Do not silently revert to older research assumptions such as:
 
@@ -204,15 +307,17 @@ Do not silently revert to older research assumptions such as:
 - per-cell universal progress fields for every future phenomenon
 - Gas/Liquid that stay Active forever simply because they exist
 - full-world heavy Rule resolve passes for ordinary interactions
+- optimization as an automatic phase regardless of benchmark evidence
+- dozens of new Matter before the current sandbox is fun
 
 If changing one of these, create explicit evidence and update ADR/SPEC/Design History.
 
 ---
 
-## 10. Completion Authority
+## 12. Completion Authority
 
 AI/Codex/CI may implement and gather evidence.
 
-M0 may move to `VALIDATION` when evidence is ready.
+M0 may move to `VALIDATION` when G8 and G9 evidence is ready.
 
 > **Only the user can approve final `ACHIEVED`.**

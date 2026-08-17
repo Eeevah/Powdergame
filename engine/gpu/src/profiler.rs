@@ -176,35 +176,192 @@ impl GpuProfiler {
         drop(mapped);
         self.readback_buffer.unmap();
 
-        let period_ns = timestamp_period as f64;
-        let passes = std::array::from_fn(|i| {
-            let raw_start = raw[i * 2];
-            let raw_end = raw[i * 2 + 1];
-            let delta_ticks = raw_end.saturating_sub(raw_start);
-            let duration_ns = (delta_ticks as f64) * period_ns;
-            let duration_ms = duration_ns / 1_000_000.0;
-            PassTiming {
-                name: PASS_NAMES[i],
-                raw_start,
-                raw_end,
-                duration_ns,
-                duration_ms,
+        report_from_raw_timestamps(tick_index, timestamp_period, raw)
+    }
+}
+
+/// Validates one resolved timestamp set before deriving durations.
+///
+/// Timestamp zero is valid: the only required invariants are a positive finite
+/// period, positive duration for every pass, production-order monotonicity, and
+/// an envelope large enough to contain the non-overlapping pass intervals.
+fn report_from_raw_timestamps(
+    tick_index: u64,
+    timestamp_period: f32,
+    raw: [u64; 34],
+) -> Result<ProfiledTickReport, GpuError> {
+    if !timestamp_period.is_finite() || timestamp_period <= 0.0 {
+        return Err(GpuError::ReadbackFailed(format!(
+            "invalid profiler timestamp period {timestamp_period:?}; expected a finite positive value"
+        )));
+    }
+
+    let mut pass_ticks = [0u64; PASS_COUNT];
+    for i in 0..PASS_COUNT {
+        let start_query = i * 2;
+        let end_query = start_query + 1;
+        let raw_start = raw[start_query];
+        let raw_end = raw[end_query];
+
+        if raw_end <= raw_start {
+            return Err(GpuError::ReadbackFailed(format!(
+                "invalid profiler timestamp data: pass={}, start_query={} raw_start={}, end_query={} raw_end={}; expected end > start",
+                PASS_NAMES[i], start_query, raw_start, end_query, raw_end
+            )));
+        }
+
+        if i > 0 {
+            let previous_end_query = start_query - 1;
+            let previous_end = raw[previous_end_query];
+            if raw_start < previous_end {
+                return Err(GpuError::ReadbackFailed(format!(
+                    "invalid profiler timestamp order: previous_pass={} end_query={} raw_end={}, current_pass={} start_query={} raw_start={}; expected current start >= previous end",
+                    PASS_NAMES[i - 1],
+                    previous_end_query,
+                    previous_end,
+                    PASS_NAMES[i],
+                    start_query,
+                    raw_start
+                )));
             }
-        });
+        }
 
-        let gpu_pass_sum_ms: f64 = passes.iter().map(|p| p.duration_ms).sum();
-        let envelope_ticks = raw[33].saturating_sub(raw[0]);
-        let gpu_tick_envelope_ms = (envelope_ticks as f64) * period_ns / 1_000_000.0;
-        let residual_ms = gpu_tick_envelope_ms - gpu_pass_sum_ms;
+        pass_ticks[i] = raw_end - raw_start;
+    }
 
-        Ok(ProfiledTickReport {
-            tick_index,
-            timestamp_period,
-            passes,
-            raw_timestamps: raw,
-            gpu_pass_sum_ms,
-            gpu_tick_envelope_ms,
-            residual_ms,
+    let envelope_ticks = raw[33].checked_sub(raw[0]).ok_or_else(|| {
+        GpuError::ReadbackFailed(format!(
+            "invalid profiler envelope: start_query=0 raw_start={}, end_query=33 raw_end={}; expected end > start",
+            raw[0], raw[33]
+        ))
+    })?;
+    if envelope_ticks == 0 {
+        return Err(GpuError::ReadbackFailed(format!(
+            "invalid profiler envelope: start_query=0 raw_start={}, end_query=33 raw_end={}; expected end > start",
+            raw[0], raw[33]
+        )));
+    }
+
+    let pass_sum_ticks = pass_ticks.iter().try_fold(0u64, |sum, &ticks| {
+        sum.checked_add(ticks).ok_or_else(|| {
+            GpuError::ReadbackFailed("profiler pass timestamp delta sum overflowed u64".into())
         })
+    })?;
+    if pass_sum_ticks > envelope_ticks {
+        return Err(GpuError::ReadbackFailed(format!(
+            "invalid profiler timestamp accounting: pass_sum_ticks={pass_sum_ticks} exceeds envelope_ticks={envelope_ticks}"
+        )));
+    }
+    let residual_ticks = envelope_ticks - pass_sum_ticks;
+
+    let period_ns = timestamp_period as f64;
+    let ticks_to_ns = |ticks: u64| (ticks as f64) * period_ns;
+    let passes = std::array::from_fn(|i| {
+        let duration_ns = ticks_to_ns(pass_ticks[i]);
+        PassTiming {
+            name: PASS_NAMES[i],
+            raw_start: raw[i * 2],
+            raw_end: raw[i * 2 + 1],
+            duration_ns,
+            duration_ms: duration_ns / 1_000_000.0,
+        }
+    });
+    let gpu_pass_sum_ms = ticks_to_ns(pass_sum_ticks) / 1_000_000.0;
+    let gpu_tick_envelope_ms = ticks_to_ns(envelope_ticks) / 1_000_000.0;
+    let residual_ms = ticks_to_ns(residual_ticks) / 1_000_000.0;
+
+    if !passes
+        .iter()
+        .all(|pass| pass.duration_ns.is_finite() && pass.duration_ms.is_finite())
+        || !gpu_pass_sum_ms.is_finite()
+        || !gpu_tick_envelope_ms.is_finite()
+        || !residual_ms.is_finite()
+    {
+        return Err(GpuError::ReadbackFailed(
+            "profiler timestamp conversion produced a non-finite duration".into(),
+        ));
+    }
+
+    Ok(ProfiledTickReport {
+        tick_index,
+        timestamp_period,
+        passes,
+        raw_timestamps: raw,
+        gpu_pass_sum_ms,
+        gpu_tick_envelope_ms,
+        residual_ms,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_raw_timestamps() -> [u64; 34] {
+        let mut raw = [0u64; 34];
+        let mut cursor = 0u64;
+        for i in 0..PASS_COUNT {
+            raw[i * 2] = cursor;
+            cursor += (i as u64) + 1;
+            raw[i * 2 + 1] = cursor;
+            cursor += 3;
+        }
+        raw
+    }
+
+    #[test]
+    fn raw_timestamp_validation_accepts_zero_epoch_and_preserves_groups() {
+        let report = report_from_raw_timestamps(7, 1.0, valid_raw_timestamps()).unwrap();
+        assert_eq!(report.raw_timestamps[0], 0);
+        assert_eq!(report.tick_index, 7);
+
+        let grouped = report.grouped_summary();
+        let grouped_sum = grouped.matter_movement_ms
+            + grouped.ownership_claim_ms
+            + grouped.thermal_ms
+            + grouped.reaction_phase_ms
+            + grouped.pressure_structure_ms
+            + grouped.active_sleep_ms;
+        assert!((grouped_sum - report.gpu_pass_sum_ms).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn raw_timestamp_validation_rejects_equal_or_inverted_pass_bounds() {
+        let mut equal = valid_raw_timestamps();
+        equal[5] = equal[4];
+        let equal_error = report_from_raw_timestamps(0, 1.0, equal)
+            .unwrap_err()
+            .to_string();
+        assert!(equal_error.contains("pass=movement_claim"));
+        assert!(equal_error.contains("end > start"));
+
+        let mut inverted = valid_raw_timestamps();
+        inverted[7] = inverted[6] - 1;
+        let inverted_error = report_from_raw_timestamps(0, 1.0, inverted)
+            .unwrap_err()
+            .to_string();
+        assert!(inverted_error.contains("pass=movement_commit"));
+    }
+
+    #[test]
+    fn raw_timestamp_validation_rejects_cross_pass_reordering() {
+        let mut raw = valid_raw_timestamps();
+        raw[4] = raw[3] - 1;
+        raw[5] = raw[3] + 1;
+        let error = report_from_raw_timestamps(0, 1.0, raw)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("previous_pass=movement_propose"));
+        assert!(error.contains("current_pass=movement_claim"));
+    }
+
+    #[test]
+    fn raw_timestamp_validation_rejects_invalid_periods() {
+        for period in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            let error = report_from_raw_timestamps(0, period, valid_raw_timestamps())
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains("timestamp period"));
+        }
     }
 }

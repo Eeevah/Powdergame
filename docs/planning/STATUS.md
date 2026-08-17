@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS; G8-A Measurement Substrate COMPLETE).
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). Current work is limited to sealing `fix/g8a-evidence-remediation-v5` through clean checkpoint, push, one official capture, and independent verification.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A Measurement Substrate: COMPLETE).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A v5 remediation source/publish/capture/verify only).**
 
 ### Current Summary
 
@@ -372,30 +372,40 @@ Static Analysis & Formatting:
 
 ### G8 — Performance Evidence (IN_PROGRESS)
 
-- **G8-A (Measurement Substrate)**: **COMPLETE / TRUSTWORTHY MEASUREMENT ESTABLISHED**
-  - Headless benchmark harness (`powdergame-benchmark` at `apps/benchmark/`).
-  - Observational profiling via `wgpu::Features::TIMESTAMP_QUERY` and per-compute-pass `timestamp_writes`.
-  - Exact 17 pass timing measurement + `gpu_tick_envelope` + grouped subsystem roll-ups.
-  - Mode A Production Throughput (batch-submitted, end synchronization once): Median = 870.0 TPS (1.1494 ms/tick, 2048×2048 reference world, RTX 5090 / DX12).
-  - Mode B GPU Breakdown: Envelope Median = 1.0217 ms, GPU Pass Sum = 0.7688 ms, Residual = 0.2528 ms.
-  - Out-of-band Activity Census snapshot: 266,016 active cells (6.34%), 219 active chunks (21.4%), 643 sleeping chunks (62.8%).
-  - Application-tracked GPU memory report: 176.03 MB total.
-  - Zero production optimization performed; G7-C not implemented; G8 official five-scenario matrix pending G8-B.
+- **G8-A (Measurement Substrate)**: **V5 REMEDIATION SOURCE FREEZE / CLEAN CHECKPOINT, PUSH, OFFICIAL RECEIPT, AND INDEPENDENT VERIFICATION REQUIRED**
+  - Headless benchmark harness (`powdergame-benchmark` at `apps/benchmark/`) with strict CLI validation and a dimension-safe calibration fixture.
+  - Mode A uses a normal production context; Mode B uses a separate timestamp-enabled context on the same adapter.
+  - Exact 17-pass timing, 34 raw queries per tick, timestamp-order validation, envelope/pass-sum/residual reconstruction, and per-tick grouped subsystem statistics.
+  - Historical v4 Mode A values: P50 948.9 TPS (1.0538 ms/tick, 2048×2048 reference world, RTX 5090 / DX12). The packet does not bind these values to the later empty-submit fence source bytes.
+  - Historical v4 Mode B values: Envelope P50 1.0204 ms, GPU Pass Sum P50 0.7663 ms, Residual P50 0.2542 ms. Mode B is per-tick synchronized and is not a sustained-throughput measurement.
+  - Historical v4 aggregate census: 266,016 any-active cells, 219 active chunks, 381 runnable chunks, 643 sleeping chunks. The original three GPU arrays were not preserved, so these counts cannot be independently recounted from v4.
+  - Historical v4 application-tracked requested persistent GPU buffer bytes: 184,576,672 with profiler buffers. This is not driver-reported resident VRAM.
+  - Historical v4 three-way overhead control: per-tick synchronization +27.00%; profiling increment over synchronized control +1.77%; combined profiled path versus batch +29.25%.
+  - v4 artifacts use schema v3: 129 aggregate rows plus 768 raw tick rows contain internally reconstructable timing data, but only commit SHA plus `dirty` state for source provenance.
+  - Earlier v2/v3 calibrations are invalidated because pending reset/staging writes were not explicitly submitted before waiting.
+  - The claim that v4 was the first empty-submit + completion-wait run is not established by its packet: the collected `main.rs` snapshot is later than the CSVs and no run-time source/diff or binary hash was recorded.
+  - Schema v5 preserves exactly one row per raw cell and one row per raw chunk, recomputes the aggregate census from that snapshot, and stages/synchronizes four CSVs before raw-cell/raw-chunk/raw-tick/aggregate no-overwrite publication.
+  - Official capture accepts only attached clean source, records source/binary/argv/log/exit/artifact hashes, writes the receipt last, and packages with a ZIP-external `PACKAGE_SHA256.txt`.
+  - Receipt absence means incomplete capture. Existing v4 remains historical and is not replaced or corrected in place.
+  - Historical provenance: external review activity occurred before the policy changed. It is not used as current status support. Adversarial review is explicit-request-only, and the one-time local report is a non-blocking historical record.
+  - No production optimization performed; G7-C not implemented; G8 official five-scenario matrix pending G8-B.
   - Evidence: `docs/evidence/G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md`
 
 ---
 
 ### Next Action
 
-1. **G8-B — Benchmark Scenario Suite**: Implement the five official reference benchmark fixtures (Sand Fall, Water Flow, Fire/Heat, Pressure Burst, Heavy Mixed World).
-2. **G8-C — Official Matrix Measurement**: Gather definitive multi-trial baseline numbers across all 5 official fixtures.
-3. **Policy**: Do not optimize compact active lists / indirect dispatch before G8 measurement identifies them as a real bottleneck.
+1. **Freeze and publish v5 source**: Commit only source/test/docs on `fix/g8a-evidence-remediation-v5`, run the full requested checkpoint, and push the clean branch without force.
+2. **Official G8-A capture exactly once**: From that unchanged clean SHA, capture into a new empty external directory. Preserve a failed Capture ID without repair or reuse.
+3. **Independent verification**: Verify source/executable/files/ZIP hashes, commands/exits, run IDs, raw cell/chunk row counts, aggregate reconstruction, inventory, and receipt completeness through a separate code path.
+4. **User visual run**: Use the same source SHA after the automated Windows release smoke and evidence verification.
+5. **Stop**: Canonical Recovery, G8-B/G8-C/G9, new materials, optimization, and `main` merge are not part of this branch.
 
 ---
 
 ### Blockers
 
-현재 문서/설계 기준으로 known hard blocker 없음.
+이 source document는 후속 checkpoint/capture 결과를 선반영하지 않는다. 현재 candidate 여부는 external v5 receipt와 independent-verifier record가 결정한다.
 
 ---
 
@@ -403,7 +413,7 @@ Static Analysis & Formatting:
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A COMPLETE).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A v5 remediation source candidate; official receipt and independent verification determine current evidence-candidate state).
 
 M0 `ACHIEVED`: **NO**
 
@@ -412,14 +422,24 @@ M0 `ACHIEVED`: **NO**
 ## Machine-generated Facts
 
 ```text
-base_commit_sha: 94babb2667c081b5588489e1b4e710cc6efa68be
+g7_frozen_base_sha: 94babb2667c081b5588489e1b4e710cc6efa68be
+g8a_remediation_base_sha: a67abaf959aba0423627f35b79fce7c82d8ec9b5
+g8a_remediation_branch: fix/g8a-evidence-remediation-v5
+g8a_prebranch_binary_patch_sha256: 9993574e552f2cf9523aa2e1c3ee8b0f7ebe6dae422eebf5a8ecbe2737c0cd5b
+roadmap_update_ref: origin/agent/update-product-roadmap at a5efc1b4bb54cdd9629de9654c8b5eb0c24397b7
+canonical_main_ref: origin/main at c057626c08c5ad8b6b4b2360737e51fc161c28a7
+canonical_recovery: out of scope for this branch
+evidence_writer_schema: powdergame-g8a-v5
+official_capture_completion_marker: CAPTURE_RECEIPT.json (must be written last)
+official_capture_package_hash: ZIP-external PACKAGE_SHA256.txt
 build_id: local-cargo-2026-08-17
 platform: Windows
 primary_gpu: RTX 5090
 world_config: 2048x2048 reference
 chunk_config: 64x64 initial
-build: passed (cargo build --workspace)
-tests: passed (362 discovered, 359 passed, 3 ignored [coarse + controlled perf, 3000-tick fixture], 0 failed)
-benchmarks: G8-A 2048x2048 reference calibration: Mode A Production Sustained TPS = 870.0 TPS (1.1494 ms/tick, RTX 5090/DX12); Mode B Envelope = 1.0217 ms, Pass Sum = 0.7688 ms.
-m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A COMPLETE; G9 pending)
+build: authoritative v5 full-workspace checkpoint pending; targeted benchmark compilation occurred through the tests and package clippy recorded below
+source_freeze_checks: targeted census recount/recompute/raw writers/staged publication and benchmark clippy completed; authoritative full/GPU/smoke/capture/verifier results live outside this pre-capture source document
+benchmarks: historical G8-A v4/schema-v3 2048x2048 dirty-worktree artifacts report Mode A TPS P50 = 948.9 and Mode B Envelope P50 = 1.0204 ms, but are not bound to the later source snapshot/binary; only a complete external v5 receipt may identify the current candidate
+adversarial_review: optional and explicit-request-only; existing G8-A report is historical and non-blocking
+m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A v5 remediation source/publish/capture/verify only; later gates pending)
 ```

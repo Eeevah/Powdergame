@@ -42,19 +42,24 @@ NVIDIA RTX 5090 32GB
 
 benchmark 기록에는 최소 다음을 포함한다.
 
-- commit SHA
+- HEAD commit SHA, clean/dirty state, evidence schema/run ID
 - build/config
 - Windows version
 - GPU/driver
 - WorldConfig
 - chunk size
 - scenario
+- measurement mode, synchronization policy, prewarm, trial and tick ranges
 - simulation TPS / tick time
 - GPU simulation time
 - GPU render time
 - active cell/chunk counts
-- VRAM usage
+- application-tracked requested persistent GPU buffer bytes and explicit exclusions
+- driver/OS-reported resident VRAM, when separately available
+- raw sample count/path and percentile aggregation method
 - Rewind memory if applicable
+
+Dirty-worktree calibration은 local validation에는 사용할 수 있지만 immutable official baseline으로 승격하지 않는다. Official evidence는 결과가 어떤 source state에서 생성되었는지 재현할 수 있어야 한다.
 
 ---
 
@@ -473,16 +478,28 @@ baseline metrics
 - active Cell count
 - active Chunk count
 - subsystem timing: Matter / Thermal / Pressure / Reaction / Resolve / activity management
-- VRAM usage
+- raw per-tick timestamp/pass/group samples and sample identity
+- raw activity census values: every `cell_activity`, `chunk_activity`, and `chunk_state` element, census tick, and bit/state definitions needed for an independent recount
+- percentile method: grouped percentile은 pass percentile의 합이 아니라 per-tick group sum의 percentile
+- timing mode and synchronization policy: batch production throughput과 synchronized profiling을 구분
+- setup timing fence: reset/fixture `Queue::write_buffer`는 timer 전에 명시적으로 submit하고 completion wait; `device.poll(Wait)` 단독 사용 금지
+- profiling overhead controls: batch unprofiled, per-tick synchronized unprofiled, per-tick synchronized profiled
+- application-tracked requested persistent GPU buffer bytes with exact scope/exclusions
+- driver/OS-reported resident VRAM when available; tracked bytes와 동일한 값으로 취급하지 않음
+- run receipt: exact argv/cwd, raw stdout/stderr, exit code, isolated build log, source-input snapshot and full dirty diff hashes, executed binary hash, artifact hashes, and one matching run ID
+- evidence publication: all raw files are fully staged and synchronized before the aggregate summary is exposed; existing evidence paths are not overwritten. This is not a cross-file crash/power-loss atomicity claim.
+- review packet delivery: attach the ZIP and its sibling `PACKAGE_SHA256.txt` together; generated target inventories must reject empty paths and assert their row count against the captured path inputs
 - Rewind storage
 
 전체 TPS만 보고 어디가 병목인지 모르는 상태를 피한다.
+
+Activity reason census의 Matter / Thermal / Pressure / Reaction category는 서로 겹칠 수 있으므로 partition처럼 합산하지 않는다. Mode B의 GPU envelope/pass breakdown은 per-tick synchronization과 readback을 포함하는 diagnostic path이며 Mode A sustained wall time을 대체하지 않는다.
 
 ---
 
 ## 19. Benchmark Scenarios
 
-M0부터 반복 가능한 대표 시나리오를 만든다.
+M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 현재 **NOT STARTED**이며, 이름과 측정 의도만 정의된 상태다.
 
 ### Sand Fall
 
@@ -526,7 +543,11 @@ M0 통과를 위해 필요한 것은:
 - subsystem cost가 분리되어 보임
 - 대표 scenario 반복 가능
 - bottleneck 파악 가능
-- 결과가 commit/hardware/config와 함께 기록됨
+- 결과가 HEAD SHA, clean/dirty state, evidence ID, hardware, config와 함께 기록됨
+- 공식 candidate는 attached clean source SHA에서만 생성하고, source snapshot, executed binary, command/log/exit code, CSV run ID를 최종 receipt에서 해시로 연결함
+- dirty run 또는 receipt 없는 run은 incomplete/non-canonical capture로만 보존함
+- aggregate census는 동일 tick의 one-row-per-cell raw cell CSV와 one-row-per-chunk raw chunk CSV로 독립 재집계 가능함
+- capture ZIP SHA-256은 ZIP 외부의 sibling `PACKAGE_SHA256.txt`에 기록함
 - 2048×2048 reference world를 실제로 측정함
 
 M0 baseline을 얻은 뒤 M1부터 숫자 performance budget을 설정한다.

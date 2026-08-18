@@ -141,7 +141,7 @@ Sample      sim 1292 · diagnostic 321
 항상 가능한 경우:
 
 - Cell coordinate
-- Material ID와 이름
+- Material의 canonical name과 ID. v0 detailed Inspector는 명시적 계약에 따라 `Name (ID)`로 함께 표시하고, compact hover는 이름을 우선한다.
 - Temperature
 - Pressure
 - raw flags의 사용자 의미 변환
@@ -360,6 +360,17 @@ Inspector가 Discovery를 자동 완성하면 안 된다. 의미 있는 현상 �
 ---
 
 ## 9. Cell Inspector v0 Acceptance
+
+### Implementation candidate
+
+- Status: **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**.
+- Tested source: `a2aac71219e145b84d6dd050865a81631da490bd`. 이 SHA 이후의 docs-only closure는 tested source provenance와 구분한다.
+- Rendering과 physical-pixel cursor picking은 동일한 CPU-authoritative `WorldViewport`의 letterbox origin/scale을 공유한다.
+- Hover sample은 Material, Temperature, Pressure, raw flags, Cell activity, Chunk state의 six 4-byte field를 하나의 24-byte batch로 수집한다. 동시 pending request는 하나로 제한하고 주기는 10 Hz 이하이며, mouse movement마다 full-world readback은 없다.
+- Request identity는 Cell/Chunk, simulation tick, diagnostic sequence, selection generation, world epoch를 묶는다. Reset, scenario switch, staging failure, shutdown은 pending/sample identity를 무효화해 이전 world의 stale sample이 현재처럼 보이지 않게 한다.
+- Validation: workspace fmt check, affected Windows all-target check, Windows binary tests `104` pass (`1` intentional ignore), Inspector targeted tests `15/15`, affected-package all-target clippy, strict development-policy audit, and exactly one 3-frame Gallery smoke passed. Workspace FULL과 scenario candidate는 실행하지 않았다.
+- Screenshot-backed manual UX에서 Sand, Water, Pressure의 compact/detail identity와 scenario switch/reset 후 fresh sample을 확인했다. 이는 구현 candidate 검증이며 최종 사용자 승인을 대신하지 않는다.
+- Scenario 5 Heavy Mixed World는 **PENDING — do not start**이고 G8-B는 **NOT CLOSED**다.
 
 ### Functional
 

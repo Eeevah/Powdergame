@@ -12,11 +12,11 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. G8-B Scenario 1 Sand Fall은 사용자 승인되었고 immutable Harness pilot은 automatic `PASS` / review `APPROVED`다. Scenario 2 Water remediation candidate는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. Scenario 3 Fire / Heat는 tested source `1635fdb9f562192123c92846e137b125c684ede9`의 exactly one sealed candidate automatic `PASS`와 독립 검증 불일치 0을 보존한 채 **USER ACCEPTED**로 승인되었다. Scenario 4 Pressure Burst는 source `43e19d0f3b43aa0c15bf31e98f6401ba5f885170`의 immutable candidate에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 **USER ACCEPTED WITH KNOWN FOLLOW-UP**로 승인되었다. **Scenarios 1–4 are USER ACCEPTED**. Cell Inspector v0 tested source `3c342d25099683df53e303d1920cebe1f6578b74`는 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. Scenario 5 Heavy Mixed World는 **NEXT / IN PROGRESS 진입 가능**하지만 아직 user accepted가 아니며 **G8-B 전체는 NOT CLOSED**이고, G8-C는 별도 pending gate다.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. G8-B Scenario 1 Sand Fall은 사용자 승인되었고 immutable Harness pilot은 automatic `PASS` / review `APPROVED`다. Scenario 2 Water remediation candidate는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. Scenario 3 Fire / Heat는 tested source `1635fdb9f562192123c92846e137b125c684ede9`의 exactly one sealed candidate automatic `PASS`와 독립 검증 불일치 0을 보존한 채 **USER ACCEPTED**로 승인되었다. Scenario 4 Pressure Burst는 source `43e19d0f3b43aa0c15bf31e98f6401ba5f885170`의 immutable candidate에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 **USER ACCEPTED WITH KNOWN FOLLOW-UP**로 승인되었다. **Scenarios 1–4 are USER ACCEPTED**. Cell Inspector v0 tested source `3c342d25099683df53e303d1920cebe1f6578b74`는 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. Scenario 5 Heavy Mixed World는 source `07260fffab22e5b4513eb168f0baac36e374ab94`의 immutable candidate를 발행했고 14/14 hard predicate가 pass했지만 automatic `NEEDS_HUMAN_REVIEW` solely for `broad_terminal_tail`이며 **USER ACCEPTANCE PENDING**이다. **G8-B 전체는 NOT CLOSED**이고 G8-C 시작은 **FORBIDDEN**이다.
 
 ### Current Phase
 
-**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A VERIFIED V5 EVIDENCE CANDIDATE, USER VISUAL VALIDATION PENDING; G8-B SCENARIOS 1–4 USER ACCEPTED, WATER AND PRESSURE AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED / KNOWN FOLLOW-UP, FIRE AUTOMATIC PASS UNCHANGED, CELL INSPECTOR V0 USER ACCEPTED WITH KNOWN FOLLOW-UP, SCENARIO 5 HEAVY MIXED NEXT / IN PROGRESS ENTRY ALLOWED, OVERALL NOT CLOSED; G8-C PENDING).**
+**G0 — Runtime: PASS. G1 — World Integrity: PASS / CLOSED. G2 — Local Movement: PASS / CLOSED. G3 — Density / Displacement: PASS / CLOSED. G4 — Thermal / Phase / Combustion: PASS / CLOSED. G5 — Pressure Chain: PASS / CLOSED. G6 — Parallel Integrity: PASS / CLOSED. G7 — Active / Sleep: PASS / CLOSED (G7-A USER VALIDATED / FROZEN; G7-B PASS / CLOSED / FROZEN; G7-C DEFERRED OPTIMIZATION). Current Gate: G8 — Performance Evidence (IN_PROGRESS; G8-A VERIFIED V5 EVIDENCE CANDIDATE, USER VISUAL VALIDATION PENDING; G8-B SCENARIOS 1–4 USER ACCEPTED, WATER AND PRESSURE AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED / KNOWN FOLLOW-UP, FIRE AUTOMATIC PASS UNCHANGED, CELL INSPECTOR V0 USER ACCEPTED WITH KNOWN FOLLOW-UP, SCENARIO 5 HEAVY MIXED IMMUTABLE CANDIDATE AUTOMATIC NEEDS_HUMAN_REVIEW / 14-OF-14 HARD PASS / USER ACCEPTANCE PENDING, OVERALL NOT CLOSED; G8-C FORBIDDEN).**
 
 ### Current Summary
 
@@ -394,14 +394,15 @@ Static Analysis & Formatting:
   - No production optimization performed; G7-C not implemented. G8-A calibration facts remain separate from the later G8-B fixture candidate and G8-C matrix.
   - Evidence: `docs/evidence/G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md`
 
-- **G8-B (Benchmark Scenario Suite)**: **SCENARIOS 1–4 USER ACCEPTED; CELL INSPECTOR V0 USER ACCEPTED WITH KNOWN FOLLOW-UP; SCENARIO 5 HEAVY MIXED WORLD NEXT / IN PROGRESS ENTRY ALLOWED / NOT CLOSED**
+- **G8-B (Benchmark Scenario Suite)**: **SCENARIOS 1–4 USER ACCEPTED; CELL INSPECTOR V0 USER ACCEPTED WITH KNOWN FOLLOW-UP; SCENARIO 5 HEAVY MIXED WORLD IMMUTABLE CANDIDATE / AUTOMATIC NEEDS_HUMAN_REVIEW / 14-OF-14 HARD PASS / USER ACCEPTANCE PENDING; NOT CLOSED**
   - Candidate and next work line: `feature/m0-g8b-scenario-suite`, based on local canonical recovery commit `ca79bb20b27041758ab4d4a224e491c171189393`; accepted Sand Fall scenario-suite checkpoint `e77d102febb1e3c497c2b669efe0140408bd99d7`. At docs closure it is ff-only aligned with the retained Harness branch.
   - Shared crate/API: `apps/scenarios` / `powdergame-scenarios::{ScenarioId, ScenarioFixture, validate_scenario_config, reset_and_stage_scenario}`.
   - Official fixtures: Sand Fall, Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World.
   - Scenario 1 Sand Fall: **USER ACCEPTED (2026-08-17)**. 사용자는 Sand가 완전히 정착하고 모든 chunk가 sleep 상태로 수렴하는 것을 성공으로 승인했다. benchmark identity를 위해 activity를 영구 유지하도록 source/geometry/sleep behavior를 retune하지 않는다.
   - Scenario 2 Water Flow: **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-17)**. Sealed run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 유지한다. Side-wall remediation 뒤 outer-basin Water max/final은 `0 / 0`, conservation/movement/cross-chunk/destination/integrity/reset은 pass했고, 마지막 active `64` cells는 Water/EMPTY `51`, Water/Oil `1`, other `12`였다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. 기존 first candidate는 immutable/superseded 상태로 보존한다.
   - Scenario 3 Fire / Heat: **USER ACCEPTED (2026-08-18)**. Tested source `1635fdb9f562192123c92846e137b125c684ede9`; exactly one candidate automatic `PASS`; independent artifact/raw recomputation found zero mismatch. Genuine Wood/Oil combustion, Smoke generation and decay to zero, Ice/Water/Steam phase work, finite fuel consumption, Reaction first/confirmed zero `11,448 / 11,464`, post-Reaction completion `11,644` with restart `0`, a remaining slightly decreasing Thermal tail, invalid/non-finite `0 / 0`, and exact reset `true` were accepted. Production physics change required: **NO**; candidate rerun required: **NO**.
-  - Scenario 4 Pressure Burst: **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-18); AUTOMATIC `NEEDS_HUMAN_REVIEW` UNCHANGED**. Clean source/run: `43e19d0f3b43aa0c15bf31e98f6401ba5f885170` / `g8b-pressure-burst-v0-20260818T101046792957Z-17158748`. `pressure_opening_precedes_combustion` passed; seam combustion/flame/fuel progress through opening were `0`; first through opening was tick `7,216`, persistent opening and causal exterior Steam tick `7,232`, and adjacent Pressure `83.301017761` exceeded Wood rupture threshold `80`. Terminal mean/max was `53.460612654 / 145.603897095`, terminal mean declined `56.547848156 → 53.460612654`, runaway was false, invalid/non-finite was `0 / 0`, and exact reset was true. Known follow-up: top-seam-only opening, small persistent vent plume, broad terminal Pressure activity, and G8-C tail/activity workload-cost measurement. No production-physics defect is established. Scenario 5 Heavy Mixed World: **NEXT / IN PROGRESS ENTRY ALLOWED / NOT YET USER ACCEPTED**.
+  - Scenario 4 Pressure Burst: **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-18); AUTOMATIC `NEEDS_HUMAN_REVIEW` UNCHANGED**. Clean source/run: `43e19d0f3b43aa0c15bf31e98f6401ba5f885170` / `g8b-pressure-burst-v0-20260818T101046792957Z-17158748`. `pressure_opening_precedes_combustion` passed; seam combustion/flame/fuel progress through opening were `0`; first through opening was tick `7,216`, persistent opening and causal exterior Steam tick `7,232`, and adjacent Pressure `83.301017761` exceeded Wood rupture threshold `80`. Terminal mean/max was `53.460612654 / 145.603897095`, terminal mean declined `56.547848156 → 53.460612654`, runaway was false, invalid/non-finite was `0 / 0`, and exact reset was true. Known follow-up: top-seam-only opening, small persistent vent plume, broad terminal Pressure activity, and G8-C tail/activity workload-cost measurement. No production-physics defect is established.
+  - Scenario 5 Heavy Mixed World: **IMMUTABLE CANDIDATE PUBLISHED (2026-08-19); AUTOMATIC `NEEDS_HUMAN_REVIEW`; USER ACCEPTANCE PENDING**. Clean source/run: `07260fffab22e5b4513eb168f0baac36e374ab94` / `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`. All `14 / 14` hard predicates pass and `candidate_blocker=false`; the only review reason is `broad_terminal_tail`. This does not close G8-B or authorize G8-C.
   - Sixth Gallery slot: exact `active-sleep-g7` 256×256×64 regression fixture. It is not a sixth official matrix workload.
   - Shared staging resets production `Simulation`, uploads authored Material/Temperature/Pressure/Flags to Current and Next plus `chunk_edit_wake`, and completes transfer work before measurement or inspection continues.
   - Windows `--benchmark-gallery` / `run_g8_benchmark_gallery.bat` starts paused and provides `1-6`, `SPACE`, `N`, `F`, `R`, `ESC` controls. Scenario selection and reset commit their new attribution only after shared reset/staging succeeds; failure is explicit and suppresses advancement/readback until recovery.
@@ -451,7 +452,7 @@ Static Analysis & Formatting:
   - Acceptance closure is docs-only: Fire source, production physics, candidate, Review Packet, Audit Bundle, Receipt, and generated artifacts were neither changed nor rerun. Scenario 3 acceptance does not close G8-B.
   - Evidence contract: `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`
 
-- **G8-B Pressure Burst causal remediation**: **CLEAN-SOURCE CANDIDATE AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED / USER ACCEPTED WITH KNOWN FOLLOW-UP / HEAVY MIXED PENDING — DO NOT START**
+- **G8-B Pressure Burst causal remediation**: **CLEAN-SOURCE CANDIDATE AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED / USER ACCEPTED WITH KNOWN FOLLOW-UP / PRESERVED**
   - Immutable combustion-confounded first candidate source/run: `28e4e0bf7736fb95f0a9d7797cc3ab4274b91442` / `g8b-pressure-burst-v0-20260818T014452058676Z-353fb706`. Its automatic verdict remains `NEEDS_HUMAN_REVIEW`; human verdict is `FIX REQUIRED — fixture_causality_confounded_by_combustion`.
   - Valid observations remain Pressure activity, Wood damage, topology-aware persistent opening, exterior Steam, chamber-mean relief, no runaway, Water+Steam conservation, invalid/non-finite `0 / 0`, and exact reset. No production-physics defect is established.
   - Causal blocker: authored top relief Wood was `95 C`, above the `90 C` ignition threshold. Tick `896` still had top Wood `318` and through lanes `0` with Smoke/Reaction `3,682 / 4,000`; tick `904` had Wood `0` and all `48` top lanes open with Smoke/Reaction `3,541 / 3,541`. The complete opening coincided with the 900-active-tick combustion lifetime and did not prove Pressure-caused rupture.
@@ -478,18 +479,28 @@ Static Analysis & Formatting:
   - User acceptance grounds: compact Material hover와 `I` detailed Inspector가 잘 동작했고, silent pending은 자연스러웠으며 이전 Cell의 stale 값이나 `Collecting...` placeholder는 보이지 않았다. Material과 Field 상태 이해에 실질적으로 도움이 되었고 reset/scenario switch도 사용자 관찰상 정상이었다.
   - Known follow-up: 새 Cell hover 뒤 정보 표시까지 최대 10 Hz / 100 ms bounded readback에 따른 약간의 지연이 있다. 현재 비차단이며 Heavy Mixed와 G8-C를 막지 않는다. 실제 UX 비용과 readback 비용을 함께 측정하기 전에는 sampling frequency나 architecture를 변경하지 않는다.
 
+- **G8-B Heavy Mixed World Harness candidate**: **AUTOMATIC NEEDS_HUMAN_REVIEW / 14-OF-14 HARD PASS / CANDIDATE BLOCKER FALSE / USER ACCEPTANCE PENDING / G8-B NOT CLOSED**
+  - Clean source/run: `07260fffab22e5b4513eb168f0baac36e374ab94` / `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`; branch `feature/m0-g8b-scenario-suite`; source, local HEAD, local remote-tracking ref, and live remote were equal with clean worktree and `0 / 0` ahead/behind during the third read-only publication audit.
+  - Current coordinator validation: PASS. Samples/events/folded frames `2,504 / 319 / 14`; Run hash inventory `58`; report/receipt Heavy summary exact-match; source seal, frozen binary, Receipt, Review Packet, and Audit Bundle validation passed.
+  - All 14 hard predicates pass; `candidate_blocker=false`; failed hard predicates `[]`. Automatic `NEEDS_HUMAN_REVIEW` is solely the review-only `broad_terminal_tail`. Dominant subsystem and long Thermal+Pressure tail flags are false.
+  - First movement/density/phase `1 / 8 / 1`; first dynamic combustion/new Smoke/Pressure `1 / 1 / 8`; first all-intended subsystem overlap `8`; peak concurrency `4 @ 8`; peak active cells `40,301 @ 3,528`; longest `>=3` window `1,986` samples over ticks `1..15,872`.
+  - Inventory unexplained/invalid/non-finite/wake anomaly occurrences are `0 / 0 / 0 / 0`; terminal Temperature max `844.7784423828125 → 837.3743896484375`, Pressure max `9.780732943909243e-5 → 9.369529288960621e-5`, positive steps `0 / 0`, runaway false, exact reset true.
+  - Terminal activity is `25,833` cells (`39.418030%`): Thermal `25,828`, Matter `264`, Pressure `0`, Reaction `0`. This tail is the only reason human review remains required; it is not an automatic production-physics defect finding.
+  - Optional raw milestone caveat: `first_vent_tick=3,920`, `first_vent_observed`, and `first-vent` mean first exterior Steam above relief. They are not opening-gated and do not prove causal venting. First complete relief lane is tick `3,960`.
+  - Evidence contract: `docs/evidence/G8_B_HEAVY_MIXED_WORLD_HARNESS_CANDIDATE_2026-08-19.md`. **USER ACCEPTANCE PENDING**; **G8-B NOT CLOSED**; **G8-C FORBIDDEN**.
+
 ---
 
 ### Next Action
 
-1. **Heavy Mixed World**: Cell Inspector v0 acceptance가 기록되었으므로 Scenario 5 fixture/Harness는 **NEXT / IN PROGRESS 진입 가능**이다. Heavy Mixed user acceptance 전에는 G8-B를 닫지 않는다.
-2. **Scope boundary**: G8-C, G9, optimization, `main`/PR은 별도 사용자 지시 전 시작하지 않는다. Accepted Sand/Water/Fire/Pressure candidate/artifacts와 automatic verdict는 변경하거나 재실행하지 않는다.
+1. **Heavy Mixed World user review**: immutable candidate와 machine audit는 완료됐다. Automatic `NEEDS_HUMAN_REVIEW`를 변경하지 말고 `broad_terminal_tail`을 포함한 evidence를 사용자가 직접 검토할 때까지 **USER ACCEPTANCE PENDING**으로 유지한다.
+2. **Scope boundary**: G8-B closure와 G8-C는 Heavy Mixed user acceptance 전 **FORBIDDEN**이다. G9, optimization, `main`/PR도 별도 사용자 지시 전 시작하지 않는다. Accepted Sand/Water/Fire/Pressure candidate/artifacts와 automatic verdict, Heavy candidate/artifacts를 변경하거나 재실행하지 않는다.
 
 ---
 
 ### Blockers
 
-Canonical Recovery, v5 technical evidence, Sand Fall behavior, Sand Fall Harness pilot, Water Flow user acceptance, Fire / Heat automatic candidate와 user acceptance, Pressure Burst causal candidate와 user acceptance, Cell Inspector v0 user acceptance에는 확인된 기술 blocker가 없다. Water의 local-liquid 재배열, Pressure의 top-seam-only opening/small plume/broad terminal activity, Inspector의 최대 100 ms hover sample delay는 알려진 비차단 후속 과제이며 production-physics defect 증거는 없다. Pressure tail/activity 비용은 G8-C에서 측정한다. G8-B closure에는 Scenario 5 Heavy Mixed World acceptance가 남아 있다. G8-A의 same-SHA visual validation, `main` 승격과 G8-C/G9 진입은 별도 사용자 결정이다.
+Canonical Recovery, v5 technical evidence, Sand Fall behavior, Sand Fall Harness pilot, Water Flow user acceptance, Fire / Heat automatic candidate와 user acceptance, Pressure Burst causal candidate와 user acceptance, Cell Inspector v0 user acceptance, Heavy Mixed candidate publication에는 확인된 기술 blocker가 없다. Water의 local-liquid 재배열, Pressure의 top-seam-only opening/small plume/broad terminal activity, Inspector의 최대 100 ms hover sample delay는 알려진 비차단 후속 과제이며 production-physics defect 증거는 없다. Heavy Mixed는 14/14 hard pass지만 `broad_terminal_tail` 때문에 automatic `NEEDS_HUMAN_REVIEW`이며, **USER ACCEPTANCE PENDING**이 G8-B closure의 남은 blocker다. G8-A의 same-SHA visual validation, `main` 승격과 G8-C/G9 진입은 별도 사용자 결정이고 G8-C는 현재 forbidden이다.
 
 Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical Recovery Evidence](../evidence/CANONICAL_RECOVERY_2026-08-17.md)에 기록한다.
 
@@ -499,7 +510,7 @@ Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical 
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenarios 1–4 user accepted, Water and Pressure automatic `NEEDS_HUMAN_REVIEW` unchanged with known follow-ups, Cell Inspector v0 user accepted with known follow-up, Scenario 5 Heavy Mixed World next / in-progress entry allowed, overall NOT CLOSED; G8-C PENDING).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenarios 1–4 user accepted, Water and Pressure automatic `NEEDS_HUMAN_REVIEW` unchanged with known follow-ups, Cell Inspector v0 user accepted with known follow-up, Scenario 5 Heavy Mixed World immutable candidate automatic `NEEDS_HUMAN_REVIEW` / 14-of-14 hard pass / USER ACCEPTANCE PENDING, overall NOT CLOSED; G8-C FORBIDDEN).
 
 M0 `ACHIEVED`: **NO**
 
@@ -520,7 +531,7 @@ canonical_recovery_merge: e5871bdc53093700c44562826860c4d482f31ba5
 canonical_recovery_publication: not pushed; no recovery PR; main unchanged
 g8b_candidate_branch: feature/m0-g8b-scenario-suite
 g8b_candidate_base: ca79bb20b27041758ab4d4a224e491c171189393
-g8b_candidate_status: SCENARIOS 1-4 USER ACCEPTED; CELL INSPECTOR V0 USER ACCEPTED WITH KNOWN FOLLOW-UP; SCENARIO 5 HEAVY MIXED WORLD NEXT / NOT CLOSED
+g8b_candidate_status: SCENARIOS 1-4 USER ACCEPTED; CELL INSPECTOR V0 USER ACCEPTED WITH KNOWN FOLLOW-UP; SCENARIO 5 HEAVY MIXED WORLD IMMUTABLE CANDIDATE AUTOMATIC NEEDS_HUMAN_REVIEW / 14-OF-14 HARD PASS / USER ACCEPTANCE PENDING; NOT CLOSED
 g8b_official_scenarios: sand-fall, water-flow, fire-heat, pressure-burst, heavy-mixed-world
 g8b_scenario_1_acceptance: sand-fall USER ACCEPTED; complete settling and all chunks sleeping are success; no activity-retuning
 g8b_scenario_2_acceptance: water-flow USER ACCEPTED WITH KNOWN FOLLOW-UP; automatic NEEDS_HUMAN_REVIEW unchanged
@@ -530,7 +541,39 @@ cell_inspector_v0_tested_source_sha: 3c342d25099683df53e303d1920cebe1f6578b74
 cell_inspector_v0_prior_docs_closure_sha: 6a521c07c23d9817f6abb9d3e1eab47758b5d5c4
 cell_inspector_v0_human_verdict: USER ACCEPTED WITH KNOWN FOLLOW-UP
 cell_inspector_v0_known_follow_up: slight bounded hover delay at no more than 10 Hz / 100 ms; non-blocking; measure UX and readback cost before changing frequency or architecture
-g8b_remaining_acceptance: heavy-mixed-world NEXT
+g8b_remaining_acceptance: heavy-mixed-world USER ACCEPTANCE PENDING
+g8b_heavy_mixed_source_sha: 07260fffab22e5b4513eb168f0baac36e374ab94
+g8b_heavy_mixed_run_id: g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4
+g8b_heavy_mixed_run_mode: candidate
+g8b_heavy_mixed_automatic_verdict: NEEDS_HUMAN_REVIEW
+g8b_heavy_mixed_hard_predicates: 14 / 14 PASS
+g8b_heavy_mixed_candidate_blocker: false; failed hard predicates []
+g8b_heavy_mixed_review_flags: broad_terminal_tail only
+g8b_heavy_mixed_human_verdict: USER ACCEPTANCE PENDING
+g8b_heavy_mixed_samples_events_frames: 2504 / 319 / 14
+g8b_heavy_mixed_first_movement_density_phase: 1 / 8 / 1
+g8b_heavy_mixed_first_combustion_smoke_pressure: 1 / 1 / 8
+g8b_heavy_mixed_first_all_intended_subsystems: tick 8
+g8b_heavy_mixed_peak_concurrency: 4 at tick 8
+g8b_heavy_mixed_peak_active_cells: 40301 at tick 3528
+g8b_heavy_mixed_longest_three_plus_window: 1986 samples; ticks 1..15872; span 15871
+g8b_heavy_mixed_integrity_occurrences: unexplained inventory 0; invalid 0; non-finite 0; wake anomaly 0
+g8b_heavy_mixed_terminal_activity: 25833 cells (39.418030%); Thermal 25828; Matter 264; Pressure 0; Reaction 0
+g8b_heavy_mixed_terminal_trend: Temperature max 844.7784423828125 -> 837.3743896484375; Pressure max 9.780732943909243e-5 -> 9.369529288960621e-5; positive steps 0 / 0; runaway false
+g8b_heavy_mixed_exact_reset: true
+g8b_heavy_mixed_raw_vent_vocabulary: first_vent_tick 3920 / first_vent_observed / first-vent mean first exterior Steam above relief; not opening-gated or causal vent proof; first complete relief lane tick 3960
+g8b_heavy_mixed_binary_sha256: 9b84db005942cf60ae9ef133521e9297413d49c93d72e7ae64133e29622f7583
+g8b_heavy_mixed_manifest_sha256: 50bd48c57e9175b3d6cfc53ccf3c787aa7e5246cfaa118468b3e4590a275eaa2
+g8b_heavy_mixed_source_input_manifest_sha256: d4cf97dba93a3bf108e6105c623bcfb506baeb4306be327143f993faeec28ff3
+g8b_heavy_mixed_review_packet_sha256: ca2fe05a1497f8417dd732de23c1a260569adfcccd6bd0f16bad180f2a8d1144
+g8b_heavy_mixed_report_sha256: 854318da721d82720ddea1534f1a2b69fa538b7ed002fdffc138ef0ec32dd1ac
+g8b_heavy_mixed_receipt_sha256: 2abebdef7f9174e63abfd9c67ce4a48d24b48edde4e6c29fab49022e36a2dbd1
+g8b_heavy_mixed_audit_bundle_sha256: bc44c66bd52b5d856decb2317389a455a56ac8ae1f8d67b1bfeb5446cfb5731b
+g8b_heavy_mixed_run_size: 60 files; 98299191 bytes (93.745 MiB)
+g8b_heavy_mixed_review_packet_size: 1154021 bytes (1.101 MiB)
+g8b_heavy_mixed_audit_bundle_size: 6659537 bytes (6.351 MiB)
+g8b_heavy_mixed_frozen_exe_size: 9654272 bytes (9.207 MiB)
+g8b_heavy_mixed_closure_boundary: USER ACCEPTANCE PENDING; G8-B NOT CLOSED; G8-C FORBIDDEN
 g8b_regression_only_scenario: active-sleep-g7 (exact 256x256x64; not official matrix)
 g8b_shared_staging: powdergame-scenarios::reset_and_stage_scenario
 evidence_writer_schema: calibration=powdergame-g8a-v5; shared fixture=powdergame-g8b-fixture-v1
@@ -598,5 +641,5 @@ build: canonical recovery PRE/POST full workspace, clippy, evidence self-tests, 
 source_freeze_checks: official receipt complete; source/upstream clean and unchanged at 9abec9e; independent verifier passed 11/11 with zero findings
 benchmarks: official G8-A v5 P50 = 865.304 TPS / 1.155663 ms per tick and profiled envelope P50 = 1.018080 ms; historical v4 remains unbound historical data
 adversarial_review: optional and explicit-request-only; existing G8-A report is historical and non-blocking
-m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenarios 1-4 and Cell Inspector v0 accepted with documented follow-ups, Water and Pressure automatic NEEDS_HUMAN_REVIEW unchanged, Scenario 5 Heavy Mixed World next/in-progress entry allowed, overall not closed; G8-C pending)
+m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenarios 1-4 and Cell Inspector v0 accepted with documented follow-ups, Water and Pressure automatic NEEDS_HUMAN_REVIEW unchanged, Scenario 5 Heavy Mixed World immutable candidate automatic NEEDS_HUMAN_REVIEW / 14-of-14 hard pass / user acceptance pending, overall not closed; G8-C forbidden)
 ```

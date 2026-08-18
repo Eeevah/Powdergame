@@ -224,6 +224,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
+- 최신 Scenario 5 record는 [`G8_B_HEAVY_MIXED_WORLD_HARNESS_CANDIDATE_2026-08-19.md`](evidence/G8_B_HEAVY_MIXED_WORLD_HARNESS_CANDIDATE_2026-08-19.md)다. Cell Inspector v0는 accepted지만 Heavy candidate는 automatic `NEEDS_HUMAN_REVIEW` / 14-of-14 hard pass / `candidate_blocker=false` 상태의 **USER ACCEPTANCE PENDING**이며, G8-B와 G8-C를 닫거나 시작하지 않는다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

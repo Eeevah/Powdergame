@@ -99,7 +99,7 @@ M0의 목적은 콘텐츠를 많이 넣는 것이 아니다.
 
 > **수백만 개의 아주 싼 Local Rule을 RTX 5090에서 병렬로 실행해, Matter들이 실제로 서로 영향을 주는 살아 있는 첫 세계가 성립한다는 것을 증명한다.**
 
-## Current Gate State — 2026-08-18
+## Current Gate State — 2026-08-19
 
 현재 실제 세부 상태는 `STATUS.md`가 최종 기준이다.
 
@@ -108,8 +108,8 @@ M0의 목적은 콘텐츠를 많이 넣는 것이 아니다.
 - G0-G7: PASS / CLOSED
 - G8: IN_PROGRESS
   - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenarios 1 Sand Fall, 2 Water Flow, 3 Fire / Heat, and 4 Pressure Burst USER ACCEPTED (Water and Pressure automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up; Fire automatic PASS unchanged); Scenario 5 Heavy Mixed World NEXT; overall NOT CLOSED
-  - G8-C Official Matrix Measurement: PENDING
+  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenarios 1 Sand Fall, 2 Water Flow, 3 Fire / Heat, and 4 Pressure Burst USER ACCEPTED (Water and Pressure automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up; Fire automatic PASS unchanged); Cell Inspector v0 USER ACCEPTED WITH KNOWN FOLLOW-UP; Scenario 5 Heavy Mixed World immutable candidate automatic NEEDS_HUMAN_REVIEW solely for `broad_terminal_tail`, 14/14 hard predicates PASS, candidate blocker false, USER ACCEPTANCE PENDING; overall NOT CLOSED
+  - G8-C Official Matrix Measurement: FORBIDDEN until Heavy Mixed user acceptance and explicit G8-B closure
 - G9: PENDING
 - M0 `ACHIEVED`: NO
 
@@ -405,7 +405,7 @@ Current implementation candidate:
 - `powdergame-scenarios`가 다섯 official fixture의 deterministic CPU image와 production `Simulation` reset/staging을 공유한다.
 - Windows `--benchmark-gallery`는 동일 fixture를 1~5 slot에서 paused inspection할 수 있다.
 - headless `powdergame-benchmark -- --scenario <slug>`는 동일 fixture를 각 prewarm/trial/overhead window 전에 pristine reset/stage한다.
-- Scenario Experiment coordinator는 immutable Sand v0와 Water analyzer를 공통 provenance/no-overwrite/receipt-last 구조에서 dispatch한다. Preserved Water v1 evidence와 remediation v2 schema를 구분하며 Water는 `scratch`와 `candidate` mode를 유지한다. Fire / Heat는 같은 coordinator에 별도 analyzer를 추가하되 Sand/Water schema와 published artifacts를 변경하지 않는다.
+- Scenario Experiment coordinator는 Sand, Water, Fire / Heat, Pressure Burst, Heavy Mixed World를 scenario별 독립 analyzer/schema로 dispatch하면서 공통 provenance/no-overwrite/receipt-last 구조를 유지한다. Preserved historical evidence와 기존 scenario schema/artifact는 소급 변경하지 않는다.
 - 여섯 번째 `active-sleep-g7`은 official G8-B workload가 아니라 exact 256×256×64 G7 regression fixture다.
 - Gallery rendering/HUD/wall-clock TPS/bounded census는 official timing에서 제외한다.
 - production physics, Material, G9, optimization은 이 candidate의 범위가 아니다.
@@ -416,8 +416,10 @@ Acceptance boundary:
 - Scenario 1 Sand Fall은 사용자 승인되었다. 완전 정착과 모든 chunk의 sleep 수렴이 성공이며, activity를 계속 보이게 만들기 위한 retuning은 금지한다.
 - Scenario 2 Water Flow first candidate는 Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`, automatic `NEEDS_HUMAN_REVIEW`, human `FIX REQUIRED — fixture_representativeness_issue`로 immutable/superseded다. Source `5af031f`의 remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 소급 변경하지 않은 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Outer-basin Water max/final은 `0 / 0`; 알려진 후속 과제는 M0 local-liquid free-surface 소수 셀의 지속 재배열이며 production-physics defect 증거는 없다.
 - Scenario 3 Fire / Heat는 unchanged fixture와 production physics를 보존한 sealed source `1635fdb9f562192123c92846e137b125c684ede9`의 automatic-`PASS` candidate를 사용자가 승인했다. Production physics change와 candidate rerun은 요구되지 않았고 immutable source/candidate/artifact는 변경하지 않는다.
-- Scenario 4 Pressure Burst는 clean source `43e19d0f3b43aa0c15bf31e98f6401ba5f885170`의 run `g8b-pressure-burst-v0-20260818T101046792957Z-17158748`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `USER ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. `pressure_opening_precedes_combustion`과 exact reset이 pass했고, invalid/non-finite는 `0 / 0`이다. 알려진 후속 과제는 top-seam-only opening, small persistent vent plume, broad terminal Pressure activity이며 production-physics defect 증거는 없다. Scenario 5 Heavy Mixed World가 next다. 남은 official fixture를 사용자가 승인하기 전까지 G8-B는 **NOT CLOSED**다.
-- G8-C official matrix measurement와 G8-B closure를 혼동하지 않는다.
+- Scenario 4 Pressure Burst는 clean source `43e19d0f3b43aa0c15bf31e98f6401ba5f885170`의 run `g8b-pressure-burst-v0-20260818T101046792957Z-17158748`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `USER ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. `pressure_opening_precedes_combustion`과 exact reset이 pass했고, invalid/non-finite는 `0 / 0`이다. 알려진 후속 과제는 top-seam-only opening, small persistent vent plume, broad terminal Pressure activity이며 production-physics defect 증거는 없다.
+- Cell Inspector v0는 tested source `3c342d25099683df53e303d1920cebe1f6578b74`에서 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. 최대 10 Hz / 100 ms bounded hover delay는 비차단 후속 과제다.
+- Scenario 5 Heavy Mixed World는 clean source `07260fffab22e5b4513eb168f0baac36e374ab94`의 immutable candidate run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`를 발행했다. 14/14 hard predicate가 pass하고 `candidate_blocker=false`지만 automatic `NEEDS_HUMAN_REVIEW`의 유일한 이유인 `broad_terminal_tail`은 human review가 필요하다. **USER ACCEPTANCE PENDING**이므로 G8-B는 **NOT CLOSED**다.
+- G8-C official matrix measurement와 G8-B closure를 혼동하지 않는다. Heavy Mixed user acceptance와 명시적 G8-B closure 전에는 G8-C를 시작하지 않는다.
 
 ### G8-C — Official Matrix Measurement
 

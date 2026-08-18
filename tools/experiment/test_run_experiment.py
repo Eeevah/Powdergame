@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import io
 import json
 import subprocess
 import tempfile
@@ -93,7 +95,7 @@ class ExperimentRunnerTests(unittest.TestCase):
     ) -> experiment.ManifestData:
         binary = (
             run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts)
-            if contract is experiment.FIRE_CONTRACT
+            if contract in {experiment.FIRE_CONTRACT, experiment.PRESSURE_CONTRACT}
             else self.source / "target" / "release" / "powdergame-windows.exe"
         )
         binary_sha256 = "b" * 64
@@ -1194,6 +1196,540 @@ class ExperimentRunnerTests(unittest.TestCase):
         )
         return run_dir
 
+    def create_valid_pressure_worker_fixture(
+        self,
+        run_id: str = "g8b-pressure-burst-v0-test-run",
+        mode: str = "candidate",
+    ) -> Path:
+        if mode == "scratch" and "-scratch-" not in run_id:
+            run_id = run_id.replace(
+                "g8b-pressure-burst-v0-", "g8b-pressure-burst-v0-scratch-"
+            )
+        run_dir, manifest = self.create_manifest(
+            run_id, experiment.PRESSURE_CONTRACT, mode
+        )
+        logs = run_dir / "logs"
+        logs.mkdir()
+        (logs / "build.stdout.log").write_bytes(b"build stdout\r\n")
+        (logs / "build.stderr.log").write_bytes(b"")
+        (run_dir / "stdout.log").write_bytes(b"worker stdout\r\n")
+        (run_dir / "stderr.log").write_bytes(b"")
+        telemetry = run_dir / "telemetry"
+        frames_dir = run_dir / "work" / "frames"
+        telemetry.mkdir()
+        frames_dir.mkdir(parents=True)
+
+        initial_water = 20_000
+        initial_steam = 0
+        initial_total_wood = 11_516
+
+        def sample(
+            tick: int,
+            phase: str,
+            reason: str,
+            *,
+            pressure_active: int,
+            mean_pressure: float,
+            max_pressure: float,
+            top_wood: int,
+            bottom_wood: int,
+            water: int,
+            steam: int,
+            outside_steam: int,
+            state_hash: str,
+            seam_steam: int = 0,
+            changed: int = 2,
+        ) -> dict:
+            seam_wood = top_wood + bottom_wood
+            seam_lost = 576 - seam_wood
+            wood = initial_total_wood - seam_lost
+            boundary = 1020
+            stone = 3000
+            non_empty = boundary + stone + water + steam + wood
+            counts = [
+                experiment.WORLD_WIDTH * experiment.WORLD_HEIGHT - non_empty,
+                boundary,
+                stone,
+                0,
+                water,
+                0,
+                steam,
+                0,
+                0,
+                wood,
+            ]
+            top_open = 384 - top_wood
+            bottom_open = 192 - bottom_wood
+            seam_open = top_open + bottom_open
+            return {
+                "schema_version": experiment.PRESSURE_TELEMETRY_SCHEMA,
+                "experiment_id": experiment.PRESSURE_CONTRACT.experiment_id,
+                "run_id": run_dir.name,
+                "scenario": experiment.PRESSURE_CONTRACT.scenario,
+                "source_sha": manifest["source"]["sha"],
+                "git_state": "clean",
+                "build_profile": "release",
+                "binary_sha256": manifest["binary"]["sha256"],
+                "sample_sequence": -1,
+                "sim_tick": tick,
+                "phase": phase,
+                "reason": reason,
+                "world": manifest["world"],
+                "sleep": {"enabled": True, "threshold": 3},
+                "census": {
+                    "total_cells": experiment.WORLD_WIDTH * experiment.WORLD_HEIGHT,
+                    "any_active_cells": pressure_active,
+                    "matter_active_cells": min(pressure_active, 20),
+                    "thermal_active_cells": 0,
+                    "pressure_active_cells": pressure_active,
+                    "reaction_active_cells": 0,
+                    "total_chunks": 16,
+                    "active_chunks": 8 if pressure_active else 0,
+                    "runnable_chunks": 16,
+                    "sleeping_chunks": 0,
+                },
+                "material_counts_by_id": counts,
+                "matter_count": sum(counts[1:]),
+                "water_count": water,
+                "steam_count": steam,
+                "relief_seam_wood_cells": seam_wood,
+                "top_relief_seam_wood_cells": top_wood,
+                "bottom_relief_seam_wood_cells": bottom_wood,
+                "relief_seam_open_cells": seam_open,
+                "top_relief_seam_open_cells": top_open,
+                "bottom_relief_seam_open_cells": bottom_open,
+                "steam_in_relief_seam_cells": seam_steam,
+                "outside_chamber_steam_cells": outside_steam,
+                "chamber_pressure_cell_count": 29_920,
+                "chamber_mean_pressure": mean_pressure,
+                "chamber_max_pressure": max_pressure,
+                "invalid_material_count": 0,
+                "nonfinite_temperature_count": 0,
+                "nonfinite_pressure_count": 0,
+                "changed_chunks": changed,
+                "wake_chunks": 0,
+                "wake_reason_or": 0,
+                "state_hash": state_hash,
+                "physical_state_hash": state_hash,
+            }
+
+        tick0 = sample(
+            0,
+            "initial",
+            "tick0",
+            pressure_active=0,
+            mean_pressure=100.0,
+            max_pressure=180.0,
+            top_wood=384,
+            bottom_wood=192,
+            water=initial_water,
+            steam=initial_steam,
+            outside_steam=0,
+            state_hash="fnv1a64:0000000000003000",
+            changed=0,
+        )
+        tick1 = sample(
+            1,
+            "pressurizing",
+            "tick1",
+            pressure_active=500,
+            mean_pressure=110.0,
+            max_pressure=200.0,
+            top_wood=383,
+            bottom_wood=191,
+            water=initial_water,
+            steam=initial_steam,
+            outside_steam=0,
+            state_hash="fnv1a64:0000000000003001",
+        )
+        tick2 = sample(
+            2,
+            "pressurizing",
+            "early-diagnostic",
+            pressure_active=1000,
+            mean_pressure=130.0,
+            max_pressure=220.0,
+            top_wood=380,
+            bottom_wood=190,
+            water=19_990,
+            steam=10,
+            outside_steam=0,
+            state_hash="fnv1a64:0000000000003002",
+        )
+        tick8 = sample(
+            8,
+            "pressurizing",
+            "diagnostic-cadence",
+            pressure_active=800,
+            mean_pressure=120.0,
+            max_pressure=210.0,
+            top_wood=370,
+            bottom_wood=185,
+            water=19_980,
+            steam=20,
+            outside_steam=0,
+            state_hash="fnv1a64:0000000000003008",
+        )
+        samples = [tick0, tick1, tick2, tick8]
+        for offset in range(1, experiment.POST_OPENING_TICKS + 1):
+            converted = min(100, 20 + offset)
+            post = sample(
+                8 + offset,
+                "post-opening-observation",
+                "post-opening-observation-complete"
+                if offset == experiment.POST_OPENING_TICKS
+                else "post-opening-tick",
+                pressure_active=max(0, 800 - offset * 5),
+                mean_pressure=float(max(40, 100 - offset)),
+                max_pressure=float(max(80, 190 - offset)),
+                top_wood=max(330, 370 - offset // 6),
+                bottom_wood=max(170, 185 - offset // 18),
+                water=initial_water - converted,
+                steam=converted,
+                outside_steam=max(0, 4 - offset // 40),
+                state_hash=f"fnv1a64:{0x4000 + offset:016x}",
+                seam_steam=min(10, converted),
+            )
+            samples.append(post)
+        reset = copy.deepcopy(tick0)
+        reset.update(
+            {
+                "phase": "reset",
+                "reason": "programmatic-r-equivalent",
+            }
+        )
+        samples.append(reset)
+        for sequence, item in enumerate(samples):
+            item["sample_sequence"] = sequence
+        (telemetry / "samples.jsonl").write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in samples),
+            encoding="utf-8",
+        )
+
+        def event(name: str, item: dict | None, detail: str = "fixture") -> dict:
+            return {
+                "schema_version": experiment.PRESSURE_TELEMETRY_SCHEMA,
+                "experiment_id": experiment.PRESSURE_CONTRACT.experiment_id,
+                "run_id": run_dir.name,
+                "scenario": experiment.PRESSURE_CONTRACT.scenario,
+                "event_sequence": -1,
+                "event": name,
+                "sim_tick": 0 if item is None else item["sim_tick"],
+                "sample_sequence": None if item is None else item["sample_sequence"],
+                "detail": detail,
+            }
+
+        first_vent = samples[4]
+        first_relief = samples[5]
+        final = samples[-2]
+        events = [
+            event("lifecycle_started", None),
+            event("pristine_reset_completed", None),
+            event("tick0_captured", tick0),
+            event("pressure_activity_observed", tick1),
+            event("relief_seam_damage_observed", tick1),
+            event("rupture_observed", tick1),
+            event("new_peak_chamber_mean_pressure", tick1),
+            event("new_peak_chamber_max_pressure", tick1),
+            event("new_peak_pressure_activity", tick1),
+            event("tick1_captured", tick1),
+            event("persistent_opening_streak_started", tick1),
+            event("new_peak_chamber_mean_pressure", tick2),
+            event("new_peak_chamber_max_pressure", tick2),
+            event("new_peak_pressure_activity", tick2),
+            event("persistent_opening_confirmed", tick8),
+            event("post_opening_observation_started", tick8),
+            event("relief_seam_steam_observed", first_vent),
+            event("exterior_vent_observed", first_vent),
+            event("post_opening_pressure_relief_observed", first_relief),
+            event("post_opening_observation_completed", final),
+            event("terminal_selected", final),
+            event("reset_started", final),
+            event("reset_comparison_completed", reset),
+            event("worker_completed", reset, "PASS"),
+        ]
+        for sequence, item in enumerate(events):
+            item["event_sequence"] = sequence
+        (telemetry / "events.jsonl").write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in events),
+            encoding="utf-8",
+        )
+
+        frame_specs = (
+            (tick0, [("tick0", "pristine-reset")]),
+            (
+                tick1,
+                [
+                    ("tick1", "after-one-production-tick"),
+                    ("first-pressure-activity", "first-sampled-pressure-activity"),
+                    ("first-wood-damage", "first-authored-relief-seam-wood-loss"),
+                    ("first-rupture", "cold-bottom-seam-pressure-attributed-opening"),
+                ],
+            ),
+            (
+                tick2,
+                [
+                    ("peak-pressure", "highest-observed-chamber-max-pressure"),
+                    (
+                        "peak-pressure-activity",
+                        "highest-observed-pressure-active-cells",
+                    ),
+                ],
+            ),
+            (
+                tick8,
+                [
+                    (
+                        "persistent-opening",
+                        "three-consecutive-diagnostics-with-opening",
+                    )
+                ],
+            ),
+            (
+                first_vent,
+                [
+                    (
+                        "first-exterior-steam",
+                        "first-steam-outside-authored-chamber-after-opening",
+                    )
+                ],
+            ),
+            (
+                first_relief,
+                [
+                    (
+                        "post-opening",
+                        "first-post-vent-chamber-mean-and-max-pressure-relief",
+                    )
+                ],
+            ),
+            (final, [("terminal", "post-opening-observation-complete")]),
+            (reset, [("reset", "programmatic-r-equivalent")]),
+        )
+        raw_size = experiment.RENDERER_WIDTH * experiment.RENDERER_HEIGHT * 4
+        frames = []
+        for ordinal, (item, badges) in enumerate(frame_specs):
+            filename = f"{ordinal:02}-{badges[0][0]}.rgba"
+            color = bytes(((ordinal * 31) % 256, (ordinal * 47) % 256, 128, 255))
+            (frames_dir / filename).write_bytes(color * (raw_size // 4))
+            frames.append(
+                {
+                    "ordinal": ordinal,
+                    "relative_path": f"work/frames/{filename}",
+                    "width": experiment.RENDERER_WIDTH,
+                    "height": experiment.RENDERER_HEIGHT,
+                    "rgba_bytes": raw_size,
+                    "badges": [
+                        {"kind": kind, "reason": reason} for kind, reason in badges
+                    ],
+                    "sim_tick": item["sim_tick"],
+                    "sample_sequence": item["sample_sequence"],
+                    "state_hash": item["state_hash"],
+                }
+            )
+        (run_dir / "work" / "frames.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": experiment.PRESSURE_FRAMES_SCHEMA,
+                    "experiment_id": experiment.PRESSURE_CONTRACT.experiment_id,
+                    "run_id": run_dir.name,
+                    "scenario": experiment.PRESSURE_CONTRACT.scenario,
+                    "binary_sha256": manifest["binary"]["sha256"],
+                    "frame_count": len(frames),
+                    "pixel_encoding": "rgba8-tightly-packed",
+                    "frames": frames,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        terminal_samples = samples[-1 - experiment.TERMINAL_WINDOW_SAMPLES : -1]
+        trend = experiment.pressure_terminal_trend(terminal_samples)
+        predicates = {
+            name: {"status": "pass", "detail": f"fixture {name}"}
+            for name in experiment.PRESSURE_PREDICATE_NAMES
+        }
+        analysis = {
+            "schema_version": experiment.PRESSURE_ANALYSIS_SCHEMA,
+            "experiment_id": experiment.PRESSURE_CONTRACT.experiment_id,
+            "run_id": run_dir.name,
+            "scenario": experiment.PRESSURE_CONTRACT.scenario,
+            "binary_sha256": manifest["binary"]["sha256"],
+            "provenance": {
+                "source_sha": manifest["source"]["sha"],
+                "git_state": "clean",
+                "build_profile": "release",
+            },
+            "world": manifest["world"],
+            "sleep": {"enabled": True, "threshold": 3},
+            "lifecycle": {
+                "max_ticks": experiment.MAX_TICKS,
+                "diagnostic_interval_ticks": experiment.DIAGNOSTIC_INTERVAL,
+                "consecutive_persistent_opening_samples": experiment.CONSECUTIVE_PERSISTENT_OPENING,
+                "post_opening_ticks": experiment.POST_OPENING_TICKS,
+                "terminal_window_samples": experiment.TERMINAL_WINDOW_SAMPLES,
+                "terminal_reason": "post-opening-observation-complete",
+                "persistent_opening_start_sim_tick": 1,
+                "persistent_opening_start_sample_sequence": tick1["sample_sequence"],
+                "persistent_opening_confirmed_sim_tick": 8,
+                "persistent_opening_confirmed_sample_sequence": tick8[
+                    "sample_sequence"
+                ],
+                "post_opening_end_tick": final["sim_tick"],
+                "sample_count": len(samples),
+            },
+            "baseline": {
+                "initial_matter_count": tick0["matter_count"],
+                "initial_water_count": tick0["water_count"],
+                "initial_steam_count": tick0["steam_count"],
+                "initial_relief_seam_wood_cells": 576,
+                "initial_top_relief_seam_wood_cells": 384,
+                "initial_bottom_relief_seam_wood_cells": 192,
+                "initial_chamber_pressure_cell_count": 29_920,
+                "initial_chamber_mean_pressure": 100.0,
+                "initial_chamber_max_pressure": 180.0,
+            },
+            "metrics": {
+                "first_pressure_activity_tick": 1,
+                "first_pressure_activity_sample_sequence": tick1["sample_sequence"],
+                "first_wood_damage_tick": 1,
+                "first_wood_damage_sample_sequence": tick1["sample_sequence"],
+                "first_rupture_tick": 1,
+                "first_rupture_sample_sequence": tick1["sample_sequence"],
+                "first_persistent_opening_tick": 1,
+                "first_persistent_opening_sample_sequence": tick1["sample_sequence"],
+                "persistent_opening_confirmed_tick": 8,
+                "persistent_opening_confirmed_sample_sequence": tick8[
+                    "sample_sequence"
+                ],
+                "first_steam_in_relief_seam_tick": first_vent["sim_tick"],
+                "first_steam_in_relief_seam_sample_sequence": first_vent[
+                    "sample_sequence"
+                ],
+                "first_outside_chamber_steam_tick": first_vent["sim_tick"],
+                "first_outside_chamber_steam_sample_sequence": first_vent[
+                    "sample_sequence"
+                ],
+                "first_post_confirmation_reseal_tick": None,
+                "first_post_confirmation_reseal_sample_sequence": None,
+                "first_post_opening_relief_tick": first_relief["sim_tick"],
+                "first_post_opening_relief_sample_sequence": first_relief[
+                    "sample_sequence"
+                ],
+                "peak_chamber_mean_pressure": 130.0,
+                "peak_chamber_mean_pressure_tick": 2,
+                "peak_chamber_mean_pressure_sample_sequence": tick2["sample_sequence"],
+                "peak_chamber_max_pressure": 220.0,
+                "peak_chamber_max_pressure_tick": 2,
+                "peak_chamber_max_pressure_sample_sequence": tick2["sample_sequence"],
+                "peak_pressure_active_cells": 1000,
+                "peak_pressure_active_tick": 2,
+                "peak_pressure_active_sample_sequence": tick2["sample_sequence"],
+                "pre_opening_peak_chamber_mean_pressure": 130.0,
+                "pre_opening_peak_chamber_max_pressure": 220.0,
+                "vent_reference_chamber_mean_pressure": first_vent[
+                    "chamber_mean_pressure"
+                ],
+                "vent_reference_chamber_max_pressure": first_vent[
+                    "chamber_max_pressure"
+                ],
+                "post_opening_chamber_mean_pressure": tick8[
+                    "chamber_mean_pressure"
+                ],
+                "post_opening_chamber_max_pressure": tick8[
+                    "chamber_max_pressure"
+                ],
+                "terminal_chamber_mean_pressure": trend["end_mean_pressure"],
+                "terminal_chamber_max_pressure": trend["end_max_pressure"],
+                "terminal_pressure_relieved": True,
+                "final_relief_seam_wood_cells": final["relief_seam_wood_cells"],
+                "final_top_relief_seam_wood_cells": final[
+                    "top_relief_seam_wood_cells"
+                ],
+                "final_bottom_relief_seam_wood_cells": final[
+                    "bottom_relief_seam_wood_cells"
+                ],
+                "final_relief_seam_open_cells": final["relief_seam_open_cells"],
+                "final_top_relief_seam_open_cells": final[
+                    "top_relief_seam_open_cells"
+                ],
+                "final_bottom_relief_seam_open_cells": final[
+                    "bottom_relief_seam_open_cells"
+                ],
+                "final_steam_in_relief_seam_cells": final[
+                    "steam_in_relief_seam_cells"
+                ],
+                "outside_chamber_steam_peak": max(
+                    item["outside_chamber_steam_cells"] for item in samples[:-1]
+                ),
+                "final_outside_chamber_steam_cells": final[
+                    "outside_chamber_steam_cells"
+                ],
+                "final_matter_count": final["matter_count"],
+                "matter_count_delta": final["matter_count"] - tick0["matter_count"],
+                "final_water_count": final["water_count"],
+                "water_count_delta": final["water_count"] - tick0["water_count"],
+                "final_steam_count": final["steam_count"],
+                "steam_count_delta": final["steam_count"] - tick0["steam_count"],
+                "final_pressure_active_cells": final["census"][
+                    "pressure_active_cells"
+                ],
+                "final_thermal_active_cells": 0,
+                "final_reaction_active_cells": 0,
+                "invalid_material_occurrences": 0,
+                "nonfinite_field_occurrences": 0,
+                "reset_exact_equivalence": True,
+            },
+            "terminal_window": trend,
+            "review_flags": {
+                "only_one_relief_seam_ruptured": False,
+                "high_terminal_pressure_activity": False,
+                "long_pressure_tail": False,
+                "persistent_vent_plume": False,
+                "terminal_activity_remains": False,
+                "reasons": [],
+            },
+            "predicates": predicates,
+            "verdict": "PASS",
+            "raw_frame_count": len(frames),
+        }
+        (run_dir / "work" / "analysis.json").write_text(
+            json.dumps(analysis), encoding="utf-8"
+        )
+        return run_dir
+
+    def create_pressure_sealed_delivery_fixture(
+        self,
+        run_id: str = "g8b-pressure-burst-v0-sealed",
+        mode: str = "candidate",
+    ) -> Path:
+        self.initialize_source_repository()
+        run_dir = self.create_valid_pressure_worker_fixture(run_id, mode=mode)
+        binary = run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts)
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b"frozen Pressure executable fixture")
+        binary_hash = experiment.sha256_file(binary)
+        actual_sha = experiment.git_text(self.source, "rev-parse", "HEAD")
+        actual_branch = experiment.git_text(self.source, "branch", "--show-current")
+        replacements = {
+            "a" * 40: actual_sha,
+            "feature/g8b-experiment-harness-v0": actual_branch,
+            "b" * 64: binary_hash,
+        }
+        for path in run_dir.rglob("*"):
+            if path.is_file() and path.suffix in {".json", ".jsonl", ".toml"}:
+                text = path.read_text(encoding="utf-8")
+                for old, new in replacements.items():
+                    text = text.replace(old, new)
+                path.write_text(text, encoding="utf-8")
+        seal = experiment.capture_source_seal(self.source)
+        experiment.write_new_text(
+            run_dir / experiment.SOURCE_INPUT_MANIFEST_NAME,
+            experiment.render_source_input_manifest(seal),
+        )
+        experiment.postprocess_run(run_dir)
+        return run_dir
+
     def test_manifest_is_strict_and_round_trips(self) -> None:
         run_dir, manifest = self.create_manifest()
         self.assertEqual(set(manifest), experiment.MANIFEST_TOP_KEYS)
@@ -2230,8 +2766,12 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertEqual(water[1:3], ("--experiment-worker", "water-flow"))
         self.assertNotIn("--mode", water)
         self.assertNotIn("stable-plateau", water)
+        self.assertIs(
+            experiment.contract_for_scenario("pressure-burst"),
+            experiment.PRESSURE_CONTRACT,
+        )
         with self.assertRaises(experiment.ExperimentError):
-            experiment.contract_for_scenario("pressure-burst")
+            experiment.contract_for_scenario("heavy-mixed")
 
     def test_screenshot_name_contains_tick_sample_and_reason(self) -> None:
         frame = {
@@ -2615,6 +3155,469 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertEqual(receipt["review_packet_sha256"], experiment.sha256_file(packet))
         with self.assertRaisesRegex(experiment.ExperimentError, "receipt"):
             experiment.postprocess_run(run_dir)
+
+    def test_pressure_manifest_worker_command_and_old_schema_isolation(self) -> None:
+        run_dir, manifest = self.create_manifest(
+            "g8b-pressure-burst-v0-manifest-test", experiment.PRESSURE_CONTRACT
+        )
+        self.assertEqual(manifest["schema_version"], experiment.PRESSURE_MANIFEST_SCHEMA)
+        self.assertEqual(
+            manifest["experiment"],
+            {
+                "max_ticks": 20_000,
+                "diagnostic_interval_ticks": 8,
+                "consecutive_persistent_opening": 3,
+                "post_opening_ticks": 180,
+                "terminal_window_samples": 64,
+            },
+        )
+        command = manifest["commands"]["worker"]
+        self.assertEqual(
+            command[-6:],
+            [
+                "--consecutive-persistent-opening",
+                "3",
+                "--post-opening-ticks",
+                "180",
+                "--terminal-window-samples",
+                "64",
+            ],
+        )
+        for forbidden in (
+            "--consecutive-all-sleep",
+            "--post-sleep-ticks",
+            "--consecutive-reaction-zero",
+            "--post-reaction-ticks",
+        ):
+            self.assertNotIn(forbidden, command)
+        for contract in (
+            experiment.SAND_CONTRACT,
+            experiment.WATER_CONTRACT,
+            experiment.FIRE_CONTRACT,
+        ):
+            _, legacy_manifest = self.create_manifest(
+                f"{contract.experiment_id}-pressure-isolation", contract
+            )
+            self.assertTrue(
+                {
+                    "consecutive_persistent_opening",
+                    "post_opening_ticks",
+                    "terminal_window_samples",
+                }.isdisjoint(legacy_manifest["experiment"])
+            )
+            legacy = experiment.worker_command(
+                Path("legacy.exe"),
+                Path("run"),
+                "legacy-run",
+                "a" * 64,
+                contract=contract,
+            )
+            for pressure_only in (
+                "--consecutive-persistent-opening",
+                "--post-opening-ticks",
+                "--terminal-window-samples",
+            ):
+                self.assertNotIn(pressure_only, legacy)
+        self.assertEqual(
+            Path(manifest["binary"]["path"]),
+            run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts).resolve(),
+        )
+
+    def test_pressure_telemetry_contact_and_folded_frames_are_exact(self) -> None:
+        run_dir = self.create_valid_pressure_worker_fixture()
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        analysis, frames_doc, samples, events = experiment.validate_telemetry(
+            run_dir, manifest
+        )
+        self.assertEqual(analysis["verdict"], "PASS")
+        self.assertEqual(analysis["metrics"]["persistent_opening_confirmed_tick"], 8)
+        self.assertEqual(analysis["metrics"]["first_outside_chamber_steam_tick"], 9)
+        self.assertEqual(analysis["metrics"]["first_post_opening_relief_tick"], 10)
+        self.assertEqual(analysis["terminal_window"]["sample_count"], 64)
+        self.assertFalse(analysis["terminal_window"]["unbounded_growth"])
+        self.assertEqual(len(frames_doc["frames"]), 8)
+        self.assertEqual(
+            [badge["kind"] for badge in frames_doc["frames"][1]["badges"]],
+            [
+                "tick1",
+                "first-pressure-activity",
+                "first-wood-damage",
+                "first-rupture",
+            ],
+        )
+        self.assertEqual(frames_doc["frames"][-1]["badges"][0]["kind"], "reset")
+        self.assertEqual(events[-1]["event"], "worker_completed")
+
+        frame = frames_doc["frames"][2]
+        sample = samples[frame["sample_sequence"]]
+        item = {
+            "ordinal": frame["ordinal"],
+            "reason": "+".join(badge["kind"] for badge in frame["badges"]),
+            "sim_tick": frame["sim_tick"],
+            "sample_sequence": frame["sample_sequence"],
+            "state_hash": frame["state_hash"],
+        }
+        self.assertEqual(
+            experiment.contact_sheet_caption_lines(item, sample),
+            (
+                "#2 peak-pressure+peak-pressure-act... | sim 2 | sample 2",
+                "Pressure active 1000",
+                "Chamber mean/max 130.000/220.000",
+                "Seam Wood/open 570/6 | Outside Steam 0",
+                "State fnv1a64:0000000000003002",
+            ),
+        )
+
+        publication_log: list[str] = []
+        screenshots = experiment.create_screenshots(
+            run_dir, frames_doc["frames"], publication_log
+        )
+        contact_sheet = experiment.create_contact_sheet_bytes(
+            run_dir, screenshots, samples
+        )
+        Image, ImageDraw, _ = experiment.pillow_modules()
+        with Image.open(io.BytesIO(contact_sheet)) as sheet:
+            rows = (len(screenshots) + 2) // 3
+            panel_height = sheet.height // rows
+            state_bbox = ImageDraw.Draw(sheet).textbbox(
+                (12, 374 + 4 * 18), "State fnv1a64:0000000000003002"
+            )
+            self.assertLess(state_bbox[3] + 10, panel_height + 1)
+            self.assertGreater(panel_height, 450)
+
+        expected_once = experiment.pressure_expected_frame_badges(
+            samples[0],
+            samples[1],
+            samples[1],
+            samples[1],
+            samples[1],
+            [samples[1], samples[2], samples[3]],
+            None,
+            samples[4],
+            samples[2],
+            samples[2],
+            samples[5],
+            samples[-2],
+            samples[-1],
+            [],
+            "post-opening-observation-complete",
+        )
+        expected_twice = copy.deepcopy(expected_once)
+        self.assertEqual(expected_once, expected_twice)
+
+        frames_path = run_dir / "work" / "frames.json"
+        mutated = copy.deepcopy(frames_doc)
+        mutated["frames"][-2], mutated["frames"][-1] = (
+            mutated["frames"][-1],
+            mutated["frames"][-2],
+        )
+        for ordinal, record in enumerate(mutated["frames"]):
+            record["ordinal"] = ordinal
+        frames_path.write_text(json.dumps(mutated), encoding="utf-8")
+        with self.assertRaisesRegex(experiment.ExperimentError, "reset frame must be last|deterministic"):
+            experiment.validate_telemetry(run_dir, manifest)
+
+    def test_pressure_opening_detector_and_review_verdict_are_tri_state(self) -> None:
+        diagnostics = [
+            {"relief_seam_open_cells": value, "sim_tick": tick}
+            for tick, value in ((2, 1), (8, 0), (16, 2), (24, 3), (32, 4))
+        ]
+        streak, starts, breaks = experiment.pressure_opening_streak(diagnostics)
+        self.assertEqual([item["sim_tick"] for item in streak or []], [16, 24, 32])
+        self.assertEqual([item["sim_tick"] for item in starts], [2, 16])
+        self.assertEqual([item["sim_tick"] for item in breaks], [8])
+        tick1_streak, _, _ = experiment.pressure_opening_streak(
+            [
+                {"relief_seam_open_cells": 1, "sim_tick": 1},
+                {"relief_seam_open_cells": 2, "sim_tick": 2},
+                {"relief_seam_open_cells": 3, "sim_tick": 8},
+            ]
+        )
+        self.assertEqual(
+            [item["sim_tick"] for item in tick1_streak or []], [1, 2, 8]
+        )
+        pass_statuses = {name: "pass" for name in experiment.PRESSURE_PREDICATE_NAMES}
+        flags = {
+            "only_one_relief_seam_ruptured": True,
+            "high_terminal_pressure_activity": False,
+            "long_pressure_tail": False,
+            "persistent_vent_plume": False,
+            "terminal_activity_remains": False,
+            "reasons": ["only_one_relief_seam_ruptured"],
+        }
+        self.assertEqual(
+            experiment.pressure_expected_verdict(pass_statuses, flags),
+            "NEEDS_HUMAN_REVIEW",
+        )
+        fail_statuses = {**pass_statuses, "exact_reset": "fail"}
+        self.assertEqual(
+            experiment.pressure_expected_verdict(fail_statuses, flags), "FAIL"
+        )
+        terminal_activity_flags = {
+            **flags,
+            "only_one_relief_seam_ruptured": False,
+            "terminal_activity_remains": True,
+            "reasons": ["terminal_activity_remains"],
+        }
+        self.assertEqual(
+            experiment.pressure_expected_verdict(
+                pass_statuses, terminal_activity_flags
+            ),
+            "NEEDS_HUMAN_REVIEW",
+        )
+
+    def test_pressure_causal_vent_reseal_and_max_runaway_are_raw_recomputed(
+        self,
+    ) -> None:
+        self.assertTrue(experiment.pressure_float_equal(1.0, 1.0 + 4.0e-10))
+        self.assertFalse(experiment.pressure_float_equal(1.0, 1.0 + 1.0e-9))
+
+        causal_run = self.create_valid_pressure_worker_fixture(
+            "g8b-pressure-burst-v0-causal-test"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            causal_run / "EXPERIMENT_MANIFEST.toml"
+        )
+        samples_path = causal_run / "telemetry" / "samples.jsonl"
+        samples = experiment.read_jsonl(samples_path, "Pressure test samples")
+        samples[2]["outside_chamber_steam_cells"] = 2
+        samples_path.write_text(
+            "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in samples),
+            encoding="utf-8",
+        )
+        analysis, _, _, _ = experiment.validate_telemetry(causal_run, manifest)
+        self.assertEqual(analysis["metrics"]["first_outside_chamber_steam_tick"], 9)
+        analysis_path = causal_run / "work" / "analysis.json"
+        hidden_reset_failure = json.loads(analysis_path.read_text(encoding="utf-8"))
+        hidden_reset_failure["metrics"]["reset_exact_equivalence"] = False
+        hidden_reset_failure["predicates"]["exact_reset"]["status"] = "fail"
+        hidden_reset_failure["verdict"] = "FAIL"
+        analysis_path.write_text(json.dumps(hidden_reset_failure), encoding="utf-8")
+        accepted_failure, _, _, _ = experiment.validate_telemetry(
+            causal_run, manifest
+        )
+        self.assertFalse(
+            accepted_failure["metrics"]["reset_exact_equivalence"]
+        )
+
+        reseal_run = self.create_valid_pressure_worker_fixture(
+            "g8b-pressure-burst-v0-reseal-test"
+        )
+        reseal_manifest = experiment.read_and_validate_manifest(
+            reseal_run / "EXPERIMENT_MANIFEST.toml"
+        )
+        reseal_path = reseal_run / "telemetry" / "samples.jsonl"
+        reseal_samples = experiment.read_jsonl(reseal_path, "Pressure reseal samples")
+        reseal = reseal_samples[6]
+        added_wood = 576 - reseal["relief_seam_wood_cells"]
+        reseal.update(
+            {
+                "relief_seam_wood_cells": 576,
+                "top_relief_seam_wood_cells": 384,
+                "bottom_relief_seam_wood_cells": 192,
+                "relief_seam_open_cells": 0,
+                "top_relief_seam_open_cells": 0,
+                "bottom_relief_seam_open_cells": 0,
+                "steam_in_relief_seam_cells": 0,
+                "matter_count": reseal["matter_count"] + added_wood,
+            }
+        )
+        reseal["material_counts_by_id"][0] -= added_wood
+        reseal["material_counts_by_id"][9] += added_wood
+        reseal_path.write_text(
+            "".join(
+                json.dumps(item, separators=(",", ":")) + "\n"
+                for item in reseal_samples
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(
+            experiment.ExperimentError, "first_post_confirmation_reseal"
+        ):
+            experiment.validate_telemetry(reseal_run, reseal_manifest)
+
+        trend = experiment.pressure_terminal_trend(
+            [
+                {
+                    "sim_tick": tick,
+                    "chamber_mean_pressure": 10.0,
+                    "chamber_max_pressure": float(10 + tick),
+                }
+                for tick in range(experiment.TERMINAL_WINDOW_SAMPLES)
+            ]
+        )
+        self.assertFalse(trend["mean_unbounded_growth"])
+        self.assertTrue(trend["max_unbounded_growth"])
+        self.assertTrue(trend["unbounded_growth"])
+        self.assertEqual(trend["positive_max_step_count"], 63)
+
+        reseal_frames = experiment.pressure_expected_frame_badges(
+            reseal_samples[0],
+            reseal_samples[1],
+            reseal_samples[1],
+            reseal_samples[1],
+            reseal_samples[1],
+            [reseal_samples[1], reseal_samples[2], reseal_samples[3]],
+            reseal_samples[6],
+            reseal_samples[4],
+            reseal_samples[2],
+            reseal_samples[2],
+            reseal_samples[5],
+            reseal_samples[-2],
+            reseal_samples[-1],
+            [],
+            "post-opening-observation-complete",
+        )
+        badge_kinds = {
+            badge["kind"]
+            for frame in reseal_frames
+            for badge in frame["badges"]
+        }
+        self.assertIn("opening-reseal", badge_kinds)
+        self.assertNotIn("post-opening", badge_kinds)
+
+    def test_pressure_audit_bundle_vnext_is_exact_hashed_and_create_new(self) -> None:
+        run_dir = self.create_pressure_sealed_delivery_fixture()
+        receipt_sha = experiment.sha256_file(run_dir / "EXPERIMENT_RECEIPT.json")
+        bundle, sidecar = experiment.create_pressure_audit_bundle_vnext(
+            run_dir, self.source, receipt_sha
+        )
+        self.assertTrue(bundle.is_file())
+        self.assertEqual(
+            sidecar.read_text(encoding="utf-8"),
+            f"{experiment.sha256_file(bundle)}  {bundle.name}\n",
+        )
+        with zipfile.ZipFile(bundle) as archive:
+            names = set(archive.namelist())
+            audit_manifest = json.loads(
+                archive.read("AUDIT_BUNDLE_MANIFEST.json").decode("utf-8")
+            )
+            audit_hashes = archive.read("AUDIT_BUNDLE_HASHES.sha256").decode("utf-8")
+            source_input_zip = archive.read("SOURCE_INPUT_BYTES.zip")
+            packet_bytes = archive.read("REVIEW_PACKET.zip")
+            self.assertIn("GIT_SOURCE_ARCHIVE.zip", names)
+            self.assertEqual(
+                names,
+                {entry["bundle_path"] for entry in audit_manifest["direct_members"]},
+            )
+            hash_entries = {}
+            for line in audit_hashes.splitlines():
+                digest, name = line.split("  ", 1)
+                hash_entries[name] = digest
+            self.assertEqual(set(hash_entries), names - {"AUDIT_BUNDLE_HASHES.sha256"})
+            for name, digest in hash_entries.items():
+                self.assertEqual(digest, hashlib.sha256(archive.read(name)).hexdigest())
+        self.assertEqual(
+            audit_manifest["verification_scopes"]["HASHES.sha256"],
+            "run-directory files before the final receipt, excluding only HASHES and receipt",
+        )
+        self.assertEqual(
+            audit_manifest["verification_scopes"]["AUDIT_BUNDLE_HASHES.sha256"],
+            "every other direct Audit Bundle member, excluding only this bundle-local hash inventory itself",
+        )
+        self.assertEqual(
+            audit_manifest["nested_review_packet_inventory"],
+            experiment.zip_bytes_inventory(packet_bytes, "REVIEW_PACKET.zip"),
+        )
+        mappings = {
+            (entry["original"], entry["bundle_path"])
+            for entry in audit_manifest["original_to_bundle_mapping"]
+        }
+        for entry in audit_manifest["nested_review_packet_inventory"]:
+            self.assertIn(
+                (
+                    entry["path"],
+                    f"REVIEW_PACKET.zip!{entry['path']}",
+                ),
+                mappings,
+            )
+        self.assertIn(
+            ("EXPERIMENT_MANIFEST.toml", "EXPERIMENT_MANIFEST.toml"), mappings
+        )
+        self.assertIn(
+            (
+                "EXPERIMENT_MANIFEST.toml",
+                "REVIEW_PACKET.zip!EXPERIMENT_MANIFEST.toml",
+            ),
+            mappings,
+        )
+        self.assertEqual(
+            [entry["path"] for entry in audit_manifest["omitted_work"]],
+            ["work/analysis.json", "work/frames.json", "work/frames/**"],
+        )
+        source_manifest = json.loads(
+            (run_dir / experiment.SOURCE_INPUT_MANIFEST_NAME).read_text(encoding="utf-8")
+        )
+        with zipfile.ZipFile(io.BytesIO(source_input_zip)) as source_archive:
+            for entry in source_manifest["files"]:
+                self.assertEqual(
+                    source_archive.read(f"repository/{entry['path']}"),
+                    (self.source / entry["path"]).read_bytes(),
+                )
+            for entry in source_manifest["external_files"]:
+                self.assertEqual(
+                    source_archive.read(
+                        f"external/{entry['label']}/{Path(entry['path']).name}"
+                    ),
+                    Path(entry["path"]).read_bytes(),
+                )
+        with self.assertRaisesRegex(experiment.ExperimentError, "overwrite"):
+            experiment.create_pressure_audit_bundle_vnext(
+                run_dir, self.source, receipt_sha
+            )
+
+    def test_pressure_audit_bundle_rejects_tamper_and_git_archive_failure(self) -> None:
+        run_dir = self.create_pressure_sealed_delivery_fixture(
+            "g8b-pressure-burst-v0-tamper"
+        )
+        receipt_sha = experiment.sha256_file(run_dir / "EXPERIMENT_RECEIPT.json")
+        packet = run_dir / "report" / "REVIEW_PACKET.zip"
+        packet.write_bytes(packet.read_bytes() + b"tamper")
+        with self.assertRaises(experiment.ExperimentError):
+            experiment.create_pressure_audit_bundle_vnext(
+                run_dir, self.source, receipt_sha
+            )
+        bundle = run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}"
+        sidecar = run_dir.parent / (
+            f"{run_dir.name}{experiment.AUDIT_BUNDLE_SHA256_SUFFIX}"
+        )
+        self.assertFalse(bundle.exists())
+        self.assertFalse(sidecar.exists())
+
+        # Restore the exact packet bytes, then prove a Git archive failure is fatal.
+        packet.write_bytes(packet.read_bytes()[:-6])
+        with mock.patch.object(
+            experiment,
+            "git_archive_zip_bytes",
+            side_effect=experiment.ExperimentError("fixture git archive failure"),
+        ):
+            with self.assertRaisesRegex(experiment.ExperimentError, "git archive failure"):
+                experiment.create_pressure_audit_bundle_vnext(
+                    run_dir, self.source, receipt_sha
+                )
+        self.assertFalse(bundle.exists())
+        self.assertFalse(sidecar.exists())
+
+    def test_pressure_scratch_run_has_no_audit_bundle_vnext(self) -> None:
+        run_dir = self.create_pressure_sealed_delivery_fixture(
+            "g8b-pressure-burst-v0-scratch-bundle-test", mode="scratch"
+        )
+        receipt_sha = experiment.sha256_file(run_dir / "EXPERIMENT_RECEIPT.json")
+        with self.assertRaisesRegex(experiment.ExperimentError, "candidate-only"):
+            experiment.create_pressure_audit_bundle_vnext(
+                run_dir, self.source, receipt_sha
+            )
+        self.assertFalse(
+            (run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}").exists()
+        )
+        self.assertFalse(
+            (
+                run_dir.parent
+                / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SHA256_SUFFIX}"
+            ).exists()
+        )
 
     def test_invalid_worker_output_leaves_no_receipt(self) -> None:
         run_dir = self.create_valid_worker_fixture()

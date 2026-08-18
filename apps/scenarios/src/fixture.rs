@@ -1307,6 +1307,185 @@ mod tests {
         assert_cell(96, 120, MATERIAL_WATER, -20.0, 0);
     }
 
+    /// Pins the authored 256x256 Pressure Burst image independently of the
+    /// fixture builder helpers. The chamber shell has exactly two breakable
+    /// cavity-to-exterior paths: the full-thickness top and bottom Wood plugs.
+    #[test]
+    fn pressure_burst_256_pins_authored_chamber_fields_and_only_vent_paths() {
+        let config = WorldConfig::new(256, 256, 64).unwrap();
+        let fixture = ScenarioFixture::build(ScenarioId::PressureBurst, config).unwrap();
+        let width = config.width as usize;
+        let cell_count = config.cell_count().unwrap() as usize;
+
+        let mut expected_materials = initial_material_ids(&config).unwrap();
+        {
+            let mut paint = |x_range: Range<usize>, y_range: Range<usize>, material: u32| {
+                for y in y_range {
+                    for x in x_range.clone() {
+                        expected_materials[y * width + x] = material;
+                    }
+                }
+            };
+            paint(32..224, 38..224, MATERIAL_STONE);
+            paint(40..216, 46..216, MATERIAL_WATER);
+            paint(52..204, 58..132, MATERIAL_STEAM);
+            paint(104..152, 38..46, MATERIAL_WOOD);
+            paint(116..140, 216..224, MATERIAL_WOOD);
+            paint(24..32, 116..148, MATERIAL_STONE);
+            paint(224..232, 116..148, MATERIAL_STONE);
+        }
+
+        let mut expected_temperatures = vec![TEMPERATURE_REFERENCE; cell_count];
+        {
+            let mut paint = |x_range: Range<usize>, y_range: Range<usize>, temperature: f32| {
+                for y in y_range {
+                    for x in x_range.clone() {
+                        expected_temperatures[y * width + x] = temperature;
+                    }
+                }
+            };
+            paint(40..216, 46..216, 110.0);
+            paint(104..152, 38..46, 95.0);
+        }
+
+        let mut expected_pressures = vec![PRESSURE_REFERENCE; cell_count];
+        {
+            let mut paint = |x_range: Range<usize>, y_range: Range<usize>, pressure: f32| {
+                for y in y_range {
+                    for x in x_range.clone() {
+                        expected_pressures[y * width + x] = pressure;
+                    }
+                }
+            };
+            paint(40..216, 46..216, 180.0);
+            paint(112..144, 80..190, 20.0);
+        }
+
+        assert_eq!(fixture.materials(), expected_materials.as_slice());
+        assert_eq!(
+            fixture
+                .temperatures()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected_temperatures
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            fixture
+                .pressures()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected_pressures
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>()
+        );
+        assert!(fixture.flags().iter().all(|value| *value == 0));
+        assert_eq!(fixture.chunk_edit_wake(), &[0u32; 16]);
+
+        let count_material = |material| {
+            fixture
+                .materials()
+                .iter()
+                .filter(|&&value| value == material)
+                .count()
+        };
+        assert_eq!(count_material(MATERIAL_EMPTY), 28_292);
+        assert_eq!(count_material(MATERIAL_BOUNDARY_BLOCK), 1_020);
+        assert_eq!(count_material(MATERIAL_STONE), 5_728);
+        assert_eq!(count_material(MATERIAL_WATER), 18_672);
+        assert_eq!(count_material(MATERIAL_STEAM), 11_248);
+        assert_eq!(count_material(MATERIAL_WOOD), 576);
+        assert_eq!(
+            fixture
+                .materials()
+                .iter()
+                .filter(|&&material| material != MATERIAL_EMPTY)
+                .count(),
+            37_244
+        );
+
+        let count_temperature = |temperature: f32| {
+            fixture
+                .temperatures()
+                .iter()
+                .filter(|value| value.to_bits() == temperature.to_bits())
+                .count()
+        };
+        assert_eq!(count_temperature(TEMPERATURE_REFERENCE), 35_232);
+        assert_eq!(count_temperature(95.0), 384);
+        assert_eq!(count_temperature(110.0), 29_920);
+
+        let count_pressure = |pressure: f32| {
+            fixture
+                .pressures()
+                .iter()
+                .filter(|value| value.to_bits() == pressure.to_bits())
+                .count()
+        };
+        assert_eq!(count_pressure(PRESSURE_REFERENCE), 35_616);
+        assert_eq!(count_pressure(20.0), 3_520);
+        assert_eq!(count_pressure(180.0), 26_400);
+
+        // The authored cavity is completely occupied at tick 0. This makes
+        // blocked phase expansion and the preloaded pressure field observable
+        // without adding a scripted opening.
+        for y in 46..216 {
+            for x in 40..216 {
+                assert_ne!(
+                    fixture.materials()[cell(&fixture, x, y)],
+                    MATERIAL_EMPTY,
+                    "EMPTY cavity cell at ({x},{y})"
+                );
+            }
+        }
+
+        let mut top_wood = 0usize;
+        let mut bottom_wood = 0usize;
+        for y in 38..224 {
+            for x in 32..224 {
+                let is_shell = !(40..216).contains(&x) || !(46..216).contains(&y);
+                if !is_shell {
+                    continue;
+                }
+                let material = fixture.materials()[cell(&fixture, x, y)];
+                let is_top_plug = (104..152).contains(&x) && (38..46).contains(&y);
+                let is_bottom_plug = (116..140).contains(&x) && (216..224).contains(&y);
+                if is_top_plug {
+                    assert_eq!(material, MATERIAL_WOOD, "top plug at ({x},{y})");
+                    top_wood += 1;
+                } else if is_bottom_plug {
+                    assert_eq!(material, MATERIAL_WOOD, "bottom plug at ({x},{y})");
+                    bottom_wood += 1;
+                } else {
+                    assert_eq!(material, MATERIAL_STONE, "sealed shell at ({x},{y})");
+                }
+            }
+        }
+        assert_eq!(top_wood, 384);
+        assert_eq!(bottom_wood, 192);
+
+        // Both authored plugs span the complete eight-cell shell and have a
+        // pressurized Water face inside plus EMPTY immediately outside. No
+        // other shell cell is breakable in this fixture.
+        for x in 104..152 {
+            assert_eq!(fixture.materials()[cell(&fixture, x, 45)], MATERIAL_WOOD);
+            assert_eq!(fixture.materials()[cell(&fixture, x, 46)], MATERIAL_WATER);
+            assert_eq!(fixture.pressures()[cell(&fixture, x, 46)], 180.0);
+            assert_eq!(fixture.materials()[cell(&fixture, x, 37)], MATERIAL_EMPTY);
+        }
+        for x in 116..140 {
+            assert_eq!(fixture.materials()[cell(&fixture, x, 216)], MATERIAL_WOOD);
+            assert_eq!(fixture.materials()[cell(&fixture, x, 215)], MATERIAL_WATER);
+            assert_eq!(fixture.pressures()[cell(&fixture, x, 215)], 180.0);
+            assert_eq!(fixture.materials()[cell(&fixture, x, 224)], MATERIAL_EMPTY);
+        }
+    }
+
     #[test]
     fn scenario_payloads_exercise_their_named_subsystems() {
         let config = WorldConfig::new(256, 256, 64).unwrap();

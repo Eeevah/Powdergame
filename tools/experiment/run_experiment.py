@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import secrets
@@ -33,6 +34,9 @@ FROZEN_BINARY_RELATIVE_PATH = PurePosixPath(
 )
 AUDIT_BUNDLE_SUFFIX = ".AUDIT_BUNDLE.zip"
 AUDIT_BUNDLE_SHA256_SUFFIX = ".AUDIT_BUNDLE_SHA256.txt"
+PRESSURE_AUDIT_BUNDLE_MANIFEST_SCHEMA = (
+    "powdergame-pressure-burst-audit-bundle-manifest-v1"
+)
 SOURCE_INPUT_EXACT_PATHS = frozenset(
     {
         "run_experiment.bat",
@@ -62,6 +66,13 @@ FIRE_TELEMETRY_SCHEMA = "powdergame-fire-heat-telemetry-v0"
 FIRE_REPORT_SCHEMA = "powdergame-fire-heat-report-v0"
 FIRE_RECEIPT_SCHEMA = "powdergame-fire-heat-receipt-v0"
 
+PRESSURE_MANIFEST_SCHEMA = "powdergame-pressure-burst-manifest-v0"
+PRESSURE_ANALYSIS_SCHEMA = "powdergame-pressure-burst-analysis-v0"
+PRESSURE_FRAMES_SCHEMA = "powdergame-pressure-burst-frames-v0"
+PRESSURE_TELEMETRY_SCHEMA = "powdergame-pressure-burst-telemetry-v0"
+PRESSURE_REPORT_SCHEMA = "powdergame-pressure-burst-report-v0"
+PRESSURE_RECEIPT_SCHEMA = "powdergame-pressure-burst-receipt-v0"
+
 WORLD_WIDTH = 256
 WORLD_HEIGHT = 256
 CHUNK_SIZE = 64
@@ -72,6 +83,9 @@ CONSECUTIVE_STABLE_PLATEAU = 8
 POST_SLEEP_TICKS = 180
 CONSECUTIVE_REACTION_ZERO = 3
 POST_REACTION_TICKS = 180
+CONSECUTIVE_PERSISTENT_OPENING = 3
+POST_OPENING_TICKS = 180
+TERMINAL_WINDOW_SAMPLES = 64
 
 RENDERER_WIDTH = 1_600
 RENDERER_HEIGHT = 900
@@ -114,6 +128,18 @@ FIRE_PREDICATE_NAMES = frozenset({
     "post_reaction_no_restart",
     "thermal_tail_observed",
     "thermal_tail_decreased",
+    "no_invalid_materials",
+    "no_nonfinite_fields",
+    "exact_reset",
+})
+PRESSURE_ALLOWED_VERDICTS = frozenset({"PASS", "FAIL", "NEEDS_HUMAN_REVIEW"})
+PRESSURE_PREDICATE_NAMES = frozenset({
+    "pressure_activity_observed",
+    "relief_seam_damaged",
+    "persistent_opening_created",
+    "exterior_vent_observed",
+    "post_opening_pressure_relieved",
+    "terminal_pressure_not_runaway",
     "no_invalid_materials",
     "no_nonfinite_fields",
     "exact_reset",
@@ -196,6 +222,66 @@ FIRE_FRAME_KINDS = frozenset(
         "terminal",
         "reset",
         "diagnostic-observation",
+    }
+)
+PRESSURE_FRAME_BADGE_KINDS = (
+    "tick0",
+    "tick1",
+    "first-pressure-activity",
+    "first-wood-damage",
+    "first-rupture",
+    "persistent-opening",
+    "opening-reseal",
+    "first-exterior-steam",
+    "peak-pressure",
+    "peak-pressure-activity",
+    "post-opening",
+    "terminal",
+    "diagnostic-observation",
+    "reset",
+)
+PRESSURE_FRAME_BADGE_RANK = {
+    kind: rank for rank, kind in enumerate(PRESSURE_FRAME_BADGE_KINDS)
+}
+PRESSURE_PHASE_REASONS = {
+    "initial": frozenset({"tick0"}),
+    "pressurizing": frozenset(
+        {"tick1", "early-diagnostic", "diagnostic-cadence", "max-tick"}
+    ),
+    "post-opening-observation": frozenset(
+        {"post-opening-tick", "post-opening-observation-complete", "max-tick"}
+    ),
+    "reset": frozenset({"programmatic-r-equivalent"}),
+}
+PRESSURE_ALWAYS_EVENTS = frozenset(
+    {
+        "lifecycle_started",
+        "pristine_reset_completed",
+        "tick0_captured",
+        "tick1_captured",
+        "terminal_selected",
+        "reset_started",
+        "reset_comparison_completed",
+        "worker_completed",
+    }
+)
+PRESSURE_OPTIONAL_EVENTS = frozenset(
+    {
+        "pressure_activity_observed",
+        "relief_seam_damage_observed",
+        "rupture_observed",
+        "persistent_opening_streak_started",
+        "persistent_opening_streak_broken",
+        "persistent_opening_confirmed",
+        "relief_seam_steam_observed",
+        "exterior_vent_observed",
+        "new_peak_chamber_mean_pressure",
+        "new_peak_chamber_max_pressure",
+        "new_peak_pressure_activity",
+        "post_confirmation_reseal_observed",
+        "post_opening_observation_started",
+        "post_opening_pressure_relief_observed",
+        "post_opening_observation_completed",
     }
 )
 PREDICATE_STATUSES = {"pass", "fail", "unknown"}
@@ -307,10 +393,26 @@ FIRE_CONTRACT = ScenarioContract(
     title="Fire / Heat",
     records_run_mode=True,
 )
+PRESSURE_CONTRACT = ScenarioContract(
+    scenario="pressure-burst",
+    experiment_id="g8b-pressure-burst-v0",
+    manifest_schema=PRESSURE_MANIFEST_SCHEMA,
+    telemetry_schema=PRESSURE_TELEMETRY_SCHEMA,
+    analysis_schema=PRESSURE_ANALYSIS_SCHEMA,
+    frames_schema=PRESSURE_FRAMES_SCHEMA,
+    report_schema=PRESSURE_REPORT_SCHEMA,
+    receipt_schema=PRESSURE_RECEIPT_SCHEMA,
+    predicate_names=PRESSURE_PREDICATE_NAMES,
+    allowed_verdicts=PRESSURE_ALLOWED_VERDICTS,
+    needs_human_verdict="NEEDS_HUMAN_REVIEW",
+    title="Pressure Burst",
+    records_run_mode=True,
+)
 SCENARIO_CONTRACTS = {
     SAND_CONTRACT.scenario: SAND_CONTRACT,
     WATER_CONTRACT.scenario: WATER_CONTRACT,
     FIRE_CONTRACT.scenario: FIRE_CONTRACT,
+    PRESSURE_CONTRACT.scenario: PRESSURE_CONTRACT,
 }
 RUN_MODES = frozenset({"candidate", "scratch"})
 WATER_FINDING_CLASSIFICATIONS = (
@@ -409,6 +511,14 @@ class ManifestData:
                 "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
                 "consecutive_reaction_zero": CONSECUTIVE_REACTION_ZERO,
                 "post_reaction_ticks": POST_REACTION_TICKS,
+            }
+        elif self.contract is PRESSURE_CONTRACT:
+            experiment = {
+                "max_ticks": MAX_TICKS,
+                "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+                "consecutive_persistent_opening": CONSECUTIVE_PERSISTENT_OPENING,
+                "post_opening_ticks": POST_OPENING_TICKS,
+                "terminal_window_samples": TERMINAL_WINDOW_SAMPLES,
             }
         else:
             experiment = {
@@ -886,6 +996,14 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
             "consecutive_reaction_zero",
             "post_reaction_ticks",
         }
+    elif contract is PRESSURE_CONTRACT:
+        expected_sections["experiment"] = {
+            "max_ticks",
+            "diagnostic_interval_ticks",
+            "consecutive_persistent_opening",
+            "post_opening_ticks",
+            "terminal_window_samples",
+        }
     if contract is WATER_CONTRACT:
         expected_sections["experiment"].add("stable_plateau_consecutive_samples")
     for section, expected in expected_sections.items():
@@ -916,21 +1034,28 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
         "chunk_size": CHUNK_SIZE,
     }:
         raise ExperimentError("manifest world must be exactly 256x256 with chunk size 64")
-    expected_experiment = (
-        {
+    if contract is FIRE_CONTRACT:
+        expected_experiment = {
             "max_ticks": MAX_TICKS,
             "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
             "consecutive_reaction_zero": CONSECUTIVE_REACTION_ZERO,
             "post_reaction_ticks": POST_REACTION_TICKS,
         }
-        if contract is FIRE_CONTRACT
-        else {
+    elif contract is PRESSURE_CONTRACT:
+        expected_experiment = {
+            "max_ticks": MAX_TICKS,
+            "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+            "consecutive_persistent_opening": CONSECUTIVE_PERSISTENT_OPENING,
+            "post_opening_ticks": POST_OPENING_TICKS,
+            "terminal_window_samples": TERMINAL_WINDOW_SAMPLES,
+        }
+    else:
+        expected_experiment = {
             "max_ticks": MAX_TICKS,
             "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
             "consecutive_all_sleep": CONSECUTIVE_ALL_SLEEP,
             "post_sleep_ticks": POST_SLEEP_TICKS,
         }
-    )
     if contract is WATER_CONTRACT:
         expected_experiment["stable_plateau_consecutive_samples"] = (
             CONSECUTIVE_STABLE_PLATEAU
@@ -968,10 +1093,10 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
     validate_external_artifact_root(source_root, artifact_root)
     legacy_binary = source_root / "target" / "release" / "powdergame-windows.exe"
     frozen_binary = run_dir.joinpath(*FROZEN_BINARY_RELATIVE_PATH.parts)
-    if contract is FIRE_CONTRACT:
+    if contract in {FIRE_CONTRACT, PRESSURE_CONTRACT}:
         if binary_path.resolve() != frozen_binary.resolve():
             raise ExperimentError(
-                "Fire manifest binary path must be the run-local frozen executable"
+                f"{contract.title} manifest binary path must be the run-local frozen executable"
             )
     elif binary_path.resolve() not in {legacy_binary.resolve(), frozen_binary.resolve()}:
         raise ExperimentError(
@@ -1052,6 +1177,15 @@ def require_nonnegative_int(value: Any, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ExperimentError(f"{label} must be a non-negative integer")
     return value
+
+
+def require_finite_number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ExperimentError(f"{label} must be a finite number")
+    converted = float(value)
+    if not math.isfinite(converted):
+        raise ExperimentError(f"{label} must be a finite number")
+    return converted
 
 
 def validate_sand_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
@@ -1228,6 +1362,12 @@ def require_optional_nonnegative_int(value: Any, label: str) -> int | None:
     if value is None:
         return None
     return require_nonnegative_int(value, label)
+
+
+def require_optional_finite_number(value: Any, label: str) -> float | None:
+    if value is None:
+        return None
+    return require_finite_number(value, label)
 
 
 def require_optional_identity_pair(
@@ -1721,6 +1861,356 @@ def validate_fire_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -
         raise ExperimentError("Fire analysis raw_frame_count must be between 8 and 12")
 
 
+def validate_pressure_analysis(
+    analysis: dict[str, Any], manifest: dict[str, Any]
+) -> None:
+    require_exact_keys(
+        analysis,
+        {
+            "schema_version",
+            "experiment_id",
+            "run_id",
+            "scenario",
+            "binary_sha256",
+            "provenance",
+            "world",
+            "sleep",
+            "lifecycle",
+            "baseline",
+            "metrics",
+            "terminal_window",
+            "review_flags",
+            "predicates",
+            "verdict",
+            "raw_frame_count",
+        },
+        "Pressure analysis",
+    )
+    expected_identity = {
+        "schema_version": PRESSURE_CONTRACT.analysis_schema,
+        "experiment_id": manifest["experiment_id"],
+        "run_id": manifest["run_id"],
+        "scenario": PRESSURE_CONTRACT.scenario,
+        "binary_sha256": manifest["binary"]["sha256"],
+    }
+    for key, expected in expected_identity.items():
+        if analysis[key] != expected:
+            raise ExperimentError(f"Pressure analysis {key} mismatch")
+    if analysis["provenance"] != {
+        "source_sha": manifest["source"]["sha"],
+        "git_state": "clean",
+        "build_profile": "release",
+    }:
+        raise ExperimentError("Pressure analysis provenance mismatch")
+    if analysis["world"] != manifest["world"]:
+        raise ExperimentError("Pressure analysis world mismatch")
+    sleep = analysis["sleep"]
+    if not isinstance(sleep, dict):
+        raise ExperimentError("Pressure analysis sleep must be an object")
+    require_exact_keys(sleep, {"enabled", "threshold"}, "Pressure analysis sleep")
+    if not isinstance(sleep["enabled"], bool):
+        raise ExperimentError("Pressure analysis sleep enabled must be boolean")
+    require_nonnegative_int(sleep["threshold"], "Pressure analysis sleep threshold")
+
+    lifecycle = analysis["lifecycle"]
+    lifecycle_keys = {
+        "max_ticks",
+        "diagnostic_interval_ticks",
+        "consecutive_persistent_opening_samples",
+        "post_opening_ticks",
+        "terminal_window_samples",
+        "terminal_reason",
+        "persistent_opening_start_sim_tick",
+        "persistent_opening_start_sample_sequence",
+        "persistent_opening_confirmed_sim_tick",
+        "persistent_opening_confirmed_sample_sequence",
+        "post_opening_end_tick",
+        "sample_count",
+    }
+    if not isinstance(lifecycle, dict):
+        raise ExperimentError("Pressure analysis lifecycle must be an object")
+    require_exact_keys(lifecycle, lifecycle_keys, "Pressure analysis lifecycle")
+    for key, expected in {
+        "max_ticks": MAX_TICKS,
+        "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+        "consecutive_persistent_opening_samples": CONSECUTIVE_PERSISTENT_OPENING,
+        "post_opening_ticks": POST_OPENING_TICKS,
+        "terminal_window_samples": TERMINAL_WINDOW_SAMPLES,
+    }.items():
+        if lifecycle[key] != expected:
+            raise ExperimentError(f"Pressure analysis lifecycle {key} mismatch")
+    if lifecycle["terminal_reason"] not in {
+        "post-opening-observation-complete",
+        "max-ticks",
+    }:
+        raise ExperimentError("Pressure analysis terminal_reason is invalid")
+    require_optional_identity_pair(
+        lifecycle["persistent_opening_start_sim_tick"],
+        lifecycle["persistent_opening_start_sample_sequence"],
+        "Pressure analysis persistent opening start",
+    )
+    require_optional_identity_pair(
+        lifecycle["persistent_opening_confirmed_sim_tick"],
+        lifecycle["persistent_opening_confirmed_sample_sequence"],
+        "Pressure analysis persistent opening confirmation",
+    )
+    require_optional_nonnegative_int(
+        lifecycle["post_opening_end_tick"], "Pressure analysis post_opening_end_tick"
+    )
+    require_nonnegative_int(lifecycle["sample_count"], "Pressure analysis sample_count")
+
+    baseline = analysis["baseline"]
+    baseline_keys = {
+        "initial_matter_count",
+        "initial_water_count",
+        "initial_steam_count",
+        "initial_relief_seam_wood_cells",
+        "initial_top_relief_seam_wood_cells",
+        "initial_bottom_relief_seam_wood_cells",
+        "initial_chamber_pressure_cell_count",
+        "initial_chamber_mean_pressure",
+        "initial_chamber_max_pressure",
+    }
+    if not isinstance(baseline, dict):
+        raise ExperimentError("Pressure analysis baseline must be an object")
+    require_exact_keys(baseline, baseline_keys, "Pressure analysis baseline")
+    for key in baseline_keys - {
+        "initial_chamber_mean_pressure",
+        "initial_chamber_max_pressure",
+    }:
+        require_nonnegative_int(baseline[key], f"Pressure analysis baseline {key}")
+    for key in ("initial_chamber_mean_pressure", "initial_chamber_max_pressure"):
+        require_finite_number(baseline[key], f"Pressure analysis baseline {key}")
+
+    metrics = analysis["metrics"]
+    metrics_keys = {
+        "first_pressure_activity_tick",
+        "first_pressure_activity_sample_sequence",
+        "first_wood_damage_tick",
+        "first_wood_damage_sample_sequence",
+        "first_rupture_tick",
+        "first_rupture_sample_sequence",
+        "first_persistent_opening_tick",
+        "first_persistent_opening_sample_sequence",
+        "persistent_opening_confirmed_tick",
+        "persistent_opening_confirmed_sample_sequence",
+        "first_outside_chamber_steam_tick",
+        "first_outside_chamber_steam_sample_sequence",
+        "first_steam_in_relief_seam_tick",
+        "first_steam_in_relief_seam_sample_sequence",
+        "first_post_confirmation_reseal_tick",
+        "first_post_confirmation_reseal_sample_sequence",
+        "first_post_opening_relief_tick",
+        "first_post_opening_relief_sample_sequence",
+        "peak_chamber_mean_pressure",
+        "peak_chamber_mean_pressure_tick",
+        "peak_chamber_mean_pressure_sample_sequence",
+        "peak_chamber_max_pressure",
+        "peak_chamber_max_pressure_tick",
+        "peak_chamber_max_pressure_sample_sequence",
+        "peak_pressure_active_cells",
+        "peak_pressure_active_tick",
+        "peak_pressure_active_sample_sequence",
+        "pre_opening_peak_chamber_mean_pressure",
+        "pre_opening_peak_chamber_max_pressure",
+        "vent_reference_chamber_mean_pressure",
+        "vent_reference_chamber_max_pressure",
+        "post_opening_chamber_mean_pressure",
+        "post_opening_chamber_max_pressure",
+        "terminal_chamber_mean_pressure",
+        "terminal_chamber_max_pressure",
+        "terminal_pressure_relieved",
+        "final_relief_seam_wood_cells",
+        "final_top_relief_seam_wood_cells",
+        "final_bottom_relief_seam_wood_cells",
+        "final_relief_seam_open_cells",
+        "final_top_relief_seam_open_cells",
+        "final_bottom_relief_seam_open_cells",
+        "final_steam_in_relief_seam_cells",
+        "outside_chamber_steam_peak",
+        "final_outside_chamber_steam_cells",
+        "final_matter_count",
+        "matter_count_delta",
+        "final_water_count",
+        "water_count_delta",
+        "final_steam_count",
+        "steam_count_delta",
+        "final_pressure_active_cells",
+        "final_thermal_active_cells",
+        "final_reaction_active_cells",
+        "invalid_material_occurrences",
+        "nonfinite_field_occurrences",
+        "reset_exact_equivalence",
+    }
+    if not isinstance(metrics, dict):
+        raise ExperimentError("Pressure analysis metrics must be an object")
+    require_exact_keys(metrics, metrics_keys, "Pressure analysis metrics")
+    for prefix in (
+        "first_pressure_activity",
+        "first_wood_damage",
+        "first_rupture",
+        "first_persistent_opening",
+        "persistent_opening_confirmed",
+        "first_outside_chamber_steam",
+        "first_steam_in_relief_seam",
+        "first_post_confirmation_reseal",
+        "first_post_opening_relief",
+    ):
+        require_optional_identity_pair(
+            metrics[f"{prefix}_tick"],
+            metrics[f"{prefix}_sample_sequence"],
+            f"Pressure analysis metrics {prefix}",
+        )
+    for prefix in (
+        "peak_chamber_mean_pressure",
+        "peak_chamber_max_pressure",
+        "peak_pressure_active",
+    ):
+        require_nonnegative_int(metrics[f"{prefix}_tick"], f"Pressure {prefix} tick")
+        require_nonnegative_int(
+            metrics[f"{prefix}_sample_sequence"], f"Pressure {prefix} sample"
+        )
+    for key in (
+        "peak_chamber_mean_pressure",
+        "peak_chamber_max_pressure",
+        "pre_opening_peak_chamber_mean_pressure",
+        "pre_opening_peak_chamber_max_pressure",
+    ):
+        require_finite_number(metrics[key], f"Pressure analysis metrics {key}")
+    for key in (
+        "vent_reference_chamber_mean_pressure",
+        "vent_reference_chamber_max_pressure",
+        "post_opening_chamber_mean_pressure",
+        "post_opening_chamber_max_pressure",
+        "terminal_chamber_mean_pressure",
+        "terminal_chamber_max_pressure",
+    ):
+        require_optional_finite_number(metrics[key], f"Pressure analysis metrics {key}")
+    integer_metrics = metrics_keys - {
+        *{
+            f"{prefix}_{suffix}"
+            for prefix in (
+                "first_pressure_activity",
+                "first_wood_damage",
+                "first_rupture",
+                "first_persistent_opening",
+                "persistent_opening_confirmed",
+                "first_outside_chamber_steam",
+                "first_steam_in_relief_seam",
+                "first_post_confirmation_reseal",
+                "first_post_opening_relief",
+            )
+            for suffix in ("tick", "sample_sequence")
+        },
+        "peak_chamber_mean_pressure",
+        "peak_chamber_max_pressure",
+        "pre_opening_peak_chamber_mean_pressure",
+        "pre_opening_peak_chamber_max_pressure",
+        "vent_reference_chamber_mean_pressure",
+        "vent_reference_chamber_max_pressure",
+        "post_opening_chamber_mean_pressure",
+        "post_opening_chamber_max_pressure",
+        "terminal_chamber_mean_pressure",
+        "terminal_chamber_max_pressure",
+        "terminal_pressure_relieved",
+        "reset_exact_equivalence",
+        "matter_count_delta",
+        "water_count_delta",
+        "steam_count_delta",
+    }
+    for key in integer_metrics:
+        require_nonnegative_int(metrics[key], f"Pressure analysis metrics {key}")
+    for key in ("matter_count_delta", "water_count_delta", "steam_count_delta"):
+        if isinstance(metrics[key], bool) or not isinstance(metrics[key], int):
+            raise ExperimentError(f"Pressure analysis metrics {key} must be an integer")
+    for key in ("terminal_pressure_relieved", "reset_exact_equivalence"):
+        if not isinstance(metrics[key], bool):
+            raise ExperimentError(f"Pressure analysis metrics {key} must be boolean")
+
+    window = analysis["terminal_window"]
+    window_keys = {
+        "sample_count",
+        "start_sim_tick",
+        "end_sim_tick",
+        "start_mean_pressure",
+        "end_mean_pressure",
+        "start_max_pressure",
+        "end_max_pressure",
+        "minimum_mean_pressure",
+        "maximum_mean_pressure",
+        "slope_per_sample",
+        "positive_step_count",
+        "positive_max_step_count",
+        "mean_unbounded_growth",
+        "max_unbounded_growth",
+        "unbounded_growth",
+    }
+    if not isinstance(window, dict):
+        raise ExperimentError("Pressure analysis terminal_window must be an object")
+    require_exact_keys(window, window_keys, "Pressure analysis terminal_window")
+    require_nonnegative_int(window["sample_count"], "Pressure terminal window sample_count")
+    require_nonnegative_int(
+        window["positive_step_count"], "Pressure terminal window positive_step_count"
+    )
+    require_nonnegative_int(
+        window["positive_max_step_count"],
+        "Pressure terminal window positive_max_step_count",
+    )
+    for key in ("start_sim_tick", "end_sim_tick"):
+        require_optional_nonnegative_int(window[key], f"Pressure terminal window {key}")
+    for key in (
+        "start_mean_pressure",
+        "end_mean_pressure",
+        "start_max_pressure",
+        "end_max_pressure",
+        "minimum_mean_pressure",
+        "maximum_mean_pressure",
+        "slope_per_sample",
+    ):
+        require_optional_finite_number(window[key], f"Pressure terminal window {key}")
+    for key in ("mean_unbounded_growth", "max_unbounded_growth", "unbounded_growth"):
+        if not isinstance(window[key], bool):
+            raise ExperimentError(f"Pressure terminal window {key} must be boolean")
+
+    flags = analysis["review_flags"]
+    flag_names = (
+        "only_one_relief_seam_ruptured",
+        "high_terminal_pressure_activity",
+        "long_pressure_tail",
+        "persistent_vent_plume",
+        "terminal_activity_remains",
+    )
+    if not isinstance(flags, dict):
+        raise ExperimentError("Pressure analysis review_flags must be an object")
+    require_exact_keys(flags, set(flag_names) | {"reasons"}, "Pressure review_flags")
+    for name in flag_names:
+        if not isinstance(flags[name], bool):
+            raise ExperimentError(f"Pressure review flag {name} must be boolean")
+    if not isinstance(flags["reasons"], list) or not all(
+        isinstance(reason, str) for reason in flags["reasons"]
+    ):
+        raise ExperimentError("Pressure review_flags reasons must be a string array")
+
+    predicates = analysis["predicates"]
+    if not isinstance(predicates, dict) or set(predicates) != PRESSURE_PREDICATE_NAMES:
+        raise ExperimentError("Pressure analysis predicates must contain the exact nine checks")
+    for name, predicate in predicates.items():
+        if not isinstance(predicate, dict):
+            raise ExperimentError(f"Pressure analysis predicate {name} must be an object")
+        require_exact_keys(predicate, {"status", "detail"}, f"Pressure predicate {name}")
+        if predicate["status"] not in PREDICATE_STATUSES:
+            raise ExperimentError(f"Pressure analysis predicate {name} status is invalid")
+        if not isinstance(predicate["detail"], str):
+            raise ExperimentError(f"Pressure analysis predicate {name} detail must be a string")
+    if analysis["verdict"] not in PRESSURE_ALLOWED_VERDICTS:
+        raise ExperimentError("Pressure analysis verdict is invalid")
+    raw_frame_count = require_nonnegative_int(
+        analysis["raw_frame_count"], "Pressure analysis raw_frame_count"
+    )
+    if not 8 <= raw_frame_count <= 12:
+        raise ExperimentError("Pressure analysis raw_frame_count must be between 8 and 12")
+
+
 def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
     contract = contract_for_manifest(manifest)
     if contract is SAND_CONTRACT:
@@ -1729,6 +2219,8 @@ def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> Non
         validate_water_analysis(analysis, manifest)
     elif contract is FIRE_CONTRACT:
         validate_fire_analysis(analysis, manifest)
+    elif contract is PRESSURE_CONTRACT:
+        validate_pressure_analysis(analysis, manifest)
     else:
         raise ExperimentError(f"unsupported analysis contract: {contract.scenario}")
 
@@ -1761,6 +2253,12 @@ def screenshot_name(frame: dict[str, Any], crop: bool = False) -> str:
         frame.get("sample_sequence"), "frame sample_sequence"
     )
     reason = frame.get("reason")
+    if reason is None and isinstance(frame.get("badges"), list):
+        reason = "+".join(
+            str(badge.get("kind", ""))
+            for badge in frame["badges"]
+            if isinstance(badge, dict)
+        )
     if not isinstance(reason, str) or not reason:
         raise ExperimentError("frame reason must be a non-empty string")
     suffix = "_crop" if crop else ""
@@ -1798,7 +2296,7 @@ def validate_frames(
         raise ExperimentError("frames.json must contain at least one frame")
     if frames_doc["frame_count"] != len(frames):
         raise ExperimentError("frames frame_count does not match frames array")
-    if contract in {WATER_CONTRACT, FIRE_CONTRACT} and not 8 <= len(frames) <= 12:
+    if contract in {WATER_CONTRACT, FIRE_CONTRACT, PRESSURE_CONTRACT} and not 8 <= len(frames) <= 12:
         raise ExperimentError(
             f"{contract.title} frames.json must contain between 8 and 12 frames"
         )
@@ -1806,16 +2304,18 @@ def validate_frames(
         raise ExperimentError("frames pixel_encoding mismatch")
     required_frame = {
         "ordinal",
-        "kind",
         "relative_path",
         "width",
         "height",
         "rgba_bytes",
-        "reason",
         "sim_tick",
         "sample_sequence",
         "state_hash",
     }
+    if contract is PRESSURE_CONTRACT:
+        required_frame.add("badges")
+    else:
+        required_frame.update({"kind", "reason"})
     seen_paths: set[str] = set()
     seen_names: set[str] = set()
     for expected_ordinal, frame in enumerate(frames):
@@ -1824,8 +2324,47 @@ def validate_frames(
         require_exact_keys(frame, required_frame, f"frame {expected_ordinal}")
         if frame["ordinal"] != expected_ordinal:
             raise ExperimentError("frame ordinals must be contiguous and zero-based")
-        if not isinstance(frame["kind"], str) or not frame["kind"]:
-            raise ExperimentError(f"frame {expected_ordinal} kind must be non-empty")
+        if contract is PRESSURE_CONTRACT:
+            badges = frame["badges"]
+            if not isinstance(badges, list) or not badges:
+                raise ExperimentError(
+                    f"Pressure frame {expected_ordinal} badges must be non-empty"
+                )
+            seen_badges: set[str] = set()
+            previous_rank = -1
+            for badge_index, badge in enumerate(badges):
+                if not isinstance(badge, dict):
+                    raise ExperimentError(
+                        f"Pressure frame {expected_ordinal} badge {badge_index} must be an object"
+                    )
+                require_exact_keys(
+                    badge,
+                    {"kind", "reason"},
+                    f"Pressure frame {expected_ordinal} badge {badge_index}",
+                )
+                kind = badge["kind"]
+                if kind not in PRESSURE_FRAME_BADGE_RANK:
+                    raise ExperimentError(
+                        f"Pressure frame {expected_ordinal} badge kind {kind!r} is unsupported"
+                    )
+                if kind in seen_badges:
+                    raise ExperimentError(
+                        f"Pressure frame {expected_ordinal} contains duplicate badge {kind}"
+                    )
+                seen_badges.add(kind)
+                rank = PRESSURE_FRAME_BADGE_RANK[kind]
+                if rank <= previous_rank:
+                    raise ExperimentError(
+                        f"Pressure frame {expected_ordinal} badges are not in canonical order"
+                    )
+                previous_rank = rank
+                if not isinstance(badge["reason"], str) or not badge["reason"]:
+                    raise ExperimentError(
+                        f"Pressure frame {expected_ordinal} badge reason must be non-empty"
+                    )
+        else:
+            if not isinstance(frame["kind"], str) or not frame["kind"]:
+                raise ExperimentError(f"frame {expected_ordinal} kind must be non-empty")
         if contract in {WATER_CONTRACT, FIRE_CONTRACT}:
             allowed_kinds = (
                 WATER_FRAME_KINDS if contract is WATER_CONTRACT else FIRE_FRAME_KINDS
@@ -1850,7 +2389,9 @@ def validate_frames(
             raise ExperimentError("raw frame rgba_bytes does not match dimensions")
         require_nonnegative_int(frame["sim_tick"], "frame sim_tick")
         require_nonnegative_int(frame["sample_sequence"], "frame sample_sequence")
-        if not isinstance(frame["reason"], str) or not frame["reason"]:
+        if contract is not PRESSURE_CONTRACT and (
+            not isinstance(frame["reason"], str) or not frame["reason"]
+        ):
             raise ExperimentError("frame reason must be non-empty")
         if not isinstance(frame["state_hash"], str) or not STATE_HASH.fullmatch(
             frame["state_hash"]
@@ -2394,6 +2935,204 @@ def validate_fire_samples(samples: list[dict[str, Any]], manifest: dict[str, Any
             raise ExperimentError(f"Fire sample {index} wake census and wake_reason_or disagree")
 
 
+def validate_pressure_samples(
+    samples: list[dict[str, Any]], manifest: dict[str, Any]
+) -> None:
+    expected_keys = {
+        "schema_version",
+        "experiment_id",
+        "run_id",
+        "scenario",
+        "source_sha",
+        "git_state",
+        "build_profile",
+        "binary_sha256",
+        "sample_sequence",
+        "sim_tick",
+        "phase",
+        "reason",
+        "world",
+        "sleep",
+        "census",
+        "material_counts_by_id",
+        "matter_count",
+        "water_count",
+        "steam_count",
+        "relief_seam_wood_cells",
+        "top_relief_seam_wood_cells",
+        "bottom_relief_seam_wood_cells",
+        "relief_seam_open_cells",
+        "top_relief_seam_open_cells",
+        "bottom_relief_seam_open_cells",
+        "steam_in_relief_seam_cells",
+        "outside_chamber_steam_cells",
+        "chamber_pressure_cell_count",
+        "chamber_mean_pressure",
+        "chamber_max_pressure",
+        "invalid_material_count",
+        "nonfinite_temperature_count",
+        "nonfinite_pressure_count",
+        "changed_chunks",
+        "wake_chunks",
+        "wake_reason_or",
+        "state_hash",
+        "physical_state_hash",
+    }
+    census_keys = {
+        "total_cells",
+        "any_active_cells",
+        "matter_active_cells",
+        "thermal_active_cells",
+        "pressure_active_cells",
+        "reaction_active_cells",
+        "total_chunks",
+        "active_chunks",
+        "runnable_chunks",
+        "sleeping_chunks",
+    }
+    identity = {
+        "schema_version": PRESSURE_TELEMETRY_SCHEMA,
+        "experiment_id": manifest["experiment_id"],
+        "run_id": manifest["run_id"],
+        "scenario": PRESSURE_CONTRACT.scenario,
+        "source_sha": manifest["source"]["sha"],
+        "git_state": "clean",
+        "build_profile": "release",
+        "binary_sha256": manifest["binary"]["sha256"],
+    }
+    total_chunks = (WORLD_WIDTH // CHUNK_SIZE) * (WORLD_HEIGHT // CHUNK_SIZE)
+    for index, sample in enumerate(samples):
+        require_exact_keys(sample, expected_keys, f"Pressure sample {index}")
+        for key, expected in identity.items():
+            if sample[key] != expected:
+                raise ExperimentError(f"Pressure sample {index} {key} mismatch")
+        if require_nonnegative_int(
+            sample["sample_sequence"], f"Pressure sample {index} sequence"
+        ) != index:
+            raise ExperimentError("Pressure sample_sequence must be contiguous and zero-based")
+        require_nonnegative_int(sample["sim_tick"], f"Pressure sample {index} sim_tick")
+        phase = sample["phase"]
+        reason = sample["reason"]
+        if phase not in PRESSURE_PHASE_REASONS:
+            raise ExperimentError(f"Pressure sample {index} phase is invalid")
+        if reason not in PRESSURE_PHASE_REASONS[phase]:
+            raise ExperimentError(f"Pressure sample {index} phase/reason mismatch")
+        if sample["world"] != manifest["world"]:
+            raise ExperimentError(f"Pressure sample {index} world mismatch")
+        sleep = sample["sleep"]
+        if not isinstance(sleep, dict):
+            raise ExperimentError(f"Pressure sample {index} sleep must be an object")
+        require_exact_keys(sleep, {"enabled", "threshold"}, f"Pressure sample {index} sleep")
+        if not isinstance(sleep["enabled"], bool):
+            raise ExperimentError(f"Pressure sample {index} sleep enabled must be boolean")
+        require_nonnegative_int(sleep["threshold"], f"Pressure sample {index} sleep threshold")
+
+        census = sample["census"]
+        if not isinstance(census, dict):
+            raise ExperimentError(f"Pressure sample {index} census must be an object")
+        require_exact_keys(census, census_keys, f"Pressure sample {index} census")
+        for key, value in census.items():
+            require_nonnegative_int(value, f"Pressure sample {index} census {key}")
+        if census["total_cells"] != WORLD_WIDTH * WORLD_HEIGHT:
+            raise ExperimentError(f"Pressure sample {index} total_cells mismatch")
+        if census["total_chunks"] != total_chunks:
+            raise ExperimentError(f"Pressure sample {index} total_chunks mismatch")
+        if census["runnable_chunks"] + census["sleeping_chunks"] != total_chunks:
+            raise ExperimentError(f"Pressure sample {index} chunk-state census is incomplete")
+        for key in ("active_chunks", "runnable_chunks", "sleeping_chunks"):
+            if census[key] > total_chunks:
+                raise ExperimentError(f"Pressure sample {index} {key} exceeds total chunks")
+        for key in (
+            "matter_active_cells",
+            "thermal_active_cells",
+            "pressure_active_cells",
+            "reaction_active_cells",
+        ):
+            if census[key] > census["any_active_cells"]:
+                raise ExperimentError(
+                    f"Pressure sample {index} census {key} exceeds any_active_cells"
+                )
+
+        counts = sample["material_counts_by_id"]
+        if not isinstance(counts, list) or len(counts) != 10:
+            raise ExperimentError(f"Pressure sample {index} material_counts_by_id mismatch")
+        for material_id, count in enumerate(counts):
+            require_nonnegative_int(count, f"Pressure sample {index} material {material_id}")
+        require_nonnegative_int(
+            sample["invalid_material_count"],
+            f"Pressure sample {index} invalid_material_count",
+        )
+        if sum(counts) + sample["invalid_material_count"] != WORLD_WIDTH * WORLD_HEIGHT:
+            raise ExperimentError(f"Pressure sample {index} material census total mismatch")
+        if sample["matter_count"] != sum(counts[1:]):
+            raise ExperimentError(f"Pressure sample {index} matter_count mismatch")
+        if sample["water_count"] != counts[4] or sample["steam_count"] != counts[6]:
+            raise ExperimentError(f"Pressure sample {index} Water/Steam count mismatch")
+        integer_keys = (
+            "matter_count",
+            "water_count",
+            "steam_count",
+            "relief_seam_wood_cells",
+            "top_relief_seam_wood_cells",
+            "bottom_relief_seam_wood_cells",
+            "relief_seam_open_cells",
+            "top_relief_seam_open_cells",
+            "bottom_relief_seam_open_cells",
+            "steam_in_relief_seam_cells",
+            "outside_chamber_steam_cells",
+            "chamber_pressure_cell_count",
+            "invalid_material_count",
+            "nonfinite_temperature_count",
+            "nonfinite_pressure_count",
+            "changed_chunks",
+            "wake_chunks",
+            "wake_reason_or",
+        )
+        for key in integer_keys:
+            require_nonnegative_int(sample[key], f"Pressure sample {index} {key}")
+        if sample["relief_seam_wood_cells"] != (
+            sample["top_relief_seam_wood_cells"]
+            + sample["bottom_relief_seam_wood_cells"]
+        ):
+            raise ExperimentError(f"Pressure sample {index} seam Wood total mismatch")
+        if sample["relief_seam_open_cells"] != (
+            sample["top_relief_seam_open_cells"]
+            + sample["bottom_relief_seam_open_cells"]
+        ):
+            raise ExperimentError(f"Pressure sample {index} seam open total mismatch")
+        if sample["relief_seam_wood_cells"] + sample["relief_seam_open_cells"] != 576:
+            raise ExperimentError(f"Pressure sample {index} seam census does not total 576")
+        if sample["top_relief_seam_wood_cells"] + sample["top_relief_seam_open_cells"] != 384:
+            raise ExperimentError(f"Pressure sample {index} top seam census mismatch")
+        if (
+            sample["bottom_relief_seam_wood_cells"]
+            + sample["bottom_relief_seam_open_cells"]
+            != 192
+        ):
+            raise ExperimentError(f"Pressure sample {index} bottom seam census mismatch")
+        if sample["steam_in_relief_seam_cells"] > sample["relief_seam_open_cells"]:
+            raise ExperimentError(f"Pressure sample {index} seam Steam exceeds open cells")
+        if sample["outside_chamber_steam_cells"] > sample["steam_count"]:
+            raise ExperimentError(f"Pressure sample {index} exterior Steam exceeds inventory")
+        if sample["chamber_pressure_cell_count"] != 29_920:
+            raise ExperimentError(f"Pressure sample {index} chamber cell count mismatch")
+        mean_pressure = require_finite_number(
+            sample["chamber_mean_pressure"], f"Pressure sample {index} chamber mean"
+        )
+        max_pressure = require_finite_number(
+            sample["chamber_max_pressure"], f"Pressure sample {index} chamber max"
+        )
+        if mean_pressure < 0 or max_pressure < mean_pressure:
+            raise ExperimentError(f"Pressure sample {index} chamber pressure ordering is invalid")
+        for key in ("state_hash", "physical_state_hash"):
+            if not isinstance(sample[key], str) or not STATE_HASH.fullmatch(sample[key]):
+                raise ExperimentError(f"Pressure sample {index} {key} is invalid")
+        if (sample["wake_chunks"] == 0) != (sample["wake_reason_or"] == 0):
+            raise ExperimentError(
+                f"Pressure sample {index} wake census and wake_reason_or disagree"
+            )
+
+
 def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
     contract = contract_for_manifest(manifest)
     if contract is SAND_CONTRACT:
@@ -2402,6 +3141,8 @@ def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) ->
         validate_water_samples(samples, manifest)
     elif contract is FIRE_CONTRACT:
         validate_fire_samples(samples, manifest)
+    elif contract is PRESSURE_CONTRACT:
+        validate_pressure_samples(samples, manifest)
     else:
         raise ExperimentError(f"unsupported sample contract: {contract.scenario}")
 
@@ -3990,6 +4731,840 @@ def validate_fire_telemetry(
     return analysis, frames_doc, samples, events
 
 
+def pressure_float_equal(recorded: Any, expected: float) -> bool:
+    return isinstance(recorded, (int, float)) and not isinstance(recorded, bool) and math.isclose(
+        # Worker values are canonicalized to nine decimal places. Half of one
+        # output unit admits only final-decimal rounding for derived values
+        # such as the trend slope; it cannot hide one telemetry output unit.
+        float(recorded), float(expected), rel_tol=0.0, abs_tol=5.0e-10
+    )
+
+
+def pressure_diagnostic_samples(
+    samples: Iterable[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        sample
+        for sample in samples
+        if sample["phase"] == "pressurizing"
+        and sample["reason"] in {"early-diagnostic", "diagnostic-cadence", "max-tick"}
+    ]
+
+
+def pressure_opening_streak(
+    diagnostics: list[dict[str, Any]],
+) -> tuple[
+    list[dict[str, Any]] | None,
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    streak: list[dict[str, Any]] = []
+    starts: list[dict[str, Any]] = []
+    breaks: list[dict[str, Any]] = []
+    for sample in diagnostics:
+        if sample["relief_seam_open_cells"] == 0:
+            if streak:
+                breaks.append(sample)
+                streak = []
+            continue
+        if not streak:
+            starts.append(sample)
+        streak.append(sample)
+        if len(streak) == CONSECUTIVE_PERSISTENT_OPENING:
+            return list(streak), starts, breaks
+    return None, starts, breaks
+
+
+def pressure_terminal_trend(window_samples: list[dict[str, Any]]) -> dict[str, Any]:
+    count = len(window_samples)
+    means = [float(sample["chamber_mean_pressure"]) for sample in window_samples]
+    maxima = [float(sample["chamber_max_pressure"]) for sample in window_samples]
+    positive_steps = sum(
+        right > left for left, right in zip(means, means[1:])
+    )
+    positive_max_steps = sum(
+        right > left for left, right in zip(maxima, maxima[1:])
+    )
+    slope: float | None
+    if count < 2:
+        slope = None
+    else:
+        mean_x = (count - 1.0) / 2.0
+        mean_y = sum(means) / count
+        numerator = sum(
+            (index - mean_x) * (value - mean_y)
+            for index, value in enumerate(means)
+        )
+        denominator = sum((index - mean_x) ** 2 for index in range(count))
+        slope = 0.0 if denominator == 0.0 else numerator / denominator
+    mean_unbounded = (
+        count >= 2
+        and means[-1] > means[0] * 1.10 + 1.0
+        and positive_steps * 4 >= (count - 1) * 3
+    )
+    max_unbounded = (
+        count >= 2
+        and maxima[-1] > maxima[0] * 1.10 + 1.0
+        and positive_max_steps * 4 >= (count - 1) * 3
+    )
+    first = window_samples[0] if window_samples else None
+    last = window_samples[-1] if window_samples else None
+    return {
+        "sample_count": count,
+        "start_sim_tick": None if first is None else first["sim_tick"],
+        "end_sim_tick": None if last is None else last["sim_tick"],
+        "start_mean_pressure": None if first is None else first["chamber_mean_pressure"],
+        "end_mean_pressure": None if last is None else last["chamber_mean_pressure"],
+        "start_max_pressure": None if first is None else first["chamber_max_pressure"],
+        "end_max_pressure": None if last is None else last["chamber_max_pressure"],
+        "minimum_mean_pressure": None if not means else min(means),
+        "maximum_mean_pressure": None if not means else max(means),
+        "slope_per_sample": slope,
+        "positive_step_count": positive_steps,
+        "positive_max_step_count": positive_max_steps,
+        "mean_unbounded_growth": mean_unbounded,
+        "max_unbounded_growth": max_unbounded,
+        "unbounded_growth": mean_unbounded or max_unbounded,
+    }
+
+
+def pressure_expected_verdict(
+    predicate_statuses: dict[str, str], review_flags: dict[str, Any]
+) -> str:
+    if any(status == "fail" for status in predicate_statuses.values()):
+        return "FAIL"
+    if any(status == "unknown" for status in predicate_statuses.values()) or review_flags[
+        "reasons"
+    ]:
+        return "NEEDS_HUMAN_REVIEW"
+    return "PASS"
+
+
+def pressure_expected_frame_badges(
+    tick0: dict[str, Any],
+    tick1: dict[str, Any],
+    first_pressure: dict[str, Any] | None,
+    first_damage: dict[str, Any] | None,
+    first_rupture: dict[str, Any] | None,
+    opening_streak: list[dict[str, Any]] | None,
+    first_reseal: dict[str, Any] | None,
+    first_exterior: dict[str, Any] | None,
+    peak_max: dict[str, Any],
+    peak_activity: dict[str, Any],
+    first_relief: dict[str, Any] | None,
+    terminal: dict[str, Any],
+    reset: dict[str, Any],
+    diagnostic_fallbacks: list[dict[str, Any]],
+    terminal_reason: str,
+) -> list[dict[str, Any]]:
+    milestone_specs: list[tuple[str, str, dict[str, Any] | None]] = [
+        ("tick0", "pristine-reset", tick0),
+        ("tick1", "after-one-production-tick", tick1),
+        (
+            "first-pressure-activity",
+            "first-sampled-pressure-activity",
+            first_pressure,
+        ),
+        (
+            "first-wood-damage",
+            "first-authored-relief-seam-wood-loss",
+            first_damage,
+        ),
+        (
+            "first-rupture",
+            "cold-bottom-seam-pressure-attributed-opening",
+            first_rupture,
+        ),
+        (
+            "persistent-opening",
+            "three-consecutive-diagnostics-with-opening",
+            None if opening_streak is None else opening_streak[-1],
+        ),
+        (
+            "opening-reseal",
+            "first-zero-open-cell-sample-after-persistent-confirmation",
+            first_reseal,
+        ),
+        (
+            "first-exterior-steam",
+            "first-steam-outside-authored-chamber-after-opening",
+            first_exterior,
+        ),
+        ("peak-pressure", "highest-observed-chamber-max-pressure", peak_max),
+        (
+            "peak-pressure-activity",
+            "highest-observed-pressure-active-cells",
+            peak_activity,
+        ),
+        (
+            "post-opening",
+            "first-post-vent-chamber-mean-and-max-pressure-relief",
+            None if first_reseal is not None else first_relief,
+        ),
+        ("terminal", terminal_reason, terminal),
+        ("reset", "programmatic-r-equivalent", reset),
+    ]
+
+    folded: dict[tuple[bool, int, str], dict[str, Any]] = {}
+
+    def add_badge(kind: str, reason: str, sample: dict[str, Any]) -> None:
+        is_reset = kind == "reset"
+        key = (is_reset, sample["sim_tick"], sample["state_hash"])
+        entry = folded.setdefault(
+            key,
+            {
+                "sim_tick": sample["sim_tick"],
+                "sample_sequence": sample["sample_sequence"],
+                "state_hash": sample["state_hash"],
+                "badges": [],
+                "is_reset": is_reset,
+            },
+        )
+        entry["sample_sequence"] = min(
+            entry["sample_sequence"], sample["sample_sequence"]
+        )
+        if kind not in {badge["kind"] for badge in entry["badges"]}:
+            entry["badges"].append({"kind": kind, "reason": reason})
+            entry["badges"].sort(key=lambda badge: PRESSURE_FRAME_BADGE_RANK[badge["kind"]])
+
+    for kind, reason, sample in milestone_specs:
+        if sample is not None:
+            add_badge(kind, reason, sample)
+    for sample in diagnostic_fallbacks:
+        if len(folded) >= 8:
+            break
+        add_badge("diagnostic-observation", "minimum-evidence-observation", sample)
+    expected = sorted(
+        folded.values(),
+        key=lambda entry: (
+            entry["is_reset"],
+            entry["sim_tick"],
+            entry["sample_sequence"],
+            min(PRESSURE_FRAME_BADGE_RANK[badge["kind"]] for badge in entry["badges"]),
+        ),
+    )
+    return expected
+
+
+def validate_pressure_frame_contract(
+    frames: list[dict[str, Any]], expected: list[dict[str, Any]]
+) -> None:
+    if len(frames) != len(expected):
+        raise ExperimentError(
+            f"Pressure physical frame count mismatch: recorded={len(frames)}, expected={len(expected)}"
+        )
+    for index, (recorded, wanted) in enumerate(zip(frames, expected, strict=True)):
+        for key in ("sim_tick", "sample_sequence", "state_hash", "badges"):
+            if recorded[key] != wanted[key]:
+                raise ExperimentError(
+                    f"Pressure frame {index} {key} disagrees with deterministic milestone folding"
+                )
+    non_reset = [frame for frame in frames if not any(
+        badge["kind"] == "reset" for badge in frame["badges"]
+    )]
+    if any(
+        later["sim_tick"] <= earlier["sim_tick"]
+        for earlier, later in zip(non_reset, non_reset[1:])
+    ):
+        raise ExperimentError("Pressure non-reset frames must be strictly chronological")
+    if not frames[-1]["badges"] or not any(
+        badge["kind"] == "reset" for badge in frames[-1]["badges"]
+    ):
+        raise ExperimentError("Pressure reset frame must be last")
+    if any(
+        any(badge["kind"] == "reset" for badge in frame["badges"])
+        for frame in frames[:-1]
+    ):
+        raise ExperimentError("Pressure reset badge may occur only on the last frame")
+
+
+def validate_pressure_event_contract(
+    events: list[dict[str, Any]], expected: list[tuple[str, int, int | None]]
+) -> None:
+    observed = [
+        (event["event"], event["sim_tick"], event["sample_sequence"])
+        for event in events
+    ]
+    if observed != expected:
+        raise ExperimentError("Pressure event sequence disagrees with raw telemetry milestones")
+
+
+def validate_pressure_telemetry(
+    run_dir: Path, manifest: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    analysis = read_json(run_dir / "work" / "analysis.json", "Pressure analysis")
+    frames_doc = read_json(run_dir / "work" / "frames.json", "Pressure frames")
+    samples = read_jsonl(run_dir / "telemetry" / "samples.jsonl", "Pressure samples")
+    events = read_jsonl(run_dir / "telemetry" / "events.jsonl", "Pressure events")
+    validate_analysis(analysis, manifest)
+    frames = validate_frames(frames_doc, manifest, run_dir)
+    validate_samples(samples, manifest)
+    validate_events(events, manifest)
+    if analysis["raw_frame_count"] != len(frames):
+        raise ExperimentError("Pressure analysis raw_frame_count disagrees with frames.json")
+    if analysis["lifecycle"]["sample_count"] != len(samples):
+        raise ExperimentError("Pressure analysis sample_count disagrees with samples.jsonl")
+    for index, sample in enumerate(samples):
+        if sample["sleep"] != analysis["sleep"]:
+            raise ExperimentError(f"Pressure sample {index} sleep settings disagree with analysis")
+    if len(samples) < 4:
+        raise ExperimentError("Pressure telemetry must contain tick0, tick1, terminal, and reset")
+    tick0, tick1, reset = samples[0], samples[1], samples[-1]
+    if (tick0["sim_tick"], tick0["phase"], tick0["reason"]) != (0, "initial", "tick0"):
+        raise ExperimentError("Pressure telemetry must begin with initial tick0")
+    if (tick1["sim_tick"], tick1["phase"], tick1["reason"]) != (
+        1,
+        "pressurizing",
+        "tick1",
+    ):
+        raise ExperimentError("Pressure telemetry sample 1 must be pressurizing tick1")
+    if (reset["sim_tick"], reset["phase"], reset["reason"]) != (
+        0,
+        "reset",
+        "programmatic-r-equivalent",
+    ):
+        raise ExperimentError("Pressure telemetry must end with the programmatic reset")
+    if any(sample["phase"] == "reset" for sample in samples[:-1]):
+        raise ExperimentError("Pressure reset sample may occur only once and last")
+    pre_reset = samples[:-1]
+    if any(
+        later["sim_tick"] <= earlier["sim_tick"]
+        for earlier, later in zip(pre_reset, pre_reset[1:])
+    ):
+        raise ExperimentError("Pressure pre-reset sim ticks must be strictly increasing")
+
+    if (
+        tick0["relief_seam_wood_cells"],
+        tick0["top_relief_seam_wood_cells"],
+        tick0["bottom_relief_seam_wood_cells"],
+        tick0["relief_seam_open_cells"],
+        tick0["chamber_pressure_cell_count"],
+    ) != (576, 384, 192, 0, 29_920):
+        raise ExperimentError("Pressure tick0 authored chamber/seam baseline mismatch")
+    expected_baseline = {
+        "initial_matter_count": tick0["matter_count"],
+        "initial_water_count": tick0["water_count"],
+        "initial_steam_count": tick0["steam_count"],
+        "initial_relief_seam_wood_cells": tick0["relief_seam_wood_cells"],
+        "initial_top_relief_seam_wood_cells": tick0[
+            "top_relief_seam_wood_cells"
+        ],
+        "initial_bottom_relief_seam_wood_cells": tick0[
+            "bottom_relief_seam_wood_cells"
+        ],
+        "initial_chamber_pressure_cell_count": tick0["chamber_pressure_cell_count"],
+        "initial_chamber_mean_pressure": tick0["chamber_mean_pressure"],
+        "initial_chamber_max_pressure": tick0["chamber_max_pressure"],
+    }
+    if analysis["baseline"] != expected_baseline:
+        raise ExperimentError("Pressure analysis baseline disagrees with tick0 telemetry")
+
+    diagnostics = pressure_diagnostic_samples(pre_reset)
+    opening_observations = [tick1, *diagnostics]
+    opening_streak, streak_starts, streak_breaks = pressure_opening_streak(
+        opening_observations
+    )
+    confirmed = None if opening_streak is None else opening_streak[-1]
+    expected_diagnostic_ticks = [2]
+    diagnostic_end = MAX_TICKS if confirmed is None else confirmed["sim_tick"]
+    expected_diagnostic_ticks.extend(
+        range(DIAGNOSTIC_INTERVAL, diagnostic_end + 1, DIAGNOSTIC_INTERVAL)
+    )
+    if diagnostic_end == MAX_TICKS and MAX_TICKS not in expected_diagnostic_ticks:
+        expected_diagnostic_ticks.append(MAX_TICKS)
+    expected_diagnostic_ticks = sorted(set(expected_diagnostic_ticks))
+    if [sample["sim_tick"] for sample in diagnostics] != expected_diagnostic_ticks:
+        raise ExperimentError("Pressure diagnostic cadence is incomplete or contains extras")
+    for sample in diagnostics:
+        expected_reason = (
+            "early-diagnostic"
+            if sample["sim_tick"] == 2
+            else "max-tick"
+            if sample["sim_tick"] == MAX_TICKS
+            else "diagnostic-cadence"
+        )
+        if sample["reason"] != expected_reason:
+            raise ExperimentError("Pressure diagnostic reason disagrees with sim tick")
+
+    post_opening = [
+        sample
+        for sample in pre_reset
+        if sample["phase"] == "post-opening-observation"
+    ]
+    lifecycle = analysis["lifecycle"]
+    terminal_reason = lifecycle["terminal_reason"]
+    if confirmed is None:
+        if post_opening:
+            raise ExperimentError("Pressure post-opening samples exist without confirmation")
+        terminal = diagnostics[-1]
+        if terminal["sim_tick"] != MAX_TICKS or terminal_reason != "max-ticks":
+            raise ExperimentError("Pressure no-opening lifecycle must terminate at max-ticks")
+        expected_post_end = None
+    else:
+        expected_post_ticks = list(
+            range(
+                confirmed["sim_tick"] + 1,
+                min(MAX_TICKS, confirmed["sim_tick"] + POST_OPENING_TICKS) + 1,
+            )
+        )
+        if [sample["sim_tick"] for sample in post_opening] != expected_post_ticks:
+            raise ExperimentError("Pressure post-opening ticks must be contiguous")
+        terminal = post_opening[-1] if post_opening else confirmed
+        full_window = len(post_opening) == POST_OPENING_TICKS
+        expected_terminal_reason = (
+            "post-opening-observation-complete" if full_window else "max-ticks"
+        )
+        if terminal_reason != expected_terminal_reason:
+            raise ExperimentError("Pressure terminal_reason disagrees with post-opening window")
+        if post_opening:
+            for sample in post_opening[:-1]:
+                if sample["reason"] != "post-opening-tick":
+                    raise ExperimentError("Pressure post-opening interior reason mismatch")
+            expected_last_reason = (
+                "post-opening-observation-complete"
+                if full_window
+                else "max-tick"
+            )
+            if post_opening[-1]["reason"] != expected_last_reason:
+                raise ExperimentError("Pressure post-opening terminal reason mismatch")
+        expected_post_end = terminal["sim_tick"] if full_window else None
+
+    opening_start = None if opening_streak is None else opening_streak[0]
+    expected_lifecycle = {
+        "persistent_opening_start_sim_tick": sample_identity(opening_start)[0],
+        "persistent_opening_start_sample_sequence": sample_identity(opening_start)[1],
+        "persistent_opening_confirmed_sim_tick": sample_identity(confirmed)[0],
+        "persistent_opening_confirmed_sample_sequence": sample_identity(confirmed)[1],
+        "post_opening_end_tick": expected_post_end,
+    }
+    for key, expected in expected_lifecycle.items():
+        if lifecycle[key] != expected:
+            raise ExperimentError(f"Pressure lifecycle {key} disagrees with telemetry")
+
+    observed = pre_reset[1:]
+    first_pressure = first_matching(
+        observed, lambda sample: sample["census"]["pressure_active_cells"] > 0
+    )
+    first_damage = first_matching(
+        observed,
+        lambda sample: sample["relief_seam_wood_cells"]
+        < tick0["relief_seam_wood_cells"],
+    )
+    first_rupture = first_matching(
+        observed, lambda sample: sample["bottom_relief_seam_open_cells"] > 0
+    )
+    first_reseal = None
+    first_seam_steam = None
+    if confirmed is not None:
+        first_reseal = first_matching(
+            observed,
+            lambda sample: sample["sample_sequence"]
+            > confirmed["sample_sequence"]
+            and sample["relief_seam_open_cells"] == 0,
+        )
+        first_seam_steam = first_matching(
+            observed,
+            lambda sample: sample["sample_sequence"]
+            >= confirmed["sample_sequence"]
+            and sample["steam_in_relief_seam_cells"] > 0,
+        )
+    first_exterior = None
+    if first_seam_steam is not None:
+        first_exterior = first_matching(
+            observed,
+            lambda sample: sample["sample_sequence"]
+            >= first_seam_steam["sample_sequence"]
+            and sample["outside_chamber_steam_cells"] > 0,
+        )
+
+    peak_mean = tick0
+    peak_max = tick0
+    peak_activity = tick0
+    pre_opening_samples = [
+        tick0,
+        *[
+            sample
+            for sample in observed
+            if confirmed is None
+            or sample["sample_sequence"] < confirmed["sample_sequence"]
+        ],
+    ]
+    pre_opening_peak_mean = max(
+        float(sample["chamber_mean_pressure"]) for sample in pre_opening_samples
+    )
+    pre_opening_peak_max = max(
+        float(sample["chamber_max_pressure"]) for sample in pre_opening_samples
+    )
+    for sample in observed:
+        if sample["chamber_mean_pressure"] > peak_mean["chamber_mean_pressure"]:
+            peak_mean = sample
+        if sample["chamber_max_pressure"] > peak_max["chamber_max_pressure"]:
+            peak_max = sample
+        if (
+            sample["census"]["pressure_active_cells"]
+            > peak_activity["census"]["pressure_active_cells"]
+        ):
+            peak_activity = sample
+    first_post = confirmed
+    vent_reference_mean = (
+        None if first_exterior is None else float(first_exterior["chamber_mean_pressure"])
+    )
+    vent_reference_max = (
+        None if first_exterior is None else float(first_exterior["chamber_max_pressure"])
+    )
+    first_relief = None
+    if (
+        first_exterior is not None
+        and vent_reference_mean is not None
+        and vent_reference_max is not None
+    ):
+        first_relief = first_matching(
+            observed,
+            lambda sample: sample["sample_sequence"]
+            > first_exterior["sample_sequence"]
+            and sample["chamber_mean_pressure"] < vent_reference_mean
+            and sample["chamber_max_pressure"] < vent_reference_max,
+        )
+
+    if confirmed is None:
+        terminal_source = [tick1, *diagnostics]
+    else:
+        terminal_source = [confirmed, *post_opening]
+    terminal_window_samples = terminal_source[-TERMINAL_WINDOW_SAMPLES:]
+    expected_window = pressure_terminal_trend(terminal_window_samples)
+    recorded_window = analysis["terminal_window"]
+    for key, expected in expected_window.items():
+        recorded = recorded_window[key]
+        if isinstance(expected, float):
+            if not pressure_float_equal(recorded, expected):
+                raise ExperimentError(f"Pressure terminal window {key} disagrees with telemetry")
+        elif recorded != expected:
+            raise ExperimentError(f"Pressure terminal window {key} disagrees with telemetry")
+
+    final = pre_reset[-1]
+    reset_keys = (
+        "world",
+        "sleep",
+        "census",
+        "material_counts_by_id",
+        "matter_count",
+        "water_count",
+        "steam_count",
+        "relief_seam_wood_cells",
+        "top_relief_seam_wood_cells",
+        "bottom_relief_seam_wood_cells",
+        "relief_seam_open_cells",
+        "top_relief_seam_open_cells",
+        "bottom_relief_seam_open_cells",
+        "steam_in_relief_seam_cells",
+        "outside_chamber_steam_cells",
+        "chamber_pressure_cell_count",
+        "chamber_mean_pressure",
+        "chamber_max_pressure",
+        "invalid_material_count",
+        "nonfinite_temperature_count",
+        "nonfinite_pressure_count",
+        "state_hash",
+        "physical_state_hash",
+    )
+    observable_reset_equal = all(reset[key] == tick0[key] for key in reset_keys)
+    recorded_reset_exact = analysis["metrics"]["reset_exact_equivalence"]
+    if recorded_reset_exact and not observable_reset_equal:
+        raise ExperimentError(
+            "Pressure exact-reset claim contradicts observable reset telemetry"
+        )
+    invalid_occurrences = sum(sample["invalid_material_count"] for sample in pre_reset)
+    nonfinite_occurrences = sum(
+        sample["nonfinite_temperature_count"] + sample["nonfinite_pressure_count"]
+        for sample in pre_reset
+    )
+    end_mean = expected_window["end_mean_pressure"]
+    end_max = expected_window["end_max_pressure"]
+    pressure_relieved = (
+        first_relief is not None
+        and vent_reference_mean is not None
+        and vent_reference_max is not None
+        and end_mean is not None
+        and end_max is not None
+        and end_mean < vent_reference_mean
+        and end_max < vent_reference_max
+        and end_mean < pre_opening_peak_mean
+        and end_max < pre_opening_peak_max
+    )
+    expected_metrics = {
+        "first_pressure_activity_tick": sample_identity(first_pressure)[0],
+        "first_pressure_activity_sample_sequence": sample_identity(first_pressure)[1],
+        "first_wood_damage_tick": sample_identity(first_damage)[0],
+        "first_wood_damage_sample_sequence": sample_identity(first_damage)[1],
+        "first_rupture_tick": sample_identity(first_rupture)[0],
+        "first_rupture_sample_sequence": sample_identity(first_rupture)[1],
+        "first_persistent_opening_tick": sample_identity(opening_start)[0],
+        "first_persistent_opening_sample_sequence": sample_identity(opening_start)[1],
+        "persistent_opening_confirmed_tick": sample_identity(confirmed)[0],
+        "persistent_opening_confirmed_sample_sequence": sample_identity(confirmed)[1],
+        "first_steam_in_relief_seam_tick": sample_identity(first_seam_steam)[0],
+        "first_steam_in_relief_seam_sample_sequence": sample_identity(
+            first_seam_steam
+        )[1],
+        "first_outside_chamber_steam_tick": sample_identity(first_exterior)[0],
+        "first_outside_chamber_steam_sample_sequence": sample_identity(first_exterior)[1],
+        "first_post_confirmation_reseal_tick": sample_identity(first_reseal)[0],
+        "first_post_confirmation_reseal_sample_sequence": sample_identity(
+            first_reseal
+        )[1],
+        "first_post_opening_relief_tick": sample_identity(first_relief)[0],
+        "first_post_opening_relief_sample_sequence": sample_identity(first_relief)[1],
+        "peak_chamber_mean_pressure": peak_mean["chamber_mean_pressure"],
+        "peak_chamber_mean_pressure_tick": peak_mean["sim_tick"],
+        "peak_chamber_mean_pressure_sample_sequence": peak_mean["sample_sequence"],
+        "peak_chamber_max_pressure": peak_max["chamber_max_pressure"],
+        "peak_chamber_max_pressure_tick": peak_max["sim_tick"],
+        "peak_chamber_max_pressure_sample_sequence": peak_max["sample_sequence"],
+        "peak_pressure_active_cells": peak_activity["census"]["pressure_active_cells"],
+        "peak_pressure_active_tick": peak_activity["sim_tick"],
+        "peak_pressure_active_sample_sequence": peak_activity["sample_sequence"],
+        "pre_opening_peak_chamber_mean_pressure": pre_opening_peak_mean,
+        "pre_opening_peak_chamber_max_pressure": pre_opening_peak_max,
+        "vent_reference_chamber_mean_pressure": vent_reference_mean,
+        "vent_reference_chamber_max_pressure": vent_reference_max,
+        "post_opening_chamber_mean_pressure": None
+        if first_post is None
+        else first_post["chamber_mean_pressure"],
+        "post_opening_chamber_max_pressure": None
+        if first_post is None
+        else first_post["chamber_max_pressure"],
+        "terminal_chamber_mean_pressure": end_mean,
+        "terminal_chamber_max_pressure": end_max,
+        "terminal_pressure_relieved": pressure_relieved,
+        "final_relief_seam_wood_cells": final["relief_seam_wood_cells"],
+        "final_top_relief_seam_wood_cells": final["top_relief_seam_wood_cells"],
+        "final_bottom_relief_seam_wood_cells": final[
+            "bottom_relief_seam_wood_cells"
+        ],
+        "final_relief_seam_open_cells": final["relief_seam_open_cells"],
+        "final_top_relief_seam_open_cells": final["top_relief_seam_open_cells"],
+        "final_bottom_relief_seam_open_cells": final[
+            "bottom_relief_seam_open_cells"
+        ],
+        "final_steam_in_relief_seam_cells": final["steam_in_relief_seam_cells"],
+        "outside_chamber_steam_peak": max(
+            sample["outside_chamber_steam_cells"] for sample in pre_reset
+        ),
+        "final_outside_chamber_steam_cells": final["outside_chamber_steam_cells"],
+        "final_matter_count": final["matter_count"],
+        "matter_count_delta": final["matter_count"] - tick0["matter_count"],
+        "final_water_count": final["water_count"],
+        "water_count_delta": final["water_count"] - tick0["water_count"],
+        "final_steam_count": final["steam_count"],
+        "steam_count_delta": final["steam_count"] - tick0["steam_count"],
+        "final_pressure_active_cells": final["census"]["pressure_active_cells"],
+        "final_thermal_active_cells": final["census"]["thermal_active_cells"],
+        "final_reaction_active_cells": final["census"]["reaction_active_cells"],
+        "invalid_material_occurrences": invalid_occurrences,
+        "nonfinite_field_occurrences": nonfinite_occurrences,
+        # The worker compares the complete GPU snapshot. The raw telemetry is a
+        # strict necessary-condition cross-check, but cannot prove equality of
+        # hidden proposal/claim/activity/chunk/parameter buffers on its own.
+        "reset_exact_equivalence": recorded_reset_exact,
+    }
+    metrics = analysis["metrics"]
+    for key, expected in expected_metrics.items():
+        recorded = metrics[key]
+        if isinstance(expected, float):
+            if not pressure_float_equal(recorded, expected):
+                raise ExperimentError(f"Pressure analysis metric {key} disagrees with telemetry")
+        elif recorded != expected:
+            raise ExperimentError(f"Pressure analysis metric {key} disagrees with telemetry")
+
+    expected_flag_values = {
+        "only_one_relief_seam_ruptured": (
+            any(sample["top_relief_seam_open_cells"] > 0 for sample in pre_reset)
+            ^ any(
+                sample["bottom_relief_seam_open_cells"] > 0
+                for sample in pre_reset
+            )
+        ),
+        "high_terminal_pressure_activity": (
+            final["census"]["pressure_active_cells"] >= 256
+            and final["census"]["pressure_active_cells"] * 4
+            > peak_activity["census"]["pressure_active_cells"]
+        ),
+        "long_pressure_tail": end_mean is not None
+        and end_mean * 2.0 > tick0["chamber_mean_pressure"],
+        "persistent_vent_plume": final["outside_chamber_steam_cells"] > 0,
+        # Runnable chunks alone do not imply active work; Pressure explicitly
+        # does not require whole-world all-sleep.
+        "terminal_activity_remains": (
+            final["census"]["any_active_cells"] > 0
+            or final["census"]["active_chunks"] > 0
+        ),
+    }
+    expected_flags = {
+        **expected_flag_values,
+        "reasons": [name for name, value in expected_flag_values.items() if value],
+    }
+    if analysis["review_flags"] != expected_flags:
+        raise ExperimentError("Pressure review flags disagree with raw telemetry")
+
+    expected_statuses = {
+        "pressure_activity_observed": "pass" if first_pressure is not None else "fail",
+        "relief_seam_damaged": "pass" if first_damage is not None else "fail",
+        "persistent_opening_created": (
+            "pass" if confirmed is not None and first_reseal is None else "fail"
+        ),
+        "exterior_vent_observed": "pass" if first_exterior is not None else "fail",
+        "post_opening_pressure_relieved": (
+            "pass" if pressure_relieved else "unknown"
+        ),
+        "terminal_pressure_not_runaway": (
+            "unknown"
+            if len(terminal_window_samples) < TERMINAL_WINDOW_SAMPLES
+            else "fail"
+            if expected_window["unbounded_growth"]
+            else "pass"
+        ),
+        "no_invalid_materials": "pass" if invalid_occurrences == 0 else "fail",
+        "no_nonfinite_fields": "pass" if nonfinite_occurrences == 0 else "fail",
+        "exact_reset": "pass" if recorded_reset_exact else "fail",
+    }
+    recorded_statuses = {
+        name: predicate["status"] for name, predicate in analysis["predicates"].items()
+    }
+    if recorded_statuses != expected_statuses:
+        raise ExperimentError("Pressure predicate statuses disagree with raw telemetry")
+    expected_verdict = pressure_expected_verdict(expected_statuses, expected_flags)
+    if analysis["verdict"] != expected_verdict:
+        raise ExperimentError("Pressure verdict disagrees with predicates and review flags")
+
+    expected_events: list[tuple[str, int, int | None]] = [
+        ("lifecycle_started", 0, None),
+        ("pristine_reset_completed", 0, None),
+        ("tick0_captured", 0, tick0["sample_sequence"]),
+    ]
+    running_mean = tick0["chamber_mean_pressure"]
+    running_max = tick0["chamber_max_pressure"]
+    running_activity = tick0["census"]["pressure_active_cells"]
+
+    def append_observation_events(sample: dict[str, Any]) -> None:
+        nonlocal running_mean, running_max, running_activity
+        identity = (sample["sim_tick"], sample["sample_sequence"])
+        if sample is first_pressure:
+            expected_events.append(("pressure_activity_observed", *identity))
+        if sample is first_damage:
+            expected_events.append(("relief_seam_damage_observed", *identity))
+        if sample is first_rupture:
+            expected_events.append(("rupture_observed", *identity))
+        if sample is first_seam_steam:
+            expected_events.append(("relief_seam_steam_observed", *identity))
+        if sample is first_exterior:
+            expected_events.append(("exterior_vent_observed", *identity))
+        if sample is first_reseal:
+            expected_events.append(("post_confirmation_reseal_observed", *identity))
+        if sample["chamber_mean_pressure"] > running_mean:
+            running_mean = sample["chamber_mean_pressure"]
+            expected_events.append(("new_peak_chamber_mean_pressure", *identity))
+        if sample["chamber_max_pressure"] > running_max:
+            running_max = sample["chamber_max_pressure"]
+            expected_events.append(("new_peak_chamber_max_pressure", *identity))
+        if sample["census"]["pressure_active_cells"] > running_activity:
+            running_activity = sample["census"]["pressure_active_cells"]
+            expected_events.append(("new_peak_pressure_activity", *identity))
+        if sample is first_relief:
+            expected_events.append(("post_opening_pressure_relief_observed", *identity))
+
+    append_observation_events(tick1)
+    expected_events.append(
+        ("tick1_captured", tick1["sim_tick"], tick1["sample_sequence"])
+    )
+    opening_streak_samples: list[dict[str, Any]] = []
+    if tick1["relief_seam_open_cells"] > 0:
+        opening_streak_samples.append(tick1)
+        expected_events.append(
+            (
+                "persistent_opening_streak_started",
+                tick1["sim_tick"],
+                tick1["sample_sequence"],
+            )
+        )
+    confirmation_seen = False
+    for sample in diagnostics:
+        identity = (sample["sim_tick"], sample["sample_sequence"])
+        if not confirmation_seen:
+            if sample["relief_seam_open_cells"] == 0:
+                if opening_streak_samples:
+                    expected_events.append(("persistent_opening_streak_broken", *identity))
+                    opening_streak_samples = []
+            else:
+                if not opening_streak_samples:
+                    expected_events.append(("persistent_opening_streak_started", *identity))
+                opening_streak_samples.append(sample)
+                if len(opening_streak_samples) == CONSECUTIVE_PERSISTENT_OPENING:
+                    expected_events.append(("persistent_opening_confirmed", *identity))
+                    expected_events.append(("post_opening_observation_started", *identity))
+                    confirmation_seen = True
+        append_observation_events(sample)
+    for sample in post_opening:
+        append_observation_events(sample)
+        if (
+            terminal_reason == "post-opening-observation-complete"
+            and sample is terminal
+        ):
+            expected_events.append(
+                (
+                    "post_opening_observation_completed",
+                    sample["sim_tick"],
+                    sample["sample_sequence"],
+                )
+            )
+    terminal_identity = (terminal["sim_tick"], terminal["sample_sequence"])
+    expected_events.extend(
+        [
+            ("terminal_selected", *terminal_identity),
+            ("reset_started", *terminal_identity),
+            (
+                "reset_comparison_completed",
+                reset["sim_tick"],
+                reset["sample_sequence"],
+            ),
+            ("worker_completed", reset["sim_tick"], reset["sample_sequence"]),
+        ]
+    )
+    validate_pressure_event_contract(events, expected_events)
+
+    fallback_candidates = [
+        sample
+        for sample in pre_reset
+        if (
+            sample["phase"] == "pressurizing"
+            and sample["sim_tick"] % (DIAGNOSTIC_INTERVAL * 128) == 0
+        )
+        or (
+            confirmed is not None
+            and sample["phase"] == "post-opening-observation"
+            and (sample["sim_tick"] - confirmed["sim_tick"]) % 32 == 0
+        )
+    ][-8:]
+    expected_frames = pressure_expected_frame_badges(
+        tick0,
+        tick1,
+        first_pressure,
+        first_damage,
+        first_rupture,
+        opening_streak,
+        first_reseal,
+        first_exterior,
+        peak_max,
+        peak_activity,
+        first_relief,
+        terminal,
+        reset,
+        fallback_candidates,
+        terminal_reason,
+    )
+    validate_pressure_frame_contract(frames, expected_frames)
+    return analysis, frames_doc, samples, events
+
+
 def validate_telemetry(
     run_dir: Path, manifest: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -4000,6 +5575,8 @@ def validate_telemetry(
         return validate_water_telemetry(run_dir, manifest)
     if contract is FIRE_CONTRACT:
         return validate_fire_telemetry(run_dir, manifest)
+    if contract is PRESSURE_CONTRACT:
+        return validate_pressure_telemetry(run_dir, manifest)
     raise ExperimentError(f"unsupported telemetry contract: {contract.scenario}")
 
 
@@ -4045,17 +5622,21 @@ def create_screenshots(
             (CROP_X, CROP_Y, CROP_X + CROP_WIDTH, CROP_Y + CROP_HEIGHT)
         )
         write_new_bytes(crop_path, png_bytes(crop), publication_log)
-        output.append(
-            {
+        reason = frame.get("reason")
+        if reason is None:
+            reason = "+".join(badge["kind"] for badge in frame["badges"])
+        item = {
                 "ordinal": frame["ordinal"],
-                "reason": frame["reason"],
+                "reason": reason,
                 "sim_tick": frame["sim_tick"],
                 "sample_sequence": frame["sample_sequence"],
                 "state_hash": frame["state_hash"],
                 "full_png": full_path.relative_to(run_dir).as_posix(),
                 "crop_png": crop_path.relative_to(run_dir).as_posix(),
             }
-        )
+        if "badges" in frame:
+            item["badges"] = frame["badges"]
+        output.append(item)
     return output
 
 
@@ -4090,6 +5671,21 @@ def contact_sheet_caption_lines(
             ),
             f"State {sample['state_hash']}",
         )
+    if sample.get("scenario") == PRESSURE_CONTRACT.scenario:
+        return (
+            identity,
+            f"Pressure active {census['pressure_active_cells']}",
+            (
+                f"Chamber mean/max {sample['chamber_mean_pressure']:.3f}/"
+                f"{sample['chamber_max_pressure']:.3f}"
+            ),
+            (
+                "Seam Wood/open "
+                f"{sample['relief_seam_wood_cells']}/{sample['relief_seam_open_cells']} | "
+                f"Outside Steam {sample['outside_chamber_steam_cells']}"
+            ),
+            f"State {sample['state_hash']}",
+        )
     return (
         identity,
         (
@@ -4108,13 +5704,36 @@ def create_contact_sheet_bytes(
     Image, ImageDraw, ImageOps = pillow_modules()
     columns = 3
     panel_width = 420
-    panel_height = 450
-    rows = (len(screenshots) + columns - 1) // columns
-    sheet = Image.new("RGB", (columns * panel_width, max(1, rows) * panel_height), "#11151c")
-    draw = ImageDraw.Draw(sheet)
     samples_by_sequence = (
         {} if samples is None else {sample["sample_sequence"]: sample for sample in samples}
     )
+    captions: list[tuple[str, ...]] = []
+    caption_top = 374
+    caption_line_height = 18
+    caption_bottom_padding = 10
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    caption_bottom = 0
+    for item in screenshots:
+        sample = samples_by_sequence.get(item["sample_sequence"])
+        if samples is not None and sample is None:
+            raise ExperimentError("contact-sheet frame sample is absent from telemetry")
+        lines = contact_sheet_caption_lines(item, sample)
+        captions.append(lines)
+        for line_index, label in enumerate(lines):
+            bbox = probe.textbbox(
+                (12, caption_top + line_index * caption_line_height), label
+            )
+            caption_bottom = max(caption_bottom, bbox[3])
+
+    # Historical four-line layouts remain 450 px high. Pressure adds a fifth
+    # required State-hash line, so size the panel from the actual Pillow text
+    # bounds instead of clipping the final evidence caption.
+    panel_height = max(450, caption_bottom + caption_bottom_padding)
+    rows = (len(screenshots) + columns - 1) // columns
+    sheet = Image.new(
+        "RGB", (columns * panel_width, max(1, rows) * panel_height), "#11151c"
+    )
+    draw = ImageDraw.Draw(sheet)
     for index, item in enumerate(screenshots):
         column = index % columns
         row = index // columns
@@ -4125,11 +5744,12 @@ def create_contact_sheet_bytes(
         x = left + (panel_width - thumb.width) // 2
         y = top + 8
         sheet.paste(thumb, (x, y))
-        sample = samples_by_sequence.get(item["sample_sequence"])
-        if samples is not None and sample is None:
-            raise ExperimentError("contact-sheet frame sample is absent from telemetry")
-        for line_index, label in enumerate(contact_sheet_caption_lines(item, sample)):
-            draw.text((left + 12, top + 374 + line_index * 18), label, fill="#f4f7fb")
+        for line_index, label in enumerate(captions[index]):
+            draw.text(
+                (left + 12, top + caption_top + line_index * caption_line_height),
+                label,
+                fill="#f4f7fb",
+            )
         draw.rectangle(
             (left + 2, top + 2, left + panel_width - 3, top + panel_height - 3),
             outline="#506078",
@@ -4194,6 +5814,53 @@ def fire_heat_summary(analysis: dict[str, Any]) -> dict[str, Any]:
         "fuel_consumed": metrics["fuel_consumed"],
         "wood_count_delta": metrics["wood_count_delta"],
         "oil_count_delta": metrics["oil_count_delta"],
+        "reset_exact_equivalence": metrics["reset_exact_equivalence"],
+    }
+
+
+def pressure_burst_summary(analysis: dict[str, Any]) -> dict[str, Any]:
+    metrics = analysis["metrics"]
+    lifecycle = analysis["lifecycle"]
+    return {
+        "terminal_reason": lifecycle["terminal_reason"],
+        "first_pressure_activity_tick": metrics["first_pressure_activity_tick"],
+        "first_wood_damage_tick": metrics["first_wood_damage_tick"],
+        "first_rupture_tick": metrics["first_rupture_tick"],
+        "persistent_opening_confirmed_tick": metrics[
+            "persistent_opening_confirmed_tick"
+        ],
+        "first_steam_in_relief_seam_tick": metrics[
+            "first_steam_in_relief_seam_tick"
+        ],
+        "first_outside_chamber_steam_tick": metrics[
+            "first_outside_chamber_steam_tick"
+        ],
+        "first_post_confirmation_reseal_tick": metrics[
+            "first_post_confirmation_reseal_tick"
+        ],
+        "first_post_opening_relief_tick": metrics[
+            "first_post_opening_relief_tick"
+        ],
+        "vent_reference_chamber_mean_pressure": metrics[
+            "vent_reference_chamber_mean_pressure"
+        ],
+        "vent_reference_chamber_max_pressure": metrics[
+            "vent_reference_chamber_max_pressure"
+        ],
+        "peak_chamber_mean_pressure": metrics["peak_chamber_mean_pressure"],
+        "peak_chamber_max_pressure": metrics["peak_chamber_max_pressure"],
+        "peak_pressure_active_cells": metrics["peak_pressure_active_cells"],
+        "terminal_chamber_mean_pressure": metrics[
+            "terminal_chamber_mean_pressure"
+        ],
+        "terminal_chamber_max_pressure": metrics["terminal_chamber_max_pressure"],
+        "terminal_pressure_relieved": metrics["terminal_pressure_relieved"],
+        "outside_chamber_steam_peak": metrics["outside_chamber_steam_peak"],
+        "final_outside_chamber_steam_cells": metrics[
+            "final_outside_chamber_steam_cells"
+        ],
+        "terminal_window": analysis["terminal_window"],
+        "review_flags": analysis["review_flags"],
         "reset_exact_equivalence": metrics["reset_exact_equivalence"],
     }
 
@@ -4314,6 +5981,43 @@ def render_report_markdown(
                 f"- Exact reset: {summary['reset_exact_equivalence']}",
             ]
         )
+    elif contract is PRESSURE_CONTRACT:
+        summary = pressure_burst_summary(analysis)
+        lines.extend(
+            [
+                "",
+                "## Pressure Burst telemetry",
+                "",
+                "- First activity / Wood damage / cold-bottom rupture ticks: "
+                f"{summary['first_pressure_activity_tick']} / "
+                f"{summary['first_wood_damage_tick']} / {summary['first_rupture_tick']}",
+                "- Persistent opening / exterior Steam ticks: "
+                f"{summary['persistent_opening_confirmed_tick']} / "
+                f"{summary['first_outside_chamber_steam_tick']}",
+                "- Seam Steam / post-confirmation reseal / post-vent relief ticks: "
+                f"{summary['first_steam_in_relief_seam_tick']} / "
+                f"{summary['first_post_confirmation_reseal_tick']} / "
+                f"{summary['first_post_opening_relief_tick']}",
+                "- Vent-reference chamber mean / max: "
+                f"{summary['vent_reference_chamber_mean_pressure']} / "
+                f"{summary['vent_reference_chamber_max_pressure']}",
+                "- Peak chamber mean / max: "
+                f"{summary['peak_chamber_mean_pressure']} / "
+                f"{summary['peak_chamber_max_pressure']}",
+                f"- Peak Pressure-active cells: {summary['peak_pressure_active_cells']}",
+                "- Terminal chamber mean / max: "
+                f"{summary['terminal_chamber_mean_pressure']} / "
+                f"{summary['terminal_chamber_max_pressure']}",
+                f"- Sustained post-vent Pressure relief: "
+                f"{summary['terminal_pressure_relieved']}",
+                "- Outside Steam peak / final: "
+                f"{summary['outside_chamber_steam_peak']} / "
+                f"{summary['final_outside_chamber_steam_cells']}",
+                "- Review flags: "
+                + (", ".join(summary["review_flags"]["reasons"]) or "none"),
+                f"- Exact reset: {summary['reset_exact_equivalence']}",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -4399,6 +6103,29 @@ a remaining Thermal tail is not itself a failure. The recorded terminal is
 start/final/minimum cells `{summary['post_reaction_thermal_cells']}` /
 `{summary['post_reaction_final_thermal_cells']}` /
 `{summary['post_reaction_min_thermal_cells']}`.
+
+Report concrete mismatches, missing evidence, and ambiguity. Do not infer other scenarios,
+G8-C performance, product readiness, or G8-B closure. No upload, external message, code
+change, or other action is authorized by this prompt.
+"""
+    if contract is PRESSURE_CONTRACT:
+        summary = pressure_burst_summary(analysis)
+        return f"""# Human Review Prompt — Powdergame Pressure Burst Experiment
+
+This prompt was generated locally and was not sent to an AI or external service.
+Review only `REVIEW_PACKET.zip` for experiment `{manifest['experiment_id']}`, run
+`{manifest['run_id']}` in `{manifest['run_mode']}` mode, source
+`{manifest['source']['sha']}`, binary `{manifest['binary']['sha256']}`. Treat automatic
+verdict `{analysis['verdict']}` as a telemetry claim, not user acceptance or closure.
+
+Check the causal sequence in the full frames, crops, contact sheet, raw samples, and events:
+Pressure activity, authored relief-seam damage, the stronger cold-bottom rupture signal,
+three-sample persistent opening, Steam in the relief seam at or before causal exterior venting,
+any post-confirmation reseal, sustained post-vent mean/max relief, the 180-tick
+post-opening window, and the 64-sample terminal mean/max Pressure trend. Frame badges
+sharing one physical state are folded
+onto one image. Review flags are `{', '.join(summary['review_flags']['reasons']) or 'none'}`;
+these flags require human review and are not automatic defect findings.
 
 Report concrete mismatches, missing evidence, and ambiguity. Do not infer other scenarios,
 G8-C performance, product readiness, or G8-B closure. No upload, external message, code
@@ -4551,7 +6278,12 @@ def postprocess_run(
     screenshots = create_screenshots(run_dir, frames_doc["frames"], log)
     if contract.records_run_mode:
         for screenshot, frame in zip(screenshots, frames_doc["frames"], strict=True):
-            screenshot["kind"] = frame["kind"]
+            if contract is PRESSURE_CONTRACT:
+                screenshot["kind"] = "+".join(
+                    badge["kind"] for badge in frame["badges"]
+                )
+            else:
+                screenshot["kind"] = frame["kind"]
 
     report_dir = run_dir / "report"
     try:
@@ -4591,6 +6323,8 @@ def postprocess_run(
     }
     if contract is FIRE_CONTRACT:
         report_json["scope"]["fire_heat"] = True
+    elif contract is PRESSURE_CONTRACT:
+        report_json["scope"]["pressure_burst"] = True
     if contract.records_run_mode:
         report_json["run_mode"] = manifest["run_mode"]
     if contract is WATER_CONTRACT:
@@ -4607,6 +6341,13 @@ def postprocess_run(
         report_json["review_guidance"] = {
             "thermal_tail_is_not_failure_by_itself": True,
             "automatic_verdict_is_user_acceptance": False,
+            "g8b_closed": False,
+        }
+    elif contract is PRESSURE_CONTRACT:
+        report_json["pressure_burst"] = pressure_burst_summary(analysis)
+        report_json["review_guidance"] = {
+            "automatic_verdict_is_user_acceptance": False,
+            "review_flags_force_human_review": True,
             "g8b_closed": False,
         }
     write_new_text(
@@ -4659,6 +6400,8 @@ def postprocess_run(
         receipt["water_remediation"] = water_remediation_summary(analysis)
     elif contract is FIRE_CONTRACT:
         receipt["fire_heat"] = fire_heat_summary(analysis)
+    elif contract is PRESSURE_CONTRACT:
+        receipt["pressure_burst"] = pressure_burst_summary(analysis)
     if final_guard is not None:
         final_guard()
     write_new_text(
@@ -4746,6 +6489,8 @@ def validate_audit_receipt(
         expected["water_remediation"] = water_remediation_summary(analysis)
     elif contract is FIRE_CONTRACT:
         expected["fire_heat"] = fire_heat_summary(analysis)
+    elif contract is PRESSURE_CONTRACT:
+        expected["pressure_burst"] = pressure_burst_summary(analysis)
 
     require_exact_keys(
         receipt, set(expected) | {"completed_utc"}, "experiment receipt"
@@ -4767,6 +6512,380 @@ def validate_audit_receipt(
                 f"receipt {field} contract mismatch: "
                 f"recorded={recorded!r}, observed={expected_value!r}"
             )
+
+
+def safe_bundle_member_name(value: str, label: str) -> str:
+    relative = PurePosixPath(value)
+    if (
+        not value
+        or relative.is_absolute()
+        or ".." in relative.parts
+        or "\\" in value
+        or relative.as_posix() != value
+    ):
+        raise ExperimentError(f"{label} has an unsafe/noncanonical path: {value!r}")
+    return value
+
+
+def deterministic_zip_bytes(members: Iterable[tuple[str, bytes]]) -> bytes:
+    ordered = sorted(members, key=lambda member: member[0])
+    names = [safe_bundle_member_name(name, "ZIP member") for name, _ in ordered]
+    if len(names) != len(set(names)):
+        raise ExperimentError("ZIP member inventory contains duplicate paths")
+    output = io.BytesIO()
+    with zipfile.ZipFile(
+        output, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as archive:
+        for name, data in ordered:
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
+            info.external_attr = 0o100644 << 16
+            archive.writestr(info, data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+    return output.getvalue()
+
+
+def zip_bytes_inventory(data: bytes, label: str) -> list[dict[str, Any]]:
+    inventory: list[dict[str, Any]] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            names: set[str] = set()
+            for info in archive.infolist():
+                if info.is_dir():
+                    continue
+                name = safe_bundle_member_name(info.filename, f"{label} member")
+                if name in names:
+                    raise ExperimentError(f"{label} contains duplicate member {name}")
+                names.add(name)
+                payload = archive.read(info)
+                if len(payload) != info.file_size:
+                    raise ExperimentError(f"{label} member size mismatch for {name}")
+                inventory.append(
+                    {
+                        "path": name,
+                        "size_bytes": len(payload),
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                    }
+                )
+    except (OSError, zipfile.BadZipFile, RuntimeError) as error:
+        raise ExperimentError(f"invalid {label}: {error}") from error
+    inventory.sort(key=lambda entry: entry["path"])
+    return inventory
+
+
+def pressure_source_input_bytes(
+    source_inputs_path: Path,
+    source_root: Path,
+    manifest: dict[str, Any],
+) -> tuple[bytes, list[dict[str, str]]]:
+    source_inputs = read_json(source_inputs_path, "source input manifest")
+    require_exact_keys(
+        source_inputs,
+        {
+            "schema_version",
+            "source",
+            "selection",
+            "file_count",
+            "files",
+            "external_file_count",
+            "external_files",
+        },
+        "source input manifest",
+    )
+    if source_inputs["schema_version"] != SOURCE_INPUT_MANIFEST_SCHEMA:
+        raise ExperimentError("source input manifest schema mismatch")
+    if source_inputs["source"] != {
+        "root": str(source_root.resolve()),
+        "branch": manifest["source"]["branch"],
+        "head_sha": manifest["source"]["sha"],
+        "git_state": "clean",
+    }:
+        raise ExperimentError("source input manifest source identity mismatch")
+    files = source_inputs["files"]
+    external_files = source_inputs["external_files"]
+    if not isinstance(files, list) or source_inputs["file_count"] != len(files):
+        raise ExperimentError("source input manifest tracked file_count mismatch")
+    if (
+        not isinstance(external_files, list)
+        or source_inputs["external_file_count"] != len(external_files)
+    ):
+        raise ExperimentError("source input manifest external_file_count mismatch")
+
+    zip_members: list[tuple[str, bytes]] = []
+    mappings: list[dict[str, str]] = []
+    seen_originals: set[str] = set()
+    for index, entry in enumerate(files):
+        if not isinstance(entry, dict):
+            raise ExperimentError(f"source input manifest file {index} must be an object")
+        require_exact_keys(
+            entry, {"path", "sha256", "size_bytes"}, f"source input file {index}"
+        )
+        relative_text = safe_bundle_member_name(entry["path"], "source input path")
+        if relative_text in seen_originals:
+            raise ExperimentError(f"source input manifest duplicates {relative_text}")
+        seen_originals.add(relative_text)
+        relative = PurePosixPath(relative_text)
+        path = source_root.joinpath(*relative.parts)
+        if not path.is_file():
+            raise ExperimentError(f"sealed source input is missing: {relative_text}")
+        payload = path.read_bytes()
+        if entry["size_bytes"] != len(payload) or entry["sha256"] != hashlib.sha256(
+            payload
+        ).hexdigest():
+            raise ExperimentError(f"sealed source input bytes drifted: {relative_text}")
+        bundle_path = f"repository/{relative_text}"
+        zip_members.append((bundle_path, payload))
+        mappings.append(
+            {
+                "original": relative_text,
+                "bundle_path": f"SOURCE_INPUT_BYTES.zip!{bundle_path}",
+            }
+        )
+
+    labels: set[str] = set()
+    for index, entry in enumerate(external_files):
+        if not isinstance(entry, dict):
+            raise ExperimentError(f"external source input {index} must be an object")
+        require_exact_keys(
+            entry,
+            {"label", "path", "sha256", "size_bytes"},
+            f"external source input {index}",
+        )
+        label = entry["label"]
+        if (
+            not isinstance(label, str)
+            or not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", label)
+            or label in labels
+        ):
+            raise ExperimentError(f"external source input label is invalid/duplicate: {label!r}")
+        labels.add(label)
+        path = Path(entry["path"])
+        if not path.is_absolute() or not path.is_file():
+            raise ExperimentError(f"external source input is missing: {entry['path']!r}")
+        payload = path.read_bytes()
+        if entry["size_bytes"] != len(payload) or entry["sha256"] != hashlib.sha256(
+            payload
+        ).hexdigest():
+            raise ExperimentError(f"external source input bytes drifted: {label}")
+        filename = path.name
+        if not filename or filename in {".", ".."}:
+            raise ExperimentError(f"external source input filename is invalid: {label}")
+        bundle_path = f"external/{label}/{filename}"
+        zip_members.append((bundle_path, payload))
+        mappings.append(
+            {
+                "original": str(path.resolve()),
+                "bundle_path": f"SOURCE_INPUT_BYTES.zip!{bundle_path}",
+            }
+        )
+    mappings.sort(key=lambda entry: (entry["original"], entry["bundle_path"]))
+    return deterministic_zip_bytes(zip_members), mappings
+
+
+def render_bundle_hashes(members: dict[str, bytes]) -> bytes:
+    return "".join(
+        f"{hashlib.sha256(data).hexdigest()}  {name}\n"
+        for name, data in sorted(members.items())
+        if name != "AUDIT_BUNDLE_HASHES.sha256"
+    ).encode("utf-8")
+
+
+def create_pressure_audit_bundle_vnext(
+    run_dir: Path, source_root: Path, expected_receipt_sha256: str
+) -> tuple[Path, Path]:
+    bundle_path = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SUFFIX}"
+    sidecar_path = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SHA256_SUFFIX}"
+    if bundle_path.exists() or sidecar_path.exists():
+        raise ExperimentError(
+            "refusing to overwrite existing Pressure audit bundle or SHA-256 sidecar"
+        )
+
+    manifest_path = run_dir / "EXPERIMENT_MANIFEST.toml"
+    hashes_path = run_dir / "HASHES.sha256"
+    receipt_path = run_dir / "EXPERIMENT_RECEIPT.json"
+    source_inputs_path = run_dir / SOURCE_INPUT_MANIFEST_NAME
+    review_packet_path = run_dir / "report" / "REVIEW_PACKET.zip"
+    required = (
+        manifest_path,
+        hashes_path,
+        receipt_path,
+        source_inputs_path,
+        review_packet_path,
+    )
+    missing = [path.relative_to(run_dir).as_posix() for path in required if not path.is_file()]
+    if missing:
+        raise ExperimentError(f"Pressure audit bundle inputs are incomplete: {missing}")
+    if not isinstance(expected_receipt_sha256, str) or not HEX64.fullmatch(
+        expected_receipt_sha256
+    ):
+        raise ExperimentError("expected receipt SHA-256 must be 64 hexadecimal characters")
+    if sha256_file(receipt_path) != expected_receipt_sha256.lower():
+        raise ExperimentError("Pressure receipt bytes changed after final publication")
+
+    manifest = read_and_validate_manifest(manifest_path)
+    if contract_for_manifest(manifest) is not PRESSURE_CONTRACT:
+        raise ExperimentError("Pressure Audit Bundle vNext requires Pressure Burst")
+    if manifest["run_mode"] != "candidate":
+        raise ExperimentError("Pressure Audit Bundle vNext is candidate-only")
+    binary_path = Path(manifest["binary"]["path"])
+    expected_binary = run_dir.joinpath(*FROZEN_BINARY_RELATIVE_PATH.parts).resolve()
+    if binary_path.resolve() != expected_binary or not binary_path.is_file():
+        raise ExperimentError("Pressure audit bundle requires the run-local frozen executable")
+    if sha256_file(binary_path) != manifest["binary"]["sha256"]:
+        raise ExperimentError("frozen executable hash changed before Pressure audit bundling")
+
+    analysis, _, _, _ = validate_telemetry(run_dir, manifest)
+    hash_entries = validate_hash_inventory(run_dir, hashes_path)
+    receipt = read_json(receipt_path, "experiment receipt")
+    validate_audit_receipt(
+        receipt,
+        manifest,
+        analysis,
+        manifest_path=manifest_path,
+        hashes_path=hashes_path,
+        review_packet_path=review_packet_path,
+        source_inputs_path=source_inputs_path,
+        binary_path=binary_path,
+        hash_entry_count=len(hash_entries),
+    )
+
+    source_input_zip, source_mappings = pressure_source_input_bytes(
+        source_inputs_path, source_root.resolve(), manifest
+    )
+    # Unlike the historical bundles, Git archive failure is fatal for Pressure.
+    git_archive = git_archive_zip_bytes(source_root.resolve(), manifest["source"]["sha"])
+    review_packet = review_packet_path.read_bytes()
+    nested_packet_inventory = zip_bytes_inventory(review_packet, "REVIEW_PACKET.zip")
+    run_members: list[tuple[Path, str, str]] = [
+        (review_packet_path, "REVIEW_PACKET.zip", "lightweight human review packet"),
+        (manifest_path, "EXPERIMENT_MANIFEST.toml", "run contract and exact commands"),
+        (hashes_path, "HASHES.sha256", "complete immutable run-file hash inventory"),
+        (receipt_path, "EXPERIMENT_RECEIPT.json", "final run publication marker"),
+        (
+            source_inputs_path,
+            SOURCE_INPUT_MANIFEST_NAME,
+            "sealed build-input inventory",
+        ),
+        (
+            binary_path,
+            FROZEN_BINARY_RELATIVE_PATH.as_posix(),
+            "run-local executable used by the worker",
+        ),
+    ]
+    direct_members = [
+        {
+            "bundle_path": "AUDIT_BUNDLE_MANIFEST.json",
+            "original": None,
+            "role": "self-describing bundle inventory and verification scopes",
+        },
+        {
+            "bundle_path": "AUDIT_BUNDLE_HASHES.sha256",
+            "original": None,
+            "role": "SHA-256 inventory of every other direct bundle member",
+        },
+        {
+            "bundle_path": "SOURCE_INPUT_BYTES.zip",
+            "original": SOURCE_INPUT_MANIFEST_NAME,
+            "role": "byte-exact tracked and external sealed build inputs",
+        },
+        {
+            "bundle_path": "GIT_SOURCE_ARCHIVE.zip",
+            "original": manifest["source"]["sha"],
+            "role": "commit-addressable full tracked source tree",
+        },
+    ]
+    direct_members.extend(
+        {
+            "bundle_path": bundle_name,
+            "original": path.relative_to(run_dir).as_posix(),
+            "role": role,
+        }
+        for path, bundle_name, role in run_members
+    )
+    direct_members.sort(key=lambda entry: entry["bundle_path"])
+    original_to_bundle = [
+        {
+            "original": path.relative_to(run_dir).as_posix(),
+            "bundle_path": bundle_name,
+        }
+        for path, bundle_name, _ in run_members
+    ]
+    original_to_bundle.extend(source_mappings)
+    original_to_bundle.extend(
+        {
+            "original": entry["path"],
+            "bundle_path": f"REVIEW_PACKET.zip!{entry['path']}",
+        }
+        for entry in nested_packet_inventory
+    )
+    original_to_bundle.append(
+        {
+            "original": f"git:{manifest['source']['sha']}",
+            "bundle_path": "GIT_SOURCE_ARCHIVE.zip!source/**",
+        }
+    )
+    original_to_bundle.sort(key=lambda entry: (entry["original"], entry["bundle_path"]))
+    bundle_manifest = {
+        "schema_version": PRESSURE_AUDIT_BUNDLE_MANIFEST_SCHEMA,
+        "experiment_id": manifest["experiment_id"],
+        "run_id": manifest["run_id"],
+        "scenario": manifest["scenario"],
+        "source_sha": manifest["source"]["sha"],
+        "binary_sha256": manifest["binary"]["sha256"],
+        "receipt_sha256": expected_receipt_sha256.lower(),
+        "direct_members": direct_members,
+        "nested_review_packet_inventory": nested_packet_inventory,
+        "original_to_bundle_mapping": original_to_bundle,
+        "omitted_work": [
+            {
+                "path": "work/analysis.json",
+                "reason": "worker intermediate is hash-bound and copied into report/REPORT.json",
+            },
+            {
+                "path": "work/frames.json",
+                "reason": "worker frame metadata is hash-bound and independently validated before packaging",
+            },
+            {
+                "path": "work/frames/**",
+                "reason": "raw RGBA intermediates are hash-bound; derived full PNGs are in REVIEW_PACKET.zip",
+            },
+        ],
+        "verification_scopes": {
+            "REVIEW_PACKET.zip": "human-visible report, telemetry, logs, and derived screenshots",
+            "SOURCE_INPUT_BYTES.zip": "exact bytes enumerated by SOURCE_INPUT_MANIFEST.json, including external inputs",
+            "GIT_SOURCE_ARCHIVE.zip": "tracked repository tree at source SHA only",
+            FROZEN_BINARY_RELATIVE_PATH.as_posix(): "exact executable launched for this run",
+            "HASHES.sha256": "run-directory files before the final receipt, excluding only HASHES and receipt",
+            "AUDIT_BUNDLE_HASHES.sha256": "every other direct Audit Bundle member, excluding only this bundle-local hash inventory itself",
+        },
+        "archive_role_difference": {
+            "SOURCE_INPUT_BYTES.zip": (
+                "selected build inputs at capture time, including external font bytes"
+            ),
+            "GIT_SOURCE_ARCHIVE.zip": (
+                "complete Git-tracked tree at source SHA; excludes external inputs"
+            ),
+        },
+    }
+    manifest_bytes = (
+        json.dumps(bundle_manifest, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    members: dict[str, bytes] = {
+        "AUDIT_BUNDLE_MANIFEST.json": manifest_bytes,
+        "SOURCE_INPUT_BYTES.zip": source_input_zip,
+        "GIT_SOURCE_ARCHIVE.zip": git_archive,
+    }
+    for path, bundle_name, _ in run_members:
+        members[bundle_name] = path.read_bytes()
+    members["AUDIT_BUNDLE_HASHES.sha256"] = render_bundle_hashes(members)
+    expected_direct_paths = {entry["bundle_path"] for entry in direct_members}
+    if set(members) != expected_direct_paths:
+        raise ExperimentError("Pressure audit bundle direct-member inventory mismatch")
+    bundle_bytes = deterministic_zip_bytes(members.items())
+    write_new_bytes(bundle_path, bundle_bytes)
+    bundle_hash = sha256_file(bundle_path)
+    write_new_text(sidecar_path, f"{bundle_hash}  {bundle_path.name}\n")
+    return bundle_path, sidecar_path
 
 
 def create_audit_bundle(
@@ -4894,6 +7013,15 @@ def worker_command(
             "--post-reaction-ticks",
             str(POST_REACTION_TICKS),
         )
+    if contract is PRESSURE_CONTRACT:
+        return common + (
+            "--consecutive-persistent-opening",
+            str(CONSECUTIVE_PERSISTENT_OPENING),
+            "--post-opening-ticks",
+            str(POST_OPENING_TICKS),
+            "--terminal-window-samples",
+            str(TERMINAL_WINDOW_SAMPLES),
+        )
     return common + (
         "--consecutive-all-sleep",
         str(CONSECUTIVE_ALL_SLEEP),
@@ -4985,7 +7113,12 @@ def run_experiment(
     receipt = postprocess_run(run_dir, final_guard=final_publication_guard)
     if mode == "candidate":
         receipt_sha256 = sha256_file(receipt)
-        create_audit_bundle(run_dir, source.root, receipt_sha256)
+        if contract is PRESSURE_CONTRACT:
+            create_pressure_audit_bundle_vnext(
+                run_dir, source.root, receipt_sha256
+            )
+        else:
+            create_audit_bundle(run_dir, source.root, receipt_sha256)
     return receipt
 
 

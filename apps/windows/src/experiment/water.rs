@@ -1137,6 +1137,16 @@ fn validate_water_worker_config(
             "Water post_sleep_ticks must be {REQUIRED_POST_SETTLE_TICKS}"
         ));
     }
+    if config.consecutive_reaction_zero != 0
+        || config.post_reaction_ticks != 0
+        || super::pressure_lifecycle_options_present(
+            config.consecutive_persistent_opening,
+            config.post_opening_ticks,
+            config.terminal_window_samples,
+        )
+    {
+        return Err("Water worker rejects Fire/Pressure lifecycle settings".to_string());
+    }
     if config.binary_sha256.len() != 64
         || !config
             .binary_sha256

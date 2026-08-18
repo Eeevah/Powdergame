@@ -57,9 +57,9 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
 use experiment::{
-    run_fire_heat_experiment, run_sand_fall_experiment, run_water_flow_experiment,
-    verify_current_executable_sha256, ExperimentWorkerConfig, EXPERIMENT_ID, FIRE_EXPERIMENT_ID,
-    WATER_EXPERIMENT_ID,
+    run_fire_heat_experiment, run_pressure_burst_experiment, run_sand_fall_experiment,
+    run_water_flow_experiment, verify_current_executable_sha256, ExperimentWorkerConfig,
+    EXPERIMENT_ID, FIRE_EXPERIMENT_ID, PRESSURE_EXPERIMENT_ID, WATER_EXPERIMENT_ID,
 };
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
@@ -527,12 +527,29 @@ impl App {
                 ScenarioId::FireHeat => {
                     run_fire_heat_experiment(&mut simulation, &mut renderer, &provenance, config)
                 }
+                ScenarioId::PressureBurst => run_pressure_burst_experiment(
+                    &mut simulation,
+                    &mut renderer,
+                    &provenance,
+                    config,
+                ),
                 scenario => Err(format!("no experiment worker is registered for {scenario}")),
             }
             .map_err(|error| GpuError::Other(format!("experiment worker failed: {error}")))?;
             if config.scenario == ScenarioId::FireHeat {
                 println!(
                     "[powdergame][experiment] completed run_id={} scenario=fire-heat verdict={} samples={} raw_frames={} post_reaction_end_tick={}",
+                    outcome.run_id,
+                    outcome.verdict.as_str(),
+                    outcome.sample_count,
+                    outcome.raw_frame_count,
+                    outcome
+                        .post_sleep_end_tick
+                        .map_or_else(|| "null".to_string(), |value| value.to_string())
+                );
+            } else if config.scenario == ScenarioId::PressureBurst {
+                println!(
+                    "[powdergame][experiment] completed run_id={} scenario=pressure-burst verdict={} samples={} raw_frames={} terminal_tick={}",
                     outcome.run_id,
                     outcome.verdict.as_str(),
                     outcome.sample_count,
@@ -2145,12 +2162,15 @@ where
                 | "--post-sleep-ticks"
                 | "--consecutive-reaction-zero"
                 | "--post-reaction-ticks"
+                | "--consecutive-persistent-opening"
+                | "--post-opening-ticks"
+                | "--terminal-window-samples"
         )
     });
     if !worker_requested {
         if experiment_option_present {
             return Err(
-                "experiment options require '--experiment-worker sand-fall|water-flow|fire-heat'"
+                "experiment options require '--experiment-worker sand-fall|water-flow|fire-heat|pressure-burst'"
                     .to_string(),
             );
         }
@@ -2167,6 +2187,9 @@ where
     let mut post_sleep_ticks = None;
     let mut consecutive_reaction_zero = None;
     let mut post_reaction_ticks = None;
+    let mut consecutive_persistent_opening = None;
+    let mut post_opening_ticks = None;
+    let mut terminal_window_samples = None;
     let mut index = 0usize;
     while index < args.len() {
         let option = &args[index];
@@ -2189,9 +2212,10 @@ where
                     "sand-fall" => ScenarioId::SandFall,
                     "water-flow" => ScenarioId::WaterFlow,
                     "fire-heat" => ScenarioId::FireHeat,
+                    "pressure-burst" => ScenarioId::PressureBurst,
                     _ => {
                         return Err(format!(
-                            "experiment worker supports only 'sand-fall', 'water-flow', or 'fire-heat', got '{selected}'"
+                            "experiment worker supports only 'sand-fall', 'water-flow', 'fire-heat', or 'pressure-burst', got '{selected}'"
                         ));
                     }
                 });
@@ -2272,6 +2296,34 @@ where
                         format!("invalid --post-reaction-ticks '{raw}': {error}")
                     })?);
             }
+            "--consecutive-persistent-opening" => {
+                if consecutive_persistent_opening.is_some() {
+                    return Err("duplicate --consecutive-persistent-opening".to_string());
+                }
+                let raw = value(&mut index)?;
+                consecutive_persistent_opening = Some(raw.parse::<u32>().map_err(|error| {
+                    format!("invalid --consecutive-persistent-opening '{raw}': {error}")
+                })?);
+            }
+            "--post-opening-ticks" => {
+                if post_opening_ticks.is_some() {
+                    return Err("duplicate --post-opening-ticks".to_string());
+                }
+                let raw = value(&mut index)?;
+                post_opening_ticks =
+                    Some(raw.parse::<u32>().map_err(|error| {
+                        format!("invalid --post-opening-ticks '{raw}': {error}")
+                    })?);
+            }
+            "--terminal-window-samples" => {
+                if terminal_window_samples.is_some() {
+                    return Err("duplicate --terminal-window-samples".to_string());
+                }
+                let raw = value(&mut index)?;
+                terminal_window_samples = Some(raw.parse::<u32>().map_err(|error| {
+                    format!("invalid --terminal-window-samples '{raw}': {error}")
+                })?);
+            }
             _ => {
                 return Err(format!("unknown experiment worker argument '{option}'"));
             }
@@ -2283,43 +2335,88 @@ where
         ScenarioId::SandFall => EXPERIMENT_ID,
         ScenarioId::WaterFlow => WATER_EXPERIMENT_ID,
         ScenarioId::FireHeat => FIRE_EXPERIMENT_ID,
-        _ => unreachable!("worker parser accepts only Sand Fall, Water Flow, and Fire / Heat"),
+        ScenarioId::PressureBurst => PRESSURE_EXPERIMENT_ID,
+        _ => unreachable!("worker parser accepts four scenarios"),
     };
-    let (consecutive_all_sleep, post_sleep_ticks, consecutive_reaction_zero, post_reaction_ticks) =
-        match scenario {
-            ScenarioId::SandFall | ScenarioId::WaterFlow => {
-                if consecutive_reaction_zero.is_some() || post_reaction_ticks.is_some() {
-                    return Err(
-                        "--consecutive-reaction-zero and --post-reaction-ticks are Fire / Heat-only"
-                            .to_string(),
-                    );
-                }
-                (
-                    consecutive_all_sleep
-                        .ok_or_else(|| "missing --consecutive-all-sleep".to_string())?,
-                    post_sleep_ticks.ok_or_else(|| "missing --post-sleep-ticks".to_string())?,
-                    0,
-                    0,
-                )
+    let (
+        consecutive_all_sleep,
+        post_sleep_ticks,
+        consecutive_reaction_zero,
+        post_reaction_ticks,
+        consecutive_persistent_opening,
+        post_opening_ticks,
+        terminal_window_samples,
+    ) = match scenario {
+        ScenarioId::SandFall | ScenarioId::WaterFlow => {
+            if consecutive_reaction_zero.is_some()
+                || post_reaction_ticks.is_some()
+                || consecutive_persistent_opening.is_some()
+                || post_opening_ticks.is_some()
+                || terminal_window_samples.is_some()
+            {
+                return Err(
+                    "Fire/Pressure lifecycle options are not valid for Sand/Water".to_string(),
+                );
             }
-            ScenarioId::FireHeat => {
-                if consecutive_all_sleep.is_some() || post_sleep_ticks.is_some() {
-                    return Err(
-                        "--consecutive-all-sleep and --post-sleep-ticks are Sand/Water-only"
-                            .to_string(),
-                    );
-                }
-                (
-                    0,
-                    0,
-                    consecutive_reaction_zero
-                        .ok_or_else(|| "missing --consecutive-reaction-zero".to_string())?,
-                    post_reaction_ticks
-                        .ok_or_else(|| "missing --post-reaction-ticks".to_string())?,
-                )
+            (
+                consecutive_all_sleep
+                    .ok_or_else(|| "missing --consecutive-all-sleep".to_string())?,
+                post_sleep_ticks.ok_or_else(|| "missing --post-sleep-ticks".to_string())?,
+                0,
+                0,
+                0,
+                0,
+                0,
+            )
+        }
+        ScenarioId::FireHeat => {
+            if consecutive_all_sleep.is_some()
+                || post_sleep_ticks.is_some()
+                || consecutive_persistent_opening.is_some()
+                || post_opening_ticks.is_some()
+                || terminal_window_samples.is_some()
+            {
+                return Err(
+                    "Sand/Water/Pressure lifecycle options are not valid for Fire / Heat"
+                        .to_string(),
+                );
             }
-            _ => unreachable!("worker parser accepts three scenarios"),
-        };
+            (
+                0,
+                0,
+                consecutive_reaction_zero
+                    .ok_or_else(|| "missing --consecutive-reaction-zero".to_string())?,
+                post_reaction_ticks.ok_or_else(|| "missing --post-reaction-ticks".to_string())?,
+                0,
+                0,
+                0,
+            )
+        }
+        ScenarioId::PressureBurst => {
+            if consecutive_all_sleep.is_some()
+                || post_sleep_ticks.is_some()
+                || consecutive_reaction_zero.is_some()
+                || post_reaction_ticks.is_some()
+            {
+                return Err(
+                    "Sand/Water/Fire lifecycle options are not valid for Pressure Burst"
+                        .to_string(),
+                );
+            }
+            (
+                0,
+                0,
+                0,
+                0,
+                consecutive_persistent_opening
+                    .ok_or_else(|| "missing --consecutive-persistent-opening".to_string())?,
+                post_opening_ticks.ok_or_else(|| "missing --post-opening-ticks".to_string())?,
+                terminal_window_samples
+                    .ok_or_else(|| "missing --terminal-window-samples".to_string())?,
+            )
+        }
+        _ => unreachable!("worker parser accepts four scenarios"),
+    };
     Ok(Some(ExperimentWorkerConfig {
         experiment_id: experiment_id.to_string(),
         run_id: run_id.ok_or_else(|| "missing --experiment-run-id".to_string())?,
@@ -2333,6 +2430,9 @@ where
         post_sleep_ticks,
         consecutive_reaction_zero,
         post_reaction_ticks,
+        consecutive_persistent_opening,
+        post_opening_ticks,
+        terminal_window_samples,
     }))
 }
 
@@ -2500,6 +2600,9 @@ mod tests {
         assert_eq!(parsed.post_sleep_ticks, 180);
         assert_eq!(parsed.consecutive_reaction_zero, 0);
         assert_eq!(parsed.post_reaction_ticks, 0);
+        assert_eq!(parsed.consecutive_persistent_opening, 0);
+        assert_eq!(parsed.post_opening_ticks, 0);
+        assert_eq!(parsed.terminal_window_samples, 0);
     }
 
     #[test]
@@ -2529,6 +2632,9 @@ mod tests {
         assert_eq!(parsed.run_id, "g8b-water-flow-v0-test");
         assert_eq!(parsed.consecutive_reaction_zero, 0);
         assert_eq!(parsed.post_reaction_ticks, 0);
+        assert_eq!(parsed.consecutive_persistent_opening, 0);
+        assert_eq!(parsed.post_opening_ticks, 0);
+        assert_eq!(parsed.terminal_window_samples, 0);
     }
 
     #[test]
@@ -2559,12 +2665,50 @@ mod tests {
         assert_eq!(parsed.post_sleep_ticks, 0);
         assert_eq!(parsed.consecutive_reaction_zero, 3);
         assert_eq!(parsed.post_reaction_ticks, 180);
+        assert_eq!(parsed.consecutive_persistent_opening, 0);
+        assert_eq!(parsed.post_opening_ticks, 0);
+        assert_eq!(parsed.terminal_window_samples, 0);
+    }
+
+    #[test]
+    fn experiment_worker_cli_selects_pressure_specific_lifecycle() {
+        let parsed = experiment_worker_from_args([
+            "--experiment-worker",
+            "pressure-burst",
+            "--experiment-run-dir",
+            r"C:\outside\pressure-run",
+            "--experiment-run-id",
+            "g8b-pressure-burst-v0-test",
+            "--binary-sha256",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--max-ticks",
+            "20000",
+            "--diagnostic-interval",
+            "8",
+            "--consecutive-persistent-opening",
+            "3",
+            "--post-opening-ticks",
+            "180",
+            "--terminal-window-samples",
+            "64",
+        ])
+        .expect("valid Pressure worker arguments")
+        .expect("Pressure worker selected");
+        assert_eq!(parsed.experiment_id, "g8b-pressure-burst-v0");
+        assert_eq!(parsed.scenario, ScenarioId::PressureBurst);
+        assert_eq!(parsed.consecutive_all_sleep, 0);
+        assert_eq!(parsed.post_sleep_ticks, 0);
+        assert_eq!(parsed.consecutive_reaction_zero, 0);
+        assert_eq!(parsed.post_reaction_ticks, 0);
+        assert_eq!(parsed.consecutive_persistent_opening, 3);
+        assert_eq!(parsed.post_opening_ticks, 180);
+        assert_eq!(parsed.terminal_window_samples, 64);
     }
 
     #[test]
     fn experiment_worker_cli_rejects_missing_unknown_and_unsupported_modes() {
         assert!(experiment_worker_from_args(["--experiment-run-id", "orphan"]).is_err());
-        assert!(experiment_worker_from_args(["--experiment-worker", "pressure-burst"]).is_err());
+        assert!(experiment_worker_from_args(["--experiment-worker", "heavy-mixed-world"]).is_err());
         assert!(
             experiment_worker_from_args(["--experiment-worker", "sand-fall", "--unknown"]).is_err()
         );
@@ -2573,6 +2717,27 @@ mod tests {
             "fire-heat",
             "--consecutive-all-sleep",
             "3"
+        ])
+        .is_err());
+        assert!(experiment_worker_from_args([
+            "--experiment-worker",
+            "pressure-burst",
+            "--consecutive-reaction-zero",
+            "3"
+        ])
+        .is_err());
+        assert!(experiment_worker_from_args([
+            "--experiment-worker",
+            "water-flow",
+            "--post-opening-ticks",
+            "180"
+        ])
+        .is_err());
+        assert!(experiment_worker_from_args([
+            "--experiment-worker",
+            "fire-heat",
+            "--terminal-window-samples",
+            "64"
         ])
         .is_err());
         assert!(experiment_worker_from_args(["--benchmark-gallery"])

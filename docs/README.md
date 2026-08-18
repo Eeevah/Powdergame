@@ -56,7 +56,8 @@ docs/
 │  ├─ G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md
 │  ├─ G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md
 │  ├─ G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md
-│  └─ G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md
+│  ├─ G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md
+│  └─ G8_B_PRESSURE_BURST_HARNESS_CANDIDATE_2026-08-18.md
 ├─ architecture/
 │  ├─ ARCHITECTURE.md
 │  └─ decisions/
@@ -138,7 +139,7 @@ SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않
 
 ### Evidence
 
-`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B Gallery 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Sand Fall Harness v0의 immutable experiment source `9e1fdac` pilot은 automatic `PASS`와 review output `APPROVED`를 기록했다. Water Flow 문서는 immutable/superseded first candidate와 source `5af031f`의 remediation candidate를 구분한다. Remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Fire / Heat 문서는 source `1635fdb`의 single sealed candidate, automatic `PASS`, 독립 재계산과 artifact 무결성 검증, 그리고 별도 user acceptance를 구분해 기록한다. Scenarios 1–3이 사용자 승인되었고 Scenario 4 Pressure Burst가 next, Scenario 5가 pending이므로 전체 기록은 **NOT CLOSED** 상태다. Gallery diagnostics, Harness 자동 판정, targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
+`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B Gallery 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Sand Fall Harness v0의 immutable experiment source `9e1fdac` pilot은 automatic `PASS`와 review output `APPROVED`를 기록했다. Water Flow 문서는 immutable/superseded first candidate와 source `5af031f`의 remediation candidate를 구분한다. Remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Fire / Heat 문서는 source `1635fdb`의 single sealed candidate, automatic `PASS`, 독립 재계산과 artifact 무결성 검증, 그리고 별도 user acceptance를 구분해 기록한다. Pressure Burst 문서는 unchanged authored chamber/seam geometry, detector 경계, chronological Contact Sheet, exact source-input bytes와 canonical Git archive를 분리하는 Audit Bundle 계약을 먼저 고정한다. Scenarios 1–3이 사용자 승인되었고 Scenario 4 Pressure Burst가 next, Scenario 5가 pending이므로 전체 기록은 **NOT CLOSED** 상태다. Gallery diagnostics, Harness 자동 판정, targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
 
 ### Adversarial Reviews
 

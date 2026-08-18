@@ -23,9 +23,11 @@ use crate::gallery::RuntimeProvenance;
 use crate::renderer::{CapturedFrame, Renderer};
 
 mod fire;
+mod pressure;
 mod water;
 
 pub use fire::{run_fire_heat_experiment, FIRE_EXPERIMENT_ID};
+pub use pressure::{run_pressure_burst_experiment, PRESSURE_EXPERIMENT_ID};
 pub use water::{run_water_flow_experiment, WATER_EXPERIMENT_ID};
 
 pub const EXPERIMENT_ID: &str = "g8b-sand-fall-v0";
@@ -60,6 +62,20 @@ pub struct ExperimentWorkerConfig {
     pub consecutive_reaction_zero: u32,
     /// Fire / Heat-only production tail. Zero for sealed Sand/Water contracts.
     pub post_reaction_ticks: u32,
+    /// Pressure Burst-only opening confirmation. Zero for sealed Sand/Water/Fire contracts.
+    pub consecutive_persistent_opening: u32,
+    /// Pressure Burst-only production window after opening. Zero for sealed Sand/Water/Fire contracts.
+    pub post_opening_ticks: u32,
+    /// Pressure Burst-only terminal diagnostic window. Zero for sealed Sand/Water/Fire contracts.
+    pub terminal_window_samples: u32,
+}
+
+fn pressure_lifecycle_options_present(
+    consecutive_persistent_opening: u32,
+    post_opening_ticks: u32,
+    terminal_window_samples: u32,
+) -> bool {
+    consecutive_persistent_opening != 0 || post_opening_ticks != 0 || terminal_window_samples != 0
 }
 
 /// Hash and authenticate the executable image that the OS actually launched.
@@ -1188,6 +1204,16 @@ fn validate_worker_config(
             "post_sleep_ticks must be in {MIN_POST_SLEEP_TICKS}..={MAX_POST_SLEEP_TICKS}"
         ));
     }
+    if config.consecutive_reaction_zero != 0
+        || config.post_reaction_ticks != 0
+        || pressure_lifecycle_options_present(
+            config.consecutive_persistent_opening,
+            config.post_opening_ticks,
+            config.terminal_window_samples,
+        )
+    {
+        return Err("Sand worker rejects Fire/Pressure lifecycle settings".to_string());
+    }
     if config.binary_sha256.len() != 64
         || !config
             .binary_sha256
@@ -2075,5 +2101,13 @@ mod tests {
         let value = build_hard_predicates(true, true, 0, 0, Some(100), 200, Some(280), 0, 0, true);
         assert_eq!(value.statuses(), [PredicateStatus::Pass; 7]);
         assert_eq!(value.verdict(), ExperimentVerdict::Pass);
+    }
+
+    #[test]
+    fn pressure_lifecycle_option_guard_rejects_each_nonzero_field() {
+        assert!(!pressure_lifecycle_options_present(0, 0, 0));
+        assert!(pressure_lifecycle_options_present(1, 0, 0));
+        assert!(pressure_lifecycle_options_present(0, 1, 0));
+        assert!(pressure_lifecycle_options_present(0, 0, 1));
     }
 }

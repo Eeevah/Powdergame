@@ -911,8 +911,15 @@ fn validate_fire_worker_config(
             "post_reaction_ticks must be {REQUIRED_POST_REACTION_TICKS}"
         ));
     }
-    if config.consecutive_all_sleep != 0 || config.post_sleep_ticks != 0 {
-        return Err("Fire worker rejects Sand/Water sleep lifecycle settings".to_string());
+    if config.consecutive_all_sleep != 0
+        || config.post_sleep_ticks != 0
+        || super::pressure_lifecycle_options_present(
+            config.consecutive_persistent_opening,
+            config.post_opening_ticks,
+            config.terminal_window_samples,
+        )
+    {
+        return Err("Fire worker rejects Sand/Water/Pressure lifecycle settings".to_string());
     }
     if config.binary_sha256.len() != 64
         || !config

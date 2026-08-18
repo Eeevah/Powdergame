@@ -36,19 +36,19 @@ Original block: Explicit G8-B closure, G8-C, G9, optimization, and shared `main`
 
 ### Disposition — closed 2026-08-19
 
-The user authorized G8-C Official Performance Matrix and that task is currently running. This authorization does not extend to G9, optimization implementation, G8 overall closure, or `main` promotion.
+The user authorized G8-C Official Performance Matrix. This authorization did not extend to G9, optimization implementation, G8 overall closure, or `main` promotion.
 
 Status: closed
 
-## Q-004 · What should follow the verified G8-C matrix? — opened 2026-08-19
+## Q-004 · What should follow a verified G8-C matrix? — opened 2026-08-19
 
 Owner: user
 
 Blocks: G9 start, optimization review/implementation, G8 closure, and later publication choices.
 
-Known inputs: The in-flight G8-C task is required to report one of `PROCEED_TO_G9`, `OPTIMIZATION_REVIEW_REQUIRED`, or `NEEDS_HUMAN_REVIEW`, together with source, matrix, receipt/package, and independent-verifier identities.
+Known state: The first non-evidence G8-C pilot failed before any official matrix, Receipt, package, or independent-verifier result existed. Therefore there is no verified matrix recommendation yet.
 
-Next check: When the final G8-C report arrives, refresh `memory/CHECKPOINT.md` from exact live Git and evidence, then ask the user for the next explicit product/optimization decision. Do not auto-start G9 or optimization.
+Next check: After Q-006 is resolved and a verified official matrix exists, refresh `memory/CHECKPOINT.md` from exact live Git and evidence, then ask the user for the next explicit product/optimization decision. Do not auto-start G9 or optimization.
 
 Status: open
 
@@ -58,8 +58,33 @@ Owner: project operator
 
 Blocks: Repository-wide enforcement of the active memory workflow in future Powdergame sessions.
 
-Known state: The user approved adoption. PR #4 contains the isolated pilot and active cutover, but commit-preserving integration is deferred while the G8-C writer is active so the target branch is not raced.
+Known state: The user approved adoption. PR #4 contains the isolated pilot and active cutover, but commit-preserving integration is deferred while the G8-C writer owns a dirty staged worktree. Squash is forbidden.
 
-Next check: After G8-C finishes, exact-fetch the active line, refresh the checkpoint, and integrate PR #4 using rebase-and-merge or a merge commit. Squash is forbidden.
+Next check: After the G8-C writer reaches a clean safe stop, exact-fetch the active line, refresh the checkpoint, reconcile the PR against the live history, and integrate PR #4 using a commit-preserving method.
+
+Status: open
+
+## Q-006 · Is one G8-C replacement pilot and conditional official capture authorized? — opened 2026-08-19
+
+Owner: user
+
+Blocks: G8-C official matrix, independent verification, and any later performance/product decision.
+
+Known evidence:
+
+- G8-B is `CLOSED / FROZEN` at closure commit `18391e6a9fc8f9bc7b2757f3504366f106c05435`.
+- G8-C branch is `feature/m0-g8c-official-matrix` at clean upstream base `8ee1ae238c324c1db1d7e2882af071fec179a8f1`, with intended 14-file staged work and no sealed G8-C source commit.
+- Pilot `g8c-pilot-8ee1ae238c32-c64090539536` completed all five headless Mode A/B subprocesses but failed the first Sand Fall Mode C process.
+- The renderer had already confirmed live 1600×900. A late initial `Resized(2864×1560)` payload was misclassified as a real post-init resize.
+- No official capture, Receipt, hash inventory, package, matrix report, or verifier result exists.
+
+Proposed bounded authorization:
+
+1. preserve the failed pilot and staged work;
+2. distinguish stale resize payload from the current live `window.inner_size()` without allowing arbitrary sizes;
+3. run targeted lifecycle regressions;
+4. run exactly one replacement non-evidence pilot;
+5. only if it passes, seal/commit/push source and run exactly one official capture, one independent verification, and one package;
+6. stop without G9 or optimization.
 
 Status: open

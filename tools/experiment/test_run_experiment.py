@@ -96,7 +96,12 @@ class ExperimentRunnerTests(unittest.TestCase):
     ) -> experiment.ManifestData:
         binary = (
             run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts)
-            if contract in {experiment.FIRE_CONTRACT, experiment.PRESSURE_CONTRACT}
+            if contract
+            in {
+                experiment.FIRE_CONTRACT,
+                experiment.PRESSURE_CONTRACT,
+                experiment.HEAVY_CONTRACT,
+            }
             else self.source / "target" / "release" / "powdergame-windows.exe"
         )
         binary_sha256 = "b" * 64
@@ -1948,6 +1953,512 @@ class ExperimentRunnerTests(unittest.TestCase):
         experiment.postprocess_run(run_dir)
         return run_dir
 
+    def create_valid_heavy_worker_fixture(
+        self,
+        run_id: str = "g8b-heavy-mixed-v0-test-run",
+        mode: str = "candidate",
+    ) -> Path:
+        run_dir, manifest = self.create_manifest(
+            run_id, experiment.HEAVY_CONTRACT, mode
+        )
+        logs = run_dir / "logs"
+        logs.mkdir()
+        (logs / "build.stdout.log").write_bytes(b"build stdout\r\n")
+        (logs / "build.stderr.log").write_bytes(b"")
+        (run_dir / "stdout.log").write_bytes(b"worker stdout\r\n")
+        (run_dir / "stderr.log").write_bytes(b"")
+        telemetry = run_dir / "telemetry"
+        frames_dir = run_dir / "work" / "frames"
+        telemetry.mkdir()
+        frames_dir.mkdir(parents=True)
+
+        tick0_counts = [30_000, 5_000, 5_000, 2_000, 6_000, 2_000, 3_000, 1_000, 500, 11_036]
+        mixed_counts = list(tick0_counts)
+        mixed_counts[4] -= 1
+        mixed_counts[6] += 1
+        mixed_counts[7] += 1
+        mixed_counts[9] -= 1
+        self.assertEqual(sum(tick0_counts), experiment.WORLD_WIDTH * experiment.WORLD_HEIGHT)
+        ticks = [
+            0,
+            1,
+            2,
+            *range(
+                experiment.DIAGNOSTIC_INTERVAL,
+                experiment.MAX_TICKS + 1,
+                experiment.DIAGNOSTIC_INTERVAL,
+            ),
+        ]
+        sleep = {"enabled": True, "threshold": 8}
+        world = manifest["world"]
+        samples: list[dict] = []
+        for sequence, tick in enumerate(ticks):
+            counts = tick0_counts if tick == 0 else mixed_counts
+            deltas = [
+                count - baseline
+                for count, baseline in zip(counts, tick0_counts, strict=True)
+            ]
+            if tick == 0:
+                active = (0, 0, 0, 0)
+            elif tick in {1, 2, 8}:
+                active = (20, 20, 20, 20)
+            elif tick == 16:
+                # This zero arrives after first >=3 overlap and must not count in
+                # zero_activity_before_overlap_samples.
+                active = (0, 0, 0, 0)
+            else:
+                lane = sequence % 4
+                active = tuple(20 if index == lane else 0 for index in range(4))
+            any_active = max(active)
+            census = {
+                "total_cells": experiment.WORLD_WIDTH * experiment.WORLD_HEIGHT,
+                "any_active_cells": any_active,
+                "matter_active_cells": active[0],
+                "thermal_active_cells": active[1],
+                "pressure_active_cells": active[2],
+                "reaction_active_cells": active[3],
+                "total_chunks": 16,
+                "active_chunks": 1 if any_active else 0,
+                "runnable_chunks": 16,
+                "sleeping_chunks": 0,
+            }
+            sample = {
+                "schema_version": experiment.HEAVY_TELEMETRY_SCHEMA,
+                "experiment_id": manifest["experiment_id"],
+                "run_id": manifest["run_id"],
+                "scenario": experiment.HEAVY_CONTRACT.scenario,
+                "source_sha": manifest["source"]["sha"],
+                "git_state": manifest["source"]["git_state"],
+                "build_profile": "release",
+                "binary_sha256": manifest["binary"]["sha256"],
+                "sample_sequence": sequence,
+                "sim_tick": tick,
+                "phase": "initial" if tick == 0 else "mixed",
+                "reason": (
+                    "tick0"
+                    if tick == 0
+                    else "tick1"
+                    if tick == 1
+                    else "early-diagnostic"
+                    if tick == 2
+                    else "max-tick"
+                    if tick == experiment.MAX_TICKS
+                    else "diagnostic-cadence"
+                ),
+                "world": world,
+                "sleep": sleep,
+                "census": census,
+                "subsystem_active_count": sum(value > 0 for value in active),
+                "material_counts_by_id": list(counts),
+                "matter_count": sum(counts[1:]),
+                "sand_count": counts[3],
+                "water_count": counts[4],
+                "oil_count": counts[5],
+                "wood_count": counts[9],
+                "ice_count": counts[8],
+                "steam_count": counts[6],
+                "smoke_count": counts[7],
+                "sand_position_changed_cells": 4 if tick == 1 else 0,
+                "liquid_position_changed_cells": 4 if tick == 1 else 0,
+                "water_oil_interface_edges": 2 if tick == 1 else 0,
+                "density_ordered_pairs": 1 if tick == 1 else 0,
+                "combusting_wood_cells": 8 if tick == 0 else 4,
+                "combusting_oil_cells": 0,
+                "flame_event_wood_cells": 0,
+                "flame_event_oil_cells": 0,
+                "wood_fuel_progress_sum": 0,
+                "oil_fuel_progress_sum": 0 if tick == 0 else 1,
+                "dynamic_combustion_work": tick > 0,
+                "new_smoke_cells": 1 if tick == 1 else 0,
+                "phase_inventory_changed": tick > 0,
+                "relief_seam_wood_count": 224 if tick == 0 else 223,
+                "relief_seam_combusting_cells": 0,
+                "relief_seam_flame_event_cells": 0,
+                "relief_seam_fuel_progress_sum": 0,
+                "relief_seam_adjacent_pressure_medium_cells": 0 if tick == 0 else 1,
+                "relief_seam_max_adjacent_pressure": 0.0 if tick == 0 else 80.0,
+                "relief_open_lanes": 0,
+                "exterior_steam_cells": 0,
+                "temperature_min": 0.0,
+                "temperature_max": 20.0 if tick == 0 else 100.0,
+                "pressure_min": 0.0,
+                "pressure_max": 0.0 if tick == 0 else 50.0,
+                "phase_pool_count": counts[4] + counts[6] + counts[8],
+                "fuel_count": counts[5] + counts[9],
+                "material_count_deltas_by_id": deltas,
+                "gross_inventory_delta_cells": sum(abs(value) for value in deltas) // 2,
+                "explained_material_delta_cells": sum(abs(value) for value in deltas) // 2,
+                "unexplained_material_delta_cells": 0,
+                "inventory_accounted": True,
+                "invalid_material_count": 0,
+                "nonfinite_temperature_count": 0,
+                "nonfinite_pressure_count": 0,
+                "changed_chunks": 1 if tick else 0,
+                "wake_chunks": 0,
+                "wake_reason_or": 0,
+                "wake_anomaly_chunks": 0,
+                "state_hash": f"fnv1a64:{sequence:016x}",
+                "physical_state_hash": f"fnv1a64:{sequence + 0x10000:016x}",
+            }
+            samples.append(sample)
+        reset = copy.deepcopy(samples[0])
+        reset["sample_sequence"] = len(samples)
+        reset["phase"] = "reset"
+        reset["reason"] = "programmatic-r-equivalent"
+        samples.append(reset)
+        tick0 = samples[0]
+        terminal = samples[-2]
+
+        milestone_badges = {
+            1: [
+                {"kind": "first-movement", "reason": "Sand-position-change"},
+                {"kind": "first-density", "reason": "ordered-Water-Oil-displacement"},
+                {"kind": "first-phase", "reason": "phase-inventory-change"},
+                {"kind": "first-combustion", "reason": "post-tick-combustion-work"},
+                {"kind": "first-smoke", "reason": "new-decay-age-zero-Smoke"},
+                {"kind": "first-pressure", "reason": "Pressure-activity"},
+                {
+                    "kind": "first-rupture",
+                    "reason": "pressure-threshold-noncombusting-relief-damage",
+                },
+                {"kind": "tick1", "reason": "after-one-production-tick"},
+            ]
+        }
+        representative_targets = [2, 2_500, 5_000, 7_500, 10_000, 12_500, 15_000, 17_500]
+        target_index = 0
+        for sample in samples[1:-1]:
+            badges = milestone_badges.setdefault(sample["sample_sequence"], [])
+            if (
+                target_index < len(representative_targets)
+                and sample["sim_tick"] >= representative_targets[target_index]
+            ):
+                target = representative_targets[target_index]
+                kind = (
+                    "mid-run"
+                    if target == experiment.MAX_TICKS // 2
+                    else "late-run"
+                    if target == experiment.MAX_TICKS * 3 // 4
+                    else "representative"
+                )
+                reason = (
+                    "representative-mid-run"
+                    if kind == "mid-run"
+                    else "representative-late-run"
+                    if kind == "late-run"
+                    else "scheduled-mixed-state"
+                )
+                badges.append({"kind": kind, "reason": reason})
+                target_index += 1
+            if sample is terminal:
+                badges.append({"kind": "terminal", "reason": "max-tick-reached"})
+            if not badges:
+                del milestone_badges[sample["sample_sequence"]]
+
+        expected_frames = experiment.heavy_expected_frames(
+            samples, milestone_badges, samples[1], samples[1]
+        )
+        frames = []
+        raw_size = experiment.RENDERER_WIDTH * experiment.RENDERER_HEIGHT * 4
+        for ordinal, expected in enumerate(expected_frames):
+            relative = f"work/frames/{ordinal:02}-{expected['kind']}.rgba"
+            (run_dir / relative).write_bytes(bytes(raw_size))
+            frames.append(
+                {
+                    "ordinal": ordinal,
+                    "relative_path": relative,
+                    "width": experiment.RENDERER_WIDTH,
+                    "height": experiment.RENDERER_HEIGHT,
+                    "rgba_bytes": raw_size,
+                    **expected,
+                }
+            )
+
+        firsts = {
+            "first_movement": samples[1],
+            "first_density_displacement": samples[1],
+            "first_thermal_activity": samples[1],
+            "first_phase_transition": samples[1],
+            "first_combustion_work": samples[1],
+            "first_smoke_generation": samples[1],
+            "first_pressure_activity": samples[1],
+            "first_relief_damage": samples[1],
+            "first_rupture": samples[1],
+            "first_opening": None,
+            "first_vent": None,
+            "first_three_subsystems": samples[1],
+            "first_all_intended_subsystems": samples[1],
+        }
+        first_metrics = {
+            f"{prefix}_{suffix}": (
+                None
+                if sample is None
+                else sample["sim_tick"]
+                if suffix == "tick"
+                else sample["sample_sequence"]
+            )
+            for prefix, sample in firsts.items()
+            for suffix in ("tick", "sample")
+        }
+        pre_reset = samples[:-1]
+        subsystems = {
+            name: experiment.heavy_subsystem_summary(pre_reset, key)
+            for name, key in {
+                "matter": "matter_active_cells",
+                "thermal": "thermal_active_cells",
+                "pressure": "pressure_active_cells",
+                "reaction": "reaction_active_cells",
+            }.items()
+        }
+        longest = experiment.heavy_longest_overlap(pre_reset)
+        terminal_activity = {
+            key: terminal["census"][key]
+            for key in (
+                "any_active_cells",
+                "active_chunks",
+                "runnable_chunks",
+                "sleeping_chunks",
+                "matter_active_cells",
+                "thermal_active_cells",
+                "pressure_active_cells",
+                "reaction_active_cells",
+            )
+        }
+        terminal_activity["subsystem_active_count"] = terminal["subsystem_active_count"]
+        final_counts = terminal["material_counts_by_id"]
+        metrics = {
+            **first_metrics,
+            "peak_active_cells": samples[1]["census"]["any_active_cells"],
+            "peak_active_tick": 1,
+            "peak_active_sample": 1,
+            "peak_concurrent_subsystem_count": 4,
+            "peak_concurrency_tick": 1,
+            "peak_concurrency_sample": 1,
+            **longest,
+            "subsystems": subsystems,
+            "initial_material_counts_by_id": tick0_counts,
+            "final_material_counts_by_id": final_counts,
+            "final_material_count_deltas_by_id": terminal["material_count_deltas_by_id"],
+            "initial_matter": tick0["matter_count"],
+            "final_matter": terminal["matter_count"],
+            "matter_delta": terminal["matter_count"] - tick0["matter_count"],
+            "initial_sand": tick0["sand_count"],
+            "final_sand": terminal["sand_count"],
+            "sand_delta": terminal["sand_count"] - tick0["sand_count"],
+            "initial_water": tick0["water_count"],
+            "final_water": terminal["water_count"],
+            "water_delta": terminal["water_count"] - tick0["water_count"],
+            "initial_oil": tick0["oil_count"],
+            "final_oil": terminal["oil_count"],
+            "oil_delta": terminal["oil_count"] - tick0["oil_count"],
+            "initial_wood": tick0["wood_count"],
+            "final_wood": terminal["wood_count"],
+            "wood_delta": terminal["wood_count"] - tick0["wood_count"],
+            "initial_ice": tick0["ice_count"],
+            "final_ice": terminal["ice_count"],
+            "ice_delta": terminal["ice_count"] - tick0["ice_count"],
+            "initial_steam": tick0["steam_count"],
+            "final_steam": terminal["steam_count"],
+            "steam_delta": terminal["steam_count"] - tick0["steam_count"],
+            "initial_smoke": tick0["smoke_count"],
+            "smoke_peak": terminal["smoke_count"],
+            "smoke_peak_tick": 1,
+            "smoke_peak_sample": 1,
+            "final_smoke": terminal["smoke_count"],
+            "smoke_delta": terminal["smoke_count"] - tick0["smoke_count"],
+            "initial_phase_pool": tick0["phase_pool_count"],
+            "final_phase_pool": terminal["phase_pool_count"],
+            "phase_pool_delta": terminal["phase_pool_count"] - tick0["phase_pool_count"],
+            "initial_fuel": tick0["fuel_count"],
+            "final_fuel": terminal["fuel_count"],
+            "fuel_delta": terminal["fuel_count"] - tick0["fuel_count"],
+            "gross_inventory_delta_cells": terminal["gross_inventory_delta_cells"],
+            "explained_material_delta_cells": terminal["explained_material_delta_cells"],
+            "unexplained_material_delta_cells": 0,
+            "unexplained_material_delta_occurrences": 0,
+            "terminal_activity": terminal_activity,
+            "terminal_bounds": {
+                key: terminal[key]
+                for key in (
+                    "temperature_min",
+                    "temperature_max",
+                    "pressure_min",
+                    "pressure_max",
+                )
+            },
+            "relief_seam_wood_final": terminal["relief_seam_wood_count"],
+            "relief_open_lanes_final": 0,
+            "exterior_steam_final": 0,
+            "invalid_material_occurrences": 0,
+            "nonfinite_field_occurrences": 0,
+            "wake_anomaly_occurrences": 0,
+            "zero_activity_before_overlap_samples": 0,
+            "reset_exact_equivalence": True,
+            "tick0_state_hash": tick0["state_hash"],
+            "reset_state_hash": reset["state_hash"],
+            "tick0_physical_state_hash": tick0["physical_state_hash"],
+            "reset_physical_state_hash": reset["physical_state_hash"],
+        }
+        cumulative = [
+            subsystems[name]["cumulative_active_cells"]
+            for name in ("matter", "thermal", "pressure", "reaction")
+        ]
+        dominant_index = max(range(4), key=lambda index: (cumulative[index], index))
+        dominant_share = cumulative[dominant_index] / sum(cumulative)
+        review_flags = {
+            "dominant_subsystem": False,
+            "dominant_subsystem_name": ("matter", "thermal", "pressure", "reaction")[dominant_index],
+            "dominant_subsystem_share": dominant_share,
+            "broad_terminal_tail": False,
+            "long_thermal_pressure_tail": False,
+            "reasons": [],
+        }
+        baseline = {
+            "material_counts_by_id": tick0_counts,
+            "matter_count": tick0["matter_count"],
+            "sand_count": tick0["sand_count"],
+            "water_count": tick0["water_count"],
+            "oil_count": tick0["oil_count"],
+            "wood_count": tick0["wood_count"],
+            "ice_count": tick0["ice_count"],
+            "steam_count": tick0["steam_count"],
+            "smoke_count": tick0["smoke_count"],
+            "phase_pool_count": tick0["phase_pool_count"],
+            "fuel_count": tick0["fuel_count"],
+            "relief_seam_wood_count": tick0["relief_seam_wood_count"],
+            "exterior_steam_cells": tick0["exterior_steam_cells"],
+            "density_ordered_pairs": tick0["density_ordered_pairs"],
+        }
+        analysis = {
+            "schema_version": experiment.HEAVY_ANALYSIS_SCHEMA,
+            "experiment_id": manifest["experiment_id"],
+            "run_id": manifest["run_id"],
+            "scenario": experiment.HEAVY_CONTRACT.scenario,
+            "source_sha": manifest["source"]["sha"],
+            "git_state": manifest["source"]["git_state"],
+            "build_profile": "release",
+            "binary_sha256": manifest["binary"]["sha256"],
+            "world": world,
+            "sleep": sleep,
+            "lifecycle": {
+                "terminal_reason": "max-ticks",
+                "terminal_tick": experiment.MAX_TICKS,
+                "terminal_sample": terminal["sample_sequence"],
+                "required_max_ticks": experiment.MAX_TICKS,
+                "diagnostic_interval_ticks": experiment.DIAGNOSTIC_INTERVAL,
+                "terminal_window_samples": experiment.HEAVY_TERMINAL_WINDOW_SAMPLES,
+            },
+            "baseline": baseline,
+            "metrics": metrics,
+            "terminal_trend": experiment.heavy_terminal_trend(
+                pre_reset[1:][-experiment.HEAVY_TERMINAL_WINDOW_SAMPLES :]
+            ),
+            "predicates": {
+                name: {"status": "pass", "detail": "synthetic valid fixture"}
+                for name in experiment.HEAVY_PREDICATE_NAMES
+            },
+            "review_flags": review_flags,
+            "verdict": "PASS",
+            "sample_count": len(samples),
+            "raw_frame_count": len(frames),
+        }
+        events_spec = [
+            ("lifecycle_started", 0, None),
+            ("pristine_reset_completed", 0, None),
+            ("tick0_captured", 0, 0),
+            ("first_movement_observed", 1, 1),
+            ("first_density_displacement_observed", 1, 1),
+            ("first_thermal_activity_observed", 1, 1),
+            ("first_phase_transition_observed", 1, 1),
+            ("first_combustion_work_observed", 1, 1),
+            ("first_smoke_generation_observed", 1, 1),
+            ("first_pressure_activity_observed", 1, 1),
+            ("first_relief_damage_observed", 1, 1),
+            ("first_rupture_observed", 1, 1),
+            ("first_three_subsystems_observed", 1, 1),
+            ("first_all_intended_subsystems_observed", 1, 1),
+            ("new_peak_active", 1, 1),
+            ("new_peak_concurrency", 1, 1),
+            ("tick1_captured", 1, 1),
+            ("terminal_selected", terminal["sim_tick"], terminal["sample_sequence"]),
+            ("reset_started", terminal["sim_tick"], terminal["sample_sequence"]),
+            ("reset_comparison_completed", 0, reset["sample_sequence"]),
+            ("worker_completed", 0, reset["sample_sequence"]),
+        ]
+        events = [
+            {
+                "schema_version": experiment.HEAVY_TELEMETRY_SCHEMA,
+                "experiment_id": manifest["experiment_id"],
+                "run_id": manifest["run_id"],
+                "scenario": experiment.HEAVY_CONTRACT.scenario,
+                "event_sequence": sequence,
+                "event": name,
+                "sim_tick": tick,
+                "sample_sequence": sample_sequence,
+                "detail": "synthetic valid fixture",
+            }
+            for sequence, (name, tick, sample_sequence) in enumerate(events_spec)
+        ]
+        (run_dir / "work" / "analysis.json").write_text(
+            json.dumps(analysis, separators=(",", ":")), encoding="utf-8"
+        )
+        (run_dir / "work" / "frames.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": experiment.HEAVY_FRAMES_SCHEMA,
+                    "experiment_id": manifest["experiment_id"],
+                    "run_id": manifest["run_id"],
+                    "scenario": experiment.HEAVY_CONTRACT.scenario,
+                    "binary_sha256": manifest["binary"]["sha256"],
+                    "frame_count": len(frames),
+                    "pixel_encoding": "rgba8-tightly-packed",
+                    "frames": frames,
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        (telemetry / "samples.jsonl").write_text(
+            "".join(json.dumps(sample, separators=(",", ":")) + "\n" for sample in samples),
+            encoding="utf-8",
+        )
+        (telemetry / "events.jsonl").write_text(
+            "".join(json.dumps(event, separators=(",", ":")) + "\n" for event in events),
+            encoding="utf-8",
+        )
+        return run_dir
+
+    def create_heavy_sealed_delivery_fixture(
+        self,
+        run_id: str = "g8b-heavy-mixed-v0-sealed",
+        mode: str = "candidate",
+    ) -> Path:
+        self.initialize_source_repository()
+        run_dir = self.create_valid_heavy_worker_fixture(run_id, mode=mode)
+        binary = run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts)
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b"frozen Heavy Mixed executable fixture")
+        binary_hash = experiment.sha256_file(binary)
+        actual_sha = experiment.git_text(self.source, "rev-parse", "HEAD")
+        actual_branch = experiment.git_text(self.source, "branch", "--show-current")
+        replacements = {
+            "a" * 40: actual_sha,
+            "feature/g8b-experiment-harness-v0": actual_branch,
+            "b" * 64: binary_hash,
+        }
+        for path in run_dir.rglob("*"):
+            if path.is_file() and path.suffix in {".json", ".jsonl", ".toml"}:
+                text = path.read_text(encoding="utf-8")
+                for old, new in replacements.items():
+                    text = text.replace(old, new)
+                path.write_text(text, encoding="utf-8")
+        seal = experiment.capture_source_seal(self.source)
+        experiment.write_new_text(
+            run_dir / experiment.SOURCE_INPUT_MANIFEST_NAME,
+            experiment.render_source_input_manifest(seal),
+        )
+        experiment.postprocess_run(run_dir)
+        return run_dir
+
     def test_manifest_is_strict_and_round_trips(self) -> None:
         run_dir, manifest = self.create_manifest()
         self.assertEqual(set(manifest), experiment.MANIFEST_TOP_KEYS)
@@ -3058,8 +3569,37 @@ class ExperimentRunnerTests(unittest.TestCase):
             experiment.contract_for_scenario("pressure-burst"),
             experiment.PRESSURE_CONTRACT,
         )
+        self.assertIs(
+            experiment.contract_for_scenario("heavy-mixed"),
+            experiment.HEAVY_CONTRACT,
+        )
+        heavy = experiment.worker_command(
+            binary,
+            run_dir,
+            "run-heavy",
+            "e" * 64,
+            contract=experiment.HEAVY_CONTRACT,
+        )
+        self.assertEqual(
+            heavy,
+            (
+                str(binary),
+                "--experiment-worker",
+                "heavy-mixed",
+                "--experiment-run-dir",
+                str(run_dir),
+                "--experiment-run-id",
+                "run-heavy",
+                "--binary-sha256",
+                "e" * 64,
+                "--max-ticks",
+                "20000",
+                "--diagnostic-interval",
+                "8",
+            ),
+        )
         with self.assertRaises(experiment.ExperimentError):
-            experiment.contract_for_scenario("heavy-mixed")
+            experiment.contract_for_scenario("unknown-experiment")
 
     def test_screenshot_name_contains_tick_sample_and_reason(self) -> None:
         frame = {
@@ -4196,6 +4736,375 @@ class ExperimentRunnerTests(unittest.TestCase):
         analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
         with self.assertRaisesRegex(experiment.ExperimentError, "deprecated"):
             experiment.validate_telemetry(run_dir, manifest)
+
+    def test_heavy_manifest_raw_recomputation_and_folded_frames_are_exact(self) -> None:
+        run_dir = self.create_valid_heavy_worker_fixture()
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        self.assertEqual(manifest["schema_version"], experiment.HEAVY_MANIFEST_SCHEMA)
+        self.assertEqual(
+            manifest["experiment"],
+            {
+                "max_ticks": 20_000,
+                "diagnostic_interval_ticks": 8,
+                "terminal_window_samples": 64,
+                "meaningful_overlap_samples": 3,
+            },
+        )
+        self.assertEqual(
+            manifest["commands"]["worker"][-4:],
+            ["--max-ticks", "20000", "--diagnostic-interval", "8"],
+        )
+        for legacy_only in (
+            "--consecutive-all-sleep",
+            "--post-sleep-ticks",
+            "--consecutive-reaction-zero",
+            "--post-reaction-ticks",
+            "--consecutive-persistent-opening",
+            "--post-opening-ticks",
+        ):
+            self.assertNotIn(legacy_only, manifest["commands"]["worker"])
+
+        analysis, frames_doc, samples, events = experiment.validate_telemetry(
+            run_dir, manifest
+        )
+        self.assertEqual(analysis["verdict"], "PASS")
+        self.assertEqual(analysis["metrics"]["first_combustion_work_tick"], 1)
+        self.assertEqual(analysis["metrics"]["first_smoke_generation_tick"], 1)
+        self.assertEqual(analysis["metrics"]["first_pressure_activity_tick"], 1)
+        self.assertEqual(analysis["metrics"]["first_rupture_tick"], 1)
+        self.assertEqual(analysis["metrics"]["first_three_subsystems_tick"], 1)
+        self.assertEqual(analysis["metrics"]["longest_three_plus_window_samples"], 3)
+        self.assertEqual(analysis["metrics"]["zero_activity_before_overlap_samples"], 0)
+        self.assertEqual(analysis["metrics"]["wake_anomaly_occurrences"], 0)
+        self.assertFalse(analysis["terminal_trend"]["unbounded_growth"])
+        self.assertEqual(len(samples), 2_504)
+        self.assertEqual(len(frames_doc["frames"]), 12)
+        self.assertEqual(frames_doc["frames"][-1]["badges"][0]["kind"], "reset")
+        self.assertEqual(events[7]["event"], "first_combustion_work_observed")
+        self.assertEqual(events[8]["event"], "first_smoke_generation_observed")
+        tick1_badges = [badge["kind"] for badge in frames_doc["frames"][1]["badges"]]
+        self.assertIn("first-rupture", tick1_badges)
+        self.assertIn("peak-concurrency", tick1_badges)
+
+    def test_heavy_recomputation_rejects_inventory_dynamic_runaway_and_reset_mutations(
+        self,
+    ) -> None:
+        inventory_dir = self.create_valid_heavy_worker_fixture(
+            "g8b-heavy-mixed-v0-inventory-mutation"
+        )
+        inventory_manifest = experiment.read_and_validate_manifest(
+            inventory_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        samples_path = inventory_dir / "telemetry" / "samples.jsonl"
+        samples = experiment.read_jsonl(samples_path, "Heavy inventory mutation")
+        samples[1]["unexplained_material_delta_cells"] = 1
+        samples[1]["explained_material_delta_cells"] = 1
+        samples[1]["inventory_accounted"] = False
+        samples_path.write_text(
+            "".join(json.dumps(sample) + "\n" for sample in samples), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "sequential accounting"):
+            experiment.validate_telemetry(inventory_dir, inventory_manifest)
+
+        dynamic_dir = self.create_valid_heavy_worker_fixture(
+            "g8b-heavy-mixed-v0-dynamic-mutation"
+        )
+        dynamic_manifest = experiment.read_and_validate_manifest(
+            dynamic_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        samples_path = dynamic_dir / "telemetry" / "samples.jsonl"
+        samples = experiment.read_jsonl(samples_path, "Heavy dynamic mutation")
+        samples[1]["oil_fuel_progress_sum"] = 0
+        samples[1]["dynamic_combustion_work"] = False
+        samples[1]["new_smoke_cells"] = 0
+        samples_path.write_text(
+            "".join(json.dumps(sample) + "\n" for sample in samples), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "sequential accounting"):
+            experiment.validate_telemetry(dynamic_dir, dynamic_manifest)
+
+        runaway_dir = self.create_valid_heavy_worker_fixture(
+            "g8b-heavy-mixed-v0-runaway-mutation"
+        )
+        runaway_manifest = experiment.read_and_validate_manifest(
+            runaway_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        samples_path = runaway_dir / "telemetry" / "samples.jsonl"
+        samples = experiment.read_jsonl(samples_path, "Heavy runaway mutation")
+        for offset, sample in enumerate(samples[-65:-1]):
+            sample["temperature_max"] = 100.0 + offset * 3.0
+        samples_path.write_text(
+            "".join(json.dumps(sample) + "\n" for sample in samples), encoding="utf-8"
+        )
+        runaway_analysis_path = runaway_dir / "work" / "analysis.json"
+        runaway_analysis = json.loads(
+            runaway_analysis_path.read_text(encoding="utf-8")
+        )
+        runaway_analysis["metrics"]["terminal_bounds"]["temperature_max"] = samples[-2][
+            "temperature_max"
+        ]
+        runaway_analysis_path.write_text(json.dumps(runaway_analysis), encoding="utf-8")
+        with self.assertRaisesRegex(experiment.ExperimentError, "terminal trend"):
+            experiment.validate_telemetry(runaway_dir, runaway_manifest)
+
+        reset_dir = self.create_valid_heavy_worker_fixture(
+            "g8b-heavy-mixed-v0-reset-mutation"
+        )
+        reset_manifest = experiment.read_and_validate_manifest(
+            reset_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        samples_path = reset_dir / "telemetry" / "samples.jsonl"
+        samples = experiment.read_jsonl(samples_path, "Heavy reset mutation")
+        samples[-1]["state_hash"] = "fnv1a64:ffffffffffffffff"
+        samples_path.write_text(
+            "".join(json.dumps(sample) + "\n" for sample in samples), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "exact reset claim"):
+            experiment.validate_telemetry(reset_dir, reset_manifest)
+
+    def test_heavy_candidate_guard_report_receipt_prompt_and_full_badges(self) -> None:
+        run_dir = self.create_valid_heavy_worker_fixture(
+            "g8b-heavy-mixed-v0-report-test"
+        )
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        analysis, frames_doc, samples, _ = experiment.validate_telemetry(
+            run_dir, manifest
+        )
+        frame = frames_doc["frames"][1]
+        item = {
+            "ordinal": frame["ordinal"],
+            "reason": "+".join(badge["kind"] for badge in frame["badges"]),
+            "sim_tick": frame["sim_tick"],
+            "sample_sequence": frame["sample_sequence"],
+            "state_hash": frame["state_hash"],
+            "badges": frame["badges"],
+        }
+        lines = experiment.contact_sheet_caption_lines(
+            item, samples[frame["sample_sequence"]]
+        )
+        badge_lines = [line for line in lines if line.startswith("Badges:")]
+        self.assertGreater(len(badge_lines), 1)
+        joined_badges = "\n".join(badge_lines)
+        self.assertNotIn("...", joined_badges)
+        for badge in frame["badges"]:
+            self.assertIn(badge["kind"], joined_badges)
+
+        publication_log: list[str] = []
+        receipt_path = experiment.postprocess_run(run_dir, publication_log)
+        self.assertEqual(publication_log[-1], "EXPERIMENT_RECEIPT.json")
+        report = json.loads(
+            (run_dir / "report" / "REPORT.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        prompt = (run_dir / "report" / "CHATGPT_REVIEW_PROMPT.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(report["schema_version"], experiment.HEAVY_REPORT_SCHEMA)
+        self.assertEqual(receipt["schema_version"], experiment.HEAVY_RECEIPT_SCHEMA)
+        self.assertTrue(report["scope"]["heavy_mixed"])
+        self.assertEqual(report["heavy_mixed"], receipt["heavy_mixed"])
+        self.assertIn("Heavy Mixed World Experiment", prompt)
+        self.assertIn("Authored tick-0 Smoke", prompt)
+        self.assertIn("wrapped `Badges:`", prompt)
+        self.assertIn(experiment.HEAVY_EXTERIOR_STEAM_PRESENTATION, prompt)
+        self.assertIn("they are not proof that Steam crossed a complete", prompt)
+        self.assertIn("not user acceptance", prompt)
+        self.assertIn("G8-B/G8-C closure", prompt)
+        report_markdown = (run_dir / "report" / "REPORT.md").read_text(encoding="utf-8")
+        self.assertIn(experiment.HEAVY_EXTERIOR_STEAM_PRESENTATION, report_markdown)
+        self.assertNotIn("causal rupture / opening / vent", report_markdown)
+        self.assertFalse(
+            report["review_guidance"][
+                "exterior_steam_above_relief_is_opening_gated"
+            ]
+        )
+        self.assertFalse(report["review_guidance"]["g8b_closed"])
+        self.assertFalse(experiment.heavy_candidate_blocker(analysis)["candidate_blocker"])
+
+        presentation_badges = experiment.heavy_presentation_badges(
+            [
+                {"kind": "first-vent", "reason": "exterior-Steam-above-relief"},
+                {"kind": "terminal", "reason": "max-tick-reached"},
+            ]
+        )
+        self.assertEqual(
+            presentation_badges,
+            [
+                {
+                    "kind": "first-exterior-steam",
+                    "reason": experiment.HEAVY_EXTERIOR_STEAM_PRESENTATION,
+                },
+                {"kind": "terminal", "reason": "max-tick-reached"},
+            ],
+        )
+
+        blocked_dir = self.create_valid_heavy_worker_fixture(
+            "g8b-heavy-mixed-v0-candidate-blocked"
+        )
+        blocked_manifest = experiment.read_and_validate_manifest(
+            blocked_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        sample_path = blocked_dir / "telemetry" / "samples.jsonl"
+        blocked_samples = experiment.read_jsonl(sample_path, "Heavy wake blocker")
+        blocked_samples[2]["wake_chunks"] = 1
+        blocked_samples[2]["wake_reason_or"] = 4
+        blocked_samples[2]["wake_anomaly_chunks"] = 1
+        sample_path.write_text(
+            "".join(json.dumps(sample) + "\n" for sample in blocked_samples),
+            encoding="utf-8",
+        )
+        analysis_path = blocked_dir / "work" / "analysis.json"
+        blocked_analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        blocked_analysis["metrics"]["wake_anomaly_occurrences"] = 1
+        blocked_analysis["predicates"]["no_wake_anomalies"]["status"] = "fail"
+        blocked_analysis["verdict"] = "FAIL"
+        analysis_path.write_text(json.dumps(blocked_analysis), encoding="utf-8")
+        validated, _, _, _ = experiment.validate_telemetry(
+            blocked_dir, blocked_manifest
+        )
+        self.assertEqual(
+            experiment.heavy_candidate_blocker(validated)["failed_hard_predicates"],
+            ["no_wake_anomalies"],
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "candidate publication blocked"):
+            experiment.postprocess_run(blocked_dir)
+        self.assertFalse((blocked_dir / "report").exists())
+        self.assertFalse((blocked_dir / "EXPERIMENT_RECEIPT.json").exists())
+
+    def test_heavy_generic_duplicate_frames_prune_only_above_evidence_floor(self) -> None:
+        def sample(sequence: int, tick: int, state_hash: str) -> dict:
+            return {
+                "sample_sequence": sequence,
+                "sim_tick": tick,
+                "state_hash": state_hash,
+                "census": {
+                    "any_active_cells": 1,
+                    "matter_active_cells": 1,
+                    "thermal_active_cells": 0,
+                    "pressure_active_cells": 0,
+                    "reaction_active_cells": 0,
+                },
+                "subsystem_active_count": 1,
+                "sand_count": 1,
+                "water_count": 1,
+                "oil_count": 1,
+                "wood_count": 1,
+                "ice_count": 1,
+                "steam_count": 1,
+                "smoke_count": 1,
+            }
+
+        samples = [sample(0, 0, "fnv1a64:0000000000000000")]
+        samples.extend(
+            sample(sequence, sequence * 8, "fnv1a64:00000000000000aa")
+            for sequence in range(1, 11)
+        )
+        samples.append(sample(11, 0, "fnv1a64:0000000000000000"))
+        milestones = {
+            sequence: [{"kind": "representative", "reason": "scheduled-mixed-state"}]
+            for sequence in range(1, 11)
+        }
+        frames = experiment.heavy_expected_frames(samples, milestones, None, None)
+        self.assertEqual(len(frames), 10)
+        self.assertEqual(frames[0]["badges"][0]["kind"], "tick0")
+        self.assertEqual(frames[-1]["badges"][0]["kind"], "reset")
+        self.assertTrue(
+            all(
+                frame["badges"][0]["kind"] == "representative"
+                for frame in frames[1:-1]
+            )
+        )
+
+    def test_heavy_audit_bundle_vnext_has_local_hashes_and_path_mapping(self) -> None:
+        run_dir = self.create_heavy_sealed_delivery_fixture()
+        receipt_sha = experiment.sha256_file(run_dir / "EXPERIMENT_RECEIPT.json")
+        bundle, sidecar = experiment.create_heavy_audit_bundle_vnext(
+            run_dir, self.source, receipt_sha
+        )
+        self.assertEqual(
+            sidecar.read_text(encoding="utf-8"),
+            f"{experiment.sha256_file(bundle)}  {bundle.name}\n",
+        )
+        with zipfile.ZipFile(bundle) as archive:
+            names = set(archive.namelist())
+            bundle_manifest = json.loads(
+                archive.read("AUDIT_BUNDLE_MANIFEST.json").decode("utf-8")
+            )
+            bundle_hashes = archive.read("AUDIT_BUNDLE_HASHES.sha256").decode(
+                "utf-8"
+            )
+            hash_entries = {
+                line.split("  ", 1)[1]: line.split("  ", 1)[0]
+                for line in bundle_hashes.splitlines()
+            }
+            self.assertEqual(set(hash_entries), names - {"AUDIT_BUNDLE_HASHES.sha256"})
+            for name, expected in hash_entries.items():
+                self.assertEqual(hashlib.sha256(archive.read(name)).hexdigest(), expected)
+        self.assertEqual(
+            bundle_manifest["schema_version"],
+            experiment.HEAVY_AUDIT_BUNDLE_MANIFEST_SCHEMA,
+        )
+        self.assertEqual(bundle_manifest["scenario"], "heavy-mixed")
+        self.assertIn("SOURCE_INPUT_BYTES.zip", names)
+        self.assertIn("GIT_SOURCE_ARCHIVE.zip", names)
+        self.assertIn(experiment.FROZEN_BINARY_RELATIVE_PATH.as_posix(), names)
+        mappings = bundle_manifest["original_to_bundle_mapping"]
+        self.assertTrue(
+            any(
+                mapping["original"] == "telemetry/samples.jsonl"
+                and mapping["bundle_path"]
+                == "REVIEW_PACKET.zip!telemetry/samples.jsonl"
+                for mapping in mappings
+            )
+        )
+        self.assertTrue(
+            any(mapping["bundle_path"].startswith("SOURCE_INPUT_BYTES.zip!") for mapping in mappings)
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "overwrite"):
+            experiment.create_heavy_audit_bundle_vnext(
+                run_dir, self.source, receipt_sha
+            )
+
+    def test_heavy_addition_preserves_legacy_manifest_and_worker_shapes(self) -> None:
+        expected_experiments = {
+            experiment.SAND_CONTRACT: {
+                "max_ticks": 20_000,
+                "diagnostic_interval_ticks": 8,
+                "consecutive_all_sleep": 3,
+                "post_sleep_ticks": 180,
+            },
+            experiment.WATER_CONTRACT: {
+                "max_ticks": 20_000,
+                "diagnostic_interval_ticks": 8,
+                "consecutive_all_sleep": 3,
+                "post_sleep_ticks": 180,
+                "stable_plateau_consecutive_samples": 8,
+            },
+            experiment.FIRE_CONTRACT: {
+                "max_ticks": 20_000,
+                "diagnostic_interval_ticks": 8,
+                "consecutive_reaction_zero": 3,
+                "post_reaction_ticks": 180,
+            },
+            experiment.PRESSURE_CONTRACT: {
+                "max_ticks": 20_000,
+                "diagnostic_interval_ticks": 8,
+                "consecutive_persistent_opening": 3,
+                "post_opening_ticks": 180,
+                "terminal_window_samples": 64,
+            },
+        }
+        for contract, expected in expected_experiments.items():
+            run_id = f"{contract.experiment_id}-heavy-isolation"
+            _, manifest = self.create_manifest(run_id, contract)
+            self.assertEqual(manifest["experiment"], expected)
+            command = manifest["commands"]["worker"]
+            self.assertNotIn("heavy-mixed", command)
+            self.assertNotIn("--meaningful-overlap-samples", command)
 
 
 if __name__ == "__main__":

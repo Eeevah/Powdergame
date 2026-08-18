@@ -23,10 +23,12 @@ use crate::gallery::RuntimeProvenance;
 use crate::renderer::{CapturedFrame, Renderer};
 
 mod fire;
+mod heavy;
 mod pressure;
 mod water;
 
 pub use fire::{run_fire_heat_experiment, FIRE_EXPERIMENT_ID};
+pub use heavy::{run_heavy_mixed_experiment, HEAVY_EXPERIMENT_ID};
 pub use pressure::{run_pressure_burst_experiment, PRESSURE_EXPERIMENT_ID};
 pub use water::{run_water_flow_experiment, WATER_EXPERIMENT_ID};
 

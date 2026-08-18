@@ -60,9 +60,10 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
 use experiment::{
-    run_fire_heat_experiment, run_pressure_burst_experiment, run_sand_fall_experiment,
-    run_water_flow_experiment, verify_current_executable_sha256, ExperimentWorkerConfig,
-    EXPERIMENT_ID, FIRE_EXPERIMENT_ID, PRESSURE_EXPERIMENT_ID, WATER_EXPERIMENT_ID,
+    run_fire_heat_experiment, run_heavy_mixed_experiment, run_pressure_burst_experiment,
+    run_sand_fall_experiment, run_water_flow_experiment, verify_current_executable_sha256,
+    ExperimentWorkerConfig, EXPERIMENT_ID, FIRE_EXPERIMENT_ID, HEAVY_EXPERIMENT_ID,
+    PRESSURE_EXPERIMENT_ID, WATER_EXPERIMENT_ID,
 };
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
@@ -551,6 +552,9 @@ impl App {
                     &provenance,
                     config,
                 ),
+                ScenarioId::HeavyMixedWorld => {
+                    run_heavy_mixed_experiment(&mut simulation, &mut renderer, &provenance, config)
+                }
                 scenario => Err(format!("no experiment worker is registered for {scenario}")),
             }
             .map_err(|error| GpuError::Other(format!("experiment worker failed: {error}")))?;
@@ -575,6 +579,14 @@ impl App {
                     outcome
                         .post_sleep_end_tick
                         .map_or_else(|| "null".to_string(), |value| value.to_string())
+                );
+            } else if config.scenario == ScenarioId::HeavyMixedWorld {
+                println!(
+                    "[powdergame][experiment] completed run_id={} scenario=heavy-mixed verdict={} samples={} raw_frames={}",
+                    outcome.run_id,
+                    outcome.verdict.as_str(),
+                    outcome.sample_count,
+                    outcome.raw_frame_count,
                 );
             } else {
                 println!(
@@ -2350,7 +2362,7 @@ where
     if !worker_requested {
         if experiment_option_present {
             return Err(
-                "experiment options require '--experiment-worker sand-fall|water-flow|fire-heat|pressure-burst'"
+                "experiment options require '--experiment-worker sand-fall|water-flow|fire-heat|pressure-burst|heavy-mixed'"
                     .to_string(),
             );
         }
@@ -2393,9 +2405,10 @@ where
                     "water-flow" => ScenarioId::WaterFlow,
                     "fire-heat" => ScenarioId::FireHeat,
                     "pressure-burst" => ScenarioId::PressureBurst,
+                    "heavy-mixed" => ScenarioId::HeavyMixedWorld,
                     _ => {
                         return Err(format!(
-                            "experiment worker supports only 'sand-fall', 'water-flow', 'fire-heat', or 'pressure-burst', got '{selected}'"
+                            "experiment worker supports only 'sand-fall', 'water-flow', 'fire-heat', 'pressure-burst', or 'heavy-mixed', got '{selected}'"
                         ));
                     }
                 });
@@ -2516,7 +2529,8 @@ where
         ScenarioId::WaterFlow => WATER_EXPERIMENT_ID,
         ScenarioId::FireHeat => FIRE_EXPERIMENT_ID,
         ScenarioId::PressureBurst => PRESSURE_EXPERIMENT_ID,
-        _ => unreachable!("worker parser accepts four scenarios"),
+        ScenarioId::HeavyMixedWorld => HEAVY_EXPERIMENT_ID,
+        _ => unreachable!("worker parser accepts five scenarios"),
     };
     let (
         consecutive_all_sleep,
@@ -2595,7 +2609,23 @@ where
                     .ok_or_else(|| "missing --terminal-window-samples".to_string())?,
             )
         }
-        _ => unreachable!("worker parser accepts four scenarios"),
+        ScenarioId::HeavyMixedWorld => {
+            if consecutive_all_sleep.is_some()
+                || post_sleep_ticks.is_some()
+                || consecutive_reaction_zero.is_some()
+                || post_reaction_ticks.is_some()
+                || consecutive_persistent_opening.is_some()
+                || post_opening_ticks.is_some()
+                || terminal_window_samples.is_some()
+            {
+                return Err(
+                    "Sand/Water/Fire/Pressure lifecycle options are not valid for Heavy Mixed"
+                        .to_string(),
+                );
+            }
+            (0, 0, 0, 0, 0, 0, 0)
+        }
+        _ => unreachable!("worker parser accepts five scenarios"),
     };
     Ok(Some(ExperimentWorkerConfig {
         experiment_id: experiment_id.to_string(),
@@ -3008,6 +3038,45 @@ mod tests {
         assert_eq!(parsed.consecutive_persistent_opening, 3);
         assert_eq!(parsed.post_opening_ticks, 180);
         assert_eq!(parsed.terminal_window_samples, 64);
+    }
+
+    #[test]
+    fn experiment_worker_cli_selects_heavy_contract_without_legacy_lifecycle() {
+        let parsed = experiment_worker_from_args([
+            "--experiment-worker",
+            "heavy-mixed",
+            "--experiment-run-dir",
+            r"C:\outside\g8b-heavy-mixed-v0-test",
+            "--experiment-run-id",
+            "g8b-heavy-mixed-v0-test",
+            "--binary-sha256",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "--max-ticks",
+            "20000",
+            "--diagnostic-interval",
+            "8",
+        ])
+        .expect("valid Heavy worker arguments")
+        .expect("Heavy worker selected");
+        assert_eq!(parsed.experiment_id, "g8b-heavy-mixed-v0");
+        assert_eq!(parsed.scenario, ScenarioId::HeavyMixedWorld);
+        assert_eq!(parsed.max_ticks, 20_000);
+        assert_eq!(parsed.diagnostic_interval_ticks, 8);
+        assert_eq!(parsed.consecutive_all_sleep, 0);
+        assert_eq!(parsed.post_sleep_ticks, 0);
+        assert_eq!(parsed.consecutive_reaction_zero, 0);
+        assert_eq!(parsed.post_reaction_ticks, 0);
+        assert_eq!(parsed.consecutive_persistent_opening, 0);
+        assert_eq!(parsed.post_opening_ticks, 0);
+        assert_eq!(parsed.terminal_window_samples, 0);
+
+        assert!(experiment_worker_from_args([
+            "--experiment-worker",
+            "heavy-mixed",
+            "--terminal-window-samples",
+            "64",
+        ])
+        .is_err());
     }
 
     #[test]

@@ -37,6 +37,9 @@ AUDIT_BUNDLE_SHA256_SUFFIX = ".AUDIT_BUNDLE_SHA256.txt"
 PRESSURE_AUDIT_BUNDLE_MANIFEST_SCHEMA = (
     "powdergame-pressure-burst-audit-bundle-manifest-v1"
 )
+HEAVY_AUDIT_BUNDLE_MANIFEST_SCHEMA = (
+    "powdergame-heavy-mixed-audit-bundle-manifest-v0"
+)
 SOURCE_INPUT_EXACT_PATHS = frozenset(
     {
         "run_experiment.bat",
@@ -73,6 +76,13 @@ PRESSURE_TELEMETRY_SCHEMA = "powdergame-pressure-burst-telemetry-v1"
 PRESSURE_REPORT_SCHEMA = "powdergame-pressure-burst-report-v1"
 PRESSURE_RECEIPT_SCHEMA = "powdergame-pressure-burst-receipt-v1"
 
+HEAVY_MANIFEST_SCHEMA = "powdergame-heavy-mixed-manifest-v0"
+HEAVY_ANALYSIS_SCHEMA = "powdergame-heavy-mixed-analysis-v0"
+HEAVY_FRAMES_SCHEMA = "powdergame-heavy-mixed-frames-v0"
+HEAVY_TELEMETRY_SCHEMA = "powdergame-heavy-mixed-telemetry-v0"
+HEAVY_REPORT_SCHEMA = "powdergame-heavy-mixed-report-v0"
+HEAVY_RECEIPT_SCHEMA = "powdergame-heavy-mixed-receipt-v0"
+
 WORLD_WIDTH = 256
 WORLD_HEIGHT = 256
 CHUNK_SIZE = 64
@@ -86,6 +96,8 @@ POST_REACTION_TICKS = 180
 CONSECUTIVE_PERSISTENT_OPENING = 3
 POST_OPENING_TICKS = 180
 TERMINAL_WINDOW_SAMPLES = 64
+HEAVY_TERMINAL_WINDOW_SAMPLES = 64
+HEAVY_REQUIRED_OVERLAP_SAMPLES = 3
 WOOD_RUPTURE_THRESHOLD = 80.0
 
 RENDERER_WIDTH = 1_600
@@ -155,6 +167,23 @@ PRESSURE_PREDICATE_NAMES = frozenset({
     "terminal_pressure_not_runaway",
     "no_invalid_materials",
     "no_nonfinite_fields",
+    "exact_reset",
+})
+HEAVY_ALLOWED_VERDICTS = frozenset({"PASS", "FAIL", "NEEDS_HUMAN_REVIEW"})
+HEAVY_PREDICATE_NAMES = frozenset({
+    "matter_movement_observed",
+    "density_displacement_observed",
+    "thermal_activity_observed",
+    "phase_work_observed",
+    "combustion_observed",
+    "smoke_work_observed",
+    "pressure_activity_observed",
+    "meaningful_multi_system_overlap",
+    "inventory_accounted",
+    "no_invalid_materials",
+    "no_nonfinite_fields",
+    "no_wake_anomalies",
+    "no_unbounded_runaway",
     "exact_reset",
 })
 WATER_ACTIVE_CLASSIFICATION_RULE = (
@@ -299,6 +328,72 @@ PRESSURE_OPTIONAL_EVENTS = frozenset(
         "post_opening_observation_completed",
     }
 )
+HEAVY_FRAME_BADGE_KINDS = (
+    "tick0",
+    "tick1",
+    "first-movement",
+    "first-density",
+    "first-phase",
+    "first-combustion",
+    "first-smoke",
+    "first-pressure",
+    "first-rupture",
+    "first-vent",
+    "peak-concurrency",
+    "peak-active",
+    "representative",
+    "mid-run",
+    "late-run",
+    "terminal",
+    "reset",
+)
+HEAVY_FRAME_BADGE_RANK = {
+    kind: rank for rank, kind in enumerate(HEAVY_FRAME_BADGE_KINDS)
+}
+HEAVY_PRESENTATION_BADGE_KINDS = {
+    "first-vent": "first-exterior-steam",
+}
+HEAVY_EXTERIOR_STEAM_PRESENTATION = (
+    "first exterior Steam above relief (not opening-gated)"
+)
+HEAVY_PHASE_REASONS = {
+    "initial": frozenset({"tick0"}),
+    "mixed": frozenset(
+        {"tick1", "early-diagnostic", "diagnostic-cadence", "max-tick"}
+    ),
+    "reset": frozenset({"programmatic-r-equivalent"}),
+}
+HEAVY_ALWAYS_EVENTS = frozenset(
+    {
+        "lifecycle_started",
+        "pristine_reset_completed",
+        "tick0_captured",
+        "tick1_captured",
+        "terminal_selected",
+        "reset_started",
+        "reset_comparison_completed",
+        "worker_completed",
+    }
+)
+HEAVY_OPTIONAL_EVENTS = frozenset(
+    {
+        "first_movement_observed",
+        "first_density_displacement_observed",
+        "first_thermal_activity_observed",
+        "first_phase_transition_observed",
+        "first_combustion_work_observed",
+        "first_smoke_generation_observed",
+        "first_pressure_activity_observed",
+        "first_relief_damage_observed",
+        "first_rupture_observed",
+        "first_opening_observed",
+        "first_vent_observed",
+        "first_three_subsystems_observed",
+        "first_all_intended_subsystems_observed",
+        "new_peak_active",
+        "new_peak_concurrency",
+    }
+)
 PREDICATE_STATUSES = {"pass", "fail", "unknown"}
 HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 GIT_OID = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
@@ -423,11 +518,27 @@ PRESSURE_CONTRACT = ScenarioContract(
     title="Pressure Burst",
     records_run_mode=True,
 )
+HEAVY_CONTRACT = ScenarioContract(
+    scenario="heavy-mixed",
+    experiment_id="g8b-heavy-mixed-v0",
+    manifest_schema=HEAVY_MANIFEST_SCHEMA,
+    telemetry_schema=HEAVY_TELEMETRY_SCHEMA,
+    analysis_schema=HEAVY_ANALYSIS_SCHEMA,
+    frames_schema=HEAVY_FRAMES_SCHEMA,
+    report_schema=HEAVY_REPORT_SCHEMA,
+    receipt_schema=HEAVY_RECEIPT_SCHEMA,
+    predicate_names=HEAVY_PREDICATE_NAMES,
+    allowed_verdicts=HEAVY_ALLOWED_VERDICTS,
+    needs_human_verdict="NEEDS_HUMAN_REVIEW",
+    title="Heavy Mixed World",
+    records_run_mode=True,
+)
 SCENARIO_CONTRACTS = {
     SAND_CONTRACT.scenario: SAND_CONTRACT,
     WATER_CONTRACT.scenario: WATER_CONTRACT,
     FIRE_CONTRACT.scenario: FIRE_CONTRACT,
     PRESSURE_CONTRACT.scenario: PRESSURE_CONTRACT,
+    HEAVY_CONTRACT.scenario: HEAVY_CONTRACT,
 }
 RUN_MODES = frozenset({"candidate", "scratch"})
 WATER_FINDING_CLASSIFICATIONS = (
@@ -446,6 +557,14 @@ WATER_VISUAL_QUESTIONS = (
     "Do HUD values and visible state agree with the joined sample caption?",
     "Is any Water visibly outside the intended outer basin boundary?",
     "Does final residual activity visually align with the reported interface classes?",
+)
+HEAVY_FINDING_CLASSIFICATIONS = (
+    "actual_production_physics_defect",
+    "fixture_representativeness_issue",
+    "expected_long_tail_behavior",
+    "harness_detection_issue",
+    "insufficient_evidence",
+    "candidate_eligible",
 )
 
 # Sand v0 compatibility aliases are intentionally retained for existing callers,
@@ -535,6 +654,13 @@ class ManifestData:
                 "consecutive_persistent_opening": CONSECUTIVE_PERSISTENT_OPENING,
                 "post_opening_ticks": POST_OPENING_TICKS,
                 "terminal_window_samples": TERMINAL_WINDOW_SAMPLES,
+            }
+        elif self.contract is HEAVY_CONTRACT:
+            experiment = {
+                "max_ticks": MAX_TICKS,
+                "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+                "terminal_window_samples": HEAVY_TERMINAL_WINDOW_SAMPLES,
+                "meaningful_overlap_samples": HEAVY_REQUIRED_OVERLAP_SAMPLES,
             }
         else:
             experiment = {
@@ -1079,6 +1205,13 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
             "post_opening_ticks",
             "terminal_window_samples",
         }
+    elif contract is HEAVY_CONTRACT:
+        expected_sections["experiment"] = {
+            "max_ticks",
+            "diagnostic_interval_ticks",
+            "terminal_window_samples",
+            "meaningful_overlap_samples",
+        }
     if contract is WATER_CONTRACT:
         expected_sections["experiment"].add("stable_plateau_consecutive_samples")
     for section, expected in expected_sections.items():
@@ -1131,6 +1264,13 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
             "post_opening_ticks": POST_OPENING_TICKS,
             "terminal_window_samples": TERMINAL_WINDOW_SAMPLES,
         }
+    elif contract is HEAVY_CONTRACT:
+        expected_experiment = {
+            "max_ticks": MAX_TICKS,
+            "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+            "terminal_window_samples": HEAVY_TERMINAL_WINDOW_SAMPLES,
+            "meaningful_overlap_samples": HEAVY_REQUIRED_OVERLAP_SAMPLES,
+        }
     else:
         expected_experiment = {
             "max_ticks": MAX_TICKS,
@@ -1175,7 +1315,7 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
     validate_external_artifact_root(source_root, artifact_root)
     legacy_binary = source_root / "target" / "release" / "powdergame-windows.exe"
     frozen_binary = run_dir.joinpath(*FROZEN_BINARY_RELATIVE_PATH.parts)
-    if contract in {FIRE_CONTRACT, PRESSURE_CONTRACT}:
+    if contract in {FIRE_CONTRACT, PRESSURE_CONTRACT, HEAVY_CONTRACT}:
         if binary_path.resolve() != frozen_binary.resolve():
             raise ExperimentError(
                 f"{contract.title} manifest binary path must be the run-local frozen executable"
@@ -2359,6 +2499,422 @@ def validate_pressure_analysis(
         raise ExperimentError("Pressure analysis raw_frame_count must be between 8 and 12")
 
 
+HEAVY_IDENTITY_PREFIXES = (
+    "first_movement",
+    "first_density_displacement",
+    "first_thermal_activity",
+    "first_phase_transition",
+    "first_combustion_work",
+    "first_smoke_generation",
+    "first_pressure_activity",
+    "first_relief_damage",
+    "first_rupture",
+    "first_opening",
+    "first_vent",
+    "first_three_subsystems",
+    "first_all_intended_subsystems",
+)
+HEAVY_SUBSYSTEM_SUMMARY_KEYS = {
+    "peak_cells",
+    "peak_tick",
+    "peak_sample",
+    "active_sample_count",
+    "first_tick",
+    "first_sample",
+    "last_tick",
+    "last_sample",
+    "cumulative_active_cells",
+}
+HEAVY_METRICS_KEYS = {
+    *{
+        f"{prefix}_{suffix}"
+        for prefix in HEAVY_IDENTITY_PREFIXES
+        for suffix in ("tick", "sample")
+    },
+    "peak_active_cells",
+    "peak_active_tick",
+    "peak_active_sample",
+    "peak_concurrent_subsystem_count",
+    "peak_concurrency_tick",
+    "peak_concurrency_sample",
+    "longest_three_plus_window_samples",
+    "longest_three_plus_window_start_tick",
+    "longest_three_plus_window_start_sample",
+    "longest_three_plus_window_end_tick",
+    "longest_three_plus_window_end_sample",
+    "longest_three_plus_window_tick_span",
+    "subsystems",
+    "initial_material_counts_by_id",
+    "final_material_counts_by_id",
+    "final_material_count_deltas_by_id",
+    "initial_matter",
+    "final_matter",
+    "matter_delta",
+    "initial_sand",
+    "final_sand",
+    "sand_delta",
+    "initial_water",
+    "final_water",
+    "water_delta",
+    "initial_oil",
+    "final_oil",
+    "oil_delta",
+    "initial_wood",
+    "final_wood",
+    "wood_delta",
+    "initial_ice",
+    "final_ice",
+    "ice_delta",
+    "initial_steam",
+    "final_steam",
+    "steam_delta",
+    "initial_smoke",
+    "smoke_peak",
+    "smoke_peak_tick",
+    "smoke_peak_sample",
+    "final_smoke",
+    "smoke_delta",
+    "initial_phase_pool",
+    "final_phase_pool",
+    "phase_pool_delta",
+    "initial_fuel",
+    "final_fuel",
+    "fuel_delta",
+    "gross_inventory_delta_cells",
+    "explained_material_delta_cells",
+    "unexplained_material_delta_cells",
+    "unexplained_material_delta_occurrences",
+    "terminal_activity",
+    "terminal_bounds",
+    "relief_seam_wood_final",
+    "relief_open_lanes_final",
+    "exterior_steam_final",
+    "invalid_material_occurrences",
+    "nonfinite_field_occurrences",
+    "wake_anomaly_occurrences",
+    "zero_activity_before_overlap_samples",
+    "reset_exact_equivalence",
+    "tick0_state_hash",
+    "reset_state_hash",
+    "tick0_physical_state_hash",
+    "reset_physical_state_hash",
+}
+
+
+def validate_heavy_analysis(
+    analysis: dict[str, Any], manifest: dict[str, Any]
+) -> None:
+    require_exact_keys(
+        analysis,
+        {
+            "schema_version",
+            "experiment_id",
+            "run_id",
+            "scenario",
+            "source_sha",
+            "git_state",
+            "build_profile",
+            "binary_sha256",
+            "world",
+            "sleep",
+            "lifecycle",
+            "baseline",
+            "metrics",
+            "terminal_trend",
+            "predicates",
+            "review_flags",
+            "verdict",
+            "sample_count",
+            "raw_frame_count",
+        },
+        "Heavy analysis",
+    )
+    identity = {
+        "schema_version": HEAVY_ANALYSIS_SCHEMA,
+        "experiment_id": manifest["experiment_id"],
+        "run_id": manifest["run_id"],
+        "scenario": HEAVY_CONTRACT.scenario,
+        "source_sha": manifest["source"]["sha"],
+        "git_state": manifest["source"]["git_state"],
+        "build_profile": "release",
+        "binary_sha256": manifest["binary"]["sha256"],
+        "world": manifest["world"],
+    }
+    for key, expected in identity.items():
+        if analysis[key] != expected:
+            raise ExperimentError(f"Heavy analysis {key} mismatch")
+    sleep = analysis["sleep"]
+    if not isinstance(sleep, dict):
+        raise ExperimentError("Heavy analysis sleep must be an object")
+    require_exact_keys(sleep, {"enabled", "threshold"}, "Heavy analysis sleep")
+    if not isinstance(sleep["enabled"], bool):
+        raise ExperimentError("Heavy analysis sleep enabled must be boolean")
+    require_nonnegative_int(sleep["threshold"], "Heavy analysis sleep threshold")
+
+    lifecycle = analysis["lifecycle"]
+    if not isinstance(lifecycle, dict):
+        raise ExperimentError("Heavy analysis lifecycle must be an object")
+    require_exact_keys(
+        lifecycle,
+        {
+            "terminal_reason",
+            "terminal_tick",
+            "terminal_sample",
+            "required_max_ticks",
+            "diagnostic_interval_ticks",
+            "terminal_window_samples",
+        },
+        "Heavy analysis lifecycle",
+    )
+    if lifecycle != {
+        "terminal_reason": "max-ticks",
+        "terminal_tick": MAX_TICKS,
+        "terminal_sample": lifecycle["terminal_sample"],
+        "required_max_ticks": MAX_TICKS,
+        "diagnostic_interval_ticks": DIAGNOSTIC_INTERVAL,
+        "terminal_window_samples": HEAVY_TERMINAL_WINDOW_SAMPLES,
+    }:
+        raise ExperimentError("Heavy analysis lifecycle constants mismatch")
+    require_nonnegative_int(lifecycle["terminal_sample"], "Heavy terminal sample")
+
+    baseline = analysis["baseline"]
+    baseline_keys = {
+        "material_counts_by_id",
+        "matter_count",
+        "sand_count",
+        "water_count",
+        "oil_count",
+        "wood_count",
+        "ice_count",
+        "steam_count",
+        "smoke_count",
+        "phase_pool_count",
+        "fuel_count",
+        "relief_seam_wood_count",
+        "exterior_steam_cells",
+        "density_ordered_pairs",
+    }
+    if not isinstance(baseline, dict):
+        raise ExperimentError("Heavy analysis baseline must be an object")
+    require_exact_keys(baseline, baseline_keys, "Heavy analysis baseline")
+    counts = baseline["material_counts_by_id"]
+    if not isinstance(counts, list) or len(counts) != 10:
+        raise ExperimentError("Heavy analysis baseline material inventory is invalid")
+    for key in baseline_keys - {"material_counts_by_id"}:
+        require_nonnegative_int(baseline[key], f"Heavy analysis baseline {key}")
+
+    metrics = analysis["metrics"]
+    if not isinstance(metrics, dict):
+        raise ExperimentError("Heavy analysis metrics must be an object")
+    require_exact_keys(metrics, HEAVY_METRICS_KEYS, "Heavy analysis metrics")
+    for prefix in HEAVY_IDENTITY_PREFIXES:
+        require_optional_identity_pair(
+            metrics[f"{prefix}_tick"],
+            metrics[f"{prefix}_sample"],
+            f"Heavy analysis {prefix}",
+        )
+    for prefix in ("peak_active", "peak_concurrency", "smoke_peak"):
+        require_optional_identity_pair(
+            metrics[f"{prefix}_tick"],
+            metrics[f"{prefix}_sample"],
+            f"Heavy analysis {prefix}",
+        )
+    for prefix in ("longest_three_plus_window_start", "longest_three_plus_window_end"):
+        require_optional_identity_pair(
+            metrics[f"{prefix}_tick"],
+            metrics[f"{prefix}_sample"],
+            f"Heavy analysis {prefix}",
+        )
+    subsystems = metrics["subsystems"]
+    if not isinstance(subsystems, dict):
+        raise ExperimentError("Heavy analysis subsystems must be an object")
+    require_exact_keys(
+        subsystems, {"matter", "thermal", "pressure", "reaction"}, "Heavy subsystems"
+    )
+    for name, summary in subsystems.items():
+        if not isinstance(summary, dict):
+            raise ExperimentError(f"Heavy subsystem {name} must be an object")
+        require_exact_keys(summary, HEAVY_SUBSYSTEM_SUMMARY_KEYS, f"Heavy subsystem {name}")
+        for prefix in ("peak", "first", "last"):
+            require_optional_identity_pair(
+                summary[f"{prefix}_tick"],
+                summary[f"{prefix}_sample"],
+                f"Heavy subsystem {name} {prefix}",
+            )
+        for key in ("peak_cells", "active_sample_count", "cumulative_active_cells"):
+            require_nonnegative_int(summary[key], f"Heavy subsystem {name} {key}")
+    for key in (
+        "initial_material_counts_by_id",
+        "final_material_counts_by_id",
+        "final_material_count_deltas_by_id",
+    ):
+        values = metrics[key]
+        if not isinstance(values, list) or len(values) != 10 or any(
+            isinstance(value, bool) or not isinstance(value, int) for value in values
+        ):
+            raise ExperimentError(f"Heavy analysis metrics {key} must contain ten integers")
+    signed_keys = {
+        "matter_delta",
+        "sand_delta",
+        "water_delta",
+        "oil_delta",
+        "wood_delta",
+        "ice_delta",
+        "steam_delta",
+        "smoke_delta",
+        "phase_pool_delta",
+        "fuel_delta",
+    }
+    object_keys = {"subsystems", "terminal_activity", "terminal_bounds"}
+    optional_keys = {
+        *{f"{prefix}_{suffix}" for prefix in HEAVY_IDENTITY_PREFIXES for suffix in ("tick", "sample")},
+        "peak_active_tick",
+        "peak_active_sample",
+        "peak_concurrency_tick",
+        "peak_concurrency_sample",
+        "smoke_peak_tick",
+        "smoke_peak_sample",
+        "longest_three_plus_window_start_tick",
+        "longest_three_plus_window_start_sample",
+        "longest_three_plus_window_end_tick",
+        "longest_three_plus_window_end_sample",
+    }
+    excluded = object_keys | signed_keys | optional_keys | {
+        "initial_material_counts_by_id",
+        "final_material_counts_by_id",
+        "final_material_count_deltas_by_id",
+        "reset_exact_equivalence",
+        "tick0_state_hash",
+        "reset_state_hash",
+        "tick0_physical_state_hash",
+        "reset_physical_state_hash",
+    }
+    for key in HEAVY_METRICS_KEYS - excluded:
+        require_nonnegative_int(metrics[key], f"Heavy analysis metrics {key}")
+    for key in signed_keys:
+        if isinstance(metrics[key], bool) or not isinstance(metrics[key], int):
+            raise ExperimentError(f"Heavy analysis metrics {key} must be an integer")
+    if not isinstance(metrics["reset_exact_equivalence"], bool):
+        raise ExperimentError("Heavy reset_exact_equivalence must be boolean")
+    for key in (
+        "tick0_state_hash",
+        "reset_state_hash",
+        "tick0_physical_state_hash",
+        "reset_physical_state_hash",
+    ):
+        if not isinstance(metrics[key], str) or not STATE_HASH.fullmatch(metrics[key]):
+            raise ExperimentError(f"Heavy analysis metrics {key} is invalid")
+    terminal_activity = metrics["terminal_activity"]
+    terminal_activity_keys = {
+        "any_active_cells",
+        "active_chunks",
+        "runnable_chunks",
+        "sleeping_chunks",
+        "matter_active_cells",
+        "thermal_active_cells",
+        "pressure_active_cells",
+        "reaction_active_cells",
+        "subsystem_active_count",
+    }
+    if not isinstance(terminal_activity, dict):
+        raise ExperimentError("Heavy terminal_activity must be an object")
+    require_exact_keys(terminal_activity, terminal_activity_keys, "Heavy terminal_activity")
+    for key, value in terminal_activity.items():
+        require_nonnegative_int(value, f"Heavy terminal_activity {key}")
+    terminal_bounds = metrics["terminal_bounds"]
+    if not isinstance(terminal_bounds, dict):
+        raise ExperimentError("Heavy terminal_bounds must be an object")
+    require_exact_keys(
+        terminal_bounds,
+        {"temperature_min", "temperature_max", "pressure_min", "pressure_max"},
+        "Heavy terminal_bounds",
+    )
+    for key, value in terminal_bounds.items():
+        require_finite_number(value, f"Heavy terminal_bounds {key}")
+
+    trend = analysis["terminal_trend"]
+    trend_keys = {
+        "sample_count",
+        "start_sim_tick",
+        "end_sim_tick",
+        "start_temperature_max",
+        "end_temperature_max",
+        "temperature_positive_steps",
+        "temperature_runaway",
+        "start_pressure_max",
+        "end_pressure_max",
+        "pressure_positive_steps",
+        "pressure_runaway",
+        "unbounded_growth",
+    }
+    if not isinstance(trend, dict):
+        raise ExperimentError("Heavy terminal_trend must be an object")
+    require_exact_keys(trend, trend_keys, "Heavy terminal_trend")
+    for key in ("sample_count", "temperature_positive_steps", "pressure_positive_steps"):
+        require_nonnegative_int(trend[key], f"Heavy terminal_trend {key}")
+    for key in ("start_sim_tick", "end_sim_tick"):
+        require_optional_nonnegative_int(trend[key], f"Heavy terminal_trend {key}")
+    for key in (
+        "start_temperature_max",
+        "end_temperature_max",
+        "start_pressure_max",
+        "end_pressure_max",
+    ):
+        require_finite_number(trend[key], f"Heavy terminal_trend {key}")
+    for key in ("temperature_runaway", "pressure_runaway", "unbounded_growth"):
+        if not isinstance(trend[key], bool):
+            raise ExperimentError(f"Heavy terminal_trend {key} must be boolean")
+
+    predicates = analysis["predicates"]
+    if not isinstance(predicates, dict) or set(predicates) != HEAVY_PREDICATE_NAMES:
+        raise ExperimentError("Heavy predicates must contain the exact fourteen checks")
+    for name, predicate in predicates.items():
+        if not isinstance(predicate, dict):
+            raise ExperimentError(f"Heavy predicate {name} must be an object")
+        require_exact_keys(predicate, {"status", "detail"}, f"Heavy predicate {name}")
+        if predicate["status"] not in PREDICATE_STATUSES:
+            raise ExperimentError(f"Heavy predicate {name} status is invalid")
+        if not isinstance(predicate["detail"], str):
+            raise ExperimentError(f"Heavy predicate {name} detail must be a string")
+    flags = analysis["review_flags"]
+    if not isinstance(flags, dict):
+        raise ExperimentError("Heavy review_flags must be an object")
+    require_exact_keys(
+        flags,
+        {
+            "dominant_subsystem",
+            "dominant_subsystem_name",
+            "dominant_subsystem_share",
+            "broad_terminal_tail",
+            "long_thermal_pressure_tail",
+            "reasons",
+        },
+        "Heavy review_flags",
+    )
+    for key in ("dominant_subsystem", "broad_terminal_tail", "long_thermal_pressure_tail"):
+        if not isinstance(flags[key], bool):
+            raise ExperimentError(f"Heavy review flag {key} must be boolean")
+    if flags["dominant_subsystem_name"] not in {"matter", "thermal", "pressure", "reaction"}:
+        raise ExperimentError("Heavy dominant_subsystem_name is invalid")
+    share = require_finite_number(
+        flags["dominant_subsystem_share"], "Heavy dominant_subsystem_share"
+    )
+    if not 0.0 <= share <= 1.0:
+        raise ExperimentError("Heavy dominant_subsystem_share is out of range")
+    if not isinstance(flags["reasons"], list) or not all(
+        isinstance(reason, str) for reason in flags["reasons"]
+    ):
+        raise ExperimentError("Heavy review reasons must be a string array")
+    if analysis["verdict"] not in HEAVY_ALLOWED_VERDICTS:
+        raise ExperimentError("Heavy analysis verdict is invalid")
+    require_nonnegative_int(analysis["sample_count"], "Heavy analysis sample_count")
+    raw_frame_count = require_nonnegative_int(
+        analysis["raw_frame_count"], "Heavy analysis raw_frame_count"
+    )
+    if not 10 <= raw_frame_count <= 14:
+        raise ExperimentError("Heavy analysis raw_frame_count must be between 10 and 14")
+
+
 def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> None:
     contract = contract_for_manifest(manifest)
     if contract is SAND_CONTRACT:
@@ -2369,6 +2925,8 @@ def validate_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -> Non
         validate_fire_analysis(analysis, manifest)
     elif contract is PRESSURE_CONTRACT:
         validate_pressure_analysis(analysis, manifest)
+    elif contract is HEAVY_CONTRACT:
+        validate_heavy_analysis(analysis, manifest)
     else:
         raise ExperimentError(f"unsupported analysis contract: {contract.scenario}")
 
@@ -2448,6 +3006,10 @@ def validate_frames(
         raise ExperimentError(
             f"{contract.title} frames.json must contain between 8 and 12 frames"
         )
+    if contract is HEAVY_CONTRACT and not 10 <= len(frames) <= 14:
+        raise ExperimentError(
+            "Heavy Mixed World frames.json must contain between 10 and 14 frames"
+        )
     if frames_doc["pixel_encoding"] != "rgba8-tightly-packed":
         raise ExperimentError("frames pixel_encoding mismatch")
     required_frame = {
@@ -2462,53 +3024,94 @@ def validate_frames(
     }
     if contract is PRESSURE_CONTRACT:
         required_frame.add("badges")
+    elif contract is HEAVY_CONTRACT:
+        required_frame.update({"kind", "reason", "badges", "caption_metrics"})
     else:
         required_frame.update({"kind", "reason"})
     seen_paths: set[str] = set()
     seen_names: set[str] = set()
+    seen_identities: set[tuple[bool, int, str]] = set()
+    previous_heavy_identity: tuple[int, int] | None = None
     for expected_ordinal, frame in enumerate(frames):
         if not isinstance(frame, dict):
             raise ExperimentError(f"frame {expected_ordinal} must be an object")
         require_exact_keys(frame, required_frame, f"frame {expected_ordinal}")
         if frame["ordinal"] != expected_ordinal:
             raise ExperimentError("frame ordinals must be contiguous and zero-based")
-        if contract is PRESSURE_CONTRACT:
+        if contract in {PRESSURE_CONTRACT, HEAVY_CONTRACT}:
             badges = frame["badges"]
             if not isinstance(badges, list) or not badges:
                 raise ExperimentError(
-                    f"Pressure frame {expected_ordinal} badges must be non-empty"
+                    f"{contract.title} frame {expected_ordinal} badges must be non-empty"
                 )
+            badge_rank = (
+                PRESSURE_FRAME_BADGE_RANK
+                if contract is PRESSURE_CONTRACT
+                else HEAVY_FRAME_BADGE_RANK
+            )
             seen_badges: set[str] = set()
             previous_rank = -1
             for badge_index, badge in enumerate(badges):
                 if not isinstance(badge, dict):
                     raise ExperimentError(
-                        f"Pressure frame {expected_ordinal} badge {badge_index} must be an object"
+                        f"{contract.title} frame {expected_ordinal} badge {badge_index} must be an object"
                     )
                 require_exact_keys(
                     badge,
                     {"kind", "reason"},
-                    f"Pressure frame {expected_ordinal} badge {badge_index}",
+                    f"{contract.title} frame {expected_ordinal} badge {badge_index}",
                 )
                 kind = badge["kind"]
-                if kind not in PRESSURE_FRAME_BADGE_RANK:
+                if kind not in badge_rank:
                     raise ExperimentError(
-                        f"Pressure frame {expected_ordinal} badge kind {kind!r} is unsupported"
+                        f"{contract.title} frame {expected_ordinal} badge kind {kind!r} is unsupported"
                     )
                 if kind in seen_badges:
                     raise ExperimentError(
-                        f"Pressure frame {expected_ordinal} contains duplicate badge {kind}"
+                        f"{contract.title} frame {expected_ordinal} contains duplicate badge {kind}"
                     )
                 seen_badges.add(kind)
-                rank = PRESSURE_FRAME_BADGE_RANK[kind]
+                rank = badge_rank[kind]
                 if rank <= previous_rank:
                     raise ExperimentError(
-                        f"Pressure frame {expected_ordinal} badges are not in canonical order"
+                        f"{contract.title} frame {expected_ordinal} badges are not in canonical order"
                     )
                 previous_rank = rank
                 if not isinstance(badge["reason"], str) or not badge["reason"]:
                     raise ExperimentError(
-                        f"Pressure frame {expected_ordinal} badge reason must be non-empty"
+                        f"{contract.title} frame {expected_ordinal} badge reason must be non-empty"
+                    )
+            if contract is HEAVY_CONTRACT:
+                if frame["kind"] != badges[0]["kind"] or frame["reason"] != badges[0]["reason"]:
+                    raise ExperimentError(
+                        f"Heavy frame {expected_ordinal} primary kind/reason must match first badge"
+                    )
+                caption = frame["caption_metrics"]
+                caption_keys = {
+                    "active_cells",
+                    "subsystem_active_count",
+                    "matter_active_cells",
+                    "thermal_active_cells",
+                    "pressure_active_cells",
+                    "reaction_active_cells",
+                    "sand_count",
+                    "water_count",
+                    "oil_count",
+                    "wood_count",
+                    "ice_count",
+                    "steam_count",
+                    "smoke_count",
+                }
+                if not isinstance(caption, dict):
+                    raise ExperimentError(
+                        f"Heavy frame {expected_ordinal} caption_metrics must be an object"
+                    )
+                require_exact_keys(
+                    caption, caption_keys, f"Heavy frame {expected_ordinal} caption_metrics"
+                )
+                for key, value in caption.items():
+                    require_nonnegative_int(
+                        value, f"Heavy frame {expected_ordinal} caption_metrics {key}"
                     )
         else:
             if not isinstance(frame["kind"], str) or not frame["kind"]:
@@ -2555,6 +3158,21 @@ def validate_frames(
         if name in seen_names:
             raise ExperimentError("duplicate derived screenshot name")
         seen_names.add(name)
+        if contract is HEAVY_CONTRACT:
+            is_reset = any(badge["kind"] == "reset" for badge in frame["badges"])
+            identity = (is_reset, frame["sim_tick"], frame["state_hash"])
+            if identity in seen_identities:
+                raise ExperimentError("Heavy folded frames contain a duplicate state identity")
+            seen_identities.add(identity)
+            if is_reset != (expected_ordinal == len(frames) - 1):
+                raise ExperimentError("Heavy reset frame must appear exactly once and last")
+            if not is_reset:
+                chronology = (frame["sim_tick"], frame["sample_sequence"])
+                if previous_heavy_identity is not None and chronology <= previous_heavy_identity:
+                    raise ExperimentError(
+                        "Heavy non-reset folded frames must be strictly chronological"
+                    )
+                previous_heavy_identity = chronology
     return frames
 
 
@@ -3389,6 +4007,366 @@ def validate_pressure_samples(
             )
 
 
+def validate_heavy_samples(
+    samples: list[dict[str, Any]], manifest: dict[str, Any]
+) -> None:
+    expected_keys = {
+        "schema_version",
+        "experiment_id",
+        "run_id",
+        "scenario",
+        "source_sha",
+        "git_state",
+        "build_profile",
+        "binary_sha256",
+        "sample_sequence",
+        "sim_tick",
+        "phase",
+        "reason",
+        "world",
+        "sleep",
+        "census",
+        "subsystem_active_count",
+        "material_counts_by_id",
+        "matter_count",
+        "sand_count",
+        "water_count",
+        "oil_count",
+        "wood_count",
+        "ice_count",
+        "steam_count",
+        "smoke_count",
+        "sand_position_changed_cells",
+        "liquid_position_changed_cells",
+        "water_oil_interface_edges",
+        "density_ordered_pairs",
+        "combusting_wood_cells",
+        "combusting_oil_cells",
+        "flame_event_wood_cells",
+        "flame_event_oil_cells",
+        "wood_fuel_progress_sum",
+        "oil_fuel_progress_sum",
+        "dynamic_combustion_work",
+        "new_smoke_cells",
+        "phase_inventory_changed",
+        "relief_seam_wood_count",
+        "relief_seam_combusting_cells",
+        "relief_seam_flame_event_cells",
+        "relief_seam_fuel_progress_sum",
+        "relief_seam_adjacent_pressure_medium_cells",
+        "relief_seam_max_adjacent_pressure",
+        "relief_open_lanes",
+        "exterior_steam_cells",
+        "temperature_min",
+        "temperature_max",
+        "pressure_min",
+        "pressure_max",
+        "phase_pool_count",
+        "fuel_count",
+        "material_count_deltas_by_id",
+        "gross_inventory_delta_cells",
+        "explained_material_delta_cells",
+        "unexplained_material_delta_cells",
+        "inventory_accounted",
+        "invalid_material_count",
+        "nonfinite_temperature_count",
+        "nonfinite_pressure_count",
+        "changed_chunks",
+        "wake_chunks",
+        "wake_reason_or",
+        "wake_anomaly_chunks",
+        "state_hash",
+        "physical_state_hash",
+    }
+    census_keys = {
+        "total_cells",
+        "any_active_cells",
+        "matter_active_cells",
+        "thermal_active_cells",
+        "pressure_active_cells",
+        "reaction_active_cells",
+        "total_chunks",
+        "active_chunks",
+        "runnable_chunks",
+        "sleeping_chunks",
+    }
+    identity = {
+        "schema_version": HEAVY_TELEMETRY_SCHEMA,
+        "experiment_id": manifest["experiment_id"],
+        "run_id": manifest["run_id"],
+        "scenario": HEAVY_CONTRACT.scenario,
+        "source_sha": manifest["source"]["sha"],
+        "git_state": manifest["source"]["git_state"],
+        "build_profile": "release",
+        "binary_sha256": manifest["binary"]["sha256"],
+    }
+    total_cells = WORLD_WIDTH * WORLD_HEIGHT
+    total_chunks = (WORLD_WIDTH // CHUNK_SIZE) * (WORLD_HEIGHT // CHUNK_SIZE)
+    baseline_counts: list[int] | None = None
+    baseline_fuel_progress: tuple[int, int] | None = None
+    for index, sample in enumerate(samples):
+        require_exact_keys(sample, expected_keys, f"Heavy sample {index}")
+        for key, expected in identity.items():
+            if sample[key] != expected:
+                raise ExperimentError(f"Heavy sample {index} {key} mismatch")
+        if require_nonnegative_int(
+            sample["sample_sequence"], f"Heavy sample {index} sequence"
+        ) != index:
+            raise ExperimentError("Heavy sample_sequence must be contiguous and zero-based")
+        require_nonnegative_int(sample["sim_tick"], f"Heavy sample {index} sim_tick")
+        phase = sample["phase"]
+        reason = sample["reason"]
+        if phase not in HEAVY_PHASE_REASONS:
+            raise ExperimentError(f"Heavy sample {index} phase is invalid")
+        if reason not in HEAVY_PHASE_REASONS[phase]:
+            raise ExperimentError(f"Heavy sample {index} phase/reason mismatch")
+        if sample["world"] != manifest["world"]:
+            raise ExperimentError(f"Heavy sample {index} world mismatch")
+        sleep = sample["sleep"]
+        if not isinstance(sleep, dict):
+            raise ExperimentError(f"Heavy sample {index} sleep must be an object")
+        require_exact_keys(sleep, {"enabled", "threshold"}, f"Heavy sample {index} sleep")
+        if not isinstance(sleep["enabled"], bool):
+            raise ExperimentError(f"Heavy sample {index} sleep enabled must be boolean")
+        require_nonnegative_int(sleep["threshold"], f"Heavy sample {index} sleep threshold")
+
+        census = sample["census"]
+        if not isinstance(census, dict):
+            raise ExperimentError(f"Heavy sample {index} census must be an object")
+        require_exact_keys(census, census_keys, f"Heavy sample {index} census")
+        for key, value in census.items():
+            require_nonnegative_int(value, f"Heavy sample {index} census {key}")
+        if census["total_cells"] != total_cells:
+            raise ExperimentError(f"Heavy sample {index} total_cells mismatch")
+        if census["total_chunks"] != total_chunks:
+            raise ExperimentError(f"Heavy sample {index} total_chunks mismatch")
+        if census["runnable_chunks"] + census["sleeping_chunks"] != total_chunks:
+            raise ExperimentError(f"Heavy sample {index} chunk-state census is incomplete")
+        for key in ("active_chunks", "runnable_chunks", "sleeping_chunks"):
+            if census[key] > total_chunks:
+                raise ExperimentError(f"Heavy sample {index} {key} exceeds total chunks")
+        subsystem_keys = (
+            "matter_active_cells",
+            "thermal_active_cells",
+            "pressure_active_cells",
+            "reaction_active_cells",
+        )
+        for key in subsystem_keys:
+            if census[key] > census["any_active_cells"]:
+                raise ExperimentError(
+                    f"Heavy sample {index} census {key} exceeds any_active_cells"
+                )
+        expected_active_count = sum(census[key] > 0 for key in subsystem_keys)
+        if sample["subsystem_active_count"] != expected_active_count:
+            raise ExperimentError(
+                f"Heavy sample {index} subsystem_active_count disagrees with census"
+            )
+
+        counts = sample["material_counts_by_id"]
+        if not isinstance(counts, list) or len(counts) != 10:
+            raise ExperimentError(f"Heavy sample {index} material_counts_by_id mismatch")
+        for material_id, count in enumerate(counts):
+            require_nonnegative_int(count, f"Heavy sample {index} material {material_id}")
+        integer_keys = (
+            "matter_count",
+            "sand_count",
+            "water_count",
+            "oil_count",
+            "wood_count",
+            "ice_count",
+            "steam_count",
+            "smoke_count",
+            "sand_position_changed_cells",
+            "liquid_position_changed_cells",
+            "water_oil_interface_edges",
+            "density_ordered_pairs",
+            "combusting_wood_cells",
+            "combusting_oil_cells",
+            "flame_event_wood_cells",
+            "flame_event_oil_cells",
+            "wood_fuel_progress_sum",
+            "oil_fuel_progress_sum",
+            "new_smoke_cells",
+            "relief_seam_wood_count",
+            "relief_seam_combusting_cells",
+            "relief_seam_flame_event_cells",
+            "relief_seam_fuel_progress_sum",
+            "relief_seam_adjacent_pressure_medium_cells",
+            "relief_open_lanes",
+            "exterior_steam_cells",
+            "phase_pool_count",
+            "fuel_count",
+            "gross_inventory_delta_cells",
+            "explained_material_delta_cells",
+            "unexplained_material_delta_cells",
+            "invalid_material_count",
+            "nonfinite_temperature_count",
+            "nonfinite_pressure_count",
+            "changed_chunks",
+            "wake_chunks",
+            "wake_reason_or",
+            "wake_anomaly_chunks",
+        )
+        for key in integer_keys:
+            require_nonnegative_int(sample[key], f"Heavy sample {index} {key}")
+        if sum(counts) + sample["invalid_material_count"] != total_cells:
+            raise ExperimentError(f"Heavy sample {index} material census total mismatch")
+        if sample["matter_count"] != sum(counts[1:]):
+            raise ExperimentError(f"Heavy sample {index} matter_count mismatch")
+        count_fields = {
+            "sand_count": 3,
+            "water_count": 4,
+            "oil_count": 5,
+            "steam_count": 6,
+            "smoke_count": 7,
+            "ice_count": 8,
+            "wood_count": 9,
+        }
+        for field, material_id in count_fields.items():
+            if sample[field] != counts[material_id]:
+                raise ExperimentError(
+                    f"Heavy sample {index} {field} disagrees with material inventory"
+                )
+        if sample["phase_pool_count"] != counts[4] + counts[6] + counts[8]:
+            raise ExperimentError(f"Heavy sample {index} phase_pool_count mismatch")
+        if sample["fuel_count"] != counts[5] + counts[9]:
+            raise ExperimentError(f"Heavy sample {index} fuel_count mismatch")
+        for flag_count, material_count in (
+            ("combusting_wood_cells", "wood_count"),
+            ("combusting_oil_cells", "oil_count"),
+            ("flame_event_wood_cells", "wood_count"),
+            ("flame_event_oil_cells", "oil_count"),
+        ):
+            if sample[flag_count] > sample[material_count]:
+                raise ExperimentError(
+                    f"Heavy sample {index} {flag_count} exceeds {material_count}"
+                )
+        if sample["new_smoke_cells"] > sample["smoke_count"]:
+            raise ExperimentError(f"Heavy sample {index} new_smoke_cells exceeds Smoke count")
+        if sample["sand_position_changed_cells"] > total_cells:
+            raise ExperimentError(f"Heavy sample {index} Sand movement count exceeds world")
+        if sample["liquid_position_changed_cells"] > total_cells:
+            raise ExperimentError(f"Heavy sample {index} liquid movement count exceeds world")
+        if sample["relief_seam_wood_count"] > 28 * 8:
+            raise ExperimentError(f"Heavy sample {index} relief seam Wood exceeds fixture")
+        for key in ("relief_seam_combusting_cells", "relief_seam_flame_event_cells"):
+            if sample[key] > sample["relief_seam_wood_count"]:
+                raise ExperimentError(
+                    f"Heavy sample {index} {key} exceeds relief seam Wood"
+                )
+        if sample["relief_seam_adjacent_pressure_medium_cells"] > 28 * 8 * 4:
+            raise ExperimentError(
+                f"Heavy sample {index} relief adjacent medium count exceeds sampled edges"
+            )
+        adjacent_pressure = require_finite_number(
+            sample["relief_seam_max_adjacent_pressure"],
+            f"Heavy sample {index} relief_seam_max_adjacent_pressure",
+        )
+        if adjacent_pressure < 0:
+            raise ExperimentError(
+                f"Heavy sample {index} relief seam adjacent Pressure is negative"
+            )
+        if sample["relief_seam_adjacent_pressure_medium_cells"] == 0 and adjacent_pressure != 0:
+            raise ExperimentError(
+                f"Heavy sample {index} empty relief adjacency must have zero max Pressure"
+            )
+        if sample["relief_open_lanes"] > 28:
+            raise ExperimentError(f"Heavy sample {index} relief open lanes exceed fixture")
+        if sample["exterior_steam_cells"] > min(28 * 8, sample["steam_count"]):
+            raise ExperimentError(f"Heavy sample {index} exterior Steam exceeds bounds")
+        for key in ("temperature_min", "temperature_max", "pressure_min", "pressure_max"):
+            require_finite_number(sample[key], f"Heavy sample {index} {key}")
+        if sample["temperature_min"] > sample["temperature_max"]:
+            raise ExperimentError(f"Heavy sample {index} Temperature bounds are reversed")
+        if sample["pressure_min"] > sample["pressure_max"]:
+            raise ExperimentError(f"Heavy sample {index} Pressure bounds are reversed")
+        if not isinstance(sample["phase_inventory_changed"], bool):
+            raise ExperimentError(
+                f"Heavy sample {index} phase_inventory_changed must be boolean"
+            )
+        if not isinstance(sample["dynamic_combustion_work"], bool):
+            raise ExperimentError(
+                f"Heavy sample {index} dynamic_combustion_work must be boolean"
+            )
+        if not isinstance(sample["inventory_accounted"], bool):
+            raise ExperimentError(
+                f"Heavy sample {index} inventory_accounted must be boolean"
+            )
+        deltas = sample["material_count_deltas_by_id"]
+        if not isinstance(deltas, list) or len(deltas) != 10 or any(
+            isinstance(value, bool) or not isinstance(value, int) for value in deltas
+        ):
+            raise ExperimentError(
+                f"Heavy sample {index} material_count_deltas_by_id must contain ten integers"
+            )
+        if baseline_counts is None:
+            baseline_counts = list(counts)
+            baseline_fuel_progress = (
+                sample["wood_fuel_progress_sum"],
+                sample["oil_fuel_progress_sum"],
+            )
+        expected_deltas = [
+            count - baseline for count, baseline in zip(counts, baseline_counts, strict=True)
+        ]
+        if deltas != expected_deltas:
+            raise ExperimentError(
+                f"Heavy sample {index} material deltas disagree with tick0 inventory"
+            )
+        expected_gross = sum(abs(value) for value in expected_deltas) // 2
+        if sample["gross_inventory_delta_cells"] != expected_gross:
+            raise ExperimentError(
+                f"Heavy sample {index} gross inventory delta disagrees with raw counts"
+            )
+        if sample["explained_material_delta_cells"] != expected_gross - min(
+            expected_gross, sample["unexplained_material_delta_cells"]
+        ):
+            raise ExperimentError(
+                f"Heavy sample {index} explained inventory delta is inconsistent"
+            )
+        expected_phase_changed = (counts[8], counts[4], counts[6]) != (
+            baseline_counts[8],
+            baseline_counts[4],
+            baseline_counts[6],
+        )
+        if sample["phase_inventory_changed"] != expected_phase_changed:
+            raise ExperimentError(
+                f"Heavy sample {index} phase_inventory_changed disagrees with raw counts"
+            )
+        assert baseline_fuel_progress is not None
+        expected_combustion_work = sample["sim_tick"] > 0 and (
+            sample["flame_event_wood_cells"] + sample["flame_event_oil_cells"] > 0
+            or sample["wood_fuel_progress_sum"] > baseline_fuel_progress[0]
+            or sample["oil_fuel_progress_sum"] > baseline_fuel_progress[1]
+        )
+        if sample["dynamic_combustion_work"] != expected_combustion_work:
+            raise ExperimentError(
+                f"Heavy sample {index} dynamic combustion evidence disagrees with raw fields"
+            )
+        if phase in {"initial", "reset"} and sample["new_smoke_cells"] != 0:
+            raise ExperimentError(
+                f"Heavy sample {index} staged/reset sample cannot report new Smoke"
+            )
+        if sample["new_smoke_cells"] > 0 and sample["sim_tick"] == 0:
+            raise ExperimentError(
+                f"Heavy sample {index} new Smoke must be post-tick0"
+            )
+        if sample["wake_anomaly_chunks"] > sample["wake_chunks"]:
+            raise ExperimentError(
+                f"Heavy sample {index} wake anomalies exceed woken chunks"
+            )
+        if phase in {"initial", "reset"} and sample["wake_anomaly_chunks"] != 0:
+            raise ExperimentError(
+                f"Heavy sample {index} staging/reset wake anomalies must be excluded"
+            )
+        if (sample["wake_chunks"] == 0) != (sample["wake_reason_or"] == 0):
+            raise ExperimentError(
+                f"Heavy sample {index} wake census and wake_reason_or disagree"
+            )
+        for key in ("state_hash", "physical_state_hash"):
+            if not isinstance(sample[key], str) or not STATE_HASH.fullmatch(sample[key]):
+                raise ExperimentError(f"Heavy sample {index} {key} is invalid")
+
+
 def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
     contract = contract_for_manifest(manifest)
     if contract is SAND_CONTRACT:
@@ -3399,6 +4377,8 @@ def validate_samples(samples: list[dict[str, Any]], manifest: dict[str, Any]) ->
         validate_fire_samples(samples, manifest)
     elif contract is PRESSURE_CONTRACT:
         validate_pressure_samples(samples, manifest)
+    elif contract is HEAVY_CONTRACT:
+        validate_heavy_samples(samples, manifest)
     else:
         raise ExperimentError(f"unsupported sample contract: {contract.scenario}")
 
@@ -6027,6 +7007,770 @@ def validate_pressure_telemetry(
     return analysis, frames_doc, samples, events
 
 
+def heavy_terminal_trend(samples: list[dict[str, Any]]) -> dict[str, Any]:
+    count = len(samples)
+    temperatures = [float(sample["temperature_max"]) for sample in samples]
+    pressures = [float(sample["pressure_max"]) for sample in samples]
+    temperature_positive_steps = sum(
+        right > left for left, right in zip(temperatures, temperatures[1:])
+    )
+    pressure_positive_steps = sum(
+        right > left for left, right in zip(pressures, pressures[1:])
+    )
+    sustained = lambda steps: steps * 4 >= max(0, count - 1) * 3
+    temperature_runaway = (
+        count >= 2
+        and temperatures[-1] > temperatures[0] * 1.10 + 1.0
+        and sustained(temperature_positive_steps)
+    )
+    pressure_runaway = (
+        count >= 2
+        and pressures[-1] > pressures[0] * 1.10 + 1.0
+        and sustained(pressure_positive_steps)
+    )
+    return {
+        "sample_count": count,
+        "start_sim_tick": None if not samples else samples[0]["sim_tick"],
+        "end_sim_tick": None if not samples else samples[-1]["sim_tick"],
+        "start_temperature_max": 0.0 if not samples else samples[0]["temperature_max"],
+        "end_temperature_max": 0.0 if not samples else samples[-1]["temperature_max"],
+        "temperature_positive_steps": temperature_positive_steps,
+        "temperature_runaway": temperature_runaway,
+        "start_pressure_max": 0.0 if not samples else samples[0]["pressure_max"],
+        "end_pressure_max": 0.0 if not samples else samples[-1]["pressure_max"],
+        "pressure_positive_steps": pressure_positive_steps,
+        "pressure_runaway": pressure_runaway,
+        "unbounded_growth": temperature_runaway or pressure_runaway,
+    }
+
+
+def heavy_inventory_accounting(
+    sample: dict[str, Any],
+    baseline: dict[str, Any],
+    *,
+    phase_seen: bool,
+    combustion_seen: bool,
+    pressure_seen: bool,
+    rupture_seen: bool,
+) -> dict[str, Any]:
+    deltas = sample["material_count_deltas_by_id"]
+    unexplained = abs(deltas[1]) + abs(deltas[2]) + abs(deltas[3])
+    phase_delta = sample["phase_pool_count"] - baseline["phase_pool_count"]
+    if phase_delta < 0:
+        unexplained += -phase_delta
+    elif phase_delta > 0 and not phase_seen:
+        unexplained += phase_delta
+    oil_delta = deltas[5]
+    wood_delta = deltas[9]
+    if oil_delta > 0:
+        unexplained += oil_delta
+    elif oil_delta < 0 and not combustion_seen:
+        unexplained += -oil_delta
+    if wood_delta > 0:
+        unexplained += wood_delta
+    elif wood_delta < 0 and not (combustion_seen or pressure_seen and rupture_seen):
+        unexplained += -wood_delta
+    smoke_delta = deltas[7]
+    if smoke_delta > 0 and not combustion_seen:
+        unexplained += smoke_delta
+    registered_total = sum(sample["material_counts_by_id"])
+    if registered_total != sample["census"]["total_cells"]:
+        unexplained += abs(registered_total - sample["census"]["total_cells"])
+    gross = sample["gross_inventory_delta_cells"]
+    return {
+        "unexplained_material_delta_cells": unexplained,
+        "explained_material_delta_cells": gross - min(gross, unexplained),
+        "inventory_accounted": unexplained == 0 and sample["invalid_material_count"] == 0,
+    }
+
+
+def heavy_subsystem_summary(
+    samples: list[dict[str, Any]], census_key: str
+) -> dict[str, Any]:
+    peak_cells = 0
+    peak: dict[str, Any] | None = None
+    first: dict[str, Any] | None = None
+    last: dict[str, Any] | None = None
+    active_sample_count = 0
+    cumulative = 0
+    for sample in samples:
+        cells = sample["census"][census_key]
+        cumulative += cells
+        if cells > peak_cells:
+            peak_cells = cells
+            peak = sample
+        if cells > 0:
+            active_sample_count += 1
+            if first is None:
+                first = sample
+            last = sample
+    return {
+        "peak_cells": peak_cells,
+        "peak_tick": sample_identity(peak)[0],
+        "peak_sample": sample_identity(peak)[1],
+        "active_sample_count": active_sample_count,
+        "first_tick": sample_identity(first)[0],
+        "first_sample": sample_identity(first)[1],
+        "last_tick": sample_identity(last)[0],
+        "last_sample": sample_identity(last)[1],
+        "cumulative_active_cells": cumulative,
+    }
+
+
+def heavy_longest_overlap(samples: list[dict[str, Any]]) -> dict[str, Any]:
+    current: list[dict[str, Any]] = []
+    longest: list[dict[str, Any]] = []
+    for sample in samples:
+        if sample["subsystem_active_count"] >= 3:
+            current.append(sample)
+            if len(current) > len(longest):
+                longest = list(current)
+        else:
+            current = []
+    start = longest[0] if longest else None
+    end = longest[-1] if longest else None
+    return {
+        "longest_three_plus_window_samples": len(longest),
+        "longest_three_plus_window_start_tick": sample_identity(start)[0],
+        "longest_three_plus_window_start_sample": sample_identity(start)[1],
+        "longest_three_plus_window_end_tick": sample_identity(end)[0],
+        "longest_three_plus_window_end_sample": sample_identity(end)[1],
+        "longest_three_plus_window_tick_span": (
+            0 if start is None or end is None else end["sim_tick"] - start["sim_tick"]
+        ),
+    }
+
+
+def heavy_expected_frames(
+    samples: list[dict[str, Any]],
+    milestone_badges: dict[int, list[dict[str, str]]],
+    peak_active: dict[str, Any] | None,
+    peak_concurrency: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    tick0, reset = samples[0], samples[-1]
+    candidates: list[dict[str, Any]] = []
+
+    def add(sample: dict[str, Any], badges: list[dict[str, str]]) -> None:
+        candidates.append(
+            {
+                "sim_tick": sample["sim_tick"],
+                "sample_sequence": sample["sample_sequence"],
+                "state_hash": sample["state_hash"],
+                "badges": sorted(
+                    badges, key=lambda badge: HEAVY_FRAME_BADGE_RANK[badge["kind"]]
+                ),
+                "caption_metrics": {
+                    "active_cells": sample["census"]["any_active_cells"],
+                    "subsystem_active_count": sample["subsystem_active_count"],
+                    "matter_active_cells": sample["census"]["matter_active_cells"],
+                    "thermal_active_cells": sample["census"]["thermal_active_cells"],
+                    "pressure_active_cells": sample["census"]["pressure_active_cells"],
+                    "reaction_active_cells": sample["census"]["reaction_active_cells"],
+                    "sand_count": sample["sand_count"],
+                    "water_count": sample["water_count"],
+                    "oil_count": sample["oil_count"],
+                    "wood_count": sample["wood_count"],
+                    "ice_count": sample["ice_count"],
+                    "steam_count": sample["steam_count"],
+                    "smoke_count": sample["smoke_count"],
+                },
+            }
+        )
+
+    add(tick0, [{"kind": "tick0", "reason": "pristine-reset"}])
+    for sample in samples[1:-1]:
+        badges = milestone_badges.get(sample["sample_sequence"], [])
+        if badges:
+            add(sample, badges)
+    add(reset, [{"kind": "reset", "reason": "programmatic-r-equivalent"}])
+    if peak_active is not None:
+        add(
+            peak_active,
+            [{"kind": "peak-active", "reason": "maximum-observed-active-cells"}],
+        )
+    if peak_concurrency is not None:
+        add(
+            peak_concurrency,
+            [
+                {
+                    "kind": "peak-concurrency",
+                    "reason": "maximum-observed-subsystem-concurrency",
+                }
+            ],
+        )
+    candidates.sort(
+        key=lambda entry: (
+            any(badge["kind"] == "reset" for badge in entry["badges"]),
+            entry["sim_tick"],
+            entry["sample_sequence"],
+            min(HEAVY_FRAME_BADGE_RANK[badge["kind"]] for badge in entry["badges"]),
+        )
+    )
+    folded: list[dict[str, Any]] = []
+    for candidate in candidates:
+        is_reset = any(badge["kind"] == "reset" for badge in candidate["badges"])
+        existing = next(
+            (
+                entry
+                for entry in folded
+                if any(badge["kind"] == "reset" for badge in entry["badges"])
+                == is_reset
+                and entry["sim_tick"] == candidate["sim_tick"]
+                and entry["state_hash"] == candidate["state_hash"]
+            ),
+            None,
+        )
+        if existing is None:
+            folded.append(candidate)
+            continue
+        existing_pairs = {
+            (badge["kind"], badge["reason"]) for badge in existing["badges"]
+        }
+        existing["badges"].extend(
+            badge
+            for badge in candidate["badges"]
+            if (badge["kind"], badge["reason"]) not in existing_pairs
+        )
+        existing["badges"].sort(
+            key=lambda badge: HEAVY_FRAME_BADGE_RANK[badge["kind"]]
+        )
+    while len(folded) > 14:
+        pure_representative = next(
+            (
+                index
+                for index, entry in enumerate(folded)
+                if all(badge["kind"] == "representative" for badge in entry["badges"])
+            ),
+            None,
+        )
+        if pure_representative is not None:
+            folded.pop(pure_representative)
+            continue
+        removable = next(
+            (
+                index
+                for index in range(len(folded) - 3, 0, -1)
+                if not any(
+                    badge["kind"] in {"tick0", "tick1", "terminal", "reset"}
+                    for badge in folded[index]["badges"]
+                )
+            ),
+            None,
+        )
+        if removable is None:
+            break
+        folded.pop(removable)
+    earlier_non_reset_hashes: set[str] = set()
+    index = 0
+    generic_badges = {"representative", "mid-run", "late-run"}
+    while index < len(folded):
+        entry = folded[index]
+        is_reset = any(badge["kind"] == "reset" for badge in entry["badges"])
+        is_generic_only = all(
+            badge["kind"] in generic_badges for badge in entry["badges"]
+        )
+        if (
+            not is_reset
+            and is_generic_only
+            and entry["state_hash"] in earlier_non_reset_hashes
+            and len(folded) > 10
+        ):
+            folded.pop(index)
+            continue
+        if not is_reset:
+            earlier_non_reset_hashes.add(entry["state_hash"])
+        index += 1
+    folded.sort(
+        key=lambda entry: (
+            any(badge["kind"] == "reset" for badge in entry["badges"]),
+            entry["sim_tick"],
+            entry["sample_sequence"],
+            min(HEAVY_FRAME_BADGE_RANK[badge["kind"]] for badge in entry["badges"]),
+        )
+    )
+    for entry in folded:
+        entry["kind"] = entry["badges"][0]["kind"]
+        entry["reason"] = entry["badges"][0]["reason"]
+    return folded
+
+
+def validate_heavy_telemetry(
+    run_dir: Path, manifest: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    analysis = read_json(run_dir / "work" / "analysis.json", "Heavy analysis")
+    frames_doc = read_json(run_dir / "work" / "frames.json", "Heavy frames")
+    samples = read_jsonl(run_dir / "telemetry" / "samples.jsonl", "Heavy samples")
+    events = read_jsonl(run_dir / "telemetry" / "events.jsonl", "Heavy events")
+    validate_analysis(analysis, manifest)
+    frames = validate_frames(frames_doc, manifest, run_dir)
+    validate_samples(samples, manifest)
+    validate_events(events, manifest)
+    if analysis["sample_count"] != len(samples):
+        raise ExperimentError("Heavy analysis sample_count disagrees with samples.jsonl")
+    if analysis["raw_frame_count"] != len(frames):
+        raise ExperimentError("Heavy analysis raw_frame_count disagrees with frames.json")
+    if len(samples) < 4:
+        raise ExperimentError("Heavy telemetry must include tick0, production, terminal, reset")
+    tick0, reset = samples[0], samples[-1]
+    pre_reset = samples[:-1]
+    terminal = pre_reset[-1]
+    if (tick0["sim_tick"], tick0["phase"], tick0["reason"]) != (0, "initial", "tick0"):
+        raise ExperimentError("Heavy telemetry must begin with pristine tick0")
+    if (samples[1]["sim_tick"], samples[1]["phase"], samples[1]["reason"]) != (
+        1,
+        "mixed",
+        "tick1",
+    ):
+        raise ExperimentError("Heavy telemetry sample 1 must be mixed tick1")
+    if (reset["sim_tick"], reset["phase"], reset["reason"]) != (
+        0,
+        "reset",
+        "programmatic-r-equivalent",
+    ):
+        raise ExperimentError("Heavy telemetry must end with the programmatic reset")
+    if any(sample["phase"] == "reset" for sample in pre_reset):
+        raise ExperimentError("Heavy reset sample may occur only once and last")
+    expected_ticks = [0, 1, 2, *range(DIAGNOSTIC_INTERVAL, MAX_TICKS + 1, DIAGNOSTIC_INTERVAL)]
+    if [sample["sim_tick"] for sample in pre_reset] != expected_ticks:
+        raise ExperimentError("Heavy production diagnostic cadence is incomplete or contains extras")
+    for sample in pre_reset[1:]:
+        expected_reason = (
+            "tick1"
+            if sample["sim_tick"] == 1
+            else "early-diagnostic"
+            if sample["sim_tick"] == 2
+            else "max-tick"
+            if sample["sim_tick"] == MAX_TICKS
+            else "diagnostic-cadence"
+        )
+        if sample["phase"] != "mixed" or sample["reason"] != expected_reason:
+            raise ExperimentError("Heavy production phase/reason disagrees with cadence")
+    if terminal["sim_tick"] != MAX_TICKS or terminal["reason"] != "max-tick":
+        raise ExperimentError("Heavy terminal sample must be the max-tick diagnostic")
+    for index, sample in enumerate(samples):
+        if sample["sleep"] != analysis["sleep"]:
+            raise ExperimentError(f"Heavy sample {index} sleep disagrees with analysis")
+
+    baseline = {
+        "material_counts_by_id": tick0["material_counts_by_id"],
+        "matter_count": tick0["matter_count"],
+        "sand_count": tick0["sand_count"],
+        "water_count": tick0["water_count"],
+        "oil_count": tick0["oil_count"],
+        "wood_count": tick0["wood_count"],
+        "ice_count": tick0["ice_count"],
+        "steam_count": tick0["steam_count"],
+        "smoke_count": tick0["smoke_count"],
+        "phase_pool_count": tick0["phase_pool_count"],
+        "fuel_count": tick0["fuel_count"],
+        "relief_seam_wood_count": tick0["relief_seam_wood_count"],
+        "exterior_steam_cells": tick0["exterior_steam_cells"],
+        "density_ordered_pairs": tick0["density_ordered_pairs"],
+    }
+    if analysis["baseline"] != baseline:
+        raise ExperimentError("Heavy analysis baseline disagrees with tick0 telemetry")
+    if baseline["density_ordered_pairs"] != 0:
+        raise ExperimentError("Heavy tick0 density baseline must have zero ordered pairs")
+
+    firsts: dict[str, dict[str, Any] | None] = {
+        prefix: None for prefix in HEAVY_IDENTITY_PREFIXES
+    }
+    peak_active_cells = 0
+    peak_active: dict[str, Any] | None = None
+    peak_active_frame: dict[str, Any] | None = None
+    peak_concurrent = 0
+    peak_concurrency: dict[str, Any] | None = None
+    peak_concurrency_frame: dict[str, Any] | None = None
+    smoke_peak = tick0["smoke_count"]
+    smoke_peak_sample: dict[str, Any] = tick0
+    phase_seen = False
+    combustion_seen = False
+    pressure_seen = False
+    rupture_seen = False
+    seam_combustion_seen = False
+    invalid_occurrences = 0
+    nonfinite_occurrences = 0
+    unexplained_occurrences = 0
+    wake_anomaly_occurrences = 0
+    zero_before_overlap = 0
+    expected_events: list[tuple[str, int, int | None]] = [
+        ("lifecycle_started", 0, None),
+        ("pristine_reset_completed", 0, None),
+        ("tick0_captured", 0, tick0["sample_sequence"]),
+    ]
+    milestone_badges: dict[int, list[dict[str, str]]] = {}
+    representative_targets = [2, 2_500, 5_000, 7_500, 10_000, 12_500, 15_000, 17_500]
+    next_representative = 0
+
+    def observe(sample: dict[str, Any], production: bool) -> dict[str, bool]:
+        nonlocal peak_active_cells, peak_active, peak_concurrent, peak_concurrency
+        nonlocal smoke_peak, smoke_peak_sample, phase_seen, combustion_seen
+        nonlocal pressure_seen, rupture_seen, seam_combustion_seen
+        nonlocal invalid_occurrences, nonfinite_occurrences, unexplained_occurrences
+        nonlocal wake_anomaly_occurrences, zero_before_overlap
+        conditions = {
+            "first_movement": sample["sand_position_changed_cells"] != 0,
+            "first_density_displacement": (
+                sample["sim_tick"] != 0
+                and baseline["density_ordered_pairs"] == 0
+                and sample["density_ordered_pairs"] != 0
+                and sample["liquid_position_changed_cells"] != 0
+                and sample["water_oil_interface_edges"] != 0
+            ),
+            "first_thermal_activity": sample["census"]["thermal_active_cells"] != 0,
+            "first_phase_transition": sample["phase_inventory_changed"],
+            "first_combustion_work": sample["dynamic_combustion_work"],
+            "first_smoke_generation": sample["new_smoke_cells"] != 0,
+            "first_pressure_activity": sample["census"]["pressure_active_cells"] != 0,
+            "first_relief_damage": (
+                sample["relief_seam_wood_count"] < baseline["relief_seam_wood_count"]
+            ),
+            "first_opening": sample["relief_open_lanes"] != 0,
+            "first_vent": (
+                sample["exterior_steam_cells"] > baseline["exterior_steam_cells"]
+            ),
+            "first_three_subsystems": sample["subsystem_active_count"] >= 3,
+            "first_all_intended_subsystems": sample["subsystem_active_count"] == 4,
+        }
+        seam_combustion_seen |= any(
+            sample[key] != 0
+            for key in (
+                "relief_seam_combusting_cells",
+                "relief_seam_flame_event_cells",
+                "relief_seam_fuel_progress_sum",
+            )
+        )
+        conditions["first_rupture"] = (
+            sample["relief_seam_wood_count"] < baseline["relief_seam_wood_count"]
+            and (
+                firsts["first_pressure_activity"] is not None
+                or conditions["first_pressure_activity"]
+            )
+            and not seam_combustion_seen
+            and sample["relief_seam_max_adjacent_pressure"] >= WOOD_RUPTURE_THRESHOLD
+        )
+        updates: dict[str, bool] = {}
+        for prefix, condition in conditions.items():
+            updates[prefix] = bool(condition and firsts[prefix] is None)
+            if updates[prefix]:
+                firsts[prefix] = sample
+        phase_seen = firsts["first_phase_transition"] is not None
+        combustion_seen = firsts["first_combustion_work"] is not None
+        pressure_seen = firsts["first_pressure_activity"] is not None
+        rupture_seen = firsts["first_rupture"] is not None
+        updates["new_peak_active"] = sample["census"]["any_active_cells"] > peak_active_cells
+        if updates["new_peak_active"]:
+            peak_active_cells = sample["census"]["any_active_cells"]
+            peak_active = sample
+        updates["new_peak_concurrency"] = sample["subsystem_active_count"] > peak_concurrent
+        if updates["new_peak_concurrency"]:
+            peak_concurrent = sample["subsystem_active_count"]
+            peak_concurrency = sample
+        if sample["smoke_count"] > smoke_peak:
+            smoke_peak = sample["smoke_count"]
+            smoke_peak_sample = sample
+        accounting = heavy_inventory_accounting(
+            sample,
+            tick0,
+            phase_seen=phase_seen,
+            combustion_seen=combustion_seen,
+            pressure_seen=pressure_seen,
+            rupture_seen=rupture_seen,
+        )
+        for key, expected in accounting.items():
+            if sample[key] != expected:
+                raise ExperimentError(
+                    f"Heavy sample {sample['sample_sequence']} {key} disagrees with sequential accounting"
+                )
+        invalid_occurrences += sample["invalid_material_count"]
+        nonfinite_occurrences += (
+            sample["nonfinite_temperature_count"] + sample["nonfinite_pressure_count"]
+        )
+        unexplained_occurrences += sample["unexplained_material_delta_cells"]
+        wake_anomaly_occurrences += sample["wake_anomaly_chunks"]
+        if (
+            production
+            and sample["census"]["any_active_cells"] == 0
+            and firsts["first_three_subsystems"] is None
+        ):
+            zero_before_overlap += 1
+        return updates
+
+    _ = observe(tick0, False)
+    for sample in pre_reset[1:]:
+        updates = observe(sample, True)
+        if updates["new_peak_active"]:
+            peak_active_frame = sample
+        if updates["new_peak_concurrency"]:
+            peak_concurrency_frame = sample
+        event_specs = (
+            ("first_movement", "first_movement_observed", "first-movement", "Sand-position-change"),
+            ("first_density_displacement", "first_density_displacement_observed", "first-density", "ordered-Water-Oil-displacement"),
+            ("first_thermal_activity", "first_thermal_activity_observed", None, "Thermal-activity"),
+            ("first_phase_transition", "first_phase_transition_observed", "first-phase", "phase-inventory-change"),
+            ("first_combustion_work", "first_combustion_work_observed", "first-combustion", "post-tick-combustion-work"),
+            ("first_smoke_generation", "first_smoke_generation_observed", "first-smoke", "new-decay-age-zero-Smoke"),
+            ("first_pressure_activity", "first_pressure_activity_observed", "first-pressure", "Pressure-activity"),
+            ("first_relief_damage", "first_relief_damage_observed", None, "relief-seam-Wood-loss"),
+            ("first_rupture", "first_rupture_observed", "first-rupture", "pressure-threshold-noncombusting-relief-damage"),
+            ("first_opening", "first_opening_observed", None, "through-relief-opening"),
+            ("first_vent", "first_vent_observed", "first-vent", "exterior-Steam-above-relief"),
+            ("first_three_subsystems", "first_three_subsystems_observed", None, ">=3-subsystems-active"),
+            ("first_all_intended_subsystems", "first_all_intended_subsystems_observed", None, "all-four-subsystems-active"),
+            ("new_peak_active", "new_peak_active", "peak-active", "new-peak-active-cells"),
+            ("new_peak_concurrency", "new_peak_concurrency", "peak-concurrency", "new-peak-subsystem-concurrency"),
+        )
+        badges: list[dict[str, str]] = []
+        for update_key, event_name, badge_kind, reason in event_specs:
+            if updates[update_key]:
+                expected_events.append(
+                    (event_name, sample["sim_tick"], sample["sample_sequence"])
+                )
+                if badge_kind is not None:
+                    badges.append({"kind": badge_kind, "reason": reason})
+        if sample["sim_tick"] == 1:
+            badges.append({"kind": "tick1", "reason": "after-one-production-tick"})
+            expected_events.append(
+                ("tick1_captured", sample["sim_tick"], sample["sample_sequence"])
+            )
+        if (
+            next_representative < len(representative_targets)
+            and sample["sim_tick"] >= representative_targets[next_representative]
+        ):
+            target = representative_targets[next_representative]
+            if target == MAX_TICKS // 2:
+                badges.append({"kind": "mid-run", "reason": "representative-mid-run"})
+            elif target == MAX_TICKS * 3 // 4:
+                badges.append({"kind": "late-run", "reason": "representative-late-run"})
+            else:
+                badges.append({"kind": "representative", "reason": "scheduled-mixed-state"})
+            next_representative += 1
+        if sample is terminal:
+            badges.append({"kind": "terminal", "reason": "max-tick-reached"})
+        milestone_only = [
+            badge
+            for badge in badges
+            if badge["kind"] not in {"peak-active", "peak-concurrency"}
+        ]
+        if milestone_only:
+            milestone_badges[sample["sample_sequence"]] = milestone_only
+
+    expected_events.extend(
+        [
+            ("terminal_selected", terminal["sim_tick"], terminal["sample_sequence"]),
+            ("reset_started", terminal["sim_tick"], terminal["sample_sequence"]),
+            ("reset_comparison_completed", reset["sim_tick"], reset["sample_sequence"]),
+            ("worker_completed", reset["sim_tick"], reset["sample_sequence"]),
+        ]
+    )
+    observed_events = [
+        (event["event"], event["sim_tick"], event["sample_sequence"])
+        for event in events
+    ]
+    if observed_events != expected_events:
+        raise ExperimentError("Heavy event sequence disagrees with raw telemetry milestones")
+
+    lifecycle = analysis["lifecycle"]
+    if lifecycle["terminal_sample"] != terminal["sample_sequence"]:
+        raise ExperimentError("Heavy lifecycle terminal identity disagrees with telemetry")
+    subsystem_summaries = {
+        "matter": heavy_subsystem_summary(pre_reset, "matter_active_cells"),
+        "thermal": heavy_subsystem_summary(pre_reset, "thermal_active_cells"),
+        "pressure": heavy_subsystem_summary(pre_reset, "pressure_active_cells"),
+        "reaction": heavy_subsystem_summary(pre_reset, "reaction_active_cells"),
+    }
+    longest = heavy_longest_overlap(pre_reset)
+    first_metrics = {
+        f"{prefix}_{suffix}": sample_identity(sample)[0 if suffix == "tick" else 1]
+        for prefix, sample in firsts.items()
+        for suffix in ("tick", "sample")
+    }
+    final_counts = terminal["material_counts_by_id"]
+    initial_counts = tick0["material_counts_by_id"]
+    expected_metrics: dict[str, Any] = {
+        **first_metrics,
+        "peak_active_cells": peak_active_cells,
+        "peak_active_tick": sample_identity(peak_active)[0],
+        "peak_active_sample": sample_identity(peak_active)[1],
+        "peak_concurrent_subsystem_count": peak_concurrent,
+        "peak_concurrency_tick": sample_identity(peak_concurrency)[0],
+        "peak_concurrency_sample": sample_identity(peak_concurrency)[1],
+        **longest,
+        "subsystems": subsystem_summaries,
+        "initial_material_counts_by_id": initial_counts,
+        "final_material_counts_by_id": final_counts,
+        "final_material_count_deltas_by_id": terminal["material_count_deltas_by_id"],
+        "initial_matter": tick0["matter_count"],
+        "final_matter": terminal["matter_count"],
+        "matter_delta": terminal["matter_count"] - tick0["matter_count"],
+        "initial_sand": tick0["sand_count"],
+        "final_sand": terminal["sand_count"],
+        "sand_delta": terminal["sand_count"] - tick0["sand_count"],
+        "initial_water": tick0["water_count"],
+        "final_water": terminal["water_count"],
+        "water_delta": terminal["water_count"] - tick0["water_count"],
+        "initial_oil": tick0["oil_count"],
+        "final_oil": terminal["oil_count"],
+        "oil_delta": terminal["oil_count"] - tick0["oil_count"],
+        "initial_wood": tick0["wood_count"],
+        "final_wood": terminal["wood_count"],
+        "wood_delta": terminal["wood_count"] - tick0["wood_count"],
+        "initial_ice": tick0["ice_count"],
+        "final_ice": terminal["ice_count"],
+        "ice_delta": terminal["ice_count"] - tick0["ice_count"],
+        "initial_steam": tick0["steam_count"],
+        "final_steam": terminal["steam_count"],
+        "steam_delta": terminal["steam_count"] - tick0["steam_count"],
+        "initial_smoke": tick0["smoke_count"],
+        "smoke_peak": smoke_peak,
+        "smoke_peak_tick": smoke_peak_sample["sim_tick"],
+        "smoke_peak_sample": smoke_peak_sample["sample_sequence"],
+        "final_smoke": terminal["smoke_count"],
+        "smoke_delta": terminal["smoke_count"] - tick0["smoke_count"],
+        "initial_phase_pool": tick0["phase_pool_count"],
+        "final_phase_pool": terminal["phase_pool_count"],
+        "phase_pool_delta": terminal["phase_pool_count"] - tick0["phase_pool_count"],
+        "initial_fuel": tick0["fuel_count"],
+        "final_fuel": terminal["fuel_count"],
+        "fuel_delta": terminal["fuel_count"] - tick0["fuel_count"],
+        "gross_inventory_delta_cells": terminal["gross_inventory_delta_cells"],
+        "explained_material_delta_cells": terminal["explained_material_delta_cells"],
+        "unexplained_material_delta_cells": terminal["unexplained_material_delta_cells"],
+        "unexplained_material_delta_occurrences": unexplained_occurrences,
+        "terminal_activity": {
+            "any_active_cells": terminal["census"]["any_active_cells"],
+            "active_chunks": terminal["census"]["active_chunks"],
+            "runnable_chunks": terminal["census"]["runnable_chunks"],
+            "sleeping_chunks": terminal["census"]["sleeping_chunks"],
+            "matter_active_cells": terminal["census"]["matter_active_cells"],
+            "thermal_active_cells": terminal["census"]["thermal_active_cells"],
+            "pressure_active_cells": terminal["census"]["pressure_active_cells"],
+            "reaction_active_cells": terminal["census"]["reaction_active_cells"],
+            "subsystem_active_count": terminal["subsystem_active_count"],
+        },
+        "terminal_bounds": {
+            "temperature_min": terminal["temperature_min"],
+            "temperature_max": terminal["temperature_max"],
+            "pressure_min": terminal["pressure_min"],
+            "pressure_max": terminal["pressure_max"],
+        },
+        "relief_seam_wood_final": terminal["relief_seam_wood_count"],
+        "relief_open_lanes_final": terminal["relief_open_lanes"],
+        "exterior_steam_final": terminal["exterior_steam_cells"],
+        "invalid_material_occurrences": invalid_occurrences,
+        "nonfinite_field_occurrences": nonfinite_occurrences,
+        "wake_anomaly_occurrences": wake_anomaly_occurrences,
+        "zero_activity_before_overlap_samples": zero_before_overlap,
+        "tick0_state_hash": tick0["state_hash"],
+        "reset_state_hash": reset["state_hash"],
+        "tick0_physical_state_hash": tick0["physical_state_hash"],
+        "reset_physical_state_hash": reset["physical_state_hash"],
+    }
+    reset_excluded = {"sample_sequence", "phase", "reason"}
+    reset_observable_equal = all(
+        reset[key] == tick0[key] for key in tick0 if key not in reset_excluded
+    )
+    recorded_reset = analysis["metrics"]["reset_exact_equivalence"]
+    if recorded_reset and not reset_observable_equal:
+        raise ExperimentError("Heavy exact reset claim disagrees with observable telemetry")
+    expected_metrics["reset_exact_equivalence"] = recorded_reset
+    for key, expected in expected_metrics.items():
+        if analysis["metrics"][key] != expected:
+            raise ExperimentError(f"Heavy analysis metric {key} disagrees with telemetry")
+
+    trend = heavy_terminal_trend(pre_reset[1:][-HEAVY_TERMINAL_WINDOW_SAMPLES:])
+    if analysis["terminal_trend"] != trend:
+        raise ExperimentError("Heavy terminal trend disagrees with raw telemetry")
+    statuses = {
+        "matter_movement_observed": "pass" if firsts["first_movement"] else "fail",
+        "density_displacement_observed": "pass" if firsts["first_density_displacement"] else "fail",
+        "thermal_activity_observed": "pass" if firsts["first_thermal_activity"] else "fail",
+        "phase_work_observed": "pass" if firsts["first_phase_transition"] else "fail",
+        "combustion_observed": "pass" if firsts["first_combustion_work"] else "fail",
+        "smoke_work_observed": "pass" if firsts["first_smoke_generation"] else "fail",
+        "pressure_activity_observed": "pass" if firsts["first_pressure_activity"] else "fail",
+        "meaningful_multi_system_overlap": (
+            "pass" if longest["longest_three_plus_window_samples"] >= HEAVY_REQUIRED_OVERLAP_SAMPLES else "fail"
+        ),
+        "inventory_accounted": "pass" if unexplained_occurrences == 0 else "fail",
+        "no_invalid_materials": "pass" if invalid_occurrences == 0 else "fail",
+        "no_nonfinite_fields": "pass" if nonfinite_occurrences == 0 else "fail",
+        "no_wake_anomalies": "pass" if wake_anomaly_occurrences == 0 else "fail",
+        "no_unbounded_runaway": (
+            "pass"
+            if trend["sample_count"] >= HEAVY_TERMINAL_WINDOW_SAMPLES
+            and not trend["unbounded_growth"]
+            else "fail"
+        ),
+        "exact_reset": "pass" if recorded_reset else "fail",
+    }
+    for name, expected in statuses.items():
+        if analysis["predicates"][name]["status"] != expected:
+            raise ExperimentError(f"Heavy predicate {name} disagrees with raw telemetry")
+    cumulative = [
+        subsystem_summaries[name]["cumulative_active_cells"]
+        for name in ("matter", "thermal", "pressure", "reaction")
+    ]
+    names = ("matter", "thermal", "pressure", "reaction")
+    dominant_index = max(range(4), key=lambda index: (cumulative[index], index))
+    cumulative_total = sum(cumulative)
+    dominant_share = 0.0 if cumulative_total == 0 else cumulative[dominant_index] / cumulative_total
+    expected_flags = {
+        "dominant_subsystem": dominant_share >= 0.90,
+        "dominant_subsystem_name": names[dominant_index],
+        "dominant_subsystem_share": dominant_share,
+        "broad_terminal_tail": terminal["census"]["any_active_cells"] >= (WORLD_WIDTH * WORLD_HEIGHT + 9) // 10,
+        "long_thermal_pressure_tail": (
+            terminal["census"]["thermal_active_cells"] > 0
+            and terminal["census"]["pressure_active_cells"] > 0
+        ),
+    }
+    expected_reasons = [
+        name
+        for name in ("dominant_subsystem", "broad_terminal_tail", "long_thermal_pressure_tail")
+        if expected_flags[name]
+    ]
+    for key, expected in expected_flags.items():
+        recorded = analysis["review_flags"][key]
+        if key == "dominant_subsystem_share":
+            if not pressure_float_equal(recorded, expected):
+                raise ExperimentError("Heavy dominant subsystem share disagrees with telemetry")
+        elif recorded != expected:
+            raise ExperimentError(f"Heavy review flag {key} disagrees with telemetry")
+    if analysis["review_flags"]["reasons"] != expected_reasons:
+        raise ExperimentError("Heavy review reasons disagree with telemetry")
+    expected_verdict = (
+        "FAIL"
+        if "fail" in statuses.values()
+        else "NEEDS_HUMAN_REVIEW"
+        if expected_reasons
+        else "PASS"
+    )
+    if analysis["verdict"] != expected_verdict:
+        raise ExperimentError("Heavy verdict disagrees with predicates and review flags")
+
+    expected_frames = heavy_expected_frames(
+        samples, milestone_badges, peak_active_frame, peak_concurrency_frame
+    )
+    if len(frames) != len(expected_frames):
+        raise ExperimentError("Heavy frame count disagrees with deterministic folding")
+    for index, (recorded, expected) in enumerate(zip(frames, expected_frames, strict=True)):
+        for key in (
+            "kind",
+            "reason",
+            "sim_tick",
+            "sample_sequence",
+            "state_hash",
+            "badges",
+            "caption_metrics",
+        ):
+            if recorded[key] != expected[key]:
+                raise ExperimentError(
+                    f"Heavy frame {index} {key} disagrees with deterministic folding"
+                )
+    return analysis, frames_doc, samples, events
+
+
 def validate_telemetry(
     run_dir: Path, manifest: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -6039,6 +7783,8 @@ def validate_telemetry(
         return validate_fire_telemetry(run_dir, manifest)
     if contract is PRESSURE_CONTRACT:
         return validate_pressure_telemetry(run_dir, manifest)
+    if contract is HEAVY_CONTRACT:
+        return validate_heavy_telemetry(run_dir, manifest)
     raise ExperimentError(f"unsupported telemetry contract: {contract.scenario}")
 
 
@@ -6054,6 +7800,21 @@ def png_bytes(image: Any) -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", optimize=False, compress_level=9)
     return buffer.getvalue()
+
+
+def heavy_presentation_badges(badges: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep sealed raw names while preventing optional evidence from implying causality."""
+    return [
+        {
+            "kind": HEAVY_PRESENTATION_BADGE_KINDS.get(badge["kind"], badge["kind"]),
+            "reason": (
+                HEAVY_EXTERIOR_STEAM_PRESENTATION
+                if badge["kind"] == "first-vent"
+                else badge["reason"]
+            ),
+        }
+        for badge in badges
+    ]
 
 
 def create_screenshots(
@@ -6085,7 +7846,11 @@ def create_screenshots(
         )
         write_new_bytes(crop_path, png_bytes(crop), publication_log)
         reason = frame.get("reason")
-        if reason is None:
+        presentation_badges = frame.get("badges")
+        if "caption_metrics" in frame:
+            presentation_badges = heavy_presentation_badges(frame["badges"])
+            reason = "+".join(badge["kind"] for badge in presentation_badges)
+        elif reason is None:
             reason = "+".join(badge["kind"] for badge in frame["badges"])
         item = {
                 "ordinal": frame["ordinal"],
@@ -6096,8 +7861,8 @@ def create_screenshots(
                 "full_png": full_path.relative_to(run_dir).as_posix(),
                 "crop_png": crop_path.relative_to(run_dir).as_posix(),
             }
-        if "badges" in frame:
-            item["badges"] = frame["badges"]
+        if presentation_badges is not None:
+            item["badges"] = presentation_badges
         output.append(item)
     return output
 
@@ -6106,12 +7871,19 @@ def contact_sheet_caption_lines(
     item: dict[str, Any], sample: dict[str, Any] | None
 ) -> tuple[str, ...]:
     reason = str(item["reason"])
-    if len(reason) > 34:
+    is_heavy = sample is not None and sample.get("scenario") == HEAVY_CONTRACT.scenario
+    if len(reason) > 34 and not is_heavy:
         reason = reason[:31] + "..."
-    identity = (
-        f"#{item['ordinal']} {reason} | sim {item['sim_tick']} | "
-        f"sample {item['sample_sequence']}"
-    )
+    if is_heavy:
+        identity = (
+            f"#{item['ordinal']} Heavy Mixed | sim {item['sim_tick']} | "
+            f"sample {item['sample_sequence']}"
+        )
+    else:
+        identity = (
+            f"#{item['ordinal']} {reason} | sim {item['sim_tick']} | "
+            f"sample {item['sample_sequence']}"
+        )
     if sample is None:
         return (identity,)
     if sample["sample_sequence"] != item["sample_sequence"]:
@@ -6147,6 +7919,48 @@ def contact_sheet_caption_lines(
                 f"{sample['relief_seam_open_cells']}/"
                 f"{sample['relief_seam_through_open_lanes']} | "
                 f"Outside Steam {sample['outside_chamber_steam_cells']}"
+            ),
+            f"State {sample['state_hash']}",
+        )
+    if sample.get("scenario") == HEAVY_CONTRACT.scenario:
+        badge_kinds = [
+            str(badge["kind"])
+            for badge in item.get("badges", ())
+            if isinstance(badge, dict) and isinstance(badge.get("kind"), str)
+        ]
+        if not badge_kinds:
+            badge_kinds = [kind for kind in reason.split("+") if kind]
+        badge_lines: list[str] = []
+        current = "Badges:"
+        for kind in badge_kinds:
+            addition = f" {kind}" if current == "Badges:" else f" | {kind}"
+            if len(current) + len(addition) > 58 and current != "Badges:":
+                badge_lines.append(current)
+                current = f"Badges: {kind}"
+            else:
+                current += addition
+        if current != "Badges:" or not badge_lines:
+            badge_lines.append(current)
+        return (
+            identity,
+            *badge_lines,
+            (
+                f"Active {census['any_active_cells']} | Systems "
+                f"{sample['subsystem_active_count']}"
+            ),
+            (
+                "Matter/Thermal/Pressure/Reaction "
+                f"{census['matter_active_cells']}/{census['thermal_active_cells']}/"
+                f"{census['pressure_active_cells']}/{census['reaction_active_cells']}"
+            ),
+            (
+                "Sand/Water/Oil/Wood "
+                f"{sample['sand_count']}/{sample['water_count']}/"
+                f"{sample['oil_count']}/{sample['wood_count']}"
+            ),
+            (
+                "Ice/Steam/Smoke "
+                f"{sample['ice_count']}/{sample['steam_count']}/{sample['smoke_count']}"
             ),
             f"State {sample['state_hash']}",
         )
@@ -6447,6 +8261,81 @@ def pressure_burst_summary(analysis: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def heavy_candidate_blocker(analysis: dict[str, Any]) -> dict[str, Any]:
+    failed = sorted(
+        name
+        for name in HEAVY_PREDICATE_NAMES
+        if analysis["predicates"][name]["status"] == "fail"
+    )
+    return {
+        "candidate_blocker": bool(failed),
+        "failed_hard_predicates": failed,
+        "candidate_blocker_details": [
+            {
+                "predicate": name,
+                "detail": analysis["predicates"][name]["detail"],
+            }
+            for name in failed
+        ],
+    }
+
+
+def heavy_mixed_summary(analysis: dict[str, Any]) -> dict[str, Any]:
+    metrics = analysis["metrics"]
+    return {
+        **heavy_candidate_blocker(analysis),
+        "terminal_reason": analysis["lifecycle"]["terminal_reason"],
+        "first_movement_tick": metrics["first_movement_tick"],
+        "first_density_displacement_tick": metrics[
+            "first_density_displacement_tick"
+        ],
+        "first_phase_transition_tick": metrics["first_phase_transition_tick"],
+        "first_combustion_work_tick": metrics["first_combustion_work_tick"],
+        "first_smoke_generation_tick": metrics["first_smoke_generation_tick"],
+        "first_pressure_activity_tick": metrics["first_pressure_activity_tick"],
+        "first_relief_damage_tick": metrics["first_relief_damage_tick"],
+        "first_rupture_tick": metrics["first_rupture_tick"],
+        "first_opening_tick": metrics["first_opening_tick"],
+        "first_vent_tick": metrics["first_vent_tick"],
+        "first_three_subsystems_tick": metrics["first_three_subsystems_tick"],
+        "first_all_intended_subsystems_tick": metrics[
+            "first_all_intended_subsystems_tick"
+        ],
+        "peak_active_cells": metrics["peak_active_cells"],
+        "peak_active_tick": metrics["peak_active_tick"],
+        "peak_concurrent_subsystem_count": metrics[
+            "peak_concurrent_subsystem_count"
+        ],
+        "peak_concurrency_tick": metrics["peak_concurrency_tick"],
+        "longest_three_plus_window_samples": metrics[
+            "longest_three_plus_window_samples"
+        ],
+        "longest_three_plus_window_start_tick": metrics[
+            "longest_three_plus_window_start_tick"
+        ],
+        "longest_three_plus_window_end_tick": metrics[
+            "longest_three_plus_window_end_tick"
+        ],
+        "longest_three_plus_window_tick_span": metrics[
+            "longest_three_plus_window_tick_span"
+        ],
+        "final_material_count_deltas_by_id": metrics[
+            "final_material_count_deltas_by_id"
+        ],
+        "unexplained_material_delta_occurrences": metrics[
+            "unexplained_material_delta_occurrences"
+        ],
+        "terminal_activity": metrics["terminal_activity"],
+        "terminal_bounds": metrics["terminal_bounds"],
+        "terminal_trend": analysis["terminal_trend"],
+        "invalid_material_occurrences": metrics["invalid_material_occurrences"],
+        "nonfinite_field_occurrences": metrics["nonfinite_field_occurrences"],
+        "wake_anomaly_occurrences": metrics["wake_anomaly_occurrences"],
+        "reset_exact_equivalence": metrics["reset_exact_equivalence"],
+        "review_flags": analysis["review_flags"],
+    }
+
+
 def render_report_markdown(
     manifest: dict[str, Any],
     analysis: dict[str, Any],
@@ -6561,6 +8450,49 @@ def render_report_markdown(
                 f"{summary['post_reaction_restart_samples']}",
                 f"- Fuel consumed; Wood / Oil deltas: {summary['fuel_consumed']}; "
                 f"{summary['wood_count_delta']} / {summary['oil_count_delta']}",
+                f"- Exact reset: {summary['reset_exact_equivalence']}",
+            ]
+        )
+    elif contract is HEAVY_CONTRACT:
+        summary = heavy_mixed_summary(analysis)
+        lines.extend(
+            [
+                "",
+                "## Heavy Mixed World telemetry",
+                "",
+                "- First movement / density / phase ticks: "
+                f"{summary['first_movement_tick']} / "
+                f"{summary['first_density_displacement_tick']} / "
+                f"{summary['first_phase_transition_tick']}",
+                "- First combustion / Smoke generation / Pressure ticks: "
+                f"{summary['first_combustion_work_tick']} / "
+                f"{summary['first_smoke_generation_tick']} / "
+                f"{summary['first_pressure_activity_tick']}",
+                "- First relief damage / pressure-qualified rupture ticks: "
+                f"{summary['first_relief_damage_tick']} / "
+                f"{summary['first_rupture_tick']}",
+                "- First complete relief lane tick: "
+                f"{summary['first_opening_tick']}",
+                f"- {HEAVY_EXTERIOR_STEAM_PRESENTATION} tick: "
+                f"{summary['first_vent_tick']}",
+                "- Peak subsystem concurrency: "
+                f"{summary['peak_concurrent_subsystem_count']} at "
+                f"tick {summary['peak_concurrency_tick']}",
+                "- Longest >=3 subsystem sampled window: "
+                f"{summary['longest_three_plus_window_samples']} samples, "
+                f"ticks {summary['longest_three_plus_window_start_tick']}.."
+                f"{summary['longest_three_plus_window_end_tick']} "
+                f"(span {summary['longest_three_plus_window_tick_span']})",
+                f"- Peak active cells: {summary['peak_active_cells']} at "
+                f"tick {summary['peak_active_tick']}",
+                "- Unexplained inventory occurrences: "
+                f"{summary['unexplained_material_delta_occurrences']}",
+                "- Invalid / non-finite / wake anomalies: "
+                f"{summary['invalid_material_occurrences']} / "
+                f"{summary['nonfinite_field_occurrences']} / "
+                f"{summary['wake_anomaly_occurrences']}",
+                "- Review flags: "
+                + (", ".join(summary["review_flags"]["reasons"]) or "none"),
                 f"- Exact reset: {summary['reset_exact_equivalence']}",
             ]
         )
@@ -6726,6 +8658,55 @@ start/final/minimum cells `{summary['post_reaction_thermal_cells']}` /
 Report concrete mismatches, missing evidence, and ambiguity. Do not infer other scenarios,
 G8-C performance, product readiness, or G8-B closure. No upload, external message, code
 change, or other action is authorized by this prompt.
+"""
+    if contract is HEAVY_CONTRACT:
+        summary = heavy_mixed_summary(analysis)
+        review_reasons = ", ".join(summary["review_flags"]["reasons"]) or "none"
+        return f"""# Human Review Prompt — Powdergame Heavy Mixed World Experiment
+
+This prompt was generated locally and was not sent to an AI or external service.
+Review only `REVIEW_PACKET.zip` for experiment `{manifest['experiment_id']}`, run
+`{manifest['run_id']}` in `{manifest['run_mode']}` mode, source
+`{manifest['source']['sha']}`, binary `{manifest['binary']['sha256']}`. Treat automatic
+verdict `{analysis['verdict']}` as a telemetry claim to check, not user acceptance,
+product readiness, or G8-B/G8-C closure.
+
+`REVIEW_PACKET.zip` is a lightweight human-review packet. It does not contain the
+frozen executable or source snapshot and cannot independently establish source/binary
+forensic identity; use the candidate's sibling `AUDIT_BUNDLE.zip` for that purpose.
+
+Check the causal sequence in the full frames, crops, contact sheet, raw samples, and
+events: Sand movement, Oil-above-Water density displacement with liquid motion and an
+interface, Thermal activity, phase-pool work, dynamic combustion work, newly generated
+Smoke, Pressure activity, and a meaningful sampled overlap of at least three subsystems.
+Authored tick-0 Smoke and authored combusting flags are initial conditions; they are not
+evidence of dynamic Smoke generation or combustion work. First dynamic combustion /
+Smoke generation / Pressure ticks are `{summary['first_combustion_work_tick']}` /
+`{summary['first_smoke_generation_tick']}` / `{summary['first_pressure_activity_tick']}`.
+The longest >=3-subsystem sampled window is
+`{summary['longest_three_plus_window_samples']}` samples over ticks
+`{summary['longest_three_plus_window_start_tick']}..{summary['longest_three_plus_window_end_tick']}`.
+The optional raw `first_vent_tick` field and `first_vent_observed` event mean
+{HEAVY_EXTERIOR_STEAM_PRESENTATION}; they are not proof that Steam crossed a complete
+relief lane.
+
+Verify strict material-inventory accounting, finite fields, no unexpected wake reasons,
+bounded terminal Temperature and Pressure trends, and exact programmatic reset. The
+recorded unexplained-inventory / invalid / non-finite / wake-anomaly occurrences are
+`{summary['unexplained_material_delta_occurrences']}` /
+`{summary['invalid_material_occurrences']}` / `{summary['nonfinite_field_occurrences']}` /
+`{summary['wake_anomaly_occurrences']}`; exact reset is
+`{summary['reset_exact_equivalence']}`. Frame milestones sharing the same physical state
+are folded onto one image, so read every wrapped `Badges:` line rather than treating the
+first badge as the whole milestone set. Review flags are `{review_reasons}`; they require
+human review and are not automatic defect findings.
+
+Report concrete mismatches, missing evidence, and ambiguity. Optional relief damage,
+rupture, complete-lane, or exterior-Steam-above-relief observations must not substitute
+for the required hard predicates or be presented as causal vent evidence.
+Do not infer other scenarios, G8-C performance, product readiness, acceptance, or G8-B
+closure. No upload, external message, code change, or other action is authorized by this
+prompt.
 """
     if contract is PRESSURE_CONTRACT:
         summary = pressure_burst_summary(analysis)
@@ -6918,10 +8899,19 @@ def postprocess_run(
                 f"classification={classification}; failed_hard_predicates={failed}; "
                 "run preserved incomplete without report, receipt, or Audit Bundle"
             )
+    if contract is HEAVY_CONTRACT and manifest["run_mode"] == "candidate":
+        blocker = heavy_candidate_blocker(analysis)
+        if blocker["candidate_blocker"]:
+            failed = ",".join(blocker["failed_hard_predicates"])
+            raise ExperimentError(
+                "Heavy candidate publication blocked after telemetry validation: "
+                f"failed_hard_predicates={failed}; run preserved incomplete without "
+                "report, receipt, or Audit Bundle"
+            )
     screenshots = create_screenshots(run_dir, frames_doc["frames"], log)
     if contract.records_run_mode:
         for screenshot, frame in zip(screenshots, frames_doc["frames"], strict=True):
-            if contract is PRESSURE_CONTRACT:
+            if contract in {PRESSURE_CONTRACT, HEAVY_CONTRACT}:
                 screenshot["kind"] = "+".join(
                     badge["kind"] for badge in frame["badges"]
                 )
@@ -6968,6 +8958,8 @@ def postprocess_run(
         report_json["scope"]["fire_heat"] = True
     elif contract is PRESSURE_CONTRACT:
         report_json["scope"]["pressure_burst"] = True
+    elif contract is HEAVY_CONTRACT:
+        report_json["scope"]["heavy_mixed"] = True
     if contract.records_run_mode:
         report_json["run_mode"] = manifest["run_mode"]
     if contract is WATER_CONTRACT:
@@ -6993,6 +8985,17 @@ def postprocess_run(
             "review_flags_force_human_review": True,
             "fixture_causality_confounded_is_candidate_blocker": True,
             "named_causal_chain_required": True,
+            "g8b_closed": False,
+        }
+    elif contract is HEAVY_CONTRACT:
+        report_json["heavy_mixed"] = heavy_mixed_summary(analysis)
+        report_json["review_guidance"] = {
+            "classification_categories": list(HEAVY_FINDING_CLASSIFICATIONS),
+            "automatic_verdict_is_user_acceptance": False,
+            "review_flags_force_human_review": True,
+            "hard_predicate_failure_is_candidate_blocker": True,
+            "folded_badges_share_one_physical_state": True,
+            "exterior_steam_above_relief_is_opening_gated": False,
             "g8b_closed": False,
         }
     write_new_text(
@@ -7047,6 +9050,8 @@ def postprocess_run(
         receipt["fire_heat"] = fire_heat_summary(analysis)
     elif contract is PRESSURE_CONTRACT:
         receipt["pressure_burst"] = pressure_burst_summary(analysis)
+    elif contract is HEAVY_CONTRACT:
+        receipt["heavy_mixed"] = heavy_mixed_summary(analysis)
     if final_guard is not None:
         final_guard()
     write_new_text(
@@ -7136,6 +9141,8 @@ def validate_audit_receipt(
         expected["fire_heat"] = fire_heat_summary(analysis)
     elif contract is PRESSURE_CONTRACT:
         expected["pressure_burst"] = pressure_burst_summary(analysis)
+    elif contract is HEAVY_CONTRACT:
+        expected["heavy_mixed"] = heavy_mixed_summary(analysis)
 
     require_exact_keys(
         receipt, set(expected) | {"completed_utc"}, "experiment receipt"
@@ -7335,14 +9342,22 @@ def render_bundle_hashes(members: dict[str, bytes]) -> bytes:
     ).encode("utf-8")
 
 
-def create_pressure_audit_bundle_vnext(
-    run_dir: Path, source_root: Path, expected_receipt_sha256: str
+def create_attested_audit_bundle_vnext(
+    run_dir: Path,
+    source_root: Path,
+    expected_receipt_sha256: str,
+    *,
+    contract: ScenarioContract,
+    bundle_manifest_schema: str,
 ) -> tuple[Path, Path]:
+    if contract not in {PRESSURE_CONTRACT, HEAVY_CONTRACT}:
+        raise ExperimentError("attested Audit Bundle vNext contract is unsupported")
+    label = contract.title
     bundle_path = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SUFFIX}"
     sidecar_path = run_dir.parent / f"{run_dir.name}{AUDIT_BUNDLE_SHA256_SUFFIX}"
     if bundle_path.exists() or sidecar_path.exists():
         raise ExperimentError(
-            "refusing to overwrite existing Pressure audit bundle or SHA-256 sidecar"
+            f"refusing to overwrite existing {label} audit bundle or SHA-256 sidecar"
         )
 
     manifest_path = run_dir / "EXPERIMENT_MANIFEST.toml"
@@ -7359,25 +9374,29 @@ def create_pressure_audit_bundle_vnext(
     )
     missing = [path.relative_to(run_dir).as_posix() for path in required if not path.is_file()]
     if missing:
-        raise ExperimentError(f"Pressure audit bundle inputs are incomplete: {missing}")
+        raise ExperimentError(f"{label} audit bundle inputs are incomplete: {missing}")
     if not isinstance(expected_receipt_sha256, str) or not HEX64.fullmatch(
         expected_receipt_sha256
     ):
         raise ExperimentError("expected receipt SHA-256 must be 64 hexadecimal characters")
     if sha256_file(receipt_path) != expected_receipt_sha256.lower():
-        raise ExperimentError("Pressure receipt bytes changed after final publication")
+        raise ExperimentError(f"{label} receipt bytes changed after final publication")
 
     manifest = read_and_validate_manifest(manifest_path)
-    if contract_for_manifest(manifest) is not PRESSURE_CONTRACT:
-        raise ExperimentError("Pressure Audit Bundle vNext requires Pressure Burst")
+    if contract_for_manifest(manifest) is not contract:
+        raise ExperimentError(f"{label} Audit Bundle vNext contract mismatch")
     if manifest["run_mode"] != "candidate":
-        raise ExperimentError("Pressure Audit Bundle vNext is candidate-only")
+        raise ExperimentError(f"{label} Audit Bundle vNext is candidate-only")
     binary_path = Path(manifest["binary"]["path"])
     expected_binary = run_dir.joinpath(*FROZEN_BINARY_RELATIVE_PATH.parts).resolve()
     if binary_path.resolve() != expected_binary or not binary_path.is_file():
-        raise ExperimentError("Pressure audit bundle requires the run-local frozen executable")
+        raise ExperimentError(
+            f"{label} audit bundle requires the run-local frozen executable"
+        )
     if sha256_file(binary_path) != manifest["binary"]["sha256"]:
-        raise ExperimentError("frozen executable hash changed before Pressure audit bundling")
+        raise ExperimentError(
+            f"frozen executable hash changed before {label} audit bundling"
+        )
 
     analysis, _, _, _ = validate_telemetry(run_dir, manifest)
     hash_entries = validate_hash_inventory(run_dir, hashes_path)
@@ -7397,7 +9416,7 @@ def create_pressure_audit_bundle_vnext(
     source_input_zip, source_mappings = pressure_source_input_bytes(
         source_inputs_path, source_root.resolve(), manifest
     )
-    # Unlike the historical bundles, Git archive failure is fatal for Pressure.
+    # Unlike the historical bundles, Git archive failure is fatal for attested bundles.
     git_archive = git_archive_zip_bytes(source_root.resolve(), manifest["source"]["sha"])
     review_packet = review_packet_path.read_bytes()
     nested_packet_inventory = zip_bytes_inventory(review_packet, "REVIEW_PACKET.zip")
@@ -7471,7 +9490,7 @@ def create_pressure_audit_bundle_vnext(
     )
     original_to_bundle.sort(key=lambda entry: (entry["original"], entry["bundle_path"]))
     bundle_manifest = {
-        "schema_version": PRESSURE_AUDIT_BUNDLE_MANIFEST_SCHEMA,
+        "schema_version": bundle_manifest_schema,
         "experiment_id": manifest["experiment_id"],
         "run_id": manifest["run_id"],
         "scenario": manifest["scenario"],
@@ -7525,12 +9544,36 @@ def create_pressure_audit_bundle_vnext(
     members["AUDIT_BUNDLE_HASHES.sha256"] = render_bundle_hashes(members)
     expected_direct_paths = {entry["bundle_path"] for entry in direct_members}
     if set(members) != expected_direct_paths:
-        raise ExperimentError("Pressure audit bundle direct-member inventory mismatch")
+        raise ExperimentError(f"{label} audit bundle direct-member inventory mismatch")
     bundle_bytes = deterministic_zip_bytes(members.items())
     write_new_bytes(bundle_path, bundle_bytes)
     bundle_hash = sha256_file(bundle_path)
     write_new_text(sidecar_path, f"{bundle_hash}  {bundle_path.name}\n")
     return bundle_path, sidecar_path
+
+
+def create_pressure_audit_bundle_vnext(
+    run_dir: Path, source_root: Path, expected_receipt_sha256: str
+) -> tuple[Path, Path]:
+    return create_attested_audit_bundle_vnext(
+        run_dir,
+        source_root,
+        expected_receipt_sha256,
+        contract=PRESSURE_CONTRACT,
+        bundle_manifest_schema=PRESSURE_AUDIT_BUNDLE_MANIFEST_SCHEMA,
+    )
+
+
+def create_heavy_audit_bundle_vnext(
+    run_dir: Path, source_root: Path, expected_receipt_sha256: str
+) -> tuple[Path, Path]:
+    return create_attested_audit_bundle_vnext(
+        run_dir,
+        source_root,
+        expected_receipt_sha256,
+        contract=HEAVY_CONTRACT,
+        bundle_manifest_schema=HEAVY_AUDIT_BUNDLE_MANIFEST_SCHEMA,
+    )
 
 
 def create_audit_bundle(
@@ -7667,6 +9710,8 @@ def worker_command(
             "--terminal-window-samples",
             str(TERMINAL_WINDOW_SAMPLES),
         )
+    if contract is HEAVY_CONTRACT:
+        return common
     return common + (
         "--consecutive-all-sleep",
         str(CONSECUTIVE_ALL_SLEEP),
@@ -7763,6 +9808,10 @@ def run_experiment(
         receipt_sha256 = sha256_file(receipt)
         if contract is PRESSURE_CONTRACT:
             create_pressure_audit_bundle_vnext(
+                run_dir, source.root, receipt_sha256
+            )
+        elif contract is HEAVY_CONTRACT:
+            create_heavy_audit_bundle_vnext(
                 run_dir, source.root, receipt_sha256
             )
         else:

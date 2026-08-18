@@ -871,6 +871,20 @@ mod tests {
         y * fixture.config.width as usize + x
     }
 
+    fn paint_rect<T: Copy>(
+        values: &mut [T],
+        width: usize,
+        x_range: Range<usize>,
+        y_range: Range<usize>,
+        value: T,
+    ) {
+        for y in y_range {
+            for x in x_range.clone() {
+                values[y * width + x] = value;
+            }
+        }
+    }
+
     #[test]
     fn metadata_and_parsing_are_stable() {
         let expected = [
@@ -1194,6 +1208,18 @@ mod tests {
                 .map(|value| value.to_bits())
                 .collect::<Vec<_>>()
         );
+        let temperature_count = |temperature: f32| {
+            fixture
+                .temperatures()
+                .iter()
+                .filter(|value| value.to_bits() == temperature.to_bits())
+                .count()
+        };
+        assert_eq!(temperature_count(TEMPERATURE_REFERENCE), 56_136);
+        assert_eq!(temperature_count(500.0), 448);
+        assert_eq!(temperature_count(120.0), 5_712);
+        assert_eq!(temperature_count(-25.0), 2_232);
+        assert_eq!(temperature_count(10.0), 1_008);
         assert_eq!(
             fixture
                 .pressures()
@@ -1205,6 +1231,15 @@ mod tests {
                 .map(|value| value.to_bits())
                 .collect::<Vec<_>>()
         );
+        let pressure_count = |pressure: f32| {
+            fixture
+                .pressures()
+                .iter()
+                .filter(|value| value.to_bits() == pressure.to_bits())
+                .count()
+        };
+        assert_eq!(pressure_count(PRESSURE_REFERENCE), 59_824);
+        assert_eq!(pressure_count(140.0), 5_712);
         assert_eq!(fixture.flags(), expected_flags.as_slice());
         assert_eq!(fixture.chunk_edit_wake(), expected_edit_wake.as_slice());
 
@@ -1537,6 +1572,217 @@ mod tests {
             MATERIAL_ICE,
         ] {
             assert!(heavy.materials.contains(&material));
+        }
+    }
+
+    #[test]
+    fn heavy_mixed_world_256_pins_authored_regions_fields_and_initial_state() {
+        let config = WorldConfig::new(256, 256, 64).unwrap();
+        let fixture = ScenarioFixture::build(ScenarioId::HeavyMixedWorld, config).unwrap();
+        let width = config.width as usize;
+
+        // Reconstruct every authored half-open rectangle independently of the
+        // fixture builder. Order matters where the Wood deck overlays the
+        // central shelf and where the Water cavity and Wood relief seam cut the
+        // pressure chamber's Stone shell.
+        let mut expected_materials = initial_material_ids(&config).unwrap();
+        paint_rect(
+            &mut expected_materials,
+            width,
+            8..248,
+            232..240,
+            MATERIAL_STONE,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            16..72,
+            18..104,
+            MATERIAL_SAND,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            80..136,
+            42..124,
+            MATERIAL_WATER,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            140..196,
+            42..124,
+            MATERIAL_OIL,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            76..200,
+            188..196,
+            MATERIAL_STONE,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            20..112,
+            148..190,
+            MATERIAL_WOOD,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            44..88,
+            126..146,
+            MATERIAL_SMOKE,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            126..226,
+            140..224,
+            MATERIAL_STONE,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            134..218,
+            148..216,
+            MATERIAL_WATER,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            162..190,
+            140..148,
+            MATERIAL_WOOD,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            202..238,
+            34..96,
+            MATERIAL_ICE,
+        );
+        paint_rect(
+            &mut expected_materials,
+            width,
+            202..238,
+            98..126,
+            MATERIAL_WATER,
+        );
+        assert_eq!(fixture.materials(), expected_materials.as_slice());
+
+        let material_count = |material| {
+            fixture
+                .materials()
+                .iter()
+                .filter(|&&value| value == material)
+                .count()
+        };
+        assert_eq!(material_count(MATERIAL_EMPTY), 31_884);
+        assert_eq!(material_count(MATERIAL_BOUNDARY_BLOCK), 1_020);
+        assert_eq!(material_count(MATERIAL_STONE), 4_712);
+        assert_eq!(material_count(MATERIAL_SAND), 4_816);
+        assert_eq!(material_count(MATERIAL_WATER), 11_312);
+        assert_eq!(material_count(MATERIAL_OIL), 4_592);
+        assert_eq!(material_count(MATERIAL_WOOD), 4_088);
+        assert_eq!(material_count(MATERIAL_SMOKE), 880);
+        assert_eq!(material_count(MATERIAL_ICE), 2_232);
+        assert_eq!(material_count(MATERIAL_STEAM), 0);
+
+        let mut expected_temperatures = vec![TEMPERATURE_REFERENCE; 256 * 256];
+        paint_rect(&mut expected_temperatures, width, 20..36, 160..188, 500.0);
+        paint_rect(&mut expected_temperatures, width, 134..218, 148..216, 120.0);
+        paint_rect(&mut expected_temperatures, width, 202..238, 34..96, -25.0);
+        paint_rect(&mut expected_temperatures, width, 202..238, 98..126, 10.0);
+        assert_eq!(
+            fixture
+                .temperatures()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected_temperatures
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>()
+        );
+
+        let mut expected_pressures = vec![PRESSURE_REFERENCE; 256 * 256];
+        paint_rect(&mut expected_pressures, width, 134..218, 148..216, 140.0);
+        assert_eq!(
+            fixture
+                .pressures()
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>(),
+            expected_pressures
+                .iter()
+                .map(|value| value.to_bits())
+                .collect::<Vec<_>>()
+        );
+
+        let mut expected_flags = vec![0u32; 256 * 256];
+        paint_rect(
+            &mut expected_flags,
+            width,
+            20..36,
+            160..188,
+            FLAG_COMBUSTING,
+        );
+        assert_eq!(fixture.flags(), expected_flags.as_slice());
+        assert_eq!(
+            fixture
+                .flags()
+                .iter()
+                .filter(|&&flags| flags == FLAG_COMBUSTING)
+                .count(),
+            448
+        );
+        assert!(fixture
+            .flags()
+            .iter()
+            .all(|&flags| { flags & FLAG_FLAME_EVENT == 0 && fuel_progress(flags) == 0 }));
+        assert!(fixture.chunk_edit_wake().iter().all(|&value| value == 0));
+
+        // The authored regions deliberately exercise every 64x64 chunk and
+        // cross the internal chunk boundaries instead of isolating each
+        // subsystem inside one dispatch tile.
+        for chunk_y in 0..4 {
+            for chunk_x in 0..4 {
+                let contains_authored_material = (chunk_y * 64..(chunk_y + 1) * 64).any(|y| {
+                    (chunk_x * 64..(chunk_x + 1) * 64).any(|x| {
+                        !matches!(
+                            fixture.materials()[cell(&fixture, x, y)],
+                            MATERIAL_EMPTY | MATERIAL_BOUNDARY_BLOCK
+                        )
+                    })
+                });
+                assert!(
+                    contains_authored_material,
+                    "chunk ({chunk_x},{chunk_y}) has no authored workload material"
+                );
+            }
+        }
+        for (name, x_range, y_range, boundary_x, boundary_y) in [
+            ("Sand", 16..72, 18..104, Some(64), Some(64)),
+            ("Water", 80..136, 42..124, Some(128), Some(64)),
+            ("Oil", 140..196, 42..124, Some(192), Some(64)),
+            ("Smoke", 44..88, 126..146, Some(64), Some(128)),
+            ("pressure chamber", 126..226, 140..224, Some(192), Some(192)),
+            ("Ice", 202..238, 34..96, None, Some(64)),
+        ] {
+            if let Some(boundary) = boundary_x {
+                assert!(
+                    x_range.contains(&(boundary - 1)) && x_range.contains(&boundary),
+                    "{name} does not cross authored x chunk boundary {boundary}"
+                );
+            }
+            if let Some(boundary) = boundary_y {
+                assert!(
+                    y_range.contains(&(boundary - 1)) && y_range.contains(&boundary),
+                    "{name} does not cross authored y chunk boundary {boundary}"
+                );
+            }
         }
     }
 }

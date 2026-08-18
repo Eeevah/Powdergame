@@ -1,172 +1,289 @@
 # Powdergame Documentation
 
-> 이 디렉터리는 Powdergame의 제품 의도, 설계 결정, 구현 계약, 검증 기준과 결정 역사를 보존한다.
+> **먼저 `START_HERE.md`를 읽는다.**
 >
-> **중요:** 이 프로젝트의 문서는 단순 요약본이 아니다. 현재의 정답뿐 아니라 왜 그 결정을 했는지, 사용자가 어떤 선택을 했고 어떤 전제를 수정했는지까지 추적할 수 있어야 한다.
+> 이 문서 집합은 현재 계약뿐 아니라 사용자의 의도, 선택한 대안, 검증 결과와 superseded 결정을 보존한다. 그러나 모든 문서를 처음부터 읽는 것이 목표는 아니다. 작업 종류에 맞는 최소 경로로 들어가고, 충돌이 있을 때 권위 문서로 확장한다.
 
-## 문서 권위 순서
+---
 
-문서가 서로 충돌할 경우 다음 순서를 따른다.
+## 1. 가장 짧은 입구
 
-1. `vision/USER_VISION.md` — 사용자가 원하는 게임의 최상위 제품 원칙
-2. 최신 `architecture/decisions/ADR-*` — 명시적으로 승인된 구조적 결정과 변경 이력
-3. `specs/*` — 현재 구현이 따라야 하는 구체적인 시뮬레이션/물질/반응/결정성 계약
-4. 실제 검증 구현, 테스트, `evidence/*`, `architecture/ARCHITECTURE.md` — 실행 결과로 확인된 현재 시스템 진실
-5. `planning/MILESTONES.md` — 무엇을 증명해야 완료인지 정의하는 Evidence Gate
-6. `planning/STATUS.md` — 현재 실제 상태와 바로 다음 작업
-7. `planning/ROADMAP.md` — 장기 제품 방향과 작업 순서
-8. `HANDOFF.md` — 현재 canonical line을 이어받기 위한 실행 안내
-9. `research/materials/*` — Material Wiki. 개념 상태와 구현 상태를 분리하며 별도 승인 전에는 구현 계약이 아님
-10. `research/derived/*`, `research/encyclopedia/*` — 현재 세계 문법으로 재가공한 후보와 개발용 corpus
-11. `research/raw/*` — 출처와 원문 보존
-12. `01_MASTER_DESIGN_REPORT.md`, `design-history/*`, `00_USER_VISION.md` — 종합 맥락, 결정 provenance, 기존 경로 호환 요약
-13. 초기 프로토타입/실험 코드
+### 제품 의도를 이해하려면
 
-`development/*`는 개발·테스트·성능 측정 절차를 고정하지만, 위 권위 문서와 실제 검증 결과를 덮어쓰지 않는다.
+1. [`START_HERE.md`](START_HERE.md)
+2. [`vision/USER_VISION.md`](vision/USER_VISION.md)
+3. [`vision/FIRST_PLAYABLE_WORLD.md`](vision/FIRST_PLAYABLE_WORLD.md)
+4. [`vision/UI_DIRECTION.md`](vision/UI_DIRECTION.md)
 
-### 현재 Q&A의 지위
+### 현재 작업을 이어받으려면
 
-2026-08-15 Foundation Design Session에서 사용자가 직접 선택·교정한 내용은 구현 전 단계의 초기 연구 가설보다 강한 설계 증거로 취급한다.
+1. [`development/QUICKSTART.md`](development/QUICKSTART.md)
+2. [`planning/STATUS.md`](planning/STATUS.md)
+3. 해당 Gate의 [`evidence/`](evidence/)
+4. [`HANDOFF.md`](HANDOFF.md)
 
-따라서 기존 README, `00_USER_VISION.md`, `01_MASTER_DESIGN_REPORT.md`도 현재 Q&A에 맞게 갱신했다. 과거 버전은 Git history가 보존한다.
+### Engine을 수정하려면
 
-`design-history/*`에는 superseded 결정도 포함될 수 있으므로 구현 코드가 직접 따라야 할 계약은 최신 ADR/SPEC이다. 다만 **왜 그 계약이 그렇게 되었는지, 사용자의 실제 의도가 무엇인지 해석해야 할 때는 Design History를 반드시 참고한다.**
+1. 관련 [`architecture/decisions/ADR-*`](architecture/decisions/)
+2. 관련 [`specs/*`](specs/)
+3. [`architecture/ARCHITECTURE.md`](architecture/ARCHITECTURE.md)
+4. 관련 tests/evidence
 
-## 디렉터리 구조
+### 검증·성능·Evidence를 수정하려면
+
+1. [`development/VALIDATION_POLICY.md`](development/VALIDATION_POLICY.md)
+2. [`development/TESTING.md`](development/TESTING.md)
+3. [`development/PERFORMANCE.md`](development/PERFORMANCE.md)
+4. [`development/WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md`](development/WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md)
+5. 해당 [`evidence/*`](evidence/)
+
+`START_HERE.md`에는 작업 종류별 최소 읽기 경로가 더 자세히 정리되어 있다.
+
+---
+
+## 2. 문서 권위 순서
+
+문서가 충돌하면 다음 순서를 따른다.
+
+1. **제품 원칙** — `vision/USER_VISION.md`
+2. **승인된 구조 결정** — 최신 `architecture/decisions/ADR-*`
+3. **현재 구현 계약** — `specs/*`
+4. **실행으로 확인된 진실** — code, tests, `evidence/*`, `architecture/ARCHITECTURE.md`
+5. **완료 기준** — `planning/MILESTONES.md`
+6. **현재 상태와 다음 작업** — `planning/STATUS.md`
+7. **장기 방향과 순서** — `planning/ROADMAP.md`
+8. **실행 인수인계** — `HANDOFF.md`
+9. **개념 연구** — `research/materials/*`, `research/derived/*`, `research/encyclopedia/*`
+10. **원문 연구** — `research/raw/*`
+11. **결정 맥락** — `design-history/*`, `01_MASTER_DESIGN_REPORT.md`, `00_USER_VISION.md`
+12. 초기 prototype/experiment
+
+`development/*`는 개발·테스트·artifact 운영 절차를 고정하지만 제품 Vision, SPEC, 실제 실행 결과를 덮어쓰지 않는다.
+
+### Q&A와 사용자 교정의 지위
+
+사용자가 직접 선택하거나 가정을 수정한 기록은 초기 연구 가설보다 강하다. 제품 의도를 해석할 때는 `design-history/*`를 확인한다. 구현 코드는 최신 ADR/SPEC을 따르며, 결정이 바뀌면 과거 문서를 조용히 다시 쓰지 않고 새 기록이 supersede 관계를 남긴다.
+
+---
+
+## 3. Why / What / Now
+
+문서를 세 질문으로 구분한다.
+
+### Why — 왜 이 게임을 만드는가
+
+- `START_HERE.md`
+- `vision/USER_VISION.md`
+- `vision/FIRST_PLAYABLE_WORLD.md`
+- `vision/UI_DIRECTION.md`
+- `design-history/*`
+
+### What — 현재 무엇을 구현해야 하는가
+
+- `architecture/decisions/ADR-*`
+- `specs/*`
+- `architecture/ARCHITECTURE.md`
+- `planning/MILESTONES.md`
+
+### Now — 지금 실제로 어디까지 왔는가
+
+- `planning/STATUS.md`
+- 해당 `evidence/*`
+- `HANDOFF.md`
+
+> **현재 branch, SHA, Run ID, test count는 Why 문서에 복제하지 않는다.**
+
+자주 바뀌는 상태는 `STATUS.md`, 상세 증거는 `evidence/*`에만 둔다. README와 Vision에는 안정적인 제품 원칙과 링크만 남긴다.
+
+---
+
+## 4. Surface taxonomy
+
+현재 프로젝트에는 여러 실행 화면이 있지만 목적은 다르다.
+
+| Surface | 역할 | 정본 문서 |
+|---|---|---|
+| Runtime Baseline | GPU/window/allocation 기술 기준선 | architecture / G0 evidence |
+| Observatory | subsystem 관찰 | 해당 Gate evidence |
+| Benchmark Gallery | 고정 workload 사람이 검토 | G8-B Gallery evidence |
+| Experiment Harness | 자동 screenshot·telemetry·report | Harness evidence |
+| First Playable World | 실제 플레이어 조작과 실험 | `vision/FIRST_PLAYABLE_WORLD.md` |
+| Final Presentation | 최종 시각·음향 언어 | `planning/PRESENTATION_ROADMAP.md` |
+
+Gallery와 Observatory는 제품을 검증하는 실험실이지 최종 게임 UI가 아니다.
+
+---
+
+## 5. 디렉터리 지도
 
 ```text
 docs/
+├─ START_HERE.md
 ├─ README.md
-├─ 00_USER_VISION.md                  # 기존 경로 호환 / 최신 비전 요약
-├─ 01_MASTER_DESIGN_REPORT.md         # 현재 Foundation 종합 설계 보고서
+├─ HANDOFF.md
+├─ 00_USER_VISION.md
+├─ 01_MASTER_DESIGN_REPORT.md
 ├─ vision/
-│  └─ USER_VISION.md                  # 현재 최상위 제품 비전
+│  ├─ USER_VISION.md
+│  ├─ FIRST_PLAYABLE_WORLD.md
+│  └─ UI_DIRECTION.md
 ├─ design-history/
-│  └─ 2026-08-15-foundation-design-session.md
+│  ├─ 2026-08-15-foundation-design-session.md
+│  └─ 2026-08-16-to-18-m0-evolution.md
 ├─ planning/
 │  ├─ ROADMAP.md
+│  ├─ PRESENTATION_ROADMAP.md
 │  ├─ MILESTONES.md
 │  └─ STATUS.md
-├─ adversarial-reviews/
-│  ├─ README.md                       # 선택적 적대적 리뷰 및 보존 규칙
-│  └─ YYYY-MM-DD_<GATE_OR_SCOPE>.md   # 명시적으로 요청된 리뷰 기록
-├─ evidence/
-│  ├─ G5_*.md / G6_*.md / G7_*.md    # 이전 Gate evidence와 사용자 승인 기록
-│  ├─ G8_A_MEASUREMENT_SUBSTRATE_2026-08-17.md
-│  ├─ G8_B_BENCHMARK_SCENARIO_GALLERY_2026-08-17.md
-│  ├─ G8_B_SAND_FALL_EXPERIMENT_HARNESS_V0_2026-08-17.md
-│  ├─ G8_B_WATER_FLOW_HARNESS_CANDIDATE_2026-08-17.md
-│  ├─ G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md
-│  └─ G8_B_PRESSURE_BURST_HARNESS_CANDIDATE_2026-08-18.md
 ├─ architecture/
 │  ├─ ARCHITECTURE.md
-│  └─ decisions/
-│     ├─ ADR-0001-world-cell-invariants.md
-│     ├─ ADR-0002-gpu-authoritative-local-simulation.md
-│     ├─ ADR-0003-minimum-sufficient-physics.md
-│     └─ ADR-0004-approximate-determinism-and-arbitration.md
+│  └─ decisions/ADR-*.md
 ├─ specs/
 │  ├─ SIMULATION_SPEC.md
 │  ├─ MATERIAL_SPEC.md
 │  ├─ REACTION_SPEC.md
 │  └─ DETERMINISM_SPEC.md
 ├─ development/
+│  ├─ QUICKSTART.md
 │  ├─ DEVELOPMENT.md
 │  ├─ TESTING.md
+│  ├─ VALIDATION_POLICY.md
 │  ├─ PERFORMANCE.md
+│  ├─ DEVELOPMENT_LEARNING_LOOP.md
+│  ├─ LESSONS_LEDGER.md
 │  └─ WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md
-├─ research/
-│  ├─ README.md                        # research authority/index
-│  ├─ raw/                             # 원문 보존
-│  ├─ derived/                         # 현재 세계 문법으로 재가공한 후보
-│  ├─ encyclopedia/                    # 넓은 아이디어 corpus
-│  └─ materials/                       # 물질별 개념 Wiki
-│     ├─ README.md
-│     ├─ _TEMPLATE.md
-│     ├─ foundation/                   # 기본 16종 Material 개념/family Wiki
-│     └─ p1/                           # 첫 geology/manufacture prototype family
-└─ HANDOFF.md
+├─ evidence/
+├─ adversarial-reviews/
+└─ research/
+   ├─ README.md
+   ├─ raw/
+   ├─ derived/
+   ├─ encyclopedia/
+   └─ materials/
 ```
 
-미래의 Life, Agent, Civilization, Magic 등의 권위 문서는 필요해질 때 추가한다. 아직 구현하지 않는 계층을 빈 코드/빈 SPEC으로 미리 확장하지 않는다. Research에는 장기 후보를 보존할 수 있지만, 존재만으로 구현 범위가 되지는 않는다.
+미래의 Life, Agent, Civilization, Magic 등의 권위 문서는 필요가 실제로 생길 때 추가한다. 빈 abstraction이나 빈 SPEC을 미리 확장하지 않는다.
 
-## 문서 역할
+---
+
+## 6. 문서별 역할
 
 ### Vision
 
-`vision/USER_VISION.md`는 **무엇을 만들고 싶은가**를 정의한다. 기술적 편의 때문에 이 문서를 거꾸로 축소하지 않는다.
+- `USER_VISION.md`: 최상위 제품 원칙
+- `FIRST_PLAYABLE_WORLD.md`: 첫 5분의 플레이 경험과 G9 입력
+- `UI_DIRECTION.md`: Player Comprehension, Cell Inspector, debug/product UI 경계
 
-### Master Design Report
-
-`01_MASTER_DESIGN_REPORT.md`는 Foundation 설계를 한 번에 읽을 수 있도록 통합한 종합 보고서다. 넓은 맥락을 제공하지만 세부 구현에서 SPEC/ADR과 충돌하면 더 구체적이고 최신인 SPEC/ADR이 우선한다.
+기술적 편의로 Vision을 거꾸로 축소하지 않는다.
 
 ### Design History
 
-`design-history/*`는 **어떻게 그 결론에 도달했는가**를 보존한다.
+결정의 결론뿐 아니라 다음을 보존한다.
 
-가능한 경우 다음을 남긴다.
+- 질문과 선택지
+- 사용자의 실제 선택
+- 사용자가 수정한 가정
+- 버린 대안과 이유
+- benchmark 뒤로 미룬 항목
+- superseded 관계
+- 최종 반영 위치
 
-- Assistant가 던진 설계 질문
-- 제시된 주요 선택지
-- 당시 추천안
-- 사용자가 실제 선택한 답
-- 사용자가 추가한 조건/반례/교정
-- 논의를 통해 바뀐 최종안
-- 선택하지 않은 대안과 이유
-- 성능 측정 후 재검토하기로 한 항목
-- superseded된 이전 결정
-- 최종적으로 어느 SPEC/ADR에 반영되었는지
-
-중요한 사용자 발언은 `User Principle` 또는 `User Commentary`로 원래 의미를 최대한 유지해 기록한다.
+중요한 사용자 발언은 의미를 바꾸지 않고 `DIRECT`, `User Principle`, `User Commentary`처럼 강도를 표시한다.
 
 ### ADR
 
-ADR은 **왜 이 구조를 선택했는가**를 보존한다. 승인된 과거 ADR은 조용히 다시 쓰지 않는다. 구현 이후 방향이 바뀌면 새 ADR이 이전 ADR을 supersede한다.
+구조 선택의 이유와 대안을 보존한다. 승인된 ADR을 조용히 다시 쓰지 않는다. 방향 변경은 새 ADR이 supersede한다.
 
 ### Specs
 
-SPEC은 **현재 구현 계약**이다. 구현자가 과거 대화를 읽지 않아도 코드를 작성할 수 있을 정도로 구체적이어야 한다.
+현재 구현자가 따라야 할 구체적인 계약이다. 과거 대화 없이도 구현할 수 있을 정도로 명확해야 한다.
 
 ### Planning
 
-- `ROADMAP.md`: 장기 제품 방향과 증거 기반 작업 순서. 일정표는 아니다.
-- `MILESTONES.md`: Evidence Gate. 기능 체크리스트가 아니라 증명 계약.
-- `STATUS.md`: 지금 실제로 어디까지 되었고 바로 다음 작업이 무엇인가.
+- `ROADMAP.md`: 장기 제품 방향과 증거 기반 작업 순서
+- `PRESENTATION_ROADMAP.md`: Simulation Truth 위에 시각·음향 감각을 쌓는 순서
+- `MILESTONES.md`: Evidence Gate와 사용자 승인 경계
+- `STATUS.md`: 현재 실제 상태와 바로 다음 작업
 
 ### Development
 
-개발/테스트/성능 문서는 구현 절차와 측정 철학을 고정한다. 특히 성능 최적화는 추측이 아니라 실제 benchmark 증거를 기반으로 한다.
+개발 비용과 품질을 동시에 관리한다.
+
+- 변경 영향 기반 validation
+- targeted/FULL/smoke/candidate 역할 분리
+- append-only Lessons Ledger
+- 단일 사용자 앱 EXE와 launcher
+- worktree/artifact WIP limit
+- task timing
 
 ### Evidence
 
-`evidence/*`는 Gate별 구현·측정·사용자 수용 경계를 기록한다. 현재 G8-B Gallery 문서는 다섯 official workload와 별도 G7 Active/Sleep 회귀 fixture의 shared staging/Windows Gallery/headless selection 구현 candidate를 설명한다. Sand Fall Harness v0의 immutable experiment source `9e1fdac` pilot은 automatic `PASS`와 review output `APPROVED`를 기록했다. Water Flow 문서는 immutable/superseded first candidate와 source `5af031f`의 remediation candidate를 구분한다. Remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Fire / Heat 문서는 source `1635fdb`의 single sealed candidate, automatic `PASS`, 독립 재계산과 artifact 무결성 검증, 그리고 별도 user acceptance를 구분해 기록한다. Pressure Burst 문서는 rejected combustion-confounded candidate, dirty-source causal scratch, source `43e19d0`의 immutable clean-source candidate, automatic `NEEDS_HUMAN_REVIEW`, 별도 human `USER ACCEPTED WITH KNOWN FOLLOW-UP`, chronological Contact Sheet, exact source-input bytes와 canonical Git archive를 분리하는 Audit Bundle 계약을 구분한다. Scenarios 1–4가 사용자 승인되었고 Scenario 5 Heavy Mixed World가 next이므로 전체 기록은 **NOT CLOSED** 상태다. Gallery diagnostics, Harness 자동 판정, targeted test가 G8-C official timing 또는 남은 사용자 승인을 대신하지 않는다.
+`evidence/*`는 실행 결과, provenance, 자동 verdict, 사용자 승인과 scope boundary를 기록한다.
 
-### Adversarial Reviews
+- 자동 PASS는 사용자 승인이 아니다.
+- 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
+- Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
+- historical/rejected/superseded artifact를 소급 수정하지 않는다.
 
-`adversarial-reviews/*`는 이미 작성된 적대적 검토를 비차단 이력으로 보존한다. 적대적 리뷰는 기본 절차가 아니며 사용자가 명시적으로 요청한 경우에만 수행·기록한다. 외부 AI reviewer에게 프로젝트 내용을 보내지 않으며, 보고서 자체는 commit/push/PR/release 또는 gate closure 권한을 부여하지 않는다.
+현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 
 ### Research
 
-`research/*`는 넓은 조사자료와 콘텐츠 후보를 보존하고, 현재 ADR/SPEC에 맞춰 단계적으로 좁힌다.
+- `raw/`: 출처와 원문
+- `derived/`: 현재 세계 문법으로 재가공한 후보
+- `encyclopedia/`: 넓은 아이디어 corpus
+- `materials/`: Material 정체성·의도·상호작용·Discovery 후보
 
-- `raw/`: 출처와 원문을 가능한 한 보존
-- `derived/`: behavior family, shortlist, interaction graph, prototype Rule Card
-- `encyclopedia/`: 현실·역사·창작 소재를 폭넓게 추적하는 개발용 corpus
-- `materials/`: 물질마다 **어떤 개념인지, 왜 넣는지, 무엇과 상호작용하는지, 현실과 게임 추상화의 경계가 무엇인지** 관리하는 개념 Wiki
+Material Wiki는 개념 상태와 구현 상태를 구분한다. 수치와 threshold의 정본은 Rule Card/SPEC이다.
 
-Material Wiki는 개념 상태와 구현 상태를 분리한다. 숫자·threshold는 최신 Rule Card/SPEC에 두고, 개별 페이지는 정체성·의도·관계·Discovery와 미결정 사항을 보존한다.
+---
 
-## 핵심 문서화 원칙
+## 7. 문서 유지 규칙
 
 > **요약하지 않는다. 정리한다.**
 
-대화의 중복 표현과 말버릇은 다듬어도, 다음 정보는 임의로 버리지 않는다.
+### 반복해도 되는 것
 
-- 왜 그런 결정을 했는가
-- 어떤 대안이 있었는가
-- 사용자가 무엇을 직접 선택했는가
-- 사용자가 어떤 가정을 수정했는가
-- 어떤 부분은 아직 benchmark가 필요해 확정하지 않았는가
-- 어떤 결정이 나중에 superseded되었는가
+제품 North Star와 절대 원칙은 짧게 반복해도 된다.
 
-이 문서 집합의 목표는 새로운 사람이나 AI/Codex 세션이 읽었을 때 **결론뿐 아니라 사용자의 의도와 설계의 경계까지 복구할 수 있게 하는 것**이다.
+- 나만의 세계 창조
+- 본능적인 상호작용
+- 거대한 스케일
+- One Cell = Max One Matter
+- Game-Consistent Minimum Physics
+- 결과는 정직하게, 감각은 과장
+
+### 한 곳에만 둘 것
+
+- current branch/SHA
+- Run ID와 artifact hash
+- test count
+- Gate 세부 상태
+- next exact command
+
+### 오래된 결론
+
+- 삭제하거나 현재 결론처럼 섞지 않는다.
+- historical, rejected, superseded, deferred를 명시한다.
+- 새 결정이 어느 문서를 대체하는지 기록한다.
+
+### 새 문서 생성 기준
+
+새 문서는 다음 중 하나일 때만 만든다.
+
+- 기존 문서와 다른 명확한 권위 역할이 있음
+- 사용자 경험이나 구현 계약의 중요한 빈틈을 채움
+- 반복되는 실수를 machine guard로 승격함
+- 결정 provenance를 보존해야 함
+
+작업 일지나 raw session log는 Git 밖의 artifact root에 둔다.
+
+---
+
+## 8. 현재 문서 개선의 목적
+
+이 구조의 목표는 문서를 줄이는 것 자체가 아니다.
+
+> 새 사람이나 AI/Codex가 **게임이 주려는 감정 → 현재 계약 → 지금 할 일** 순서로 빠르게 복구하도록 한다.
+
+기술 Evidence가 제품 의도를 묻지 않게 하고, 제품 Vision이 실행 가능한 계약 없이 추상적인 슬로건에 머물지 않게 한다.

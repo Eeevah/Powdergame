@@ -1,7 +1,7 @@
 # G8-B Scenario 3 — Fire / Heat Harness Candidate
 
 Date: 2026-08-17
-Status: **SEALED CANDIDATE — AUTOMATIC PASS / USER ACCEPTANCE PENDING**
+Status: **SEALED CANDIDATE — AUTOMATIC PASS / USER ACCEPTED**
 Branch: `feature/m0-g8b-scenario-suite`
 Starting SHA: `0f5585ba34ec901224a82f4329624abcb66b796b`
 Candidate source SHA: `1635fdb9f562192123c92846e137b125c684ede9`
@@ -127,7 +127,8 @@ invalid Material, non-finite fields, or reset mismatch are concrete automatic
 finding candidates. The two thermal-tail predicates can remain unknown and
 produce `NEEDS_HUMAN_REVIEW`; a residual thermal tail is not itself a failure.
 Ambiguous visual evidence also remains for human review. An automatic result
-does not accept Scenario 3 or close G8-B.
+alone does not accept Scenario 3 or close G8-B; the separate user decision is
+recorded in Section 9.
 
 ## 6. Source seal, artifact, and publication contract
 
@@ -176,13 +177,14 @@ not require an Audit Bundle.
 | One final-SHA Gallery release smoke | PASS — 60 frames, RTX 5090 / DX12, 5.818 s |
 | One Fire candidate | COMPLETE — 20.788 s, no rerun |
 | Automatic verdict / Run ID / packet / receipt | `PASS`; identities below |
-| User acceptance | PENDING |
+| User acceptance | USER ACCEPTED — 2026-08-18 |
 
 ## 8. Sealed candidate result
 
 The single candidate run is
 `g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`. Its automatic verdict is
-`PASS`; this is not Scenario 3 user acceptance and does not close G8-B.
+`PASS`. The automatic verdict remains distinct from the later user acceptance,
+and accepting Scenario 3 does not close G8-B.
 
 - genuine Wood and Oil combustion: first observed tick `1`;
 - Smoke: first tick `1`, sampled peak `12,070` cells at tick `7,864`, final `0`;
@@ -213,5 +215,38 @@ Independent read-only verification found no inventory, digest, source/binary,
 telemetry recomputation, PNG/crop/contact-sheet, Review Packet, Audit Bundle, or
 receipt-last mismatch. The Run contains 54 files / 81,996,443 bytes; including
 the sibling bundle and sidecar, delivery size is 86,967,938 bytes. Pressure
-Burst, Heavy Mixed World, and G8-C remain stopped. The unresolved decision is
-human review and acceptance of the Fire / Heat scenes.
+Burst is next; Heavy Mixed World and G8-C remain stopped.
+
+## 9. User acceptance closure
+
+On 2026-08-18 the user accepted Scenario 3 Fire / Heat. This is a docs-only
+decision record over the immutable tested source, candidate, and artifact
+identities above; no Fire source, production physics, candidate, Review Packet,
+Audit Bundle, Receipt, or generated artifact was changed or rerun.
+
+The accepted observations are:
+
+- genuine Wood/Oil combustion was observed;
+- Smoke was generated and later decayed to zero;
+- Ice/Water/Steam phase work was observed;
+- finite fuel consumption was observed;
+- Reaction first reached zero at tick `11,448` and was confirmed zero at tick
+  `11,464`;
+- the post-Reaction window completed at tick `11,644` with Reaction restart
+  count `0`;
+- the Thermal tail remained with a slight downward trend;
+- invalid Material / non-finite field occurrences remained `0 / 0`;
+- exact reset equivalence was `true`;
+- production physics change required: **NO**;
+- candidate rerun required: **NO**.
+
+The immutable acceptance provenance is tested source
+`1635fdb9f562192123c92846e137b125c684ede9`, Run ID
+`g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`, Review Packet SHA-256
+`2a8e99d14bf0647b71e7ef32e3840655117e93b9f20ad1360af97d62a69eb940`,
+Audit Bundle SHA-256
+`1c1df01dfa9004b9273bc45e4b01d3c784d5c377f98a9417bc0b7594c6a83706`,
+and Receipt SHA-256
+`ed17e75f7515d155f8b6e5a41a0aeb751b2876ec573658a6e49eb6dd72108aff`.
+G8-B remains **NOT CLOSED** because Pressure Burst and Heavy Mixed World are
+not yet user accepted; G8-C remains a separate pending gate.

@@ -16,7 +16,7 @@ Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder
 
 G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`의 official capture와 독립 검증을 완료한 verified evidence candidate다. 같은 SHA의 user visual validation은 아직 pending이며, 기존 v4 timing CSV는 source/binary 실행 연결과 raw census가 없는 historical data로만 보존한다.
 
-`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했고, 그 immutable Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic verdict **PASS**와 Harness review output **APPROVED**를 기록했다. Scenario 2 Water Flow는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`의 remediation candidate에서 automatic **NEEDS_HUMAN_REVIEW**를 유지한 채 human **ACCEPTED WITH KNOWN FOLLOW-UP**로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. Scenario 3 Fire / Heat는 source `1635fdb9f562192123c92846e137b125c684ede9`의 run `g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`에서 automatic **PASS**와 독립 재계산 불일치 0을 기록했지만, 사용자 acceptance는 아직 pending이다. **G8-B 전체는 USER ACCEPTANCE PENDING / NOT CLOSED**이며 Pressure Burst, Heavy Mixed World와 G8-C official matrix는 범위 밖이다.
+`integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했고, 그 immutable Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic verdict **PASS**와 Harness review output **APPROVED**를 기록했다. Scenario 2 Water Flow는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`의 remediation candidate에서 automatic **NEEDS_HUMAN_REVIEW**를 유지한 채 human **ACCEPTED WITH KNOWN FOLLOW-UP**로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. Scenario 3 Fire / Heat는 tested source `1635fdb9f562192123c92846e137b125c684ede9`의 run `g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`에서 automatic **PASS**와 독립 재계산 불일치 0을 기록했고 **USER ACCEPTED**로 승인되었다. Fire source/production physics/candidate/artifact는 변경하거나 재실행하지 않았다. **G8-B 전체는 NOT CLOSED**이며 Scenario 4 Pressure Burst가 next, Scenario 5 Heavy Mixed World가 pending이고 G8-C official matrix는 별도 pending gate다.
 
 ## 현재 공식 개발 경로
 
@@ -44,7 +44,7 @@ run_g8_benchmark_gallery.bat
 
 Gallery slot `1`~`5`는 Sand Fall, Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World의 official G8-B fixture다. Slot `6`은 official matrix workload가 아니라 기존 G7 Active/Sleep geometry와 edit-wake 의미를 보존하는 회귀 fixture다. Gallery는 paused 상태로 시작하며 `1-6` scenario 선택, `SPACE` play/pause, `N` one tick, `F` x1/x4/x16, `R` pristine reset, `ESC` quit을 제공한다.
 
-Scenario 1 Sand Fall의 승인 계약은 완전 정착과 모든 chunk의 sleep 수렴을 성공으로 보는 것이다. 계속 움직이는 화면을 만들기 위해 source/geometry/sleep behavior를 retune하지 않는다. Scenario 2 Water Flow는 외벽 remediation 뒤 basin 밖 Water `0 / 0`, conservation/movement/destination/reset을 기록했고 automatic `NEEDS_HUMAN_REVIEW`를 바꾸지 않은 채 알려진 local-liquid 후속 과제와 함께 사용자 승인되었다. Scenario 3 Fire / Heat candidate는 genuine combustion, Smoke, phase work, finite fuel consumption, reaction termination, Thermal tail, field integrity, exact reset을 기록해 automatic `PASS`를 얻었으며 사용자 확인을 기다린다. Scenario 4~5는 미승인이며 G8-B는 닫히지 않았다.
+Scenario 1 Sand Fall의 승인 계약은 완전 정착과 모든 chunk의 sleep 수렴을 성공으로 보는 것이다. 계속 움직이는 화면을 만들기 위해 source/geometry/sleep behavior를 retune하지 않는다. Scenario 2 Water Flow는 외벽 remediation 뒤 basin 밖 Water `0 / 0`, conservation/movement/destination/reset을 기록했고 automatic `NEEDS_HUMAN_REVIEW`를 바꾸지 않은 채 알려진 local-liquid 후속 과제와 함께 사용자 승인되었다. Scenario 3 Fire / Heat는 genuine combustion, Smoke 생성·소멸, Ice/Water/Steam phase work, finite fuel consumption, Reaction 종료, 완만히 감소하는 Thermal tail, field integrity, exact reset을 확인해 automatic `PASS`와 별도로 사용자 승인되었다. Scenario 4 Pressure Burst가 next이며 Scenario 5는 pending이고 G8-B는 닫히지 않았다.
 
 같은 fixture를 headless harness에서 선택할 수 있다.
 
@@ -56,7 +56,7 @@ Windows Gallery의 렌더링, HUD, wall-clock TPS, bounded diagnostic census/rea
 
 ## Scenario Experiment Harness
 
-승인된 Sand Fall의 낙하 → 정착 → all-sleep → post-sleep 안정 → exact reset lifecycle, 승인된 Water Flow의 movement → cross-chunk → destination → settle/reset lifecycle, 그리고 Fire / Heat의 finite fuel → combustion/Smoke/phase → reaction-zero → thermal-tail → reset lifecycle을 같은 one-command coordinator에서 scenario별 analyzer로 분리한다.
+승인된 Sand Fall의 낙하 → 정착 → all-sleep → post-sleep 안정 → exact reset lifecycle, 승인된 Water Flow의 movement → cross-chunk → destination → settle/reset lifecycle, 그리고 승인된 Fire / Heat의 finite fuel → combustion/Smoke/phase → reaction-zero → thermal-tail → reset lifecycle을 같은 one-command coordinator에서 scenario별 analyzer로 분리한다.
 
 ```bat
 run_experiment.bat sand-fall

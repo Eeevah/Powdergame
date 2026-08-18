@@ -167,6 +167,7 @@
       "patterns": [
         "^run_.*\\.(bat|cmd|ps1)$",
         "^tools/dev\\.ps1$",
+        "^tools/test-dev-timer\\.ps1$",
         "^config/development-policy\\.json$",
         "^\\.github/workflows/development-policy\\.yml$"
       ],

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("audit", "validation-plan", "session-start", "session-span", "measure", "session-end")]
+    [ValidateSet("audit", "validation-plan", "session-start", "session-span", "session-phase-start", "session-phase-end", "measure", "session-end")]
     [string]$Command = "audit",
     [string]$BaseRef = "HEAD~1",
     [string]$Task = "",
@@ -27,6 +27,81 @@ if (-not (Test-Path -LiteralPath $PolicyPath -PathType Leaf)) {
 $Policy = Get-Content -LiteralPath $PolicyPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $GitExe = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 
+function Test-DevelopmentTimerTestMode {
+    [Environment]::GetEnvironmentVariable("POWDERGAME_DEV_TIMER_TEST_MODE", "Process") -eq "1"
+}
+
+function Get-DevelopmentUtcNow {
+    $testValue = [Environment]::GetEnvironmentVariable("POWDERGAME_DEV_TEST_UTC_NOW", "Process")
+    if (-not [string]::IsNullOrWhiteSpace($testValue)) {
+        if (-not (Test-DevelopmentTimerTestMode)) {
+            throw "POWDERGAME_DEV_TEST_UTC_NOW requires POWDERGAME_DEV_TIMER_TEST_MODE=1"
+        }
+        $parsed = [DateTimeOffset]::Parse(
+            $testValue,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind
+        )
+        return $parsed.ToUniversalTime()
+    }
+    [DateTimeOffset]::UtcNow
+}
+
+function Get-DevelopmentMonotonicTick {
+    $testValue = [Environment]::GetEnvironmentVariable("POWDERGAME_DEV_TEST_MONOTONIC_TICK", "Process")
+    if (-not [string]::IsNullOrWhiteSpace($testValue)) {
+        if (-not (Test-DevelopmentTimerTestMode)) {
+            throw "POWDERGAME_DEV_TEST_MONOTONIC_TICK requires POWDERGAME_DEV_TIMER_TEST_MODE=1"
+        }
+        return [int64]::Parse($testValue, [Globalization.CultureInfo]::InvariantCulture)
+    }
+    [Diagnostics.Stopwatch]::GetTimestamp()
+}
+
+function Get-DevelopmentStopwatchFrequency {
+    $testValue = [Environment]::GetEnvironmentVariable("POWDERGAME_DEV_TEST_STOPWATCH_FREQUENCY", "Process")
+    if (-not [string]::IsNullOrWhiteSpace($testValue)) {
+        if (-not (Test-DevelopmentTimerTestMode)) {
+            throw "POWDERGAME_DEV_TEST_STOPWATCH_FREQUENCY requires POWDERGAME_DEV_TIMER_TEST_MODE=1"
+        }
+        $frequency = [int64]::Parse($testValue, [Globalization.CultureInfo]::InvariantCulture)
+        if ($frequency -le 0) { throw "Test stopwatch frequency must be positive" }
+        return $frequency
+    }
+    [Diagnostics.Stopwatch]::Frequency
+}
+
+function Format-DevelopmentUtc {
+    param([Parameter(Mandatory)][DateTimeOffset]$Value)
+    $Value.ToUniversalTime().ToString(
+        "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'",
+        [Globalization.CultureInfo]::InvariantCulture
+    )
+}
+
+function ConvertTo-DevelopmentUtc {
+    param([Parameter(Mandatory)]$Value)
+    if ($Value -is [DateTimeOffset]) {
+        return ([DateTimeOffset]$Value).ToUniversalTime()
+    }
+    if ($Value -is [DateTime]) {
+        $dateTime = [DateTime]$Value
+        if ($dateTime.Kind -eq [DateTimeKind]::Unspecified) {
+            throw "UTC timestamp lost its offset: $Value"
+        }
+        return ([DateTimeOffset]$dateTime).ToUniversalTime()
+    }
+    $text = [string]$Value
+    if ($text -notmatch "(?:Z|[+-][0-9]{2}:[0-9]{2})$") {
+        throw "Timestamp lacks an RFC3339 offset: $text"
+    }
+    [DateTimeOffset]::Parse(
+        $text,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [Globalization.DateTimeStyles]::RoundtripKind
+    ).ToUniversalTime()
+}
+
 function Invoke-RepoGit {
     param(
         [Parameter(Mandatory)]
@@ -34,13 +109,44 @@ function Invoke-RepoGit {
         [switch]$AllowFailure
     )
     $safe = $RepoRoot.Replace("\", "/")
-    $lines = @(& $GitExe -c "safe.directory=$safe" @GitArgs 2>&1)
-    $rc = $LASTEXITCODE
-    $text = ($lines -join [Environment]::NewLine).TrimEnd()
-    if ($rc -ne 0 -and -not $AllowFailure) {
-        throw "git $($GitArgs -join ' ') failed ($rc)`n$text"
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $GitExe
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @("-c", "safe.directory=$safe") + $GitArgs) {
+        [void]$startInfo.ArgumentList.Add($argument)
     }
-    [pscustomobject]@{ ExitCode = $rc; Text = $text }
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { throw "Unable to start git process" }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $text = $stdoutTask.GetAwaiter().GetResult().TrimEnd()
+        $errorText = $stderrTask.GetAwaiter().GetResult().TrimEnd()
+        $rc = $process.ExitCode
+    } finally {
+        $process.Dispose()
+    }
+    $testError = [Environment]::GetEnvironmentVariable("POWDERGAME_DEV_TEST_GIT_STDERR", "Process")
+    if (-not [string]::IsNullOrWhiteSpace($testError)) {
+        if (-not (Test-DevelopmentTimerTestMode)) {
+            throw "POWDERGAME_DEV_TEST_GIT_STDERR requires POWDERGAME_DEV_TIMER_TEST_MODE=1"
+        }
+        $errorText = @($errorText, $testError) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Join-String -Separator ([Environment]::NewLine)
+    }
+    if ($rc -ne 0 -and -not $AllowFailure) {
+        $diagnostic = @($errorText, $text) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Join-String -Separator ([Environment]::NewLine)
+        throw "git $($GitArgs -join ' ') failed ($rc)`n$diagnostic"
+    }
+    [pscustomobject]@{ ExitCode = $rc; Text = $text; ErrorText = $errorText }
 }
 
 function Get-RepoGitText {
@@ -66,7 +172,7 @@ function Get-WorktreeCount {
 function Get-DevelopmentSnapshot {
     $status = Get-RepoGitText -GitArgs @("status", "--porcelain", "--untracked-files=all")
     [ordered]@{
-        timestamp_utc = [DateTime]::UtcNow.ToString("o")
+        timestamp_utc = Format-DevelopmentUtc (Get-DevelopmentUtcNow)
         repo_root = $RepoRoot
         branch = Get-RepoGitText -GitArgs @("branch", "--show-current")
         source_sha = Get-RepoGitText -GitArgs @("rev-parse", "HEAD")
@@ -78,7 +184,15 @@ function Get-DevelopmentSnapshot {
 }
 
 function Get-SessionsRoot {
-    $path = Join-Path ([string]$Policy.artifacts.root) ([string]$Policy.artifacts.session_subdir)
+    $override = [Environment]::GetEnvironmentVariable("POWDERGAME_DEV_TEST_SESSIONS_ROOT", "Process")
+    if (-not [string]::IsNullOrWhiteSpace($override)) {
+        if (-not (Test-DevelopmentTimerTestMode)) {
+            throw "POWDERGAME_DEV_TEST_SESSIONS_ROOT requires POWDERGAME_DEV_TIMER_TEST_MODE=1"
+        }
+        $path = [IO.Path]::GetFullPath($override)
+    } else {
+        $path = Join-Path ([string]$Policy.artifacts.root) ([string]$Policy.artifacts.session_subdir)
+    }
     New-Item -ItemType Directory -Path $path -Force | Out-Null
     $path
 }
@@ -101,11 +215,11 @@ function Get-ChangedPaths {
     $paths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $verified = Invoke-RepoGit -GitArgs @("rev-parse", "--verify", "$FromRef^{commit}") -AllowFailure
     if ($verified.ExitCode -ne 0) {
-        throw "Invalid BaseRef: $FromRef"
+        throw "Invalid BaseRef: $FromRef`n$($verified.ErrorText)"
     }
     $result = Invoke-RepoGit -GitArgs @("diff", "--name-only", "--diff-filter=ACMRD", "$FromRef...HEAD") -AllowFailure
     if ($result.ExitCode -ne 0) {
-        throw "Unable to compare BaseRef $FromRef with HEAD"
+        throw "Unable to compare BaseRef $FromRef with HEAD`n$($result.ErrorText)"
     }
     foreach ($line in $result.Text -split "`r?`n") {
         if ($line) { [void]$paths.Add($line.Replace("\", "/")) }
@@ -219,7 +333,7 @@ function Get-ValidationPlan {
 
     [ordered]@{
         schema_version = 1
-        generated_utc = [DateTime]::UtcNow.ToString("o")
+        generated_utc = Format-DevelopmentUtc (Get-DevelopmentUtcNow)
         base_ref = $BaseRef
         source_sha = Get-RepoGitText -GitArgs @("rev-parse", "HEAD")
         changed_file_count = $files.Count
@@ -312,26 +426,166 @@ function Invoke-DevelopmentAudit {
     }
 }
 
+function Get-RequiredEventProperty {
+    param(
+        [Parameter(Mandatory)]$Event,
+        [Parameter(Mandatory)][string]$PropertyName,
+        [Parameter(Mandatory)][string]$Context
+    )
+    $property = $Event.PSObject.Properties[$PropertyName]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        throw "$Context is missing $PropertyName"
+    }
+    $property.Value
+}
+
+function Get-DevelopmentSessionEvents {
+    param([Parameter(Mandatory)][string]$Directory)
+    $path = Join-Path $Directory "SESSION.jsonl"
+    $events = [Collections.Generic.List[object]]::new()
+    $lineNumber = 0
+    foreach ($line in Get-Content -LiteralPath $path -Encoding UTF8) {
+        $lineNumber += 1
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try {
+            $events.Add(($line | ConvertFrom-Json -ErrorAction Stop))
+        } catch {
+            throw "MALFORMED_SESSION_EVENT: line $lineNumber is not valid JSON: $($_.Exception.Message)"
+        }
+    }
+    @($events)
+}
+
+function Measure-DevelopmentIntervalUnionTicks {
+    param([object[]]$Intervals)
+    $sorted = @($Intervals | Sort-Object start_tick, end_tick)
+    if ($sorted.Count -eq 0) { return [int64]0 }
+    [int64]$currentStart = $sorted[0].start_tick
+    [int64]$currentEnd = $sorted[0].end_tick
+    [int64]$total = 0
+    foreach ($interval in @($sorted | Select-Object -Skip 1)) {
+        [int64]$nextStart = $interval.start_tick
+        [int64]$nextEnd = $interval.end_tick
+        if ($nextStart -le $currentEnd) {
+            if ($nextEnd -gt $currentEnd) { $currentEnd = $nextEnd }
+        } else {
+            $total += $currentEnd - $currentStart
+            $currentStart = $nextStart
+            $currentEnd = $nextEnd
+        }
+    }
+    $total + ($currentEnd - $currentStart)
+}
+
+function Get-DevelopmentPhaseTimingState {
+    param(
+        [Parameter(Mandatory)][object[]]$Events,
+        [switch]$AllowOpen
+    )
+    $activeById = @{}
+    $activeNameToId = @{}
+    $intervals = [Collections.Generic.List[object]]::new()
+    foreach ($event in $Events) {
+        if ($event.event -eq "phase_start") {
+            $id = [string](Get-RequiredEventProperty $event "phase_id" "phase_start")
+            $name = [string](Get-RequiredEventProperty $event "name" "phase_start")
+            if ($activeById.ContainsKey($id) -or $activeNameToId.ContainsKey($name)) {
+                throw "DUPLICATE_PHASE: phase '$name' is already open"
+            }
+            $activeById[$id] = $event
+            $activeNameToId[$name] = $id
+        } elseif ($event.event -eq "phase_end") {
+            $id = [string](Get-RequiredEventProperty $event "phase_id" "phase_end")
+            $name = [string](Get-RequiredEventProperty $event "name" "phase_end")
+            if (-not $activeById.ContainsKey($id)) {
+                throw "PHASE_NOT_OPEN: phase '$name' has no matching start"
+            }
+            $started = $activeById[$id]
+            if ([string]$started.name -ne $name) {
+                throw "MALFORMED_PHASE: phase '$name' does not match its start"
+            }
+            [int64]$startTick = Get-RequiredEventProperty $started "stopwatch_start_tick" "phase_start '$name'"
+            [int64]$endTick = Get-RequiredEventProperty $event "stopwatch_end_tick" "phase_end '$name'"
+            [int64]$startFrequency = Get-RequiredEventProperty $started "stopwatch_frequency" "phase_start '$name'"
+            [int64]$endFrequency = Get-RequiredEventProperty $event "stopwatch_frequency" "phase_end '$name'"
+            if ($startFrequency -le 0 -or $startFrequency -ne $endFrequency -or $endTick -lt $startTick) {
+                throw "MALFORMED_PHASE: phase '$name' has invalid monotonic timing"
+            }
+            $intervals.Add([pscustomobject]@{
+                kind = "phase"
+                name = $name
+                start_tick = $startTick
+                end_tick = $endTick
+                duration_seconds = [double]($endTick - $startTick) / [double]$startFrequency
+            })
+            $activeById.Remove($id)
+            $activeNameToId.Remove($name)
+        }
+    }
+    if (-not $AllowOpen -and $activeById.Count -gt 0) {
+        $names = @($activeById.Values | ForEach-Object { [string]$_.name } | Sort-Object)
+        throw "OPEN_PHASE: session has unterminated phase(s): $($names -join ', ')"
+    }
+    [pscustomobject]@{
+        intervals = @($intervals)
+        open_phases = @($activeById.Values)
+    }
+}
+
+function Write-DevelopmentSessionError {
+    param(
+        [Parameter(Mandatory)][string]$Directory,
+        [Parameter(Mandatory)][string]$Code,
+        [Parameter(Mandatory)][string]$Message,
+        [Parameter(Mandatory)][DateTimeOffset]$EndUtc,
+        [Parameter(Mandatory)][int64]$EndTick
+    )
+    $value = [ordered]@{
+        status = "ERROR"
+        error = $Code
+        message = $Message
+        end_utc = Format-DevelopmentUtc $EndUtc
+        stopwatch_end_tick = $EndTick
+    }
+    $value | ConvertTo-Json -Depth 8 |
+        Set-Content -LiteralPath (Join-Path $Directory "TIMER_ERROR.json") -Encoding UTF8
+    Add-JsonLine -Path (Join-Path $Directory "SESSION.jsonl") -Value ([ordered]@{
+        event = "session_error"
+        error = $Code
+        message = $Message
+        end_utc = Format-DevelopmentUtc $EndUtc
+        stopwatch_end_tick = $EndTick
+    })
+}
+
 function Start-DevelopmentSession {
     if (-not $Task) { throw "session-start requires -Task" }
-    $started = [DateTime]::UtcNow
+    $started = Get-DevelopmentUtcNow
+    [int64]$startTick = Get-DevelopmentMonotonicTick
+    [int64]$frequency = Get-DevelopmentStopwatchFrequency
     $snapshot = Get-DevelopmentSnapshot
     $slug = [regex]::Replace($Task.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim("-")
     if (-not $slug) { $slug = "task" }
     if (-not $SessionId) {
-        $SessionId = "{0}-{1}-{2}" -f $started.ToString("yyyyMMddTHHmmssfffZ"), $slug, ([string]$snapshot.source_sha).Substring(0, 8)
+        $SessionId = "{0}-{1}-{2}" -f $started.ToString("yyyyMMddTHHmmssfff'Z'"), $slug, ([string]$snapshot.source_sha).Substring(0, 8)
     }
     if ($SessionId -notmatch "^[A-Za-z0-9][A-Za-z0-9._-]*$") { throw "Unsafe SessionId: $SessionId" }
     $directory = Join-Path (Get-SessionsRoot) $SessionId
     New-Item -ItemType Directory -Path $directory -ErrorAction Stop | Out-Null
-    "started_utc,ended_utc,elapsed_seconds,exit_code,category,argv_json" |
+    "started_utc,ended_utc,stopwatch_start_tick,stopwatch_end_tick,stopwatch_frequency,elapsed_seconds,exit_code,category,argv_json" |
         Set-Content -LiteralPath (Join-Path $directory "COMMAND_TIMINGS.csv") -Encoding UTF8
+    $timestamp = Format-DevelopmentUtc $started
     Add-JsonLine -Path (Join-Path $directory "SESSION.jsonl") -Value ([ordered]@{
         event = "session_start"
+        schema_version = 2
         session_id = $SessionId
         task = $Task
-        timing_confidence = "observed"
-        started_utc = $started.ToString("o")
+        timing_confidence = "utc-and-monotonic"
+        start_utc = $timestamp
+        started_utc = $timestamp
+        stopwatch_start_tick = $startTick
+        monotonic_start_tick = $startTick
+        stopwatch_frequency = $frequency
         snapshot = $snapshot
     })
     Write-Host "SESSION_ID=$SessionId"
@@ -347,8 +601,65 @@ function Add-DevelopmentSpan {
         event = "span"
         name = $Name
         duration_seconds = [Math]::Round($DurationSeconds, 6)
-        recorded_utc = [DateTime]::UtcNow.ToString("o")
+        recorded_utc = Format-DevelopmentUtc (Get-DevelopmentUtcNow)
+        timing_note = "declared legacy span; excluded from interval-union coverage"
     })
+}
+
+function Start-DevelopmentPhase {
+    if (-not $SessionId) { throw "session-phase-start requires -SessionId" }
+    if ([string]::IsNullOrWhiteSpace($Name)) { throw "session-phase-start requires -Name" }
+    if ($Name -match "[\r\n]") { throw "MALFORMED_PHASE: phase name contains a newline" }
+    $directory = Get-SessionDirectory -Id $SessionId
+    $events = @(Get-DevelopmentSessionEvents -Directory $directory)
+    $state = Get-DevelopmentPhaseTimingState -Events $events -AllowOpen
+    if (@($state.open_phases | Where-Object { [string]$_.name -eq $Name }).Count -gt 0) {
+        throw "DUPLICATE_PHASE: phase '$Name' is already open"
+    }
+    $started = Get-DevelopmentUtcNow
+    [int64]$tick = Get-DevelopmentMonotonicTick
+    [int64]$frequency = Get-DevelopmentStopwatchFrequency
+    $phaseId = [Guid]::NewGuid().ToString("N")
+    Add-JsonLine -Path (Join-Path $directory "SESSION.jsonl") -Value ([ordered]@{
+        event = "phase_start"
+        phase_id = $phaseId
+        name = $Name
+        start_utc = Format-DevelopmentUtc $started
+        stopwatch_start_tick = $tick
+        stopwatch_frequency = $frequency
+    })
+    Write-Host "PHASE_ID=$phaseId"
+    Write-Host "Phase started: $Name"
+}
+
+function Stop-DevelopmentPhase {
+    if (-not $SessionId) { throw "session-phase-end requires -SessionId" }
+    if ([string]::IsNullOrWhiteSpace($Name)) { throw "session-phase-end requires -Name" }
+    $directory = Get-SessionDirectory -Id $SessionId
+    $events = @(Get-DevelopmentSessionEvents -Directory $directory)
+    $state = Get-DevelopmentPhaseTimingState -Events $events -AllowOpen
+    $matches = @($state.open_phases | Where-Object { [string]$_.name -eq $Name })
+    if ($matches.Count -eq 0) { throw "PHASE_NOT_OPEN: phase '$Name' has no matching start" }
+    if ($matches.Count -gt 1) { throw "MALFORMED_PHASE: phase '$Name' has multiple starts" }
+    $started = $matches[0]
+    $ended = Get-DevelopmentUtcNow
+    [int64]$tick = Get-DevelopmentMonotonicTick
+    [int64]$frequency = Get-DevelopmentStopwatchFrequency
+    if ([int64]$started.stopwatch_frequency -ne $frequency) {
+        throw "MALFORMED_PHASE: stopwatch frequency changed during phase '$Name'"
+    }
+    if ($tick -lt [int64]$started.stopwatch_start_tick) {
+        throw "MALFORMED_PHASE: monotonic time moved backwards during phase '$Name'"
+    }
+    Add-JsonLine -Path (Join-Path $directory "SESSION.jsonl") -Value ([ordered]@{
+        event = "phase_end"
+        phase_id = [string]$started.phase_id
+        name = $Name
+        end_utc = Format-DevelopmentUtc $ended
+        stopwatch_end_tick = $tick
+        stopwatch_frequency = $frequency
+    })
+    Write-Host "Phase ended: $Name"
 }
 
 function Measure-DevelopmentCommand {
@@ -359,16 +670,24 @@ function Measure-DevelopmentCommand {
     if ($argv.Count -eq 0) { throw "measure requires a command after --" }
     $executable = $argv[0]
     $arguments = $(if ($argv.Count -gt 1) { @($argv[1..($argv.Count - 1)]) } else { @() })
-    $started = [DateTime]::UtcNow
-    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $started = Get-DevelopmentUtcNow
+    [int64]$startTick = Get-DevelopmentMonotonicTick
+    [int64]$frequency = Get-DevelopmentStopwatchFrequency
     & $executable @arguments
     $rc = $LASTEXITCODE
-    $watch.Stop()
-    $ended = [DateTime]::UtcNow
+    [int64]$endTick = Get-DevelopmentMonotonicTick
+    $ended = Get-DevelopmentUtcNow
+    $elapsed = [double]($endTick - $startTick) / [double]$frequency
+    if ($elapsed -lt 0) { throw "Command monotonic duration is negative" }
+    $startTimestamp = Format-DevelopmentUtc $started
+    $endTimestamp = Format-DevelopmentUtc $ended
     [pscustomobject]@{
-        started_utc = $started.ToString("o")
-        ended_utc = $ended.ToString("o")
-        elapsed_seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 6)
+        started_utc = $startTimestamp
+        ended_utc = $endTimestamp
+        stopwatch_start_tick = $startTick
+        stopwatch_end_tick = $endTick
+        stopwatch_frequency = $frequency
+        elapsed_seconds = [Math]::Round($elapsed, 6)
         exit_code = $rc
         category = $Category
         argv_json = ConvertTo-Json -InputObject (@($executable) + $arguments) -Compress
@@ -377,9 +696,14 @@ function Measure-DevelopmentCommand {
         event = "command"
         category = $Category
         argv = @($executable) + $arguments
-        started_utc = $started.ToString("o")
-        ended_utc = $ended.ToString("o")
-        duration_seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 6)
+        start_utc = $startTimestamp
+        end_utc = $endTimestamp
+        started_utc = $startTimestamp
+        ended_utc = $endTimestamp
+        stopwatch_start_tick = $startTick
+        stopwatch_end_tick = $endTick
+        stopwatch_frequency = $frequency
+        duration_seconds = [Math]::Round($elapsed, 6)
         exit_code = $rc
     })
     exit $rc
@@ -388,25 +712,92 @@ function Measure-DevelopmentCommand {
 function Stop-DevelopmentSession {
     if (-not $SessionId) { throw "session-end requires -SessionId" }
     $directory = Get-SessionDirectory -Id $SessionId
-    $events = @(Get-Content -LiteralPath (Join-Path $directory "SESSION.jsonl") -Encoding UTF8 |
-        ForEach-Object { $_ | ConvertFrom-Json })
-    $start = @($events | Where-Object { $_.event -eq "session_start" } | Select-Object -First 1)
-    if ($start.Count -eq 0) { throw "Missing session_start" }
-    $startUtc = [DateTime]::Parse([string]$start[0].started_utc).ToUniversalTime()
-    $endUtc = [DateTime]::UtcNow
+    if (Test-Path -LiteralPath (Join-Path $directory "SUMMARY.json")) {
+        throw "Session already has a published summary: $SessionId"
+    }
+    $events = @(Get-DevelopmentSessionEvents -Directory $directory)
+    $starts = @($events | Where-Object { $_.event -eq "session_start" })
+    if ($starts.Count -ne 1) { throw "Session must contain exactly one session_start" }
+    $start = $starts[0]
+    if ([int](Get-RequiredEventProperty $start "schema_version" "session_start") -lt 2) {
+        throw "UNSUPPORTED_LEGACY_TIMER: session_start lacks the UTC and monotonic v2 contract"
+    }
+    $startUtc = ConvertTo-DevelopmentUtc (Get-RequiredEventProperty $start "start_utc" "session_start")
+    [int64]$startTick = Get-RequiredEventProperty $start "stopwatch_start_tick" "session_start"
+    [int64]$frequency = Get-RequiredEventProperty $start "stopwatch_frequency" "session_start"
+    $endUtc = Get-DevelopmentUtcNow
+    [int64]$endTick = Get-DevelopmentMonotonicTick
+    [int64]$endFrequency = Get-DevelopmentStopwatchFrequency
+    if ($frequency -le 0 -or $endFrequency -ne $frequency -or $endTick -lt $startTick) {
+        $message = "Session monotonic clock metadata is invalid or changed"
+        Write-DevelopmentSessionError $directory "TIMER_INCONSISTENCY" $message $endUtc $endTick
+        throw "TIMER_INCONSISTENCY: $message"
+    }
+    $wallUtc = ($endUtc - $startUtc).TotalSeconds
+    $wallMonotonic = [double]($endTick - $startTick) / [double]$frequency
+    $wallDifference = [Math]::Abs($wallUtc - $wallMonotonic)
+    if ($wallUtc -lt 0 -or $wallDifference -gt 5.0) {
+        $message = "UTC wall $([Math]::Round($wallUtc, 6)) s and monotonic wall $([Math]::Round($wallMonotonic, 6)) s differ by $([Math]::Round($wallDifference, 6)) s"
+        Write-DevelopmentSessionError $directory "TIMER_INCONSISTENCY" $message $endUtc $endTick
+        throw "TIMER_INCONSISTENCY: $message"
+    }
+
+    try {
+        $phaseState = Get-DevelopmentPhaseTimingState -Events $events
+    } catch {
+        Write-DevelopmentSessionError $directory "SESSION_PHASE_ERROR" $_.Exception.Message $endUtc $endTick
+        throw
+    }
+    $phaseIntervals = @($phaseState.intervals)
     $commands = @($events | Where-Object { $_.event -eq "command" })
+    $commandIntervals = [Collections.Generic.List[object]]::new()
+    foreach ($command in $commands) {
+        [int64]$commandStart = Get-RequiredEventProperty $command "stopwatch_start_tick" "command"
+        [int64]$commandEnd = Get-RequiredEventProperty $command "stopwatch_end_tick" "command"
+        [int64]$commandFrequency = Get-RequiredEventProperty $command "stopwatch_frequency" "command"
+        if ($commandFrequency -ne $frequency -or $commandStart -lt $startTick -or $commandEnd -lt $commandStart -or $commandEnd -gt $endTick) {
+            throw "MALFORMED_COMMAND_TIMING: command interval is outside the session monotonic bounds"
+        }
+        $commandIntervals.Add([pscustomobject]@{
+            kind = "command"
+            name = [string]$command.category
+            start_tick = $commandStart
+            end_tick = $commandEnd
+        })
+    }
+    foreach ($phase in $phaseIntervals) {
+        if ($phase.start_tick -lt $startTick -or $phase.end_tick -gt $endTick) {
+            throw "MALFORMED_PHASE: phase '$($phase.name)' is outside the session monotonic bounds"
+        }
+    }
+
+    [int64]$commandUnionTicks = Measure-DevelopmentIntervalUnionTicks -Intervals @($commandIntervals)
+    [int64]$phaseUnionTicks = Measure-DevelopmentIntervalUnionTicks -Intervals $phaseIntervals
+    [int64]$classifiedUnionTicks = Measure-DevelopmentIntervalUnionTicks -Intervals (@($commandIntervals) + @($phaseIntervals))
+    $measuredCommandSeconds = [double]$commandUnionTicks / [double]$frequency
+    $measuredPhaseSeconds = [double]$phaseUnionTicks / [double]$frequency
+    $classifiedSeconds = [double]$classifiedUnionTicks / [double]$frequency
+    $unclassifiedSeconds = [Math]::Max(0.0, $wallMonotonic - $classifiedSeconds)
+    $commandRatio = $(if ($wallMonotonic -gt 0) { $measuredCommandSeconds / $wallMonotonic } else { 0.0 })
+    $phaseRatio = $(if ($wallMonotonic -gt 0) { $measuredPhaseSeconds / $wallMonotonic } else { 0.0 })
+
     $spans = @($events | Where-Object { $_.event -eq "span" })
-    $commandSum = ($commands | Measure-Object duration_seconds -Sum).Sum
-    $spanSum = ($spans | Measure-Object duration_seconds -Sum).Sum
-    $commandSeconds = $(if ($null -eq $commandSum) { 0.0 } else { [double]$commandSum })
-    $spanSeconds = $(if ($null -eq $spanSum) { 0.0 } else { [double]$spanSum })
+    $legacySpanSeconds = $(if ($spans.Count -eq 0) {
+        0.0
+    } else {
+        [double](($spans | Measure-Object duration_seconds -Sum).Sum)
+    })
+    $timingWarnings = @()
+    if ($spans.Count -gt 0) {
+        $timingWarnings += "Legacy session-span declarations are reported separately and excluded from interval-union coverage."
+    }
     $fullCount = @($commands | Where-Object { ($_.argv -join " ") -match "cargo test --workspace" }).Count
     $candidateCount = @($commands | Where-Object {
         $text = $_.argv -join " "
         $text -match "run_experiment\.bat" -and $text -notmatch "--mode scratch"
     }).Count
     $finalSnapshot = Get-DevelopmentSnapshot
-    $initialSnapshot = $start[0].snapshot
+    $initialSnapshot = $start.snapshot
     $longest = @($commands |
         Sort-Object duration_seconds -Descending |
         Select-Object -First 5 |
@@ -417,25 +808,54 @@ function Stop-DevelopmentSession {
                 command = ($_.argv -join " ")
             }
         })
-    $phaseTotals = @{}
-    foreach ($span in $spans) {
-        $key = [string]$span.name
-        if (-not $phaseTotals.ContainsKey($key)) { $phaseTotals[$key] = 0.0 }
-        $phaseTotals[$key] += [double]$span.duration_seconds
+    $longestPhases = @($phaseIntervals |
+        Sort-Object @{ Expression = "duration_seconds"; Descending = $true }, @{ Expression = "name"; Descending = $false } |
+        Select-Object -First 5 |
+        ForEach-Object {
+            [ordered]@{
+                seconds = [Math]::Round([double]$_.duration_seconds, 6)
+                name = [string]$_.name
+            }
+        })
+    $phaseTotals = [ordered]@{}
+    foreach ($phase in @($phaseIntervals | Sort-Object name)) {
+        $key = [string]$phase.name
+        if (-not $phaseTotals.Contains($key)) { $phaseTotals[$key] = 0.0 }
+        $phaseTotals[$key] += [double]$phase.duration_seconds
     }
+    $startTimestamp = Format-DevelopmentUtc $startUtc
+    $endTimestamp = Format-DevelopmentUtc $endUtc
     $summary = [ordered]@{
-        schema_version = 1
+        schema_version = 2
+        status = "PASS"
         session_id = $SessionId
-        task = [string]$start[0].task
-        started_utc = $startUtc.ToString("o")
-        ended_utc = $endUtc.ToString("o")
-        wall_seconds = [Math]::Round(($endUtc - $startUtc).TotalSeconds, 3)
-        command_seconds = [Math]::Round($commandSeconds, 3)
-        recorded_phase_seconds = [Math]::Round($spanSeconds, 3)
+        task = [string]$start.task
+        start_utc = $startTimestamp
+        end_utc = $endTimestamp
+        started_utc = $startTimestamp
+        ended_utc = $endTimestamp
+        stopwatch_start_tick = $startTick
+        stopwatch_end_tick = $endTick
+        stopwatch_frequency = $frequency
+        wall_seconds_utc = [Math]::Round($wallUtc, 6)
+        wall_seconds_monotonic = [Math]::Round($wallMonotonic, 6)
+        wall_clock_difference_seconds = [Math]::Round($wallDifference, 6)
+        wall_seconds = [Math]::Round($wallMonotonic, 6)
+        measured_command_seconds = [Math]::Round($measuredCommandSeconds, 6)
+        measured_phase_seconds = [Math]::Round($measuredPhaseSeconds, 6)
+        measured_classified_union_seconds = [Math]::Round($classifiedSeconds, 6)
+        unclassified_seconds = [Math]::Round($unclassifiedSeconds, 6)
+        command_to_wall_ratio = [Math]::Round($commandRatio, 6)
+        phase_to_wall_ratio = [Math]::Round($phaseRatio, 6)
+        command_seconds = [Math]::Round($measuredCommandSeconds, 6)
+        recorded_phase_seconds = [Math]::Round($measuredPhaseSeconds, 6)
+        legacy_declared_span_seconds = [Math]::Round($legacySpanSeconds, 6)
         phase_totals = $phaseTotals
+        timing_warnings = $timingWarnings
         full_count = $fullCount
         candidate_count = $candidateCount
         longest_commands = $longest
+        longest_phases = $longestPhases
         initial_snapshot = $initialSnapshot
         final_snapshot = $finalSnapshot
         target_delta_bytes = [int64]$finalSnapshot.target_bytes - [int64]$initialSnapshot.target_bytes
@@ -446,10 +866,15 @@ function Stop-DevelopmentSession {
     $markdown = @(
         "# Development Session Summary",
         "",
+        "- Status: $($summary.status)",
         "- Session: ``$SessionId``",
         "- Task: $($summary.task)",
-        "- Wall: $($summary.wall_seconds) s",
-        "- Command time: $($summary.command_seconds) s",
+        "- Wall (UTC): $($summary.wall_seconds_utc) s",
+        "- Wall (monotonic): $($summary.wall_seconds_monotonic) s",
+        "- Clock difference: $($summary.wall_clock_difference_seconds) s",
+        "- Measured command union: $($summary.measured_command_seconds) s ($($summary.command_to_wall_ratio))",
+        "- Measured phase union: $($summary.measured_phase_seconds) s ($($summary.phase_to_wall_ratio))",
+        "- Unclassified: $($summary.unclassified_seconds) s",
         "- FULL count: $fullCount",
         "- Candidate count: $candidateCount",
         "- Target delta: $($summary.target_delta_bytes) bytes",
@@ -461,12 +886,23 @@ function Stop-DevelopmentSession {
     foreach ($item in $longest) {
         $markdown += "- $($item.seconds) s · exit $($item.exit_code) · ``$($item.command)``"
     }
+    $markdown += @("", "## Longest phases", "")
+    foreach ($item in $longestPhases) {
+        $markdown += "- $($item.seconds) s · $($item.name)"
+    }
     $markdown -join [Environment]::NewLine |
         Set-Content -LiteralPath (Join-Path $directory "SUMMARY.md") -Encoding UTF8
     Add-JsonLine -Path (Join-Path $directory "SESSION.jsonl") -Value ([ordered]@{
         event = "session_end"
-        ended_utc = $endUtc.ToString("o")
-        wall_seconds = $summary.wall_seconds
+        status = "PASS"
+        end_utc = $endTimestamp
+        ended_utc = $endTimestamp
+        stopwatch_end_tick = $endTick
+        monotonic_end_tick = $endTick
+        stopwatch_frequency = $frequency
+        wall_seconds_utc = $summary.wall_seconds_utc
+        wall_seconds_monotonic = $summary.wall_seconds_monotonic
+        wall_clock_difference_seconds = $summary.wall_clock_difference_seconds
         full_count = $fullCount
         candidate_count = $candidateCount
     })
@@ -491,6 +927,8 @@ switch ($Command) {
     }
     "session-start" { Start-DevelopmentSession }
     "session-span" { Add-DevelopmentSpan }
+    "session-phase-start" { Start-DevelopmentPhase }
+    "session-phase-end" { Stop-DevelopmentPhase }
     "measure" { Measure-DevelopmentCommand }
     "session-end" { Stop-DevelopmentSession }
 }

@@ -228,9 +228,11 @@ Gallery에 full cell snapshot이 없다면, bounded inspector sample을 별도 �
 
 - cursor position: 매 frame 업데이트 가능
 - Inspector value: 최신 완료 diagnostic sample 사용
-- sample이 아직 없으면 `Collecting…` 표시
-- reset/scenario switch 중 이전 world의 값을 새 world처럼 표시하지 않음
-- failed/pending reset에서는 Inspector를 `Unavailable`로 명시
+- 정상적인 sample pending은 visually silent하다. Compact tooltip, detailed panel, placeholder를 모두 그리지 않는다.
+- 새 hover Cell의 fresh sample이 도착하기 전까지 이전 Cell의 Material이나 field 값을 재사용하지 않는다.
+- `I` toggle 상태는 pending 동안 유지하지만, matching sample이 `Ready`가 된 frame부터 detailed panel을 다시 표시한다.
+- reset/scenario switch/world epoch 변경/staging recovery 동안 이전 world의 값을 숨기고, 새 world의 fresh sample 뒤에만 UI를 복원한다.
+- 실제 readback/map/channel 실패는 정상 pending과 분리한다. Compact hover에는 오류를 표시하지 않고, detail mode가 ON일 때만 작은 고정 `Inspector unavailable` 상태를 표시한다. 상세 오류는 structured log에 남긴다.
 
 ---
 
@@ -364,12 +366,13 @@ Inspector가 Discovery를 자동 완성하면 안 된다. 의미 있는 현상 �
 ### Implementation candidate
 
 - Status: **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**.
-- Tested source: `a2aac71219e145b84d6dd050865a81631da490bd`. 이 SHA 이후의 docs-only closure는 tested source provenance와 구분한다.
+- Tested source: `3c342d25099683df53e303d1920cebe1f6578b74`. 이 SHA 이후의 docs-only closure는 tested source provenance와 구분한다.
 - Rendering과 physical-pixel cursor picking은 동일한 CPU-authoritative `WorldViewport`의 letterbox origin/scale을 공유한다.
 - Hover sample은 Material, Temperature, Pressure, raw flags, Cell activity, Chunk state의 six 4-byte field를 하나의 24-byte batch로 수집한다. 동시 pending request는 하나로 제한하고 주기는 10 Hz 이하이며, mouse movement마다 full-world readback은 없다.
 - Request identity는 Cell/Chunk, simulation tick, diagnostic sequence, selection generation, world epoch를 묶는다. Reset, scenario switch, staging failure, shutdown은 pending/sample identity를 무효화해 이전 world의 stale sample이 현재처럼 보이지 않게 한다.
-- Validation: workspace fmt check, affected Windows all-target check, Windows binary tests `104` pass (`1` intentional ignore), Inspector targeted tests `15/15`, affected-package all-target clippy, strict development-policy audit, and exactly one 3-frame Gallery smoke passed. Workspace FULL과 scenario candidate는 실행하지 않았다.
-- Screenshot-backed manual UX에서 Sand, Water, Pressure의 compact/detail identity와 scenario switch/reset 후 fresh sample을 확인했다. 이는 구현 candidate 검증이며 최종 사용자 승인을 대신하지 않는다.
+- Presentation state는 `Hidden / Pending / Ready / Failed`다. `Hidden / Pending`은 완전 무표시, `Ready`는 matching sample만 표시, `Failed`는 detail ON일 때만 작은 고정 오류 panel을 표시한다.
+- Silent-pending validation: fmt check, Inspector/UI targeted tests `16/16`, existing viewport tests `7/7`, affected Windows all-target check/clippy, strict development-policy audit, and exactly one 3-frame Gallery startup smoke passed. Workspace FULL과 experiment candidate는 실행하지 않았다.
+- Startup smoke는 hover UX를 자동 승인하지 않는다. Silent pending의 최종 사용자 acceptance는 계속 pending이다.
 - Scenario 5 Heavy Mixed World는 **PENDING — do not start**이고 G8-B는 **NOT CLOSED**다.
 
 ### Functional

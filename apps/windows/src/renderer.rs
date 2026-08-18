@@ -32,10 +32,11 @@
 //!     front travelling along the strip reads before Smoke does.
 //!   - The combustion overlay is applied LAST and only to Wood/Oil.
 //!
-//! The world view preserves square cells: it letterboxes the world into the
-//! surface with `scale = min(surface_w / world_w, surface_h / world_h)` and
-//! maps pixels to cells with integer truncation, so cell edges stay crisp
-//! and the world aspect ratio is never distorted.
+//! The world view preserves square cells. [`WorldViewport`] is the one CPU
+//! authority for the palette-specific HUD reservation + letterbox rectangle;
+//! the shader consumes that rectangle and physical-pixel picking reuses it.
+//! Pixels map to cells with integer truncation, so cell edges stay crisp and
+//! the world aspect ratio is never distorted.
 
 use std::sync::Arc;
 
@@ -43,7 +44,7 @@ use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
 use powdergame_gpu::GpuError;
-use winit::window::Window;
+use winit::{dpi::PhysicalPosition, window::Window};
 
 /// Presentation-only color mode. Material IDs are never remapped.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,6 +65,124 @@ pub enum PresentationPalette {
     /// G8-B benchmark Gallery: neutral material identity plus generic,
     /// coordinate-independent temperature, pressure, and reaction tinting.
     Gallery = 5,
+}
+
+/// Physical-pixel rectangle occupied by the rendered world.
+///
+/// The calculations intentionally use `f32`, matching the values consumed by
+/// WGSL. `x`/`y` are inclusive; `right()`/`bottom()` are exclusive. The world
+/// cell origin is the top-left of this rectangle, matching fragment indexing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldViewport {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub scale: f32,
+    world_width: u32,
+    world_height: u32,
+}
+
+impl WorldViewport {
+    /// Calculates the exact palette-specific viewport used by the shader.
+    /// All dimensions are physical pixels; zero-sized surfaces/worlds have no
+    /// pickable viewport.
+    pub fn calculate(
+        surface_width: u32,
+        surface_height: u32,
+        world_width: u32,
+        world_height: u32,
+        palette: PresentationPalette,
+    ) -> Option<Self> {
+        if surface_width == 0 || surface_height == 0 || world_width == 0 || world_height == 0 {
+            return None;
+        }
+
+        let surface_width = surface_width as f32;
+        let surface_height = surface_height as f32;
+        let world_width_f = world_width as f32;
+        let world_height_f = world_height as f32;
+
+        // These reservations are the existing presentation contract. Keeping
+        // them here means shader drawing and CPU picking cannot drift apart.
+        let (available_width, available_height, available_top) = match palette {
+            PresentationPalette::Forest => (surface_width, surface_height, 0.0),
+            PresentationPalette::Lab => {
+                let hud_top = surface_height * 0.10;
+                let hud_bottom = surface_height * 0.13;
+                (
+                    surface_width,
+                    (surface_height - hud_top - hud_bottom).max(1.0),
+                    hud_top,
+                )
+            }
+            PresentationPalette::ThermalLab => (
+                (surface_width - 270.0 * 2.0).max(1.0),
+                (surface_height - 140.0).max(1.0),
+                65.0,
+            ),
+            PresentationPalette::Integrity
+            | PresentationPalette::Activity
+            | PresentationPalette::Gallery => (
+                (surface_width - 400.0 * 2.0).max(1.0),
+                (surface_height - 140.0).max(1.0),
+                60.0,
+            ),
+        };
+
+        let scale = (available_width / world_width_f).min(available_height / world_height_f);
+        let width = world_width_f * scale;
+        let height = world_height_f * scale;
+        let x = (surface_width - width) * 0.5;
+        let y = available_top + (available_height - height) * 0.5;
+
+        Some(Self {
+            x,
+            y,
+            width,
+            height,
+            scale,
+            world_width,
+            world_height,
+        })
+    }
+
+    pub fn right(self) -> f32 {
+        self.x + self.width
+    }
+
+    pub fn bottom(self) -> f32 {
+        self.y + self.height
+    }
+
+    /// Maps a physical cursor point to a top-left-origin world cell.
+    pub fn cell_at(self, cursor: PhysicalPosition<f64>) -> Option<(u32, u32)> {
+        if !cursor.x.is_finite() || !cursor.y.is_finite() {
+            return None;
+        }
+
+        let left = f64::from(self.x);
+        let top = f64::from(self.y);
+        let right = f64::from(self.right());
+        let bottom = f64::from(self.bottom());
+        if cursor.x < left || cursor.x >= right || cursor.y < top || cursor.y >= bottom {
+            return None;
+        }
+
+        let scale = f64::from(self.scale);
+        let cell_x = ((cursor.x - left) / scale).floor() as u32;
+        let cell_y = ((cursor.y - top) / scale).floor() as u32;
+        (cell_x < self.world_width && cell_y < self.world_height).then_some((cell_x, cell_y))
+    }
+}
+
+/// Pure physical-pixel picking entry point. `None` represents modes without a
+/// `WorldView` (for example the explicit runtime baseline).
+pub fn pick_world_cell(
+    viewport: Option<WorldViewport>,
+    cursor: PhysicalPosition<f64>,
+) -> Option<(u32, u32)> {
+    viewport?.cell_at(cursor)
 }
 
 /// Read-only view spec for presenting the material world (G2/G3/G4).
@@ -210,8 +329,8 @@ const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     a: 1.0,
 };
 
-/// Params uniform: world size + surface size + palette id (8 u32 = 32 B).
-const WORLD_VIEW_PARAMS_SIZE: u64 = 32;
+/// Params uniform: world/surface/layout metadata + CPU viewport (48 B).
+const WORLD_VIEW_PARAMS_SIZE: u64 = 48;
 /// Metrics uniform: 32 u32/f32 values = 128 B.
 const METRICS_UNIFORM_SIZE: u64 = 128;
 
@@ -225,6 +344,10 @@ struct Params {
     chunk_size: u32,
     chunks_x: u32,
     _pad2: u32,
+    viewport_x: f32,
+    viewport_y: f32,
+    viewport_scale: f32,
+    _pad3: f32,
 };
 
 struct Metrics {
@@ -613,41 +736,9 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let integrity = params.palette == PALETTE_INTEGRITY;
     let activity = params.palette == PALETTE_ACTIVITY;
     let gallery = params.palette == PALETTE_GALLERY;
-    var scale = min(fw / ww, fh / wh);
-    var off_x = (fw - ww * scale) * 0.5;
-    var off_y = (fh - wh * scale) * 0.5;
-    if (lab) {
-        let hud_top = fh * 0.10;
-        let hud_bot = fh * 0.13;
-        let avail_h = max(fh - hud_top - hud_bot, 1.0);
-        scale = min(fw / ww, avail_h / wh);
-        off_x = (fw - ww * scale) * 0.5;
-        off_y = hud_top + (avail_h - wh * scale) * 0.5;
-    } else if (thermal) {
-        let sidebar_w = 270.0;
-        let avail_w = max(fw - sidebar_w * 2.0, 1.0);
-        let avail_h = max(fh - 140.0, 1.0);
-        scale = min(avail_w / ww, avail_h / wh);
-        off_x = (fw - ww * scale) * 0.5;
-        off_y = 65.0 + (avail_h - wh * scale) * 0.5;
-    } else if (integrity || gallery) {
-        // G6: leave the left/right HUD cards (340 px) and the top banner /
-        // bottom controls bar clear of the world view.
-        let sidebar_w = 400.0;
-        let avail_w = max(fw - sidebar_w * 2.0, 1.0);
-        let avail_h = max(fh - 140.0, 1.0);
-        scale = min(avail_w / ww, avail_h / wh);
-        off_x = (fw - ww * scale) * 0.5;
-        off_y = 60.0 + (avail_h - wh * scale) * 0.5;
-    } else if (activity) {
-        // G7: same letterboxing as G6 — banner + cards clear of the world.
-        let sidebar_w = 400.0;
-        let avail_w = max(fw - sidebar_w * 2.0, 1.0);
-        let avail_h = max(fh - 140.0, 1.0);
-        scale = min(avail_w / ww, avail_h / wh);
-        off_x = (fw - ww * scale) * 0.5;
-        off_y = 60.0 + (avail_h - wh * scale) * 0.5;
-    }
+    let scale = params.viewport_scale;
+    let off_x = params.viewport_x;
+    let off_y = params.viewport_y;
     let px = frag.x;
     let py = frag.y;
     let in_viewport = px >= off_x && px < off_x + ww * scale
@@ -897,6 +988,24 @@ impl Renderer {
         }
     }
 
+    /// Returns the world rectangle currently sent to the shader, in physical
+    /// surface pixels. Runtime-baseline mode has no world viewport.
+    pub fn world_viewport(&self) -> Option<WorldViewport> {
+        let world_view = self.world_view.as_ref()?;
+        WorldViewport::calculate(
+            self.config.width,
+            self.config.height,
+            world_view.world_width,
+            world_view.world_height,
+            world_view.palette,
+        )
+    }
+
+    /// Picks a top-left-origin world cell from a physical cursor position.
+    pub fn world_cell_at(&self, cursor: PhysicalPosition<f64>) -> Option<(u32, u32)> {
+        pick_world_cell(self.world_viewport(), cursor)
+    }
+
     /// Updates the live observatory metrics uniform buffer for HUD display.
     #[allow(dead_code)]
     pub fn update_metrics(&self, metrics: &crate::observatory::MetricsUniform) {
@@ -1132,7 +1241,7 @@ struct WorldView {
     world_width: u32,
     world_height: u32,
     chunk_size: u32,
-    palette: u32,
+    palette: PresentationPalette,
 }
 
 /// Builds the read-only world-view pipeline + bind group.
@@ -1322,7 +1431,7 @@ fn build_world_view(
         world_width: spec.width,
         world_height: spec.height,
         chunk_size: spec.chunk_size,
-        palette: spec.palette as u32,
+        palette: spec.palette,
     };
     write_world_view_params(queue, &world_view, config);
     world_view
@@ -1334,12 +1443,20 @@ fn write_world_view_params(
     wv: &WorldView,
     config: &wgpu::SurfaceConfiguration,
 ) {
+    let viewport = WorldViewport::calculate(
+        config.width,
+        config.height,
+        wv.world_width,
+        wv.world_height,
+        wv.palette,
+    )
+    .expect("configured surface and WorldConfig dimensions are non-zero");
     let mut data = [0u8; WORLD_VIEW_PARAMS_SIZE as usize];
     data[0..4].copy_from_slice(&wv.world_width.to_ne_bytes());
     data[4..8].copy_from_slice(&wv.world_height.to_ne_bytes());
     data[8..12].copy_from_slice(&config.width.to_ne_bytes());
     data[12..16].copy_from_slice(&config.height.to_ne_bytes());
-    data[16..20].copy_from_slice(&wv.palette.to_ne_bytes());
+    data[16..20].copy_from_slice(&(wv.palette as u32).to_ne_bytes());
     data[20..24].copy_from_slice(&wv.chunk_size.to_ne_bytes());
     let chunks_x = if wv.chunk_size == 0 {
         0
@@ -1347,7 +1464,172 @@ fn write_world_view_params(
         wv.world_width.div_ceil(wv.chunk_size)
     };
     data[24..28].copy_from_slice(&chunks_x.to_ne_bytes());
+    data[32..36].copy_from_slice(&viewport.x.to_ne_bytes());
+    data[36..40].copy_from_slice(&viewport.y.to_ne_bytes());
+    data[40..44].copy_from_slice(&viewport.scale.to_ne_bytes());
     queue.write_buffer(&wv.params, 0, &data);
+}
+
+#[cfg(test)]
+mod viewport_tests {
+    use super::*;
+
+    fn cell_center(viewport: WorldViewport, x: u32, y: u32) -> PhysicalPosition<f64> {
+        PhysicalPosition::new(
+            f64::from(viewport.x) + (f64::from(x) + 0.5) * f64::from(viewport.scale),
+            f64::from(viewport.y) + (f64::from(y) + 0.5) * f64::from(viewport.scale),
+        )
+    }
+
+    #[test]
+    fn viewport_preserves_existing_128_256_and_320x192_layouts() {
+        let forest =
+            WorldViewport::calculate(1280, 720, 128, 128, PresentationPalette::Forest).unwrap();
+        assert_eq!((forest.x, forest.y), (280.0, 0.0));
+        assert_eq!(
+            (forest.width, forest.height, forest.scale),
+            (720.0, 720.0, 5.625)
+        );
+
+        let gallery =
+            WorldViewport::calculate(1600, 900, 256, 256, PresentationPalette::Gallery).unwrap();
+        assert_eq!((gallery.x, gallery.y), (420.0, 60.0));
+        assert_eq!(
+            (gallery.width, gallery.height, gallery.scale),
+            (760.0, 760.0, 2.96875)
+        );
+
+        let thermal =
+            WorldViewport::calculate(1600, 900, 320, 192, PresentationPalette::ThermalLab).unwrap();
+        assert_eq!((thermal.x, thermal.y), (270.0, 127.0));
+        assert_eq!(
+            (thermal.width, thermal.height, thermal.scale),
+            (1060.0, 636.0, 3.3125)
+        );
+    }
+
+    #[test]
+    fn wide_and_tall_letterboxes_reject_every_outside_side() {
+        let wide =
+            WorldViewport::calculate(1280, 720, 128, 128, PresentationPalette::Forest).unwrap();
+        assert_eq!(
+            wide.cell_at(PhysicalPosition::new(280.0, 0.0)),
+            Some((0, 0))
+        );
+        assert_eq!(wide.cell_at(PhysicalPosition::new(279.99, 360.0)), None);
+        assert_eq!(wide.cell_at(PhysicalPosition::new(1000.0, 360.0)), None);
+
+        let tall =
+            WorldViewport::calculate(720, 1280, 128, 128, PresentationPalette::Forest).unwrap();
+        assert_eq!((tall.x, tall.y), (0.0, 280.0));
+        assert_eq!(
+            tall.cell_at(PhysicalPosition::new(0.0, 280.0)),
+            Some((0, 0))
+        );
+        assert_eq!(tall.cell_at(PhysicalPosition::new(360.0, 279.99)), None);
+        assert_eq!(tall.cell_at(PhysicalPosition::new(360.0, 1000.0)), None);
+    }
+
+    #[test]
+    fn left_top_are_inclusive_and_right_bottom_are_exclusive() {
+        let viewport =
+            WorldViewport::calculate(1600, 900, 256, 256, PresentationPalette::Gallery).unwrap();
+        assert_eq!(
+            viewport.cell_at(PhysicalPosition::new(
+                f64::from(viewport.x),
+                f64::from(viewport.y)
+            )),
+            Some((0, 0))
+        );
+        assert_eq!(
+            viewport.cell_at(cell_center(viewport, 255, 255)),
+            Some((255, 255))
+        );
+        assert_eq!(
+            viewport.cell_at(PhysicalPosition::new(
+                f64::from(viewport.right()),
+                f64::from(viewport.y)
+            )),
+            None
+        );
+        assert_eq!(
+            viewport.cell_at(PhysicalPosition::new(
+                f64::from(viewport.x),
+                f64::from(viewport.bottom())
+            )),
+            None
+        );
+    }
+
+    #[test]
+    fn y_axis_increases_down_like_fragment_indexing() {
+        let viewport =
+            WorldViewport::calculate(1600, 900, 256, 256, PresentationPalette::Gallery).unwrap();
+        assert_eq!(
+            viewport.cell_at(cell_center(viewport, 31, 0)),
+            Some((31, 0))
+        );
+        assert_eq!(
+            viewport.cell_at(cell_center(viewport, 31, 127)),
+            Some((31, 127))
+        );
+        assert_eq!(
+            viewport.cell_at(cell_center(viewport, 31, 255)),
+            Some((31, 255))
+        );
+    }
+
+    #[test]
+    fn non_square_320x192_world_picks_first_middle_and_last_cells() {
+        let viewport =
+            WorldViewport::calculate(1600, 900, 320, 192, PresentationPalette::ThermalLab).unwrap();
+        for cell in [(0, 0), (159, 95), (319, 191)] {
+            assert_eq!(
+                viewport.cell_at(cell_center(viewport, cell.0, cell.1)),
+                Some(cell)
+            );
+        }
+        assert_eq!(
+            viewport.cell_at(PhysicalPosition::new(
+                f64::from(viewport.right()),
+                f64::from(viewport.bottom()) - 0.01,
+            )),
+            None
+        );
+    }
+
+    #[test]
+    fn resize_and_dpi_scaled_physical_surfaces_keep_the_requested_cell() {
+        for (surface_width, surface_height) in [(1600, 900), (1200, 1000), (2400, 1350)] {
+            let viewport = WorldViewport::calculate(
+                surface_width,
+                surface_height,
+                256,
+                256,
+                PresentationPalette::Gallery,
+            )
+            .unwrap();
+            let cursor = cell_center(viewport, 37, 201);
+            assert_eq!(viewport.cell_at(cursor), Some((37, 201)));
+            assert_eq!(viewport.cell_at(cursor), viewport.cell_at(cursor));
+        }
+    }
+
+    #[test]
+    fn invalid_or_absent_world_views_are_not_pickable() {
+        let cursor = PhysicalPosition::new(0.0, 0.0);
+        assert_eq!(pick_world_cell(None, cursor), None);
+        assert!(WorldViewport::calculate(0, 900, 256, 256, PresentationPalette::Gallery).is_none());
+        assert!(
+            WorldViewport::calculate(1600, 0, 256, 256, PresentationPalette::Gallery).is_none()
+        );
+        assert!(
+            WorldViewport::calculate(1600, 900, 0, 256, PresentationPalette::Gallery).is_none()
+        );
+        assert!(
+            WorldViewport::calculate(1600, 900, 256, 0, PresentationPalette::Gallery).is_none()
+        );
+    }
 }
 
 #[cfg(test)]

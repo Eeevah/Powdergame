@@ -7,9 +7,11 @@
 use powdergame_gpu::ActivityCensusReport;
 use powdergame_scenarios::{ScenarioId, GALLERY_SCENARIOS};
 
+use crate::inspector::{InspectorHudData, ScreenRect};
+
 pub const GALLERY_DIAGNOSTIC_INTERVAL_TICKS: u64 = 30;
 pub const GALLERY_CONTROLS: &str =
-    "1-6 Scenario | SPACE Play/Pause | N One Tick | R Reset | F x1/x4/x16 | ESC Quit";
+    "1-6 Scenario | SPACE Play/Pause | N One Tick | R Reset | F x1/x4/x16 | I Inspector details ON/OFF | ESC Quit";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GitState {
@@ -211,6 +213,9 @@ pub struct GalleryHudData {
     pub simulation_tick: Option<u64>,
     pub diagnostic_sample: Option<GalleryDiagnosticSample>,
     pub transition: GalleryTransition,
+    pub inspector: Option<InspectorHudData>,
+    pub inspector_cursor: Option<[f32; 2]>,
+    pub world_viewport: Option<ScreenRect>,
 }
 
 #[cfg(test)]
@@ -305,5 +310,21 @@ mod tests {
             parse_git_state("later-checkout-value"),
             GitState::Unavailable
         );
+    }
+
+    #[test]
+    fn gallery_controls_advertise_the_inspector_without_changing_existing_keys() {
+        for control in [
+            "1-6 Scenario",
+            "SPACE Play/Pause",
+            "N One Tick",
+            "R Reset",
+            "F x1/x4/x16",
+            "I Inspector details ON/OFF",
+            "ESC Quit",
+        ] {
+            assert!(GALLERY_CONTROLS.contains(control), "missing {control}");
+        }
+        assert!(GALLERY_CONTROLS.is_ascii());
     }
 }

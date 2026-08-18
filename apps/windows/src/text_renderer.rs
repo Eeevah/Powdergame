@@ -11,10 +11,108 @@ use fontdue::{Font, FontSettings};
 use powdergame_gpu::GpuError;
 
 use crate::gallery::{GalleryHudData, GalleryTransition, GALLERY_CONTROLS};
+use crate::inspector::{
+    activity_display, chunk_state_display, compact_sample_label, detail_panel_rect, field_display,
+    flags_display, freshness_display, material_display_name, phase_identity_display, tooltip_rect,
+    InspectorDisplayState, InspectorHudData, ScreenRect,
+};
 use crate::observatory::{
     ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
     ACTIVITY_PANEL_NAMES,
 };
+
+const INSPECTOR_TITLE: &str = "CELL INSPECTOR [I]";
+const INSPECTOR_HOVER_PROMPT: &str = "Hover a world Cell";
+const INSPECTOR_COLLECTING: &str = "Collecting...";
+const INSPECTOR_UNAVAILABLE: &str = "Inspector unavailable";
+
+fn ascii_only(text: &str) -> String {
+    text.chars()
+        .map(
+            |character| {
+                if character.is_ascii() {
+                    character
+                } else {
+                    '?'
+                }
+            },
+        )
+        .collect()
+}
+
+fn compact_inspector_text(data: &InspectorHudData) -> Option<String> {
+    let text = match data.display_state {
+        InspectorDisplayState::Hidden => return None,
+        InspectorDisplayState::Collecting => INSPECTOR_COLLECTING.to_string(),
+        InspectorDisplayState::Ready => data
+            .sample
+            .as_ref()
+            .map_or_else(|| INSPECTOR_COLLECTING.to_string(), compact_sample_label),
+        InspectorDisplayState::Unavailable => INSPECTOR_UNAVAILABLE.to_string(),
+    };
+    Some(ascii_only(&text))
+}
+
+fn inspector_detail_lines(data: &InspectorHudData) -> Vec<String> {
+    let mut lines = Vec::with_capacity(12);
+    match data.display_state {
+        InspectorDisplayState::Hidden => lines.push(INSPECTOR_HOVER_PROMPT.to_string()),
+        InspectorDisplayState::Collecting => {
+            if let Some(cell) = data.hovered_cell {
+                lines.push(format!("Cell: {}, {}", cell.x, cell.y));
+            }
+            lines.push(INSPECTOR_COLLECTING.to_string());
+        }
+        InspectorDisplayState::Unavailable => {
+            lines.push(INSPECTOR_UNAVAILABLE.to_string());
+            if let Some(message) = &data.error_message {
+                lines.push(message.clone());
+            }
+        }
+        InspectorDisplayState::Ready => {
+            let Some(sample) = data.sample.as_ref() else {
+                lines.push(INSPECTOR_COLLECTING.to_string());
+                return lines;
+            };
+            let material_name = material_display_name(sample.material_id);
+            lines.push(compact_sample_label(sample));
+            lines.push(format!("Cell: {}, {}", sample.cell.x, sample.cell.y));
+            lines.push(format!(
+                "Material: {} ({})",
+                material_name, sample.material_id
+            ));
+            lines.push(format!(
+                "Temperature: {}",
+                field_display(sample.temperature)
+            ));
+            lines.push(format!("Pressure: {}", field_display(sample.pressure)));
+            lines.push(format!(
+                "Activity: {}",
+                activity_display(sample.cell_activity)
+            ));
+            lines.push(format!(
+                "Chunk: {}, {} | {}",
+                sample.chunk.x,
+                sample.chunk.y,
+                chunk_state_display(sample.chunk_state)
+            ));
+            lines.push(format!(
+                "Flags: {}",
+                flags_display(sample.material_id, sample.flags)
+                    .unwrap_or_else(|| "None".to_string())
+            ));
+            if let Some(identity) = phase_identity_display(sample.material_id) {
+                lines.push(format!("Phase: {identity}"));
+            }
+            lines.push(format!(
+                "Sample: sim {} | diagnostic {}",
+                sample.simulation_tick, sample.diagnostic_sequence
+            ));
+            lines.push(format!("Freshness: {}", freshness_display(data)));
+        }
+    }
+    lines.into_iter().map(|line| ascii_only(&line)).collect()
+}
 
 /// Single vertex for the text / UI quad batcher.
 #[repr(C)]
@@ -357,6 +455,34 @@ impl UiBatch {
         }
         w
     }
+}
+
+fn fit_ascii_text(
+    batch: &UiBatch,
+    atlas: &FontAtlas,
+    size_px: u32,
+    text: &str,
+    max_width: f32,
+) -> String {
+    if !max_width.is_finite() || max_width <= 0.0 {
+        return String::new();
+    }
+    let mut fitted = ascii_only(text);
+    if batch.measure_text(atlas, size_px, &fitted) <= max_width {
+        return fitted;
+    }
+    const SUFFIX: &str = "...";
+    if batch.measure_text(atlas, size_px, SUFFIX) > max_width {
+        return String::new();
+    }
+    while !fitted.is_empty() {
+        fitted.pop();
+        let candidate = format!("{fitted}{SUFFIX}");
+        if batch.measure_text(atlas, size_px, &candidate) <= max_width {
+            return candidate;
+        }
+    }
+    SUFFIX.to_string()
 }
 
 /// Standalone screen-space vector text & UI renderer.
@@ -3207,6 +3333,131 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn draw_gallery_inspector(
+        &mut self,
+        surface_w: f32,
+        surface_h: f32,
+        content_top: f32,
+        data: &InspectorHudData,
+        cursor: Option<[f32; 2]>,
+        world: Option<ScreenRect>,
+        header: [f32; 4],
+        label: [f32; 4],
+        value: [f32; 4],
+        orange: [f32; 4],
+        card_border: [f32; 4],
+        white_uv: [f32; 2],
+    ) {
+        if data.details_visible {
+            if let Some(panel) = detail_panel_rect(surface_w, surface_h, content_top) {
+                let panel_bg = [0.035, 0.055, 0.085, 0.98];
+                self.batch.draw_rect(
+                    panel.x,
+                    panel.y,
+                    panel.width,
+                    panel.height,
+                    panel_bg,
+                    white_uv,
+                );
+                self.batch.draw_outline(
+                    panel.x,
+                    panel.y,
+                    panel.width,
+                    panel.height,
+                    1.0,
+                    card_border,
+                    white_uv,
+                );
+                self.batch.draw_text(
+                    &self.atlas,
+                    panel.x + 10.0,
+                    panel.y + 8.0,
+                    15,
+                    INSPECTOR_TITLE,
+                    header,
+                );
+
+                let mut line_y = panel.y + 34.0;
+                let line_bottom = panel.bottom() - 8.0;
+                for (index, line) in inspector_detail_lines(data).into_iter().enumerate() {
+                    if line_y + 15.0 > line_bottom {
+                        break;
+                    }
+                    let fitted =
+                        fit_ascii_text(&self.batch, &self.atlas, 12, &line, panel.width - 20.0);
+                    let line_color = if index == 0 {
+                        match data.display_state {
+                            InspectorDisplayState::Ready => value,
+                            InspectorDisplayState::Hidden => label,
+                            InspectorDisplayState::Collecting
+                            | InspectorDisplayState::Unavailable => orange,
+                        }
+                    } else {
+                        value
+                    };
+                    self.batch.draw_text(
+                        &self.atlas,
+                        panel.x + 10.0,
+                        line_y,
+                        12,
+                        &fitted,
+                        line_color,
+                    );
+                    line_y += 20.0;
+                }
+            }
+        }
+
+        let Some(text) = compact_inspector_text(data) else {
+            return;
+        };
+        let (Some(cursor), Some(world)) = (cursor, world) else {
+            return;
+        };
+        if world.width < 48.0 || world.height < 30.0 {
+            return;
+        }
+        let text_width = self.batch.measure_text(&self.atlas, 14, &text);
+        let tooltip_width = (text_width + 22.0).max(64.0).min(world.width);
+        let tooltip_height = 34.0f32.min(world.height);
+        let Some(rect) = tooltip_rect(cursor, [tooltip_width, tooltip_height], world) else {
+            return;
+        };
+        let tooltip_bg = [0.025, 0.04, 0.065, 0.96];
+        self.batch.draw_rect(
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+            tooltip_bg,
+            white_uv,
+        );
+        self.batch.draw_outline(
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+            1.0,
+            card_border,
+            white_uv,
+        );
+        let fitted = fit_ascii_text(&self.batch, &self.atlas, 14, &text, rect.width - 16.0);
+        let tooltip_color = match data.display_state {
+            InspectorDisplayState::Ready => value,
+            InspectorDisplayState::Hidden => label,
+            InspectorDisplayState::Collecting | InspectorDisplayState::Unavailable => orange,
+        };
+        self.batch.draw_text(
+            &self.atlas,
+            rect.x + 8.0,
+            rect.y + 8.0,
+            14,
+            &fitted,
+            tooltip_color,
+        );
+    }
+
     /// G8-B benchmark scenario Gallery HUD. All simulation counts come from
     /// an explicitly labeled, bounded out-of-band activity census; provenance
     /// and runtime state are kept visually separate from those samples.
@@ -3470,6 +3721,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             label,
         );
 
+        if let Some(inspector) = data.inspector.as_ref() {
+            self.draw_gallery_inspector(
+                sw,
+                sh,
+                y + 10.0,
+                inspector,
+                data.inspector_cursor,
+                data.world_viewport,
+                header,
+                label,
+                value,
+                orange,
+                card_border,
+                white_uv,
+            );
+        }
+
         self.batch
             .draw_text(&self.atlas, 24.0, sh - 32.0, 14, GALLERY_CONTROLS, label);
 
@@ -3522,6 +3790,115 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use powdergame_core::{with_fuel_progress, FLAG_COMBUSTING, FLAG_FLAME_EVENT, MATERIAL_WOOD};
+
+    fn inspector_hud(display_state: InspectorDisplayState) -> InspectorHudData {
+        InspectorHudData {
+            display_state,
+            details_visible: true,
+            hovered_cell: None,
+            sample: None,
+            error_message: None,
+            current_simulation_tick: 0,
+            sample_age_ticks: None,
+            sample_age_millis: None,
+            sample_tick_is_future: false,
+        }
+    }
+
+    #[test]
+    fn gallery_inspector_copy_is_ascii_and_covers_non_ready_states() {
+        for text in [
+            INSPECTOR_TITLE,
+            INSPECTOR_HOVER_PROMPT,
+            INSPECTOR_COLLECTING,
+            INSPECTOR_UNAVAILABLE,
+            GALLERY_CONTROLS,
+        ] {
+            assert!(text.is_ascii(), "non-ASCII Inspector copy: {text}");
+        }
+
+        let hidden = inspector_hud(InspectorDisplayState::Hidden);
+        assert_eq!(compact_inspector_text(&hidden), None);
+
+        let collecting = inspector_hud(InspectorDisplayState::Collecting);
+        assert_eq!(
+            compact_inspector_text(&collecting).as_deref(),
+            Some("Collecting...")
+        );
+        assert_eq!(
+            inspector_detail_lines(&collecting),
+            vec!["Collecting...".to_string()]
+        );
+
+        let mut unavailable = inspector_hud(InspectorDisplayState::Unavailable);
+        unavailable.error_message = Some("reset failed: 승패".to_string());
+        let lines = inspector_detail_lines(&unavailable);
+        assert!(lines.iter().all(|line| line.is_ascii()));
+        assert_eq!(lines[0], INSPECTOR_UNAVAILABLE);
+    }
+
+    #[test]
+    fn gallery_inspector_ready_detail_contains_every_v0_identity_and_freshness_field() {
+        let flags = with_fuel_progress(FLAG_COMBUSTING | FLAG_FLAME_EVENT, 438);
+        let sample = crate::inspector::CellInspectorSample::fixture(MATERIAL_WOOD, flags);
+        let ready = InspectorHudData {
+            display_state: InspectorDisplayState::Ready,
+            details_visible: true,
+            hovered_cell: Some(sample.cell),
+            sample: Some(sample),
+            error_message: None,
+            current_simulation_tick: 7420,
+            sample_age_ticks: Some(8),
+            sample_age_millis: Some(140),
+            sample_tick_is_future: false,
+        };
+        let mut compact_only = ready.clone();
+        compact_only.details_visible = false;
+        assert_eq!(
+            compact_inspector_text(&compact_only).as_deref(),
+            Some("Wood | Combusting")
+        );
+        let lines = inspector_detail_lines(&ready);
+        for expected in [
+            "Wood | Combusting",
+            "Cell: 143, 207",
+            "Material: Wood (9)",
+            "Temperature: 72.4",
+            "Pressure: 53.5",
+            "Activity: Matter | Thermal | Pressure",
+            "Chunk: 2, 3 | Runnable",
+            "Flags: Combusting | Flame event | Fuel 438 / 900",
+            "Sample: sim 7412 | diagnostic 928",
+            "Freshness: Latest diagnostic | 8 ticks old | 140 ms",
+        ] {
+            assert!(
+                lines.iter().any(|line| line == expected),
+                "missing {expected}"
+            );
+        }
+        assert!(lines.iter().all(|line| line.is_ascii()));
+    }
+
+    #[test]
+    fn gallery_inspector_layout_stays_inside_canonical_world_and_left_card() {
+        let world = ScreenRect {
+            x: 580.0,
+            y: 60.0,
+            width: 760.0,
+            height: 760.0,
+        };
+        let tooltip = tooltip_rect([1338.0, 818.0], [180.0, 34.0], world).unwrap();
+        assert!(tooltip.x >= world.x && tooltip.right() <= world.right());
+        assert!(tooltip.y >= world.y && tooltip.bottom() <= world.bottom());
+
+        let existing_rows_bottom = 520.0;
+        let detail = detail_panel_rect(1920.0, 1080.0, existing_rows_bottom).unwrap();
+        assert!(detail.y >= existing_rows_bottom);
+        assert!(detail.x >= 18.0);
+        assert!(detail.right() < 400.0);
+        assert!(detail.bottom() <= 1080.0 - 66.0);
+    }
 
     #[test]
     fn test_font_atlas_contains_all_required_hud_sizes() {

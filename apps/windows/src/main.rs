@@ -43,6 +43,7 @@
 
 mod experiment;
 mod gallery;
+mod inspector;
 mod observatory;
 mod renderer;
 mod text_renderer;
@@ -52,6 +53,7 @@ use std::time::{Duration, Instant};
 use std::{path::PathBuf, process};
 
 use winit::application::ApplicationHandler;
+use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
@@ -65,6 +67,7 @@ use experiment::{
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
 };
+use inspector::{CellCoordinate, CellInspectorCollector, InspectorHudData, ScreenRect};
 use observatory::ObservatoryCollector;
 use powdergame_core::{
     WorldConfig, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL, MATERIAL_SAND, MATERIAL_SMOKE,
@@ -289,6 +292,9 @@ impl DemoState {
 /// not know about the window; the renderer only presents frames.
 struct App {
     window: Option<Arc<Window>>,
+    // Declared before Simulation so a pending map is cancelled/unmapped before
+    // the GPU context is dropped during App teardown.
+    cell_inspector: Option<CellInspectorCollector>,
     simulation: Option<Simulation>,
     renderer: Option<Renderer>,
     observatory_collector: Option<ObservatoryCollector>,
@@ -298,6 +304,7 @@ struct App {
     demo: Option<DemoState>,
     gallery_provenance: Option<RuntimeProvenance>,
     experiment: Option<ExperimentWorkerConfig>,
+    cursor_position: Option<PhysicalPosition<f64>>,
     fatal_error: Option<String>,
 }
 
@@ -309,6 +316,7 @@ impl App {
     ) -> Self {
         Self {
             window: None,
+            cell_inspector: None,
             simulation: None,
             renderer: None,
             observatory_collector: None,
@@ -318,6 +326,7 @@ impl App {
             demo: None,
             gallery_provenance: None,
             experiment,
+            cursor_position: None,
             fatal_error: None,
         }
     }
@@ -406,6 +415,14 @@ impl App {
                 self.demo_mode == DemoMode::ParallelIntegrity,
                 self.demo_mode == DemoMode::Activity,
             ))
+        } else {
+            None
+        };
+        // The hidden experiment worker also routes through Gallery mode, so
+        // the interactive Inspector must be gated on the worker being absent.
+        let cell_inspector = if cell_inspector_is_enabled(self.demo_mode, self.experiment.is_some())
+        {
+            Some(CellInspectorCollector::new(&simulation))
         } else {
             None
         };
@@ -575,6 +592,7 @@ impl App {
                 );
             }
             self.window = Some(window);
+            self.cell_inspector = cell_inspector;
             self.simulation = Some(simulation);
             self.renderer = Some(renderer);
             self.observatory_collector = observatory_collector;
@@ -601,6 +619,10 @@ impl App {
                 let scenario = demo.gallery.as_ref().expect("Gallery state").scenario();
                 print_gallery_runtime_context(&simulation, &demo, &provenance, scenario);
                 self.gallery_provenance = Some(provenance);
+                println!(
+                    "[powdergame][inspector] compact hover ON | details OFF | {}-byte readback | max 10 Hz",
+                    inspector::INSPECTOR_READBACK_BYTES
+                );
             }
             self.demo = Some(demo);
             println!(
@@ -616,6 +638,7 @@ impl App {
         }
 
         self.window = Some(window);
+        self.cell_inspector = cell_inspector;
         self.simulation = Some(simulation);
         self.renderer = Some(renderer);
         self.observatory_collector = observatory_collector;
@@ -689,6 +712,9 @@ impl App {
                 );
             }
             demo.queue_pristine_reset();
+            if let Some(inspector) = &mut self.cell_inspector {
+                inspector.begin_world_change();
+            }
             if let Some(collector) = &mut self.observatory_collector {
                 collector.reset();
             }
@@ -713,6 +739,9 @@ impl App {
         };
         let committed = gallery.scenario();
         demo.queue_pristine_reset();
+        if let Some(inspector) = &mut self.cell_inspector {
+            inspector.begin_world_change();
+        }
         println!(
             "[powdergame][gallery] requested {}/6 {} ({}) — PAUSED; committed attribution remains {}/6 {} until shared reset succeeds",
             requested.number(),
@@ -748,6 +777,47 @@ impl App {
             sim.set_sleep_threshold(next);
             println!("[powdergame] sleep settling threshold: {} ticks", next);
             window.request_redraw();
+        }
+    }
+
+    fn toggle_cell_inspector_details(&mut self, window: &Window) {
+        if !cell_inspector_is_enabled(self.demo_mode, self.experiment.is_some()) {
+            return;
+        }
+        if let Some(inspector) = &mut self.cell_inspector {
+            let visible = inspector.toggle_details();
+            println!(
+                "[powdergame][inspector] details {}",
+                if visible { "ON" } else { "OFF" }
+            );
+            window.request_redraw();
+        }
+    }
+
+    fn refresh_cell_inspector(&mut self, now: Instant) {
+        if !cell_inspector_is_enabled(self.demo_mode, self.experiment.is_some()) {
+            return;
+        }
+        let hovered = self
+            .cursor_position
+            .and_then(|cursor| self.renderer.as_ref()?.world_cell_at(cursor))
+            .map(|(x, y)| CellCoordinate { x, y });
+        let Some(inspector) = &mut self.cell_inspector else {
+            return;
+        };
+        inspector.set_hover(hovered);
+        let Some(simulation) = &self.simulation else {
+            inspector.mark_unavailable("Inspector unavailable: simulation missing");
+            return;
+        };
+        if let Err(error) = inspector.update(simulation, simulation.tick_count, now) {
+            eprintln!("[powdergame][inspector] readback error: {error}");
+        }
+    }
+
+    fn shutdown_cell_inspector(&mut self) {
+        if let Some(inspector) = &mut self.cell_inspector {
+            inspector.shutdown();
         }
     }
 }
@@ -1625,6 +1695,7 @@ fn step_demo(
     simulation: &mut Simulation,
     demo: &mut DemoState,
     collector: &mut Option<ObservatoryCollector>,
+    cell_inspector: &mut Option<CellInspectorCollector>,
     mode: DemoMode,
 ) {
     if demo.reset_pending {
@@ -1650,6 +1721,9 @@ fn step_demo(
                 if let Some(col) = collector {
                     col.reset();
                 }
+                if let Some(inspector) = cell_inspector {
+                    inspector.mark_ready();
+                }
             }
             Err(error) => {
                 if let Some(gallery) = &mut demo.gallery {
@@ -1661,6 +1735,11 @@ fn step_demo(
                     );
                 } else {
                     eprintln!("[powdergame] demo reset error: {error}");
+                }
+                if let Some(inspector) = cell_inspector {
+                    inspector.mark_unavailable(format!(
+                        "Inspector unavailable: scenario staging failed: {error}"
+                    ));
                 }
             }
         }
@@ -1840,6 +1919,9 @@ fn gallery_hud_data(
     simulation: &Simulation,
     demo: &DemoState,
     provenance: &RuntimeProvenance,
+    inspector: Option<InspectorHudData>,
+    inspector_cursor: Option<[f32; 2]>,
+    world_viewport: Option<ScreenRect>,
 ) -> Option<GalleryHudData> {
     let gallery = demo.gallery.as_ref()?;
     let scenario = gallery.scenario();
@@ -1860,7 +1942,27 @@ fn gallery_hud_data(
         simulation_tick: gallery.is_ready().then_some(simulation.tick_count),
         diagnostic_sample: gallery.diagnostic_sample().cloned(),
         transition: gallery.transition().clone(),
+        inspector,
+        inspector_cursor,
+        world_viewport,
     })
+}
+
+fn should_toggle_gallery_inspector(
+    mode: DemoMode,
+    experiment_worker: bool,
+    state: ElementState,
+    repeat: bool,
+    character: Option<&str>,
+) -> bool {
+    cell_inspector_is_enabled(mode, experiment_worker)
+        && state == ElementState::Pressed
+        && !repeat
+        && character.is_some_and(|value| value.eq_ignore_ascii_case("i"))
+}
+
+fn cell_inspector_is_enabled(mode: DemoMode, experiment_worker: bool) -> bool {
+    mode == DemoMode::Gallery && !experiment_worker
 }
 
 impl ApplicationHandler for App {
@@ -1898,9 +2000,24 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 println!("[powdergame] close requested; exiting");
+                self.shutdown_cell_inspector();
                 event_loop.exit();
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                let character = match &event.logical_key {
+                    Key::Character(value) => Some(value.as_str()),
+                    _ => None,
+                };
+                if should_toggle_gallery_inspector(
+                    self.demo_mode,
+                    self.experiment.is_some(),
+                    event.state,
+                    event.repeat,
+                    character,
+                ) {
+                    self.toggle_cell_inspector_details(&window);
+                    return;
+                }
                 if event.state != ElementState::Pressed || event.repeat {
                     return;
                 }
@@ -1908,6 +2025,7 @@ impl ApplicationHandler for App {
                     Key::Named(NamedKey::Space) => self.toggle_play(&window),
                     Key::Named(NamedKey::Escape) => {
                         println!("[powdergame] ESC pressed; exiting");
+                        self.shutdown_cell_inspector();
                         event_loop.exit();
                     }
                     Key::Character(ref c)
@@ -1940,6 +2058,19 @@ impl ApplicationHandler for App {
                     _ => {}
                 }
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                if self.cell_inspector.is_some() {
+                    self.cursor_position = Some(position);
+                    window.request_redraw();
+                }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                if let Some(inspector) = &mut self.cell_inspector {
+                    self.cursor_position = None;
+                    inspector.set_hover(None);
+                    window.request_redraw();
+                }
+            }
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = &mut self.renderer {
                     renderer.resize(size.width, size.height);
@@ -1953,17 +2084,45 @@ impl ApplicationHandler for App {
                             simulation,
                             demo,
                             &mut self.observatory_collector,
+                            &mut self.cell_inspector,
                             self.demo_mode,
                         );
                     } else if let Err(e) = simulation.tick() {
                         eprintln!("[powdergame] tick error: {e}");
                     }
                 }
+                let inspector_now = Instant::now();
+                self.refresh_cell_inspector(inspector_now);
+                let inspector_hud = self.cell_inspector.as_ref().and_then(|inspector| {
+                    self.simulation
+                        .as_ref()
+                        .map(|simulation| inspector.hud_data(simulation.tick_count, inspector_now))
+                });
+                let inspector_cursor = self
+                    .cursor_position
+                    .map(|position| [position.x as f32, position.y as f32]);
+                let world_viewport = self
+                    .renderer
+                    .as_ref()
+                    .and_then(Renderer::world_viewport)
+                    .map(|viewport| ScreenRect {
+                        x: viewport.x,
+                        y: viewport.y,
+                        width: viewport.width,
+                        height: viewport.height,
+                    });
                 let gallery_hud = if self.demo_mode == DemoMode::Gallery {
                     self.simulation.as_ref().and_then(|simulation| {
                         self.demo.as_ref().and_then(|demo| {
                             self.gallery_provenance.as_ref().and_then(|provenance| {
-                                gallery_hud_data(simulation, demo, provenance)
+                                gallery_hud_data(
+                                    simulation,
+                                    demo,
+                                    provenance,
+                                    inspector_hud.clone(),
+                                    inspector_cursor,
+                                    world_viewport,
+                                )
                             })
                         })
                     })
@@ -2540,12 +2699,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        demo_mode_from_args, experiment_worker_from_args, mode_for_launch, smoke_frames_from_args,
-        DemoMode, DemoState,
+        cell_inspector_is_enabled, demo_mode_from_args, experiment_worker_from_args,
+        mode_for_launch, should_toggle_gallery_inspector, smoke_frames_from_args, DemoMode,
+        DemoState,
     };
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
     use powdergame_gpu::{ActivityCensusReport, Simulation};
     use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
+    use winit::event::ElementState;
 
     #[test]
     fn smoke_frames_accepts_exactly_one_positive_cli_or_environment_value() {
@@ -2626,6 +2787,71 @@ mod tests {
             ("--benchmark-gallery", DemoMode::Gallery),
         ] {
             assert_eq!(demo_mode_from_args([flag]), expected, "flag={flag}");
+        }
+    }
+
+    #[test]
+    fn gallery_inspector_toggle_is_pressed_once_and_never_enters_worker_or_other_modes() {
+        assert!(cell_inspector_is_enabled(DemoMode::Gallery, false));
+        assert!(!cell_inspector_is_enabled(DemoMode::Gallery, true));
+        assert!(!cell_inspector_is_enabled(DemoMode::None, false));
+        for character in ["i", "I"] {
+            assert!(should_toggle_gallery_inspector(
+                DemoMode::Gallery,
+                false,
+                ElementState::Pressed,
+                false,
+                Some(character),
+            ));
+        }
+        for (mode, worker, state, repeat, character) in [
+            (
+                DemoMode::Gallery,
+                false,
+                ElementState::Released,
+                false,
+                Some("i"),
+            ),
+            (
+                DemoMode::Gallery,
+                false,
+                ElementState::Pressed,
+                true,
+                Some("i"),
+            ),
+            (
+                DemoMode::Gallery,
+                false,
+                ElementState::Pressed,
+                false,
+                Some("n"),
+            ),
+            (DemoMode::Gallery, false, ElementState::Pressed, false, None),
+            (
+                DemoMode::Gallery,
+                true,
+                ElementState::Pressed,
+                false,
+                Some("i"),
+            ),
+            (
+                DemoMode::None,
+                false,
+                ElementState::Pressed,
+                false,
+                Some("i"),
+            ),
+            (
+                DemoMode::Activity,
+                false,
+                ElementState::Pressed,
+                false,
+                Some("i"),
+            ),
+        ] {
+            assert!(!should_toggle_gallery_inspector(
+                mode, worker, state, repeat, character,
+            ));
         }
     }
 

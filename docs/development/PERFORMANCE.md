@@ -499,7 +499,7 @@ Activity reason census의 Matter / Thermal / Pressure / Reaction category는 서
 
 ## 19. Benchmark Scenarios
 
-M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 shared deterministic fixture, Windows inspection Gallery, headless `--scenario` selection까지 구현 candidate가 존재한다. Scenario 1 Sand Fall과 Scenario 2 Water Flow는 사용자 승인되었고, Water의 automatic `NEEDS_HUMAN_REVIEW`는 알려진 M0 liquid free-surface 후속 과제와 함께 그대로 유지된다. Scenario 3 Fire / Heat candidate가 진행 중이며 Scenario 4~5는 **PENDING / NOT YET USER ACCEPTED**다. G8-B 전체 상태는 **USER ACCEPTANCE PENDING / NOT CLOSED**이며, 아직 G8-C official matrix 결과가 아니다.
+M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 official G8-B scenario는 shared deterministic fixture, Windows inspection Gallery, headless `--scenario` selection을 갖추고 모두 별도 사용자 승인을 받았다. Water, Pressure, Heavy의 automatic `NEEDS_HUMAN_REVIEW`와 Fire의 automatic `PASS`는 소급 변경하지 않는다. G8-B는 **CLOSED / FROZEN**이며, G8-C official matrix는 **NEXT / AUTHORIZED**지만 아직 실행되지 않았다. 따라서 G8 전체는 `IN_PROGRESS`이고 G9은 `PENDING`이다.
 
 ### Sand Fall
 
@@ -519,20 +519,22 @@ M0부터 반복 가능한 대표 시나리오를 만든다. 아래 다섯 offici
 - Thermal propagation
 - combustion
 - Smoke
-- **HARNESS CANDIDATE IN PROGRESS / NOT YET USER ACCEPTED**: unchanged finite fixture와 production physics에서 combustion, Smoke, phase inventory, reaction termination, separate Thermal tail, exact reset을 관찰한다.
+- **USER ACCEPTED (2026-08-18); AUTOMATIC PASS UNCHANGED**: unchanged finite fixture와 production physics에서 combustion, Smoke, phase inventory, reaction termination, separate Thermal tail, exact reset을 관찰했다. Physics change와 candidate rerun은 필요 없었다.
 
 ### Pressure Burst
 
 - Steam expansion
 - pressure
 - rupture/vent
-- **PENDING / NOT YET USER ACCEPTED**
+- **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-18); AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED**: clean cold-seam candidate에서 Pressure-first opening, relief, integrity와 exact reset을 확인했다. Top-seam-only opening, small plume, broad terminal activity의 실제 비용은 G8-C에서 측정한다.
 
 ### Heavy Mixed World
 
 - 여러 subsystem 동시 active
 - worst-case에 가까운 실제 플레이 workload
-- **PENDING / NOT YET USER ACCEPTED**
+- **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-19); AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED**: source `07260fffab22e5b4513eb168f0baac36e374ab94`, run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`; 14/14 hard predicate PASS, `candidate_blocker=false`, four-subsystem concurrency tick `8`, longest `>=3` overlap `1,986` samples over ticks `1..15,872`, peak active `40,301 @ 3,528`, unexplained inventory/invalid/non-finite/wake anomaly `0 / 0 / 0 / 0`, no runaway, exact reset true. Terminal Thermal activity is large but decreases monotonically in the terminal window; Pressure and Reaction ended. The review-only `broad_terminal_tail` is a G8-C workload-cost follow-up, not a correctness failure. Production physics defect evidence: none; fixture remediation/candidate rerun: not required. Preserved raw `first_vent*` means first exterior Steam above relief and is neither opening-gated causal vent proof nor a Heavy acceptance hard predicate.
+
+The immutable Heavy binary / Review Packet / Receipt / Audit Bundle SHA-256 values are `9b84db005942cf60ae9ef133521e9297413d49c93d72e7ae64133e29622f7583` / `ca2fe05a1497f8417dd732de23c1a260569adfcccd6bd0f16bad180f2a8d1144` / `2abebdef7f9174e63abfd9c67ce4a48d24b48edde4e6c29fab49022e36a2dbd1` / `bc44c66bd52b5d856decb2317389a455a56ac8ae1f8d67b1bfeb5446cfb5731b`.
 
 각 scenario는 가능하면 자동으로 초기 상태를 만들 수 있어야 한다.
 

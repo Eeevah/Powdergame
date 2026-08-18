@@ -1,4 +1,4 @@
-# G8-B — Benchmark Scenario Gallery Implementation Candidate (2026-08-17)
+# G8-B — Benchmark Scenario Gallery Implementation Candidate and User Acceptance Closure (2026-08-17 to 2026-08-19)
 
 ## 1. Status and authority boundary
 
@@ -8,10 +8,10 @@
 - **Candidate source SHA**: assigned only after the implementation/documentation seal
 - **Water Harness base**: `b884abcfbab8e104bdf34e2e8d19635b157c1638`
 - **Water remediation base**: `d12edbfbcc0fb3fc2ef599cd06b3c46a2293d268`
-- **Status**: Scenarios 1 Sand Fall and 2 Water Flow **USER ACCEPTED**; Water automatic `NEEDS_HUMAN_REVIEW` remains unchanged with a known follow-up; Scenario 3 Fire / Heat candidate in progress; Scenario 4–5 **UNACCEPTED**; G8-B overall **USER ACCEPTANCE PENDING / NOT CLOSED**
-- **G8-C official matrix**: not started
+- **Status**: all five official scenarios and Cell Inspector v0 **USER ACCEPTED**; Water, Pressure, and Heavy automatic `NEEDS_HUMAN_REVIEW` remain unchanged with known follow-ups; Fire automatic `PASS` remains unchanged; G8-B **CLOSED / FROZEN**
+- **G8-C official matrix**: **NEXT / AUTHORIZED**, not yet executed
 
-This candidate implements deterministic workload construction, shared production-simulation staging, a Windows inspection Gallery, and headless scenario selection. It does not declare G8-B closed and does not contain official five-scenario performance results.
+This candidate implements deterministic workload construction, shared production-simulation staging, a Windows inspection Gallery, and headless scenario selection. Separate immutable Harness evidence and user decisions later accepted all five official scenarios, so G8-B is now **CLOSED / FROZEN**. This record still does not contain official five-scenario performance results; G8-C remains a separate authorized next stage.
 
 The change adds no production physics Rule, shader/pass-graph behavior, Material, G9 sandbox interaction, G7-C compaction, or other performance optimization. Targeted automation can validate construction and routing contracts, but only the user can accept the Gallery behavior and close G8-B.
 
@@ -23,9 +23,9 @@ The change adds no production physics Rule, shader/pass-graph behavior, Material
 |---:|---|---|---|---|
 | 1 | `sand-fall` | Official G8-B | **USER ACCEPTED — 2026-08-17** | Dense Powder movement, collision, arbitration, shelves/funnels/catch basin |
 | 2 | `water-flow` | Official G8-B | **USER ACCEPTED WITH KNOWN FOLLOW-UP — 2026-08-17** | Liquid movement, density displacement, reservoir/channel/basin flow |
-| 3 | `fire-heat` | Official G8-B | CANDIDATE IN PROGRESS / NOT YET USER ACCEPTED | Thermal propagation, combustion, Smoke, hot/cold phase work |
-| 4 | `pressure-burst` | Official G8-B | UNACCEPTED | Steam expansion, Pressure diffusion, rupture/vent relief seam |
-| 5 | `heavy-mixed-world` | Official G8-B | UNACCEPTED | Simultaneous movement, density, heat, reaction, Pressure workload |
+| 3 | `fire-heat` | Official G8-B | **USER ACCEPTED — 2026-08-18; AUTOMATIC PASS UNCHANGED** | Thermal propagation, combustion, Smoke, hot/cold phase work |
+| 4 | `pressure-burst` | Official G8-B | **USER ACCEPTED WITH KNOWN FOLLOW-UP — 2026-08-18; AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED** | Steam expansion, Pressure diffusion, rupture/vent relief seam |
+| 5 | `heavy-mixed-world` | Official G8-B | **USER ACCEPTED WITH KNOWN FOLLOW-UP — 2026-08-19; AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED** | Simultaneous movement, density, heat, reaction, Pressure workload |
 | 6 | `active-sleep-g7` | G7 regression only | prior G7 regression; not G8-B acceptance | Frozen Activity/Sleep observatory geometry and exact edit-wake snapshot |
 
 Slot 6 is not a sixth official G8-B matrix workload. It must use exactly 256×256 cells with chunk size 64. The five official fixtures share the normal 2048×2048×64 headless default and may be built on other valid rectangular worlds of at least 256×256 for development inspection; that flexibility does not redefine the later official matrix configuration.
@@ -34,7 +34,7 @@ Slot 6 is not a sixth official G8-B matrix workload. It must use exactly 256×25
 
 The user accepted Sand Fall with complete settling and all chunks eventually entering sleep. That terminal state is the intended success signal: the workload demonstrates production Powder movement, collision/arbitration, convergence, and Active/Sleep behavior. Do not add a perpetual source, artificial wake, oscillation, or geometry/threshold retuning merely to keep the benchmark visibly active. Any future change to this accepted interpretation requires a new explicit user decision.
 
-Scenarios 3–5 remain unaccepted, so approval of Scenarios 1–2 does not close G8-B. The first Water candidate is preserved at Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`; automatic `NEEDS_HUMAN_REVIEW` was followed by human `FIX REQUIRED — fixture_representativeness_issue`. The source `5af031f` remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66` keeps automatic `NEEDS_HUMAN_REVIEW` and is human `ACCEPTED WITH KNOWN FOLLOW-UP`. The correction is fixture-only and does not establish a production-physics defect. Fire / Heat is the active unchanged-fixture candidate; Pressure Burst, Heavy Mixed World and G8-C must not begin automatically.
+The first Water candidate is preserved at Run ID `g8b-water-flow-v0-20260817T100732645294Z-f7ee7959`; automatic `NEEDS_HUMAN_REVIEW` was followed by human `FIX REQUIRED — fixture_representativeness_issue`. The source `5af031f` remediation run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66` keeps automatic `NEEDS_HUMAN_REVIEW` and is human `ACCEPTED WITH KNOWN FOLLOW-UP`. The correction is fixture-only and does not establish a production-physics defect. Fire / Heat was accepted from its unchanged-fixture automatic-`PASS` candidate. Pressure Burst was accepted from its clean cold-seam causal candidate with automatic `NEEDS_HUMAN_REVIEW` unchanged. Heavy Mixed World source/run `07260fffab22e5b4513eb168f0baac36e374ab94` / `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4` was accepted with the same unchanged automatic verdict, 14/14 hard pass, and `candidate_blocker=false`. These separate decisions close and freeze G8-B; they do not retroactively alter any automatic verdict or historical artifact.
 
 ### 2.2 Scenario 2 candidate boundary
 
@@ -166,16 +166,21 @@ Water remediation FAST checks passed: workspace fmt/check, scenarios library 7/7
 
 ---
 
-## 7. Remaining acceptance and closure work
+## 7. User acceptance closure
 
-Before G8-B may be described as closed:
+The closure requirements were satisfied without rewriting automatic verdicts or historical artifacts:
 
-1. seal the integrated candidate and record its exact source SHA;
-2. preserve the accepted Scenario 1 settling/sleep contract without retuning;
-3. receive separate user acceptance or concrete findings for Scenario 2–5;
-4. confirm that the remaining slots have distinct, understandable workload identities and correct pristine reset/control behavior;
-5. preserve both immutable Water candidates and record each remaining scenario decision without rewriting their automatic verdicts.
+1. Sand Fall: **USER ACCEPTED**;
+2. Water Flow: **USER ACCEPTED WITH KNOWN FOLLOW-UP**, automatic `NEEDS_HUMAN_REVIEW` unchanged;
+3. Fire / Heat: **USER ACCEPTED**, automatic `PASS` unchanged;
+4. Pressure Burst: **USER ACCEPTED WITH KNOWN FOLLOW-UP**, automatic `NEEDS_HUMAN_REVIEW` unchanged;
+5. Heavy Mixed World: **USER ACCEPTED WITH KNOWN FOLLOW-UP**, automatic `NEEDS_HUMAN_REVIEW` unchanged, 14/14 hard predicates PASS, `candidate_blocker=false`;
+6. Cell Inspector v0: **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
 
-G8-C remains separate. It must establish the official repeated performance matrix, production throughput, profiled GPU timing, rendering cost, simulation/render coexistence, provenance, and bottleneck decision without treating Gallery diagnostics as timed evidence.
+Heavy acceptance is bound to source `07260fffab22e5b4513eb168f0baac36e374ab94` and run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`. Matter movement, Water/Oil density displacement, phase work, combustion and new Smoke, Pressure activity, four-subsystem concurrency at tick `8`, `1,986` samples of `>=3` subsystem overlap over ticks `1..15,872`, peak active `40,301 @ 3,528`, zero unexplained inventory/invalid/non-finite/wake anomaly, no runaway, and exact reset support the human decision. The terminal broad Thermal tail is large but monotonically decreases through the terminal window while Pressure and Reaction have ended. It is a known G8-C workload-cost follow-up, not a correctness failure. There is no production-physics defect evidence; fixture remediation and candidate rerun are not required.
 
-**Current result: IMPLEMENTATION CANDIDATE — SCENARIOS 1–2 USER ACCEPTED; WATER AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED / KNOWN FOLLOW-UP; SCENARIO 3 FIRE / HEAT CANDIDATE IN PROGRESS; SCENARIO 4–5 UNACCEPTED; G8-B OVERALL NOT CLOSED.**
+The preserved raw `first_vent*` vocabulary means first exterior Steam above relief. It is not opening-gated causal vent proof and is not a Heavy hard predicate or acceptance ground.
+
+G8-C remains separate. It is now **NEXT / AUTHORIZED** and must establish the official repeated performance matrix, production throughput, profiled GPU timing, rendering cost, simulation/render coexistence, provenance, and bottleneck decision without treating Gallery diagnostics as timed evidence. G8-A user visual durable closure remains separate, G8 overall remains `IN_PROGRESS`, and G9 remains `PENDING`.
+
+**Current result: ALL FIVE OFFICIAL SCENARIOS + CELL INSPECTOR V0 USER ACCEPTED; G8-B CLOSED / FROZEN; G8-C NEXT / AUTHORIZED; G8 OVERALL IN_PROGRESS; G9 PENDING.**

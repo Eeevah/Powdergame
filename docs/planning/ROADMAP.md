@@ -43,7 +43,7 @@ Roadmap의 모든 단계는 이 질문에 더 강한 답을 만들기 위해 존
 
 ---
 
-## 3. Current Position — 2026-08-17
+## 3. Current Position — 2026-08-19
 
 현재 Milestone은 **M0 — First World (`IN_PROGRESS`)**다.
 
@@ -59,8 +59,8 @@ Roadmap의 모든 단계는 이 질문에 더 강한 답을 만들기 위해 존
 - G7 Active / Sleep — PASS / CLOSED
 - G8 Performance Evidence — IN_PROGRESS
   - G8-A Measurement Substrate — V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-    - G8-B Benchmark Scenario Suite — IMPLEMENTATION CANDIDATE; Sand and Water USER ACCEPTED (Water automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up); Fire / Heat candidate in progress; overall NOT CLOSED
-  - G8-C Official Matrix Measurement — PENDING
+  - G8-B Benchmark Scenario Suite — **CLOSED / FROZEN**; all five official scenarios and Cell Inspector v0 USER ACCEPTED; Water/Pressure/Heavy automatic NEEDS_HUMAN_REVIEW unchanged with known follow-ups; Fire automatic PASS unchanged
+  - G8-C Official Matrix Measurement — **NEXT / AUTHORIZED**; not yet executed
 - G9 Product Validation — PENDING
 
 G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`에서 2048×2048 reference world와 실제 production pass를 측정했고, official capture와 독립 검증을 완료했다. 현재 상태는 verified evidence candidate이며 같은 SHA의 user visual validation은 pending이다. 기존 v4 원자료는 later source/binary 실행 연결과 raw census가 없으므로 historical data로만 보존한다.
@@ -131,8 +131,11 @@ M0 성능을 하나의 calibration fixture가 아니라 대표 gameplay workload
 
 - Sand Fall의 complete-settle/all-sleep behavior와 published Harness pilot은 accepted/immutable이다.
 - Water Flow의 첫 candidate는 `d12edbf` source에서 immutable artifact로 보존되었고 automatic `NEEDS_HUMAN_REVIEW` 뒤 human `FIX REQUIRED — fixture_representativeness_issue`로 superseded되었다. Source `5af031f`의 remediation run은 side-wall top만 `y=90 → 14`로 연장하고 zero-leakage predicate를 추가했으며, automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Production physics와 all-sleep/plateau policy는 보존된다.
-- Fire / Heat는 unchanged fixture를 먼저 감사하고 공통 coordinator에 scenario-specific analyzer를 추가한다. Whole-world all-sleep은 요구하지 않으며 reaction termination과 post-reaction Thermal tail을 분리한다.
-- Pressure Burst, Heavy Mixed World, G8-C는 Fire candidate 뒤에도 자동 시작하지 않는다. Scenario별 자동 판정은 G8-B closure가 아니다.
+- Fire / Heat는 unchanged fixture의 automatic-`PASS` candidate를 별도 사용자 결정으로 승인했다. Whole-world all-sleep은 요구하지 않으며 reaction termination과 post-reaction Thermal tail을 분리한다.
+- Pressure Burst는 clean cold-seam causal candidate에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 `USER ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. Combustion-confounded first candidate는 immutable/superseded다.
+- Heavy Mixed World는 source `07260fffab22e5b4513eb168f0baac36e374ab94`, run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`에서 14/14 hard predicate PASS와 `candidate_blocker=false`를 보존한 채 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. Automatic `NEEDS_HUMAN_REVIEW`는 terminal `broad_terminal_tail` 때문에 unchanged이며, Pressure와 Reaction이 종료하고 Thermal maximum이 terminal window에서 단조 감소하므로 correctness failure로 판정하지 않는다. Actual workload cost는 G8-C에서 측정한다.
+- Cell Inspector v0도 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. 이 여섯 개의 별도 사용자 결정으로 G8-B는 **CLOSED / FROZEN**이다.
+- G8-C는 **NEXT / AUTHORIZED**지만 아직 official matrix를 실행하지 않았다. G8-A user visual durable closure와 G8-C 결과가 남아 있어 G8 전체는 `IN_PROGRESS`이고 G9은 `PENDING`이다.
 
 ### Optimization Stop Rule
 

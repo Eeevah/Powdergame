@@ -4,15 +4,15 @@ Date: 2026-08-19
 Branch: `feature/m0-g8b-scenario-suite`
 Candidate source SHA: `07260fffab22e5b4513eb168f0baac36e374ab94`
 Run ID: `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`
-Status: **IMMUTABLE CANDIDATE / AUTOMATIC NEEDS_HUMAN_REVIEW / 14-OF-14 HARD PASS / CANDIDATE BLOCKER FALSE / USER ACCEPTANCE PENDING / G8-B NOT CLOSED / G8-C FORBIDDEN**
+Status: **IMMUTABLE CANDIDATE / AUTOMATIC NEEDS_HUMAN_REVIEW UNCHANGED / 14-OF-14 HARD PASS / CANDIDATE BLOCKER FALSE / HUMAN USER ACCEPTED WITH KNOWN FOLLOW-UP / G8-B CLOSED AND FROZEN / G8-C NEXT AND AUTHORIZED**
 
 ## Scope and closure boundary
 
-This record closes only the implementation and machine-publication evidence for the fifth official G8-B fixture, Heavy Mixed World. It does not record user acceptance. Automatic telemetry, the candidate's publication contract, and a third read-only verification all pass, but the automatic verdict remains `NEEDS_HUMAN_REVIEW` solely because of the review-only `broad_terminal_tail` flag.
+This record preserves the implementation and machine-publication evidence for the fifth official G8-B fixture, Heavy Mixed World, and now records the separate docs-only user decision **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Automatic telemetry, the candidate's publication contract, and a third read-only verification all pass, but the automatic verdict remains `NEEDS_HUMAN_REVIEW` solely because of the review-only `broad_terminal_tail` flag. The human decision does not rewrite that verdict.
 
-Cell Inspector v0 was already **USER ACCEPTED WITH KNOWN FOLLOW-UP** at tested source `3c342d25099683df53e303d1920cebe1f6578b74`. Its slight bounded new-Cell hover delay at no more than 10 Hz / 100 ms remains non-blocking. That acceptance allowed Heavy Mixed inspection but did not pre-approve Heavy Mixed, G8-B closure, or G8-C.
+Cell Inspector v0 was already **USER ACCEPTED WITH KNOWN FOLLOW-UP** at tested source `3c342d25099683df53e303d1920cebe1f6578b74`. Its slight bounded new-Cell hover delay at no more than 10 Hz / 100 ms remains non-blocking. That acceptance allowed Heavy Mixed inspection but did not pre-approve Heavy Mixed; the Heavy decision recorded here is separate.
 
-This docs-only closure does not modify or rerun the source, production physics, fixture, worker, candidate, Receipt, Review Packet, Audit Bundle, screenshots, telemetry, or any earlier Sand/Water/Fire/Pressure evidence. Heavy Mixed remains **USER ACCEPTANCE PENDING**. Therefore G8-B is **NOT CLOSED** and G8-C is **FORBIDDEN**.
+This docs-only acceptance closure does not modify or rerun the source, production physics, fixture, worker, candidate, Receipt, Review Packet, Audit Bundle, screenshots, telemetry, or any earlier Sand/Water/Fire/Pressure evidence. Production-physics defect evidence is **none**; fixture remediation required is **no**; candidate rerun required is **no**. With all five official scenarios and Cell Inspector v0 separately accepted, G8-B is **CLOSED / FROZEN**. G8-C is **NEXT / AUTHORIZED** but has not yet executed; G8 overall remains `IN_PROGRESS`, and G9 remains `PENDING`.
 
 ## Immutable candidate identity
 
@@ -121,7 +121,7 @@ The third audit invoked the current coordinator's read-only validation path only
 | Candidate blocker | `false` |
 | Failed hard predicates | `[]` |
 | Automatic verdict | `NEEDS_HUMAN_REVIEW` |
-| Human verdict | **USER ACCEPTANCE PENDING** |
+| Human verdict | **USER ACCEPTED WITH KNOWN FOLLOW-UP** |
 
 ## Hard predicates
 
@@ -196,6 +196,27 @@ Review flags:
 
 The broad tail is the sole reason for automatic `NEEDS_HUMAN_REVIEW`. It is not a hard failure, candidate blocker, user rejection, or established production-physics defect.
 
+## User acceptance decision
+
+Human verdict: **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
+
+Acceptance grounds:
+
+- Matter movement observed;
+- Water/Oil density displacement observed;
+- phase work observed;
+- combustion and newly generated Smoke observed;
+- Pressure activity observed;
+- four-subsystem concurrency at tick `8`;
+- at least three subsystems overlapped for `1,986` samples over ticks `1..15,872`;
+- peak active cells were `40,301` at tick `3,528`;
+- unexplained inventory occurrences were `0`;
+- invalid material / non-finite field / wake anomaly occurrences were `0 / 0 / 0`;
+- no unbounded runaway;
+- exact reset equivalence was `true`.
+
+Known follow-up: the terminal broad Thermal tail remains large, but terminal Temperature maximum decreases monotonically over the sampled terminal window. Pressure and Reaction activity have ended. This is not a correctness failure; G8-C measures the actual workload cost. No production-physics change or fixture remediation is required, and this candidate must not be rerun for the acceptance closure.
+
 ## Exterior Steam and raw-kind vocabulary residue
 
 The candidate records:
@@ -207,13 +228,13 @@ The candidate records:
 
 These `first_vent*` names are preserved schema/event/frame vocabulary from the immutable candidate. Their actual Heavy semantics are **first exterior Steam above relief**, independent of whether a complete lane is open. They are not opening-gated and do not prove that Steam crossed a complete relief lane. Because exterior Steam is first observed before the first complete lane in this run, docs and human review must not describe tick `3,920` as causal venting.
 
-The Review Prompt and Report already state this boundary: optional raw exterior-Steam observations must not substitute for hard predicates or be presented as causal vent evidence. This docs closure preserves the raw names without rewriting the candidate.
+The Review Prompt and Report already state this boundary: optional raw exterior-Steam observations must not substitute for hard predicates or be presented as causal vent evidence. This docs closure preserves the raw names without rewriting the candidate. Vent is not a Heavy hard predicate and is not part of the human acceptance ground.
 
 ## Human-facing wording audit
 
 The published Report and Review Prompt correctly state that:
 
-- automatic `NEEDS_HUMAN_REVIEW` is a telemetry claim, not user acceptance, product readiness, or G8-B/G8-C closure;
+- automatic `NEEDS_HUMAN_REVIEW` is a telemetry claim, not the later separate user acceptance, product readiness, or G8-B/G8-C closure by itself;
 - authored tick-0 Smoke and combusting flags are not dynamic Smoke/combustion evidence;
 - the Review Packet is lightweight human-review evidence, while the sibling Audit Bundle carries source/binary forensic identity;
 - folded badges sharing one physical state must all be reviewed;
@@ -222,9 +243,9 @@ The published Report and Review Prompt correctly state that:
 
 One non-blocking raw-log wording residue remains: the worker startup line writes `scenario=heavy-mixed-world`, while the manifest, schema, CLI, completion line, Report, and Receipt use the canonical slug `heavy-mixed`. Docs use `heavy-mixed` for the slug and Heavy Mixed World for the display name. This does not change machine identity or artifact validation.
 
-## Recommended manual review
+## Preserved manual-review reference
 
-Use the canonical Gallery and Cell Inspector for at most these three candidate frames:
+The accepted review used the following bounded reference set. Preserve these frames for future audit; no candidate rerun is required:
 
 1. `frame-002_sim-000008_sample-000003_ordered-water-oil-displacement.png`: peak four-subsystem concurrency with density and Pressure evidence. Inspect Water edge `(134,90)`, Oil edge `(142,90)`, and chamber medium `(176,150)`; their approximate 1600 x 900 capture positions are `(819,329)`, `(843,329)`, and `(944,507)`.
 2. `frame-005_sim-003920_sample-000492_exterior-steam-above-relief.png`: inspect detector-band cell `(163,134)`, relief seam `(176,144)`, and chamber side `(176,148)`; approximate capture positions are `(905,459)`, `(944,489)`, and `(944,501)`. Treat this only as first exterior Steam above relief, not proof of opening-gated causal venting.
@@ -239,7 +260,13 @@ The candidate Contact Sheet is `report/CONTACT_SHEET.png` inside the immutable R
 - Heavy Mixed automatic verdict: `NEEDS_HUMAN_REVIEW`, unchanged.
 - Heavy Mixed hard predicates: `14 / 14 PASS`.
 - Heavy Mixed candidate blocker: `false`.
-- Heavy Mixed human verdict: **USER ACCEPTANCE PENDING**.
-- G8-B: **NOT CLOSED**.
-- G8-C: **FORBIDDEN** until Heavy Mixed user acceptance and explicit G8-B closure.
+- Heavy Mixed human verdict: **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
+- Known follow-up: terminal broad Thermal tail; terminal Temperature decreases monotonically, Pressure and Reaction have ended, and G8-C measures actual workload cost.
+- Production physics defect evidence: none.
+- Fixture remediation required: no.
+- Candidate rerun required: no.
+- G8-B: **CLOSED / FROZEN**.
+- G8-C: **NEXT / AUTHORIZED**, not yet executed.
+- G8 overall: **IN_PROGRESS**; G8-A user visual durable closure remains separate.
+- G9: **PENDING**.
 - Production physics, fixture, source, executable, candidate, and artifacts must not be changed or rerun for this docs-only closure.

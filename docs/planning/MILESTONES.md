@@ -108,8 +108,8 @@ M0의 목적은 콘텐츠를 많이 넣는 것이 아니다.
 - G0-G7: PASS / CLOSED
 - G8: IN_PROGRESS
   - G8-A Measurement Substrate: V5 OFFICIAL CAPTURE + INDEPENDENT VERIFICATION COMPLETE / VERIFIED EVIDENCE CANDIDATE; USER VISUAL VALIDATION PENDING
-  - G8-B Benchmark Scenario Suite: IMPLEMENTATION CANDIDATE; Scenarios 1 Sand Fall, 2 Water Flow, 3 Fire / Heat, and 4 Pressure Burst USER ACCEPTED (Water and Pressure automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up; Fire automatic PASS unchanged); Cell Inspector v0 USER ACCEPTED WITH KNOWN FOLLOW-UP; Scenario 5 Heavy Mixed World immutable candidate automatic NEEDS_HUMAN_REVIEW solely for `broad_terminal_tail`, 14/14 hard predicates PASS, candidate blocker false, USER ACCEPTANCE PENDING; overall NOT CLOSED
-  - G8-C Official Matrix Measurement: FORBIDDEN until Heavy Mixed user acceptance and explicit G8-B closure
+  - G8-B Benchmark Scenario Suite: **CLOSED / FROZEN**; all five official scenarios and Cell Inspector v0 USER ACCEPTED (Water, Pressure, and Heavy automatic NEEDS_HUMAN_REVIEW unchanged / known follow-up; Fire automatic PASS unchanged)
+  - G8-C Official Matrix Measurement: **NEXT / AUTHORIZED**; not yet executed
 - G9: PENDING
 - M0 `ACHIEVED`: NO
 
@@ -418,10 +418,12 @@ Acceptance boundary:
 - Scenario 3 Fire / Heat는 unchanged fixture와 production physics를 보존한 sealed source `1635fdb9f562192123c92846e137b125c684ede9`의 automatic-`PASS` candidate를 사용자가 승인했다. Production physics change와 candidate rerun은 요구되지 않았고 immutable source/candidate/artifact는 변경하지 않는다.
 - Scenario 4 Pressure Burst는 clean source `43e19d0f3b43aa0c15bf31e98f6401ba5f885170`의 run `g8b-pressure-burst-v0-20260818T101046792957Z-17158748`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `USER ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. `pressure_opening_precedes_combustion`과 exact reset이 pass했고, invalid/non-finite는 `0 / 0`이다. 알려진 후속 과제는 top-seam-only opening, small persistent vent plume, broad terminal Pressure activity이며 production-physics defect 증거는 없다.
 - Cell Inspector v0는 tested source `3c342d25099683df53e303d1920cebe1f6578b74`에서 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. 최대 10 Hz / 100 ms bounded hover delay는 비차단 후속 과제다.
-- Scenario 5 Heavy Mixed World는 clean source `07260fffab22e5b4513eb168f0baac36e374ab94`의 immutable candidate run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`를 발행했다. 14/14 hard predicate가 pass하고 `candidate_blocker=false`지만 automatic `NEEDS_HUMAN_REVIEW`의 유일한 이유인 `broad_terminal_tail`은 human review가 필요하다. **USER ACCEPTANCE PENDING**이므로 G8-B는 **NOT CLOSED**다.
-- G8-C official matrix measurement와 G8-B closure를 혼동하지 않는다. Heavy Mixed user acceptance와 명시적 G8-B closure 전에는 G8-C를 시작하지 않는다.
+- Scenario 5 Heavy Mixed World는 clean source `07260fffab22e5b4513eb168f0baac36e374ab94`의 immutable candidate run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`에서 human **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. 14/14 hard predicate가 pass하고 `candidate_blocker=false`이며 automatic `NEEDS_HUMAN_REVIEW`는 review-only `broad_terminal_tail` 때문에 그대로 유지한다. Terminal Thermal activity는 크지만 terminal window에서 단조 감소했고 Pressure/Reaction은 종료했다. 이는 correctness failure가 아니며 actual workload cost는 G8-C에서 측정한다. Production physics defect evidence는 없고 fixture remediation/candidate rerun은 필요 없다. Preserved raw `first_vent*`는 first exterior Steam above relief일 뿐 opening-gated causal vent proof가 아니며 Heavy acceptance의 hard predicate가 아니다.
+- 다섯 official scenario와 Cell Inspector v0의 separate user acceptance를 기록했으므로 G8-B는 **CLOSED / FROZEN**이다. G8-C official matrix measurement는 별도 단계로 **NEXT / AUTHORIZED**이며 아직 실행되지 않았다. G8 전체는 `IN_PROGRESS`, G9은 `PENDING`이다.
 
 ### G8-C — Official Matrix Measurement
+
+**Status:** NEXT / AUTHORIZED — G8-B closure와 별개이며 official capture 전이다.
 
 Required metrics:
 

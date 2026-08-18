@@ -363,17 +363,18 @@ Inspector가 Discovery를 자동 완성하면 안 된다. 의미 있는 현상 �
 
 ## 9. Cell Inspector v0 Acceptance
 
-### Implementation candidate
+### User acceptance closure
 
-- Status: **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**.
-- Tested source: `3c342d25099683df53e303d1920cebe1f6578b74`. 이 SHA 이후의 docs-only closure는 tested source provenance와 구분한다.
+- Status: **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
+- Immutable tested source: `3c342d25099683df53e303d1920cebe1f6578b74`; prior silent-pending docs closure: `6a521c07c23d9817f6abb9d3e1eab47758b5d5c4`. Docs-only acceptance closure는 두 provenance와 구분한다.
 - Rendering과 physical-pixel cursor picking은 동일한 CPU-authoritative `WorldViewport`의 letterbox origin/scale을 공유한다.
 - Hover sample은 Material, Temperature, Pressure, raw flags, Cell activity, Chunk state의 six 4-byte field를 하나의 24-byte batch로 수집한다. 동시 pending request는 하나로 제한하고 주기는 10 Hz 이하이며, mouse movement마다 full-world readback은 없다.
 - Request identity는 Cell/Chunk, simulation tick, diagnostic sequence, selection generation, world epoch를 묶는다. Reset, scenario switch, staging failure, shutdown은 pending/sample identity를 무효화해 이전 world의 stale sample이 현재처럼 보이지 않게 한다.
 - Presentation state는 `Hidden / Pending / Ready / Failed`다. `Hidden / Pending`은 완전 무표시, `Ready`는 matching sample만 표시, `Failed`는 detail ON일 때만 작은 고정 오류 panel을 표시한다.
 - Silent-pending validation: fmt check, Inspector/UI targeted tests `16/16`, existing viewport tests `7/7`, affected Windows all-target check/clippy, strict development-policy audit, and exactly one 3-frame Gallery startup smoke passed. Workspace FULL과 experiment candidate는 실행하지 않았다.
-- Startup smoke는 hover UX를 자동 승인하지 않는다. Silent pending의 최종 사용자 acceptance는 계속 pending이다.
-- Scenario 5 Heavy Mixed World는 **PENDING — do not start**이고 G8-B는 **NOT CLOSED**다.
+- User acceptance grounds: compact Material hover와 `I` detailed Inspector가 잘 동작했고, silent pending은 자연스러웠다. 이전 Cell의 stale 값이나 `Collecting...` placeholder는 보이지 않았으며 Material과 Field 상태 이해에 실질적인 도움이 되었고 reset/scenario switch도 사용자 관찰상 정상이었다.
+- Known follow-up: 새 Cell hover 뒤 정보가 나타날 때까지 최대 10 Hz / 100 ms bounded readback에 따른 약간의 지연이 있다. 현재 비차단이며 Heavy Mixed와 G8-C를 막지 않는다. 실제 UX 비용과 readback 비용을 함께 측정하기 전에는 sampling frequency나 architecture를 변경하지 않는다.
+- Scenario 5 Heavy Mixed World는 **NEXT / IN PROGRESS entry allowed**지만 아직 user accepted가 아니며 G8-B는 **NOT CLOSED**다.
 
 ### Functional
 

@@ -2026,6 +2026,9 @@ def validate_pressure_analysis(
         "final_relief_seam_open_cells",
         "final_top_relief_seam_open_cells",
         "final_bottom_relief_seam_open_cells",
+        "final_relief_seam_through_open_lanes",
+        "final_top_relief_seam_through_open_lanes",
+        "final_bottom_relief_seam_through_open_lanes",
         "final_steam_in_relief_seam_cells",
         "outside_chamber_steam_peak",
         "final_outside_chamber_steam_cells",
@@ -2964,6 +2967,9 @@ def validate_pressure_samples(
         "relief_seam_open_cells",
         "top_relief_seam_open_cells",
         "bottom_relief_seam_open_cells",
+        "relief_seam_through_open_lanes",
+        "top_relief_seam_through_open_lanes",
+        "bottom_relief_seam_through_open_lanes",
         "steam_in_relief_seam_cells",
         "outside_chamber_steam_cells",
         "chamber_pressure_cell_count",
@@ -3078,6 +3084,9 @@ def validate_pressure_samples(
             "relief_seam_open_cells",
             "top_relief_seam_open_cells",
             "bottom_relief_seam_open_cells",
+            "relief_seam_through_open_lanes",
+            "top_relief_seam_through_open_lanes",
+            "bottom_relief_seam_through_open_lanes",
             "steam_in_relief_seam_cells",
             "outside_chamber_steam_cells",
             "chamber_pressure_cell_count",
@@ -3100,6 +3109,13 @@ def validate_pressure_samples(
             + sample["bottom_relief_seam_open_cells"]
         ):
             raise ExperimentError(f"Pressure sample {index} seam open total mismatch")
+        if sample["relief_seam_through_open_lanes"] != (
+            sample["top_relief_seam_through_open_lanes"]
+            + sample["bottom_relief_seam_through_open_lanes"]
+        ):
+            raise ExperimentError(
+                f"Pressure sample {index} seam through-open lane total mismatch"
+            )
         if sample["relief_seam_wood_cells"] + sample["relief_seam_open_cells"] != 576:
             raise ExperimentError(f"Pressure sample {index} seam census does not total 576")
         if sample["top_relief_seam_wood_cells"] + sample["top_relief_seam_open_cells"] != 384:
@@ -3112,6 +3128,22 @@ def validate_pressure_samples(
             raise ExperimentError(f"Pressure sample {index} bottom seam census mismatch")
         if sample["steam_in_relief_seam_cells"] > sample["relief_seam_open_cells"]:
             raise ExperimentError(f"Pressure sample {index} seam Steam exceeds open cells")
+        if sample["top_relief_seam_through_open_lanes"] > 48:
+            raise ExperimentError(f"Pressure sample {index} top through-open lanes exceed 48")
+        if sample["bottom_relief_seam_through_open_lanes"] > 24:
+            raise ExperimentError(f"Pressure sample {index} bottom through-open lanes exceed 24")
+        if sample["top_relief_seam_through_open_lanes"] * 8 > sample[
+            "top_relief_seam_open_cells"
+        ]:
+            raise ExperimentError(
+                f"Pressure sample {index} top through-open lanes exceed damaged cells"
+            )
+        if sample["bottom_relief_seam_through_open_lanes"] * 8 > sample[
+            "bottom_relief_seam_open_cells"
+        ]:
+            raise ExperimentError(
+                f"Pressure sample {index} bottom through-open lanes exceed damaged cells"
+            )
         if sample["outside_chamber_steam_cells"] > sample["steam_count"]:
             raise ExperimentError(f"Pressure sample {index} exterior Steam exceeds inventory")
         if sample["chamber_pressure_cell_count"] != 29_920:
@@ -4762,7 +4794,7 @@ def pressure_opening_streak(
     starts: list[dict[str, Any]] = []
     breaks: list[dict[str, Any]] = []
     for sample in diagnostics:
-        if sample["relief_seam_open_cells"] == 0:
+        if sample["relief_seam_through_open_lanes"] == 0:
             if streak:
                 breaks.append(sample)
                 streak = []
@@ -4872,7 +4904,7 @@ def pressure_expected_frame_badges(
         ),
         (
             "first-rupture",
-            "cold-bottom-seam-pressure-attributed-opening",
+            "first-eight-cell-through-open-relief-lane",
             first_rupture,
         ),
         (
@@ -4882,7 +4914,7 @@ def pressure_expected_frame_badges(
         ),
         (
             "opening-reseal",
-            "first-zero-open-cell-sample-after-persistent-confirmation",
+            "first-zero-through-lane-sample-after-persistent-confirmation",
             first_reseal,
         ),
         (
@@ -5038,8 +5070,9 @@ def validate_pressure_telemetry(
         tick0["top_relief_seam_wood_cells"],
         tick0["bottom_relief_seam_wood_cells"],
         tick0["relief_seam_open_cells"],
+        tick0["relief_seam_through_open_lanes"],
         tick0["chamber_pressure_cell_count"],
-    ) != (576, 384, 192, 0, 29_920):
+    ) != (576, 384, 192, 0, 0, 29_920):
         raise ExperimentError("Pressure tick0 authored chamber/seam baseline mismatch")
     expected_baseline = {
         "initial_matter_count": tick0["matter_count"],
@@ -5151,7 +5184,8 @@ def validate_pressure_telemetry(
         < tick0["relief_seam_wood_cells"],
     )
     first_rupture = first_matching(
-        observed, lambda sample: sample["bottom_relief_seam_open_cells"] > 0
+        observed,
+        lambda sample: sample["relief_seam_through_open_lanes"] > 0,
     )
     first_reseal = None
     first_seam_steam = None
@@ -5160,7 +5194,7 @@ def validate_pressure_telemetry(
             observed,
             lambda sample: sample["sample_sequence"]
             > confirmed["sample_sequence"]
-            and sample["relief_seam_open_cells"] == 0,
+            and sample["relief_seam_through_open_lanes"] == 0,
         )
         first_seam_steam = first_matching(
             observed,
@@ -5256,6 +5290,9 @@ def validate_pressure_telemetry(
         "relief_seam_open_cells",
         "top_relief_seam_open_cells",
         "bottom_relief_seam_open_cells",
+        "relief_seam_through_open_lanes",
+        "top_relief_seam_through_open_lanes",
+        "bottom_relief_seam_through_open_lanes",
         "steam_in_relief_seam_cells",
         "outside_chamber_steam_cells",
         "chamber_pressure_cell_count",
@@ -5346,6 +5383,15 @@ def validate_pressure_telemetry(
         "final_bottom_relief_seam_open_cells": final[
             "bottom_relief_seam_open_cells"
         ],
+        "final_relief_seam_through_open_lanes": final[
+            "relief_seam_through_open_lanes"
+        ],
+        "final_top_relief_seam_through_open_lanes": final[
+            "top_relief_seam_through_open_lanes"
+        ],
+        "final_bottom_relief_seam_through_open_lanes": final[
+            "bottom_relief_seam_through_open_lanes"
+        ],
         "final_steam_in_relief_seam_cells": final["steam_in_relief_seam_cells"],
         "outside_chamber_steam_peak": max(
             sample["outside_chamber_steam_cells"] for sample in pre_reset
@@ -5378,9 +5424,12 @@ def validate_pressure_telemetry(
 
     expected_flag_values = {
         "only_one_relief_seam_ruptured": (
-            any(sample["top_relief_seam_open_cells"] > 0 for sample in pre_reset)
+            any(
+                sample["top_relief_seam_through_open_lanes"] > 0
+                for sample in pre_reset
+            )
             ^ any(
-                sample["bottom_relief_seam_open_cells"] > 0
+                sample["bottom_relief_seam_through_open_lanes"] > 0
                 for sample in pre_reset
             )
         ),
@@ -5477,7 +5526,7 @@ def validate_pressure_telemetry(
         ("tick1_captured", tick1["sim_tick"], tick1["sample_sequence"])
     )
     opening_streak_samples: list[dict[str, Any]] = []
-    if tick1["relief_seam_open_cells"] > 0:
+    if tick1["relief_seam_through_open_lanes"] > 0:
         opening_streak_samples.append(tick1)
         expected_events.append(
             (
@@ -5490,7 +5539,7 @@ def validate_pressure_telemetry(
     for sample in diagnostics:
         identity = (sample["sim_tick"], sample["sample_sequence"])
         if not confirmation_seen:
-            if sample["relief_seam_open_cells"] == 0:
+            if sample["relief_seam_through_open_lanes"] == 0:
                 if opening_streak_samples:
                     expected_events.append(("persistent_opening_streak_broken", *identity))
                     opening_streak_samples = []
@@ -5680,8 +5729,10 @@ def contact_sheet_caption_lines(
                 f"{sample['chamber_max_pressure']:.3f}"
             ),
             (
-                "Seam Wood/open "
-                f"{sample['relief_seam_wood_cells']}/{sample['relief_seam_open_cells']} | "
+                "Seam Wood/open/through "
+                f"{sample['relief_seam_wood_cells']}/"
+                f"{sample['relief_seam_open_cells']}/"
+                f"{sample['relief_seam_through_open_lanes']} | "
                 f"Outside Steam {sample['outside_chamber_steam_cells']}"
             ),
             f"State {sample['state_hash']}",
@@ -5855,6 +5906,22 @@ def pressure_burst_summary(analysis: dict[str, Any]) -> dict[str, Any]:
         ],
         "terminal_chamber_max_pressure": metrics["terminal_chamber_max_pressure"],
         "terminal_pressure_relieved": metrics["terminal_pressure_relieved"],
+        "final_relief_seam_open_cells": metrics["final_relief_seam_open_cells"],
+        "final_top_relief_seam_open_cells": metrics[
+            "final_top_relief_seam_open_cells"
+        ],
+        "final_bottom_relief_seam_open_cells": metrics[
+            "final_bottom_relief_seam_open_cells"
+        ],
+        "final_relief_seam_through_open_lanes": metrics[
+            "final_relief_seam_through_open_lanes"
+        ],
+        "final_top_relief_seam_through_open_lanes": metrics[
+            "final_top_relief_seam_through_open_lanes"
+        ],
+        "final_bottom_relief_seam_through_open_lanes": metrics[
+            "final_bottom_relief_seam_through_open_lanes"
+        ],
         "outside_chamber_steam_peak": metrics["outside_chamber_steam_peak"],
         "final_outside_chamber_steam_cells": metrics[
             "final_outside_chamber_steam_cells"
@@ -5988,7 +6055,7 @@ def render_report_markdown(
                 "",
                 "## Pressure Burst telemetry",
                 "",
-                "- First activity / Wood damage / cold-bottom rupture ticks: "
+                "- First activity / Wood damage / first through-lane rupture ticks: "
                 f"{summary['first_pressure_activity_tick']} / "
                 f"{summary['first_wood_damage_tick']} / {summary['first_rupture_tick']}",
                 "- Persistent opening / exterior Steam ticks: "
@@ -6010,6 +6077,14 @@ def render_report_markdown(
                 f"{summary['terminal_chamber_max_pressure']}",
                 f"- Sustained post-vent Pressure relief: "
                 f"{summary['terminal_pressure_relieved']}",
+                "- Final raw non-Wood seam cells (total/top/bottom): "
+                f"{summary['final_relief_seam_open_cells']} / "
+                f"{summary['final_top_relief_seam_open_cells']} / "
+                f"{summary['final_bottom_relief_seam_open_cells']}",
+                "- Final eight-cell through-open lanes (total/top/bottom): "
+                f"{summary['final_relief_seam_through_open_lanes']} / "
+                f"{summary['final_top_relief_seam_through_open_lanes']} / "
+                f"{summary['final_bottom_relief_seam_through_open_lanes']}",
                 "- Outside Steam peak / final: "
                 f"{summary['outside_chamber_steam_peak']} / "
                 f"{summary['final_outside_chamber_steam_cells']}",
@@ -6119,13 +6194,17 @@ Review only `REVIEW_PACKET.zip` for experiment `{manifest['experiment_id']}`, ru
 verdict `{analysis['verdict']}` as a telemetry claim, not user acceptance or closure.
 
 Check the causal sequence in the full frames, crops, contact sheet, raw samples, and events:
-Pressure activity, authored relief-seam damage, the stronger cold-bottom rupture signal,
-three-sample persistent opening, Steam in the relief seam at or before causal exterior venting,
+Pressure activity, authored relief-seam damage, the first complete eight-cell through-open
+lane, three-sample persistent opening, Steam in the relief seam at or before causal exterior venting,
 any post-confirmation reseal, sustained post-vent mean/max relief, the 180-tick
 post-opening window, and the 64-sample terminal mean/max Pressure trend. Frame badges
 sharing one physical state are folded
 onto one image. Review flags are `{', '.join(summary['review_flags']['reasons']) or 'none'}`;
 these flags require human review and are not automatic defect findings.
+
+Treat raw non-Wood seam `open_cells` as damage diagnostics only. Rupture, persistent
+opening, reseal, per-seam opening, causal venting, and the post-opening timer require a
+full eight-cell authored seam column made only of Empty, Steam, or Smoke.
 
 Report concrete mismatches, missing evidence, and ambiguity. Do not infer other scenarios,
 G8-C performance, product readiness, or G8-B closure. No upload, external message, code

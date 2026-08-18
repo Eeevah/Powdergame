@@ -1237,6 +1237,8 @@ class ExperimentRunnerTests(unittest.TestCase):
             steam: int,
             outside_steam: int,
             state_hash: str,
+            top_through_lanes: int = 0,
+            bottom_through_lanes: int = 0,
             seam_steam: int = 0,
             changed: int = 2,
         ) -> dict:
@@ -1261,6 +1263,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             top_open = 384 - top_wood
             bottom_open = 192 - bottom_wood
             seam_open = top_open + bottom_open
+            through_lanes = top_through_lanes + bottom_through_lanes
             return {
                 "schema_version": experiment.PRESSURE_TELEMETRY_SCHEMA,
                 "experiment_id": experiment.PRESSURE_CONTRACT.experiment_id,
@@ -1298,6 +1301,9 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "relief_seam_open_cells": seam_open,
                 "top_relief_seam_open_cells": top_open,
                 "bottom_relief_seam_open_cells": bottom_open,
+                "relief_seam_through_open_lanes": through_lanes,
+                "top_relief_seam_through_open_lanes": top_through_lanes,
+                "bottom_relief_seam_through_open_lanes": bottom_through_lanes,
                 "steam_in_relief_seam_cells": seam_steam,
                 "outside_chamber_steam_cells": outside_steam,
                 "chamber_pressure_cell_count": 29_920,
@@ -1335,8 +1341,10 @@ class ExperimentRunnerTests(unittest.TestCase):
             pressure_active=500,
             mean_pressure=110.0,
             max_pressure=200.0,
-            top_wood=383,
-            bottom_wood=191,
+            # One complete inner layer is damaged in each eight-cell-thick seam,
+            # but neither seam has a cavity-to-exterior through lane yet.
+            top_wood=336,
+            bottom_wood=168,
             water=initial_water,
             steam=initial_steam,
             outside_steam=0,
@@ -1349,12 +1357,14 @@ class ExperimentRunnerTests(unittest.TestCase):
             pressure_active=1000,
             mean_pressure=130.0,
             max_pressure=220.0,
-            top_wood=380,
-            bottom_wood=190,
+            top_wood=328,
+            bottom_wood=160,
             water=19_990,
             steam=10,
             outside_steam=0,
             state_hash="fnv1a64:0000000000003002",
+            top_through_lanes=1,
+            bottom_through_lanes=1,
         )
         tick8 = sample(
             8,
@@ -1363,18 +1373,36 @@ class ExperimentRunnerTests(unittest.TestCase):
             pressure_active=800,
             mean_pressure=120.0,
             max_pressure=210.0,
-            top_wood=370,
-            bottom_wood=185,
+            top_wood=320,
+            bottom_wood=152,
             water=19_980,
             steam=20,
             outside_steam=0,
             state_hash="fnv1a64:0000000000003008",
+            top_through_lanes=1,
+            bottom_through_lanes=1,
         )
-        samples = [tick0, tick1, tick2, tick8]
+        tick16 = sample(
+            16,
+            "pressurizing",
+            "diagnostic-cadence",
+            pressure_active=750,
+            mean_pressure=115.0,
+            max_pressure=205.0,
+            top_wood=312,
+            bottom_wood=144,
+            water=19_980,
+            steam=20,
+            outside_steam=0,
+            state_hash="fnv1a64:0000000000003010",
+            top_through_lanes=1,
+            bottom_through_lanes=1,
+        )
+        samples = [tick0, tick1, tick2, tick8, tick16]
         for offset in range(1, experiment.POST_OPENING_TICKS + 1):
             converted = min(100, 20 + offset)
             post = sample(
-                8 + offset,
+                16 + offset,
                 "post-opening-observation",
                 "post-opening-observation-complete"
                 if offset == experiment.POST_OPENING_TICKS
@@ -1382,12 +1410,14 @@ class ExperimentRunnerTests(unittest.TestCase):
                 pressure_active=max(0, 800 - offset * 5),
                 mean_pressure=float(max(40, 100 - offset)),
                 max_pressure=float(max(80, 190 - offset)),
-                top_wood=max(330, 370 - offset // 6),
-                bottom_wood=max(170, 185 - offset // 18),
+                top_wood=max(280, 312 - offset // 6),
+                bottom_wood=max(128, 144 - offset // 18),
                 water=initial_water - converted,
                 steam=converted,
                 outside_steam=max(0, 4 - offset // 40),
                 state_hash=f"fnv1a64:{0x4000 + offset:016x}",
+                top_through_lanes=1,
+                bottom_through_lanes=1,
                 seam_steam=min(10, converted),
             )
             samples.append(post)
@@ -1419,8 +1449,8 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "detail": detail,
             }
 
-        first_vent = samples[4]
-        first_relief = samples[5]
+        first_vent = samples[5]
+        first_relief = samples[6]
         final = samples[-2]
         events = [
             event("lifecycle_started", None),
@@ -1428,17 +1458,17 @@ class ExperimentRunnerTests(unittest.TestCase):
             event("tick0_captured", tick0),
             event("pressure_activity_observed", tick1),
             event("relief_seam_damage_observed", tick1),
-            event("rupture_observed", tick1),
             event("new_peak_chamber_mean_pressure", tick1),
             event("new_peak_chamber_max_pressure", tick1),
             event("new_peak_pressure_activity", tick1),
             event("tick1_captured", tick1),
-            event("persistent_opening_streak_started", tick1),
+            event("persistent_opening_streak_started", tick2),
+            event("rupture_observed", tick2),
             event("new_peak_chamber_mean_pressure", tick2),
             event("new_peak_chamber_max_pressure", tick2),
             event("new_peak_pressure_activity", tick2),
-            event("persistent_opening_confirmed", tick8),
-            event("post_opening_observation_started", tick8),
+            event("persistent_opening_confirmed", tick16),
+            event("post_opening_observation_started", tick16),
             event("relief_seam_steam_observed", first_vent),
             event("exterior_vent_observed", first_vent),
             event("post_opening_pressure_relief_observed", first_relief),
@@ -1463,12 +1493,12 @@ class ExperimentRunnerTests(unittest.TestCase):
                     ("tick1", "after-one-production-tick"),
                     ("first-pressure-activity", "first-sampled-pressure-activity"),
                     ("first-wood-damage", "first-authored-relief-seam-wood-loss"),
-                    ("first-rupture", "cold-bottom-seam-pressure-attributed-opening"),
                 ],
             ),
             (
                 tick2,
                 [
+                    ("first-rupture", "first-eight-cell-through-open-relief-lane"),
                     ("peak-pressure", "highest-observed-chamber-max-pressure"),
                     (
                         "peak-pressure-activity",
@@ -1477,7 +1507,7 @@ class ExperimentRunnerTests(unittest.TestCase):
                 ],
             ),
             (
-                tick8,
+                tick16,
                 [
                     (
                         "persistent-opening",
@@ -1569,10 +1599,10 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "post_opening_ticks": experiment.POST_OPENING_TICKS,
                 "terminal_window_samples": experiment.TERMINAL_WINDOW_SAMPLES,
                 "terminal_reason": "post-opening-observation-complete",
-                "persistent_opening_start_sim_tick": 1,
-                "persistent_opening_start_sample_sequence": tick1["sample_sequence"],
-                "persistent_opening_confirmed_sim_tick": 8,
-                "persistent_opening_confirmed_sample_sequence": tick8[
+                "persistent_opening_start_sim_tick": 2,
+                "persistent_opening_start_sample_sequence": tick2["sample_sequence"],
+                "persistent_opening_confirmed_sim_tick": 16,
+                "persistent_opening_confirmed_sample_sequence": tick16[
                     "sample_sequence"
                 ],
                 "post_opening_end_tick": final["sim_tick"],
@@ -1594,12 +1624,12 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "first_pressure_activity_sample_sequence": tick1["sample_sequence"],
                 "first_wood_damage_tick": 1,
                 "first_wood_damage_sample_sequence": tick1["sample_sequence"],
-                "first_rupture_tick": 1,
-                "first_rupture_sample_sequence": tick1["sample_sequence"],
-                "first_persistent_opening_tick": 1,
-                "first_persistent_opening_sample_sequence": tick1["sample_sequence"],
-                "persistent_opening_confirmed_tick": 8,
-                "persistent_opening_confirmed_sample_sequence": tick8[
+                "first_rupture_tick": 2,
+                "first_rupture_sample_sequence": tick2["sample_sequence"],
+                "first_persistent_opening_tick": 2,
+                "first_persistent_opening_sample_sequence": tick2["sample_sequence"],
+                "persistent_opening_confirmed_tick": 16,
+                "persistent_opening_confirmed_sample_sequence": tick16[
                     "sample_sequence"
                 ],
                 "first_steam_in_relief_seam_tick": first_vent["sim_tick"],
@@ -1633,10 +1663,10 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "vent_reference_chamber_max_pressure": first_vent[
                     "chamber_max_pressure"
                 ],
-                "post_opening_chamber_mean_pressure": tick8[
+                "post_opening_chamber_mean_pressure": tick16[
                     "chamber_mean_pressure"
                 ],
-                "post_opening_chamber_max_pressure": tick8[
+                "post_opening_chamber_max_pressure": tick16[
                     "chamber_max_pressure"
                 ],
                 "terminal_chamber_mean_pressure": trend["end_mean_pressure"],
@@ -1655,6 +1685,15 @@ class ExperimentRunnerTests(unittest.TestCase):
                 ],
                 "final_bottom_relief_seam_open_cells": final[
                     "bottom_relief_seam_open_cells"
+                ],
+                "final_relief_seam_through_open_lanes": final[
+                    "relief_seam_through_open_lanes"
+                ],
+                "final_top_relief_seam_through_open_lanes": final[
+                    "top_relief_seam_through_open_lanes"
+                ],
+                "final_bottom_relief_seam_through_open_lanes": final[
+                    "bottom_relief_seam_through_open_lanes"
                 ],
                 "final_steam_in_relief_seam_cells": final[
                     "steam_in_relief_seam_cells"
@@ -3222,6 +3261,27 @@ class ExperimentRunnerTests(unittest.TestCase):
             Path(manifest["binary"]["path"]),
             run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts).resolve(),
         )
+        legacy_runs = (
+            self.create_valid_worker_fixture(
+                "g8b-sand-fall-v0-pressure-through-lane-isolation"
+            ),
+            self.create_valid_water_worker_fixture(
+                "g8b-water-flow-v0-pressure-through-lane-isolation"
+            ),
+            self.create_valid_fire_worker_fixture(
+                "g8b-fire-heat-v0-pressure-through-lane-isolation"
+            ),
+        )
+        for legacy_run in legacy_runs:
+            legacy_sample = experiment.read_jsonl(
+                legacy_run / "telemetry" / "samples.jsonl", "legacy samples"
+            )[0]
+            for pressure_only_field in (
+                "relief_seam_through_open_lanes",
+                "top_relief_seam_through_open_lanes",
+                "bottom_relief_seam_through_open_lanes",
+            ):
+                self.assertNotIn(pressure_only_field, legacy_sample)
 
     def test_pressure_telemetry_contact_and_folded_frames_are_exact(self) -> None:
         run_dir = self.create_valid_pressure_worker_fixture()
@@ -3232,9 +3292,17 @@ class ExperimentRunnerTests(unittest.TestCase):
             run_dir, manifest
         )
         self.assertEqual(analysis["verdict"], "PASS")
-        self.assertEqual(analysis["metrics"]["persistent_opening_confirmed_tick"], 8)
-        self.assertEqual(analysis["metrics"]["first_outside_chamber_steam_tick"], 9)
-        self.assertEqual(analysis["metrics"]["first_post_opening_relief_tick"], 10)
+        self.assertEqual(analysis["metrics"]["persistent_opening_confirmed_tick"], 16)
+        self.assertEqual(analysis["metrics"]["first_rupture_tick"], 2)
+        self.assertEqual(analysis["metrics"]["first_outside_chamber_steam_tick"], 17)
+        self.assertEqual(analysis["metrics"]["first_post_opening_relief_tick"], 18)
+        self.assertEqual(analysis["lifecycle"]["post_opening_end_tick"], 196)
+        self.assertEqual(samples[-2]["sim_tick"], 196)
+        self.assertEqual(samples[1]["relief_seam_open_cells"], 72)
+        self.assertEqual(samples[1]["top_relief_seam_open_cells"], 48)
+        self.assertEqual(samples[1]["bottom_relief_seam_open_cells"], 24)
+        self.assertEqual(samples[1]["relief_seam_through_open_lanes"], 0)
+        self.assertEqual(samples[2]["relief_seam_through_open_lanes"], 2)
         self.assertEqual(analysis["terminal_window"]["sample_count"], 64)
         self.assertFalse(analysis["terminal_window"]["unbounded_growth"])
         self.assertEqual(len(frames_doc["frames"]), 8)
@@ -3244,7 +3312,6 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "tick1",
                 "first-pressure-activity",
                 "first-wood-damage",
-                "first-rupture",
             ],
         )
         self.assertEqual(frames_doc["frames"][-1]["badges"][0]["kind"], "reset")
@@ -3262,10 +3329,10 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertEqual(
             experiment.contact_sheet_caption_lines(item, sample),
             (
-                "#2 peak-pressure+peak-pressure-act... | sim 2 | sample 2",
+                "#2 first-rupture+peak-pressure+pea... | sim 2 | sample 2",
                 "Pressure active 1000",
                 "Chamber mean/max 130.000/220.000",
-                "Seam Wood/open 570/6 | Outside Steam 0",
+                "Seam Wood/open/through 488/88/2 | Outside Steam 0",
                 "State fnv1a64:0000000000003002",
             ),
         )
@@ -3292,13 +3359,13 @@ class ExperimentRunnerTests(unittest.TestCase):
             samples[1],
             samples[1],
             samples[1],
-            samples[1],
-            [samples[1], samples[2], samples[3]],
+            samples[2],
+            [samples[2], samples[3], samples[4]],
             None,
-            samples[4],
-            samples[2],
-            samples[2],
             samples[5],
+            samples[2],
+            samples[2],
+            samples[6],
             samples[-2],
             samples[-1],
             [],
@@ -3321,23 +3388,51 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_pressure_opening_detector_and_review_verdict_are_tri_state(self) -> None:
         diagnostics = [
-            {"relief_seam_open_cells": value, "sim_tick": tick}
-            for tick, value in ((2, 1), (8, 0), (16, 2), (24, 3), (32, 4))
+            {
+                "relief_seam_open_cells": raw_open,
+                "relief_seam_through_open_lanes": through_lanes,
+                "sim_tick": tick,
+            }
+            for tick, raw_open, through_lanes in (
+                (2, 48, 1),
+                (8, 64, 0),
+                (16, 72, 1),
+                (24, 80, 1),
+                (32, 88, 1),
+            )
         ]
         streak, starts, breaks = experiment.pressure_opening_streak(diagnostics)
         self.assertEqual([item["sim_tick"] for item in streak or []], [16, 24, 32])
         self.assertEqual([item["sim_tick"] for item in starts], [2, 16])
         self.assertEqual([item["sim_tick"] for item in breaks], [8])
-        tick1_streak, _, _ = experiment.pressure_opening_streak(
+        tick1_streak, tick1_starts, _ = experiment.pressure_opening_streak(
             [
-                {"relief_seam_open_cells": 1, "sim_tick": 1},
-                {"relief_seam_open_cells": 2, "sim_tick": 2},
-                {"relief_seam_open_cells": 3, "sim_tick": 8},
+                {
+                    "relief_seam_open_cells": 72,
+                    "relief_seam_through_open_lanes": 0,
+                    "sim_tick": 1,
+                },
+                {
+                    "relief_seam_open_cells": 80,
+                    "relief_seam_through_open_lanes": 1,
+                    "sim_tick": 2,
+                },
+                {
+                    "relief_seam_open_cells": 88,
+                    "relief_seam_through_open_lanes": 1,
+                    "sim_tick": 8,
+                },
+                {
+                    "relief_seam_open_cells": 96,
+                    "relief_seam_through_open_lanes": 1,
+                    "sim_tick": 16,
+                },
             ]
         )
         self.assertEqual(
-            [item["sim_tick"] for item in tick1_streak or []], [1, 2, 8]
+            [item["sim_tick"] for item in tick1_streak or []], [2, 8, 16]
         )
+        self.assertEqual([item["sim_tick"] for item in tick1_starts], [2])
         pass_statuses = {name: "pass" for name in experiment.PRESSURE_PREDICATE_NAMES}
         flags = {
             "only_one_relief_seam_ruptured": True,
@@ -3388,7 +3483,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             encoding="utf-8",
         )
         analysis, _, _, _ = experiment.validate_telemetry(causal_run, manifest)
-        self.assertEqual(analysis["metrics"]["first_outside_chamber_steam_tick"], 9)
+        self.assertEqual(analysis["metrics"]["first_outside_chamber_steam_tick"], 17)
         analysis_path = causal_run / "work" / "analysis.json"
         hidden_reset_failure = json.loads(analysis_path.read_text(encoding="utf-8"))
         hidden_reset_failure["metrics"]["reset_exact_equivalence"] = False
@@ -3411,21 +3506,13 @@ class ExperimentRunnerTests(unittest.TestCase):
         reseal_path = reseal_run / "telemetry" / "samples.jsonl"
         reseal_samples = experiment.read_jsonl(reseal_path, "Pressure reseal samples")
         reseal = reseal_samples[6]
-        added_wood = 576 - reseal["relief_seam_wood_cells"]
         reseal.update(
             {
-                "relief_seam_wood_cells": 576,
-                "top_relief_seam_wood_cells": 384,
-                "bottom_relief_seam_wood_cells": 192,
-                "relief_seam_open_cells": 0,
-                "top_relief_seam_open_cells": 0,
-                "bottom_relief_seam_open_cells": 0,
-                "steam_in_relief_seam_cells": 0,
-                "matter_count": reseal["matter_count"] + added_wood,
+                "relief_seam_through_open_lanes": 0,
+                "top_relief_seam_through_open_lanes": 0,
+                "bottom_relief_seam_through_open_lanes": 0,
             }
         )
-        reseal["material_counts_by_id"][0] -= added_wood
-        reseal["material_counts_by_id"][9] += added_wood
         reseal_path.write_text(
             "".join(
                 json.dumps(item, separators=(",", ":")) + "\n"
@@ -3458,13 +3545,13 @@ class ExperimentRunnerTests(unittest.TestCase):
             reseal_samples[1],
             reseal_samples[1],
             reseal_samples[1],
-            reseal_samples[1],
-            [reseal_samples[1], reseal_samples[2], reseal_samples[3]],
+            reseal_samples[2],
+            [reseal_samples[2], reseal_samples[3], reseal_samples[4]],
             reseal_samples[6],
-            reseal_samples[4],
-            reseal_samples[2],
-            reseal_samples[2],
             reseal_samples[5],
+            reseal_samples[2],
+            reseal_samples[2],
+            reseal_samples[6],
             reseal_samples[-2],
             reseal_samples[-1],
             [],

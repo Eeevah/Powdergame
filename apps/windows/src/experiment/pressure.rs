@@ -11,7 +11,7 @@ use std::path::Path;
 use powdergame_core::{
     is_valid_cell_material_value, WorldConfig, ACTIVITY_MATTER, ACTIVITY_PRESSURE,
     ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING,
-    MATERIAL_EMPTY, MATERIAL_STEAM, MATERIAL_WATER, MATERIAL_WOOD,
+    MATERIAL_EMPTY, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_WATER, MATERIAL_WOOD,
 };
 use powdergame_gpu::Simulation;
 use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
@@ -114,6 +114,9 @@ struct PressureSampleMetrics {
     relief_seam_open_cells: u64,
     top_relief_seam_open_cells: u64,
     bottom_relief_seam_open_cells: u64,
+    relief_seam_through_open_lanes: u64,
+    top_relief_seam_through_open_lanes: u64,
+    bottom_relief_seam_through_open_lanes: u64,
     steam_in_relief_seam_cells: u64,
     outside_chamber_steam_cells: u64,
     chamber_pressure_cell_count: u64,
@@ -153,6 +156,25 @@ fn in_outer_chamber(x: usize, y: usize) -> bool {
 
 fn in_pressure_cavity(x: usize, y: usize) -> bool {
     (CAVITY_MIN_X..CAVITY_MAX_X).contains(&x) && (CAVITY_MIN_Y..CAVITY_MAX_Y).contains(&y)
+}
+
+fn is_vent_passable(material: u32) -> bool {
+    matches!(material, MATERIAL_EMPTY | MATERIAL_STEAM | MATERIAL_SMOKE)
+}
+
+fn count_through_open_lanes(
+    snapshot: &GpuSnapshot,
+    width: usize,
+    min_x: usize,
+    max_x: usize,
+    min_y: usize,
+    max_y: usize,
+) -> u64 {
+    (min_x..max_x)
+        .filter(|&x| {
+            (min_y..max_y).all(|y| is_vent_passable(snapshot.material_current[y * width + x]))
+        })
+        .count() as u64
 }
 
 fn pressure_metrics_from_snapshot(
@@ -255,6 +277,22 @@ fn pressure_metrics_from_snapshot(
     };
     let chamber_mean_pressure = quantize_json_9(chamber_mean_pressure);
     let chamber_max_pressure = quantize_json_9(f64::from(chamber_pressure_max));
+    let top_through_open_lanes = count_through_open_lanes(
+        snapshot,
+        width,
+        TOP_SEAM_MIN_X,
+        TOP_SEAM_MAX_X,
+        TOP_SEAM_MIN_Y,
+        TOP_SEAM_MAX_Y,
+    );
+    let bottom_through_open_lanes = count_through_open_lanes(
+        snapshot,
+        width,
+        BOTTOM_SEAM_MIN_X,
+        BOTTOM_SEAM_MAX_X,
+        BOTTOM_SEAM_MIN_Y,
+        BOTTOM_SEAM_MAX_Y,
+    );
     let water_count = material_counts_by_id[MATERIAL_WATER as usize];
     let steam_count = material_counts_by_id[MATERIAL_STEAM as usize];
 
@@ -299,6 +337,10 @@ fn pressure_metrics_from_snapshot(
         relief_seam_open_cells: top_open.saturating_add(bottom_open),
         top_relief_seam_open_cells: top_open,
         bottom_relief_seam_open_cells: bottom_open,
+        relief_seam_through_open_lanes: top_through_open_lanes
+            .saturating_add(bottom_through_open_lanes),
+        top_relief_seam_through_open_lanes: top_through_open_lanes,
+        bottom_relief_seam_through_open_lanes: bottom_through_open_lanes,
         steam_in_relief_seam_cells: steam_in_seam,
         outside_chamber_steam_cells: outside_steam,
         chamber_pressure_cell_count: chamber_pressure_cells,
@@ -345,13 +387,15 @@ fn baseline_from_tick0(metrics: &PressureSampleMetrics) -> Result<PressureBaseli
         || metrics.top_relief_seam_wood_cells != INITIAL_TOP_SEAM_WOOD
         || metrics.bottom_relief_seam_wood_cells != INITIAL_BOTTOM_SEAM_WOOD
         || metrics.relief_seam_open_cells != 0
+        || metrics.relief_seam_through_open_lanes != 0
     {
         return Err(format!(
-            "Pressure tick-0 relief seam mismatch: total/top/bottom/open={}/{}/{}/{} expected 576/384/192/0",
+            "Pressure tick-0 relief seam mismatch: total/top/bottom/open/through={}/{}/{}/{}/{} expected 576/384/192/0/0",
             metrics.relief_seam_wood_cells,
             metrics.top_relief_seam_wood_cells,
             metrics.bottom_relief_seam_wood_cells,
-            metrics.relief_seam_open_cells
+            metrics.relief_seam_open_cells,
+            metrics.relief_seam_through_open_lanes
         ));
     }
     if metrics.chamber_pressure_cell_count != CHAMBER_PRESSURE_CELL_COUNT {
@@ -425,6 +469,9 @@ impl PressureJsonlWriters {
                 "\"relief_seam_open_cells\":{},",
                 "\"top_relief_seam_open_cells\":{},",
                 "\"bottom_relief_seam_open_cells\":{},",
+                "\"relief_seam_through_open_lanes\":{},",
+                "\"top_relief_seam_through_open_lanes\":{},",
+                "\"bottom_relief_seam_through_open_lanes\":{},",
                 "\"steam_in_relief_seam_cells\":{},",
                 "\"outside_chamber_steam_cells\":{},",
                 "\"chamber_pressure_cell_count\":{},",
@@ -472,6 +519,9 @@ impl PressureJsonlWriters {
             metrics.relief_seam_open_cells,
             metrics.top_relief_seam_open_cells,
             metrics.bottom_relief_seam_open_cells,
+            metrics.relief_seam_through_open_lanes,
+            metrics.top_relief_seam_through_open_lanes,
+            metrics.bottom_relief_seam_through_open_lanes,
             metrics.steam_in_relief_seam_cells,
             metrics.outside_chamber_steam_cells,
             metrics.chamber_pressure_cell_count,
@@ -553,7 +603,7 @@ impl PersistentOpeningDetector {
     }
 
     fn observe(&mut self, metrics: &PressureSampleMetrics) -> OpeningUpdate {
-        if metrics.relief_seam_open_cells == 0 {
+        if metrics.relief_seam_through_open_lanes == 0 {
             let streak_broken = self.streak != 0;
             self.streak = 0;
             self.first = None;
@@ -607,7 +657,7 @@ impl ObservationUpdate {
 struct PressureObservations {
     first_pressure_activity: Option<SampleIdentity>,
     first_wood_damage: Option<SampleIdentity>,
-    /// Cold bottom seam loss is the unambiguous pressure-only rupture evidence.
+    /// First complete cavity-to-exterior lane through either authored seam.
     first_rupture: Option<SampleIdentity>,
     persistent_opening_start: Option<SampleIdentity>,
     persistent_opening_confirmed: Option<SampleIdentity>,
@@ -703,27 +753,29 @@ impl PressureObservations {
             self.first_wood_damage = Some(metrics.identity());
         }
         let first_rupture =
-            metrics.bottom_relief_seam_open_cells != 0 && self.first_rupture.is_none();
+            metrics.relief_seam_through_open_lanes != 0 && self.first_rupture.is_none();
         if first_rupture {
             self.first_rupture = Some(metrics.identity());
         }
-        self.top_relief_seam_ever_opened |= metrics.top_relief_seam_open_cells != 0;
-        self.bottom_relief_seam_ever_opened |= metrics.bottom_relief_seam_open_cells != 0;
+        self.top_relief_seam_ever_opened |= metrics.top_relief_seam_through_open_lanes != 0;
+        self.bottom_relief_seam_ever_opened |= metrics.bottom_relief_seam_through_open_lanes != 0;
 
         let confirmed = self.persistent_opening_confirmed.is_some();
-        let first_post_confirmation_reseal = confirmed
-            && metrics.relief_seam_open_cells == 0
-            && self.first_post_confirmation_reseal.is_none();
+        let currently_through_open = metrics.relief_seam_through_open_lanes != 0;
+        let first_post_confirmation_reseal =
+            confirmed && !currently_through_open && self.first_post_confirmation_reseal.is_none();
         if first_post_confirmation_reseal {
             self.first_post_confirmation_reseal = Some(metrics.identity());
         }
         let first_steam_in_relief_seam = confirmed
+            && currently_through_open
             && metrics.steam_in_relief_seam_cells != 0
             && self.first_steam_in_relief_seam.is_none();
         if first_steam_in_relief_seam {
             self.first_steam_in_relief_seam = Some(metrics.identity());
         }
         let first_exterior_steam = confirmed
+            && currently_through_open
             && self.first_steam_in_relief_seam.is_some()
             && metrics.outside_chamber_steam_cells != 0
             && self.first_exterior_steam.is_none();
@@ -1643,6 +1695,9 @@ fn write_analysis_json(
             "\"final_relief_seam_open_cells\":{},",
             "\"final_top_relief_seam_open_cells\":{},",
             "\"final_bottom_relief_seam_open_cells\":{},",
+            "\"final_relief_seam_through_open_lanes\":{},",
+            "\"final_top_relief_seam_through_open_lanes\":{},",
+            "\"final_bottom_relief_seam_through_open_lanes\":{},",
             "\"final_steam_in_relief_seam_cells\":{},",
             "\"outside_chamber_steam_peak\":{},",
             "\"final_outside_chamber_steam_cells\":{},",
@@ -1746,6 +1801,9 @@ fn write_analysis_json(
         latest.relief_seam_open_cells,
         latest.top_relief_seam_open_cells,
         latest.bottom_relief_seam_open_cells,
+        latest.relief_seam_through_open_lanes,
+        latest.top_relief_seam_through_open_lanes,
+        latest.bottom_relief_seam_through_open_lanes,
         latest.steam_in_relief_seam_cells,
         observations.outside_chamber_steam_peak,
         latest.outside_chamber_steam_cells,
@@ -1841,18 +1899,21 @@ fn record_observation_updates(
         )?;
     }
     if update.first_rupture {
-        *first_rupture_frame = Some(require_frame()?.with_badge(
-            "first-rupture",
-            "cold-bottom-seam-pressure-attributed-opening",
-        ));
+        *first_rupture_frame = Some(
+            require_frame()?
+                .with_badge("first-rupture", "first-eight-cell-through-open-relief-lane"),
+        );
         output.event(
             config,
             "rupture_observed",
             metrics.sim_tick,
             Some(metrics.sample_sequence),
             &format!(
-                "cold_bottom=true;bottom_wood={};bottom_open={}",
-                metrics.bottom_relief_seam_wood_cells, metrics.bottom_relief_seam_open_cells
+                "through_lanes={};top_through_lanes={};bottom_through_lanes={};raw_non_wood_open_cells={}",
+                metrics.relief_seam_through_open_lanes,
+                metrics.top_relief_seam_through_open_lanes,
+                metrics.bottom_relief_seam_through_open_lanes,
+                metrics.relief_seam_open_cells
             ),
         )?;
     }
@@ -1887,14 +1948,14 @@ fn record_observation_updates(
     if update.first_post_confirmation_reseal {
         *reseal_frame = Some(require_frame()?.with_badge(
             "opening-reseal",
-            "first-zero-open-cell-sample-after-persistent-confirmation",
+            "first-zero-through-lane-sample-after-persistent-confirmation",
         ));
         output.event(
             config,
             "post_confirmation_reseal_observed",
             metrics.sim_tick,
             Some(metrics.sample_sequence),
-            "relief_seam_open_cells=0",
+            "relief_seam_through_open_lanes=0",
         )?;
     }
     if update.new_peak_chamber_mean {
@@ -2081,8 +2142,8 @@ pub fn run_pressure_burst_experiment(
             tick1_metrics.sim_tick,
             Some(tick1_metrics.sample_sequence),
             &format!(
-                "relief_seam_open_cells={}",
-                tick1_metrics.relief_seam_open_cells
+                "relief_seam_through_open_lanes={};raw_non_wood_open_cells={}",
+                tick1_metrics.relief_seam_through_open_lanes, tick1_metrics.relief_seam_open_cells
             ),
         )?;
     }
@@ -2165,7 +2226,7 @@ pub fn run_pressure_burst_experiment(
                 "persistent_opening_streak_broken",
                 metrics.sim_tick,
                 Some(metrics.sample_sequence),
-                "relief seam returned to zero non-Wood cells",
+                "relief seam returned to zero through-open lanes",
             )?;
         }
         if opening_update.first_in_streak {
@@ -2174,7 +2235,10 @@ pub fn run_pressure_burst_experiment(
                 "persistent_opening_streak_started",
                 metrics.sim_tick,
                 Some(metrics.sample_sequence),
-                &format!("relief_seam_open_cells={}", metrics.relief_seam_open_cells),
+                &format!(
+                    "relief_seam_through_open_lanes={};raw_non_wood_open_cells={}",
+                    metrics.relief_seam_through_open_lanes, metrics.relief_seam_open_cells
+                ),
             )?;
         }
         if opening_update.confirmed {
@@ -2194,11 +2258,13 @@ pub fn run_pressure_burst_experiment(
                 metrics.sim_tick,
                 Some(metrics.sample_sequence),
                 &format!(
-                    "required={};first_tick={};first_sample={};open_cells={}",
+                    "required={};first_tick={};first_sample={};through_lanes={};top_through_lanes={};bottom_through_lanes={}",
                     config.consecutive_persistent_opening,
                     first.sim_tick,
                     first.sample_sequence,
-                    metrics.relief_seam_open_cells
+                    metrics.relief_seam_through_open_lanes,
+                    metrics.top_relief_seam_through_open_lanes,
+                    metrics.bottom_relief_seam_through_open_lanes
                 ),
             )?;
             output.event(
@@ -2567,6 +2633,9 @@ mod tests {
             relief_seam_open_cells: 0,
             top_relief_seam_open_cells: 0,
             bottom_relief_seam_open_cells: 0,
+            relief_seam_through_open_lanes: 0,
+            top_relief_seam_through_open_lanes: 0,
+            bottom_relief_seam_through_open_lanes: 0,
             steam_in_relief_seam_cells: 0,
             outside_chamber_steam_cells: 0,
             chamber_pressure_cell_count: CHAMBER_PRESSURE_CELL_COUNT,
@@ -2606,6 +2675,7 @@ mod tests {
         assert_eq!(metrics.top_relief_seam_wood_cells, 384);
         assert_eq!(metrics.bottom_relief_seam_wood_cells, 192);
         assert_eq!(metrics.relief_seam_open_cells, 0);
+        assert_eq!(metrics.relief_seam_through_open_lanes, 0);
         assert_eq!(metrics.chamber_pressure_cell_count, 29_920);
         assert_eq!(metrics.chamber_mean_pressure, 180.0);
         assert_eq!(metrics.chamber_max_pressure, 180.0);
@@ -2635,15 +2705,61 @@ mod tests {
             .expect("metrics");
         assert_eq!(metrics.bottom_relief_seam_open_cells, 1);
         assert_eq!(metrics.top_relief_seam_open_cells, 1);
+        assert_eq!(metrics.relief_seam_through_open_lanes, 0);
         assert_eq!(metrics.steam_in_relief_seam_cells, 1);
         assert_eq!(metrics.outside_chamber_steam_cells, 1);
     }
 
     #[test]
+    fn pressure_through_lane_requires_all_eight_cells_to_be_vent_passable() {
+        let (world, mut snapshot) = authored_metric_snapshot();
+
+        // The rejected scratch lost one complete horizontal Wood layer. That is
+        // damage, but it leaves seven Wood cells in every cavity-to-exterior
+        // column and therefore is not an opening.
+        for x in TOP_SEAM_MIN_X..TOP_SEAM_MAX_X {
+            set_material(&mut snapshot, world, x, TOP_SEAM_MIN_Y, MATERIAL_SMOKE);
+        }
+        let damaged = pressure_metrics_from_snapshot(&snapshot, world, 1, 1, "test", "test")
+            .expect("damaged metrics");
+        assert_eq!(damaged.top_relief_seam_open_cells, 48);
+        assert_eq!(damaged.top_relief_seam_through_open_lanes, 0);
+
+        let lane_x = TOP_SEAM_MIN_X;
+        for (offset, y) in (TOP_SEAM_MIN_Y..TOP_SEAM_MAX_Y).enumerate() {
+            let material = match offset % 3 {
+                0 => MATERIAL_EMPTY,
+                1 => MATERIAL_STEAM,
+                _ => MATERIAL_SMOKE,
+            };
+            set_material(&mut snapshot, world, lane_x, y, material);
+        }
+        let opened = pressure_metrics_from_snapshot(&snapshot, world, 2, 2, "test", "test")
+            .expect("opened metrics");
+        assert_eq!(opened.top_relief_seam_through_open_lanes, 1);
+        assert_eq!(opened.relief_seam_through_open_lanes, 1);
+
+        set_material(
+            &mut snapshot,
+            world,
+            lane_x,
+            TOP_SEAM_MIN_Y + 3,
+            MATERIAL_WATER,
+        );
+        let water_blocked = pressure_metrics_from_snapshot(&snapshot, world, 3, 3, "test", "test")
+            .expect("water-blocked metrics");
+        assert_eq!(water_blocked.top_relief_seam_through_open_lanes, 0);
+    }
+
+    #[test]
     fn pressure_persistent_opening_counts_tick1_tick2_and_first_cadence_sample() {
         let mut detector = PersistentOpeningDetector::new(3);
+        let mut layer_damage = metrics(0, 100.0, 120.0, 1);
+        layer_damage.relief_seam_open_cells = 72;
+        assert_eq!(detector.observe(&layer_damage), OpeningUpdate::default());
+
         let mut opened = metrics(1, 100.0, 120.0, 1);
-        opened.relief_seam_open_cells = 1;
+        opened.relief_seam_through_open_lanes = 1;
         assert!(detector.observe(&opened).first_in_streak);
         opened.sim_tick = 2;
         opened.sample_sequence = 2;
@@ -2660,6 +2776,27 @@ mod tests {
         );
         let closed = metrics(16, 90.0, 100.0, 1);
         assert!(detector.observe(&closed).streak_broken);
+    }
+
+    #[test]
+    fn pressure_non_wood_layer_damage_is_not_a_rupture() {
+        let initial = metrics(0, 180.0, 180.0, 0);
+        let baseline = baseline(&initial);
+        let mut observations = PressureObservations::new(&initial);
+        let mut damaged = metrics(1, 170.0, 180.0, 1);
+        damaged.relief_seam_wood_cells = 504;
+        damaged.top_relief_seam_wood_cells = 336;
+        damaged.bottom_relief_seam_wood_cells = 168;
+        damaged.relief_seam_open_cells = 72;
+        damaged.top_relief_seam_open_cells = 48;
+        damaged.bottom_relief_seam_open_cells = 24;
+
+        let update = observations.observe(&damaged, &baseline);
+        assert!(update.first_wood_damage);
+        assert!(!update.first_rupture);
+        assert!(observations.first_rupture.is_none());
+        assert!(!observations.top_relief_seam_ever_opened);
+        assert!(!observations.bottom_relief_seam_ever_opened);
     }
 
     #[test]
@@ -2713,6 +2850,8 @@ mod tests {
         let mut vent = metrics(8, 100.000_000_000_4, 100.000_000_000_4, 1);
         vent.relief_seam_open_cells = 1;
         vent.bottom_relief_seam_open_cells = 1;
+        vent.relief_seam_through_open_lanes = 1;
+        vent.bottom_relief_seam_through_open_lanes = 1;
         vent.steam_in_relief_seam_cells = 1;
         vent.outside_chamber_steam_cells = 1;
         relief_observations.confirm_opening(vent.identity(), vent.identity());
@@ -2721,6 +2860,8 @@ mod tests {
         let mut sub_serialization_drop = metrics(9, 99.999_999_999_9, 99.999_999_999_9, 1);
         sub_serialization_drop.relief_seam_open_cells = 1;
         sub_serialization_drop.bottom_relief_seam_open_cells = 1;
+        sub_serialization_drop.relief_seam_through_open_lanes = 1;
+        sub_serialization_drop.bottom_relief_seam_through_open_lanes = 1;
         let hidden_update = relief_observations.observe(&sub_serialization_drop, &initial_baseline);
         assert_eq!(sub_serialization_drop.chamber_mean_pressure, 100.0);
         assert_eq!(sub_serialization_drop.chamber_max_pressure, 100.0);
@@ -2729,6 +2870,8 @@ mod tests {
         let mut serialized_drop = metrics(10, 99.999_999_998_9, 99.999_999_998_9, 1);
         serialized_drop.relief_seam_open_cells = 1;
         serialized_drop.bottom_relief_seam_open_cells = 1;
+        serialized_drop.relief_seam_through_open_lanes = 1;
+        serialized_drop.bottom_relief_seam_through_open_lanes = 1;
         let visible_update = relief_observations.observe(&serialized_drop, &initial_baseline);
         assert_eq!(serialized_drop.chamber_mean_pressure, 99.999_999_999);
         assert_eq!(serialized_drop.chamber_max_pressure, 99.999_999_999);
@@ -2766,6 +2909,8 @@ mod tests {
         let mut premature = metrics(8, 175.0, 195.0, 10);
         premature.relief_seam_open_cells = 1;
         premature.bottom_relief_seam_open_cells = 1;
+        premature.relief_seam_through_open_lanes = 1;
+        premature.bottom_relief_seam_through_open_lanes = 1;
         premature.steam_in_relief_seam_cells = 1;
         premature.outside_chamber_steam_cells = 1;
         observations.observe(&premature, &baseline);
@@ -2776,6 +2921,8 @@ mod tests {
         let mut outside_without_transit = metrics(16, 170.0, 190.0, 10);
         outside_without_transit.relief_seam_open_cells = 1;
         outside_without_transit.bottom_relief_seam_open_cells = 1;
+        outside_without_transit.relief_seam_through_open_lanes = 1;
+        outside_without_transit.bottom_relief_seam_through_open_lanes = 1;
         outside_without_transit.outside_chamber_steam_cells = 1;
         observations.observe(&outside_without_transit, &baseline);
         assert!(observations.first_exterior_steam.is_none());
@@ -2783,6 +2930,8 @@ mod tests {
         let mut in_seam = metrics(24, 165.0, 185.0, 10);
         in_seam.relief_seam_open_cells = 1;
         in_seam.bottom_relief_seam_open_cells = 1;
+        in_seam.relief_seam_through_open_lanes = 1;
+        in_seam.bottom_relief_seam_through_open_lanes = 1;
         in_seam.steam_in_relief_seam_cells = 1;
         observations.observe(&in_seam, &baseline);
         assert_eq!(
@@ -2794,6 +2943,8 @@ mod tests {
         let mut vent = metrics(32, 160.0, 180.0, 10);
         vent.relief_seam_open_cells = 1;
         vent.bottom_relief_seam_open_cells = 1;
+        vent.relief_seam_through_open_lanes = 1;
+        vent.bottom_relief_seam_through_open_lanes = 1;
         vent.outside_chamber_steam_cells = 1;
         observations.observe(&vent, &baseline);
         assert_eq!(observations.first_exterior_steam, Some(vent.identity()));
@@ -2802,6 +2953,8 @@ mod tests {
         let mut relief = metrics(40, 159.0, 179.0, 10);
         relief.relief_seam_open_cells = 1;
         relief.bottom_relief_seam_open_cells = 1;
+        relief.relief_seam_through_open_lanes = 1;
+        relief.bottom_relief_seam_through_open_lanes = 1;
         observations.observe(&relief, &baseline);
         assert_eq!(
             observations.first_post_opening_relief,
@@ -2838,6 +2991,8 @@ mod tests {
         open.bottom_relief_seam_wood_cells = 191;
         open.relief_seam_open_cells = 1;
         open.bottom_relief_seam_open_cells = 1;
+        open.relief_seam_through_open_lanes = 1;
+        open.bottom_relief_seam_through_open_lanes = 1;
         observations.confirm_opening(open.identity(), open.identity());
         observations.observe(&open, &baseline);
 
@@ -2867,6 +3022,8 @@ mod tests {
         sample.top_relief_seam_wood_cells = 383;
         sample.relief_seam_open_cells = 1;
         sample.top_relief_seam_open_cells = 1;
+        sample.relief_seam_through_open_lanes = 1;
+        sample.top_relief_seam_through_open_lanes = 1;
         sample.outside_chamber_steam_cells = 1;
         observations.observe(&sample, &baseline);
         observations.confirm_opening(sample.identity(), sample.identity());

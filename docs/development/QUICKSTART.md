@@ -34,7 +34,7 @@ The preserved correction was attached without reset/stash/rebase/pull to `fix/g8
 ## Run the G8-B inspection Gallery
 
 ```bat
-run_g8_benchmark_gallery.bat
+run_powdergame.bat gallery
 ```
 
 The Gallery uses one shared scenario source with the headless harness and starts paused at a pristine tick-0 state.
@@ -137,7 +137,7 @@ Without an explicit `--csv`, shared fixtures write `target/<slug>_report.csv`; t
 ## Run current G7 demo
 
 ```bat
-run_g7_activity_demo.bat
+run_powdergame.bat activity
 ```
 
 Direct:

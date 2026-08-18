@@ -76,7 +76,7 @@ The legacy `calibration` selection remains on its original G8-A fixture path. No
 Launcher:
 
 ```bat
-run_g8_benchmark_gallery.bat
+run_powdergame.bat gallery
 ```
 
 Direct entry:

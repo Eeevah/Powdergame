@@ -41,7 +41,7 @@ Target:        60 simulation TPS baseline
 Windows inspection Gallery:
 
 ```bat
-run_g8_benchmark_gallery.bat
+run_powdergame.bat gallery
 ```
 
 Gallery slot `1`~`5`는 Sand Fall, Water Flow, Fire / Heat, Pressure Burst, Heavy Mixed World의 official G8-B fixture다. Slot `6`은 official matrix workload가 아니라 기존 G7 Active/Sleep geometry와 edit-wake 의미를 보존하는 회귀 fixture다. Gallery는 paused 상태로 시작하며 `1-6` scenario 선택, `SPACE` play/pause, `N` one tick, `F` x1/x4/x16, `R` pristine reset, `ESC` quit을 제공한다.

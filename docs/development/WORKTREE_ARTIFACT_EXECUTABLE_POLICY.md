@@ -106,18 +106,19 @@ run_powdergame.bat --benchmark-gallery --smoke-frames 3
 
 `--`로 시작하는 app CLI 인자는 그대로 전달한다. 알 수 없는 편의 별칭은 usage를
 출력하고 exit code 2로 종료한다. Repository 밖 convenience launcher는 canonical
-launcher audit의 직접 관리 대상이 아닐 수 있으므로 최종 migration 전까지 경로,
-내용, hash, 실제 forwarding 대상을 inventory한다.
+launcher audit의 직접 관리 대상이 아닐 수 있으므로 경로, 내용, hash, 실제
+forwarding 대상을 inventory한다.
 
-Gate별 `run_g*.bat`은 새로 만들지 않는다. `run_g5_demo.bat`은
-`run_powdergame.bat pressure`로 교체되어 제거되었다. 현재 migration debt는
-다음 두 legacy wrapper뿐이다.
+Gate별 `run_g*.bat`은 새로 만들지 않는다. Legacy root-wrapper migration은 G8-B
+closure에서 완료됐으며, Activity와 Gallery는 각각 다음 canonical alias로 연다.
 
-- `run_g7_activity_demo.bat` → `run_powdergame.bat --activity-demo`
-- `run_g8_benchmark_gallery.bat` → `run_powdergame.bat --benchmark-gallery`
+```bat
+run_powdergame.bat activity
+run_powdergame.bat gallery
+```
 
-이들은 `config/development-policy.json`에 명시하며 G8-B closure까지 canonical
-launcher로 교체한 뒤 제거한다. 새로운 legacy 항목을 추가하면 audit 실패다.
+`config/development-policy.json`의 `launchers.legacy_root`는 빈 배열이다. 새로운
+legacy 항목을 추가하지 않으며, root에 새 `run_g*` 변형을 만들면 audit 실패다.
 
 ---
 
@@ -177,11 +178,12 @@ Audit은 다음을 검사한다.
 - required policy files
 - worktree count
 - canonical launcher
-- legacy migration debt
+- declared legacy launcher의 repository 내 존재 여부
 - artifact root가 repository 밖인지 여부
 
 CI에서는 repository 구조를 검사하고 local-only worktree/artifact 크기는 보고하지
-않는다. Declared migration debt는 warning이며 새 위반은 failure다.
+않는다. G8-B closure 뒤 legacy launcher migration debt는 없으며 새 위반은
+failure다.
 
 ---
 

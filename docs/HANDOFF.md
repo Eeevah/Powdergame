@@ -259,7 +259,7 @@ Do not optimize compact active lists / indirect dispatch before G8 measurement i
 Windows inspection:
 
 ```bat
-run_g8_benchmark_gallery.bat
+run_powdergame.bat gallery
 ```
 
 Gallery는 paused 상태로 시작한다. `1-6` scenario, `SPACE` play/pause, `N` one tick, `F` x1/x4/x16, `R` pristine reset, `ESC` quit을 사용한다.

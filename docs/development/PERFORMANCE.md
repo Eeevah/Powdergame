@@ -552,7 +552,7 @@ The immutable Heavy binary / Review Packet / Receipt / Audit Bundle SHA-256 valu
 
 ### Windows inspection and headless timing separation
 
-- Windows `--benchmark-gallery` / `run_g8_benchmark_gallery.bat`은 1~6 선택, play/pause, one-tick step, x1/x4/x16, pristine reset을 제공하고 항상 paused 상태에서 시작한다.
+- Windows `--benchmark-gallery` / `run_powdergame.bat gallery`는 1~6 선택, play/pause, one-tick step, x1/x4/x16, pristine reset을 제공하고 항상 paused 상태에서 시작한다.
 - Gallery의 rendering, HUD, wall-clock TPS, sampled activity census는 시각적·진단용 surface다. bounded census도 out-of-band readback이며 official timed loop에 들어가지 않는다.
 - headless harness는 `--scenario calibration|sand-fall|water-flow|fire-heat|pressure-burst|heavy-mixed-world|active-sleep-g7`을 받는다. Gallery crate/window/renderer를 통과하지 않는다.
 - 기본 `calibration`은 기존 `powdergame-g8a-v5`, `g8a-*`, `target/calibration_report.csv` 계약을 유지한다. shared fixture는 같은 CSV column shape에서 `powdergame-g8b-fixture-v1`, `g8b-<slug>-*`, `target/<slug>_report.csv`로 identity와 기본 output을 분리한다.

@@ -15,18 +15,7 @@
       "run_powdergame.bat",
       "run_experiment.bat"
     ],
-    "legacy_root": [
-      {
-        "path": "run_g7_activity_demo.bat",
-        "replacement": "run_powdergame.bat --activity-demo",
-        "remove_by": "G8-B closure"
-      },
-      {
-        "path": "run_g8_benchmark_gallery.bat",
-        "replacement": "run_powdergame.bat --benchmark-gallery",
-        "remove_by": "G8-B closure"
-      }
-    ],
+    "legacy_root": [],
     "deny_new_root_patterns": [
       "^run_g.*\\.(bat|cmd|ps1)$",
       ".*powdergame.*\\.(cmd|ps1)$"

@@ -87,17 +87,27 @@ run_powdergame.bat
 run_experiment.bat
 ```
 
-- `run_powdergame.bat`: 일반 앱, 기존 편의 mode 이름, 또는 raw app CLI 인자
+- `run_powdergame.bat`: 일반 앱, 기존 편의 mode 이름, 또는 raw app CLI 인자.
+  무인자와 `normal`/`gallery`는 사용자 기본인 G8-B Benchmark Scenario
+  Gallery를 연다. `runtime`/`g0`만 빈 G0 technical runtime baseline을 명시적으로
+  연다. Technical baseline은 사용자 기본값이 아니다.
 - `run_experiment.bat`: Python coordinator가 필요한 자동 experiment
 
 예:
 
 ```bat
 run_powdergame.bat
+run_powdergame.bat normal
 run_powdergame.bat pressure
 run_powdergame.bat gallery
+run_powdergame.bat runtime
 run_powdergame.bat --benchmark-gallery --smoke-frames 3
 ```
+
+`--`로 시작하는 app CLI 인자는 그대로 전달한다. 알 수 없는 편의 별칭은 usage를
+출력하고 exit code 2로 종료한다. Repository 밖 convenience launcher는 canonical
+launcher audit의 직접 관리 대상이 아닐 수 있으므로 최종 migration 전까지 경로,
+내용, hash, 실제 forwarding 대상을 inventory한다.
 
 Gate별 `run_g*.bat`은 새로 만들지 않는다. `run_g5_demo.bat`은
 `run_powdergame.bat pressure`로 교체되어 제거되었다. 현재 migration debt는

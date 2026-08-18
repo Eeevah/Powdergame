@@ -345,6 +345,59 @@ function Get-ValidationPlan {
     }
 }
 
+function Invoke-LauncherAuditProbe {
+    param(
+        [Parameter(Mandatory)][string]$LauncherPath,
+        [string[]]$LauncherArgs = @(),
+        [Parameter(Mandatory)][string]$ProbeEnvironment,
+        [Parameter(Mandatory)][string]$ProbeNonceEnvironment,
+        [Parameter(Mandatory)][string]$ProbeNonce,
+        [Parameter(Mandatory)][int]$TimeoutMs
+    )
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $(if ($env:ComSpec) { $env:ComSpec } else { "cmd.exe" })
+    $startInfo.WorkingDirectory = $RepoRoot
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.Environment[$ProbeEnvironment] = $ProbeNonce
+    $startInfo.Environment[$ProbeNonceEnvironment] = $ProbeNonce
+    [void]$startInfo.ArgumentList.Add("/d")
+    [void]$startInfo.ArgumentList.Add("/c")
+    [void]$startInfo.ArgumentList.Add($LauncherPath)
+    foreach ($argument in $LauncherArgs) {
+        [void]$startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [Diagnostics.Process]::Start($startInfo)
+    try {
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutMs)) {
+            try {
+                $process.Kill($true)
+            } finally {
+                $process.WaitForExit()
+            }
+            [void]$stdoutTask.GetAwaiter().GetResult()
+            [void]$stderrTask.GetAwaiter().GetResult()
+            throw "Launcher audit probe timed out after $TimeoutMs ms"
+        }
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        [pscustomobject]@{
+            exit_code = $process.ExitCode
+            stdout = $stdout
+            stderr = $stderr
+        }
+    } finally {
+        $process.Dispose()
+    }
+}
+
 function Invoke-DevelopmentAudit {
     $errors = [Collections.Generic.List[string]]::new()
     $warnings = [Collections.Generic.List[string]]::new()
@@ -371,6 +424,164 @@ function Invoke-DevelopmentAudit {
     foreach ($launcher in $allowed) {
         if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot $launcher) -PathType Leaf)) {
             $errors.Add("Required launcher missing: $launcher")
+        }
+    }
+    $canonicalLauncherPath = Join-Path $RepoRoot ([string]$Policy.canonical_app.normal_launcher)
+    if ($null -eq $Policy.launcher_contract) {
+        $errors.Add("Canonical launcher contract missing from development policy")
+    } elseif (Test-Path -LiteralPath $canonicalLauncherPath -PathType Leaf) {
+        $contract = $Policy.launcher_contract
+        $requiredAliases = [ordered]@{
+            normal = "--benchmark-gallery"
+            gallery = "--benchmark-gallery"
+            runtime = "--runtime-baseline"
+            g0 = "--runtime-baseline"
+            movement = "--movement-demo"
+            density = "--density-demo"
+            thermal = "--thermal-demo"
+            pressure = "--pressure-demo"
+            "parallel-integrity" = "--parallel-integrity-demo"
+            activity = "--activity-demo"
+        }
+        if ([string]$contract.default_args -cne "--benchmark-gallery") {
+            $errors.Add("Canonical launcher policy default must be --benchmark-gallery")
+        }
+        $declaredAliases = @($contract.aliases.PSObject.Properties)
+        if ($declaredAliases.Count -ne $requiredAliases.Count) {
+            $errors.Add("Canonical launcher policy must declare exactly $($requiredAliases.Count) aliases")
+        }
+        foreach ($requiredAlias in $requiredAliases.Keys) {
+            $matches = @($declaredAliases | Where-Object { $_.Name -ceq $requiredAlias })
+            if ($matches.Count -ne 1 -or [string]$matches[0].Value -cne [string]$requiredAliases[$requiredAlias]) {
+                $errors.Add("Canonical launcher policy mapping missing or changed: $requiredAlias -> $($requiredAliases[$requiredAlias])")
+            }
+        }
+        if ([string]$contract.raw_cli_prefix -cne "--") {
+            $errors.Add("Canonical launcher raw CLI prefix must remain --")
+        }
+        $requiredRawProbeArgs = @("--smoke-frames", "3", "--benchmark-gallery")
+        $declaredRawProbeArgs = @($contract.raw_cli_probe_args | ForEach-Object { [string]$_ })
+        if ($declaredRawProbeArgs.Count -ne $requiredRawProbeArgs.Count -or
+            ($declaredRawProbeArgs -join "`0") -cne ($requiredRawProbeArgs -join "`0")) {
+            $errors.Add("Canonical launcher raw CLI probe must preserve the three-argument passthrough contract")
+        }
+        if ([int]$contract.invalid_alias_exit_code -ne 2) {
+            $errors.Add("Canonical launcher invalid alias exit code must remain 2")
+        }
+        if ([string]$contract.probe_environment -cne "POWDERGAME_LAUNCHER_AUDIT_ONLY" -or
+            [string]$contract.probe_nonce_environment -cne "POWDERGAME_LAUNCHER_AUDIT_NONCE") {
+            $errors.Add("Canonical launcher audit must retain its two-variable nonce guard")
+        }
+        if ([int]$contract.probe_timeout_ms -ne 5000) {
+            $errors.Add("Canonical launcher audit probe timeout must remain 5000 ms")
+        }
+        if ([string]$contract.probe_stdout_prefix -cne "POWDERGAME_LAUNCHER_AUDIT_ARGS=") {
+            $errors.Add("Canonical launcher audit stdout prefix changed")
+        }
+        $requiredUsageTerms = @(
+            "default = Gallery",
+            "runtime/g0 = technical empty G0 baseline"
+        )
+        $declaredUsageTerms = @($contract.usage_required_terms | ForEach-Object { [string]$_ })
+        foreach ($requiredUsageTerm in $requiredUsageTerms) {
+            if ($declaredUsageTerms -cnotcontains $requiredUsageTerm) {
+                $errors.Add("Canonical launcher usage requirement missing from policy: $requiredUsageTerm")
+            }
+        }
+        $probeEnvironment = [string]$contract.probe_environment
+        $probeNonceEnvironment = [string]$contract.probe_nonce_environment
+        $probeNonce = [Guid]::NewGuid().ToString("N")
+        $probeTimeoutMs = [int]$contract.probe_timeout_ms
+        $probePrefix = [string]$contract.probe_stdout_prefix
+        $launcherText = Get-Content -LiteralPath $canonicalLauncherPath -Raw
+        $probeHookSnippets = @(
+            "if defined $probeEnvironment (",
+            ('if "%{0}%"=="%{1}%" goto launcher_audit' -f $probeEnvironment, $probeNonceEnvironment),
+            ":launcher_audit",
+            "echo $probePrefix%APP_ARGS%"
+        )
+        $probeHookReady = $true
+        foreach ($snippet in $probeHookSnippets) {
+            if ($launcherText.IndexOf($snippet, [StringComparison]::Ordinal) -lt 0) {
+                $errors.Add("Canonical launcher audit hook missing: $snippet")
+                $probeHookReady = $false
+            }
+        }
+        $successCases = [Collections.Generic.List[object]]::new()
+        $successCases.Add([pscustomobject]@{
+            name = "no-argument"
+            args = @()
+            expected_args = [string]$contract.default_args
+        })
+        foreach ($alias in $contract.aliases.PSObject.Properties) {
+            $successCases.Add([pscustomobject]@{
+                name = "alias:$($alias.Name)"
+                args = @($alias.Name)
+                expected_args = [string]$alias.Value
+            })
+        }
+        $rawArgs = $declaredRawProbeArgs
+        if ($rawArgs.Count -eq 0 -or -not $rawArgs[0].StartsWith([string]$contract.raw_cli_prefix)) {
+            $errors.Add("Canonical launcher raw CLI probe is missing or does not use the declared prefix")
+        } else {
+            $successCases.Add([pscustomobject]@{
+                name = "raw-cli"
+                args = $rawArgs
+                expected_args = $rawArgs -join " "
+            })
+        }
+
+        foreach ($case in $(if ($probeHookReady) { $successCases } else { @() })) {
+            try {
+                $probe = Invoke-LauncherAuditProbe `
+                    -LauncherPath $canonicalLauncherPath `
+                    -LauncherArgs @($case.args) `
+                    -ProbeEnvironment $probeEnvironment `
+                    -ProbeNonceEnvironment $probeNonceEnvironment `
+                    -ProbeNonce $probeNonce `
+                    -TimeoutMs $probeTimeoutMs
+                $stdout = $probe.stdout.TrimEnd("`r", "`n")
+                $expectedStdout = "$probePrefix$($case.expected_args)"
+                if ($probe.exit_code -ne 0) {
+                    $errors.Add("Canonical launcher probe $($case.name) exited $($probe.exit_code), expected 0")
+                }
+                if ($stdout -cne $expectedStdout) {
+                    $errors.Add("Canonical launcher probe $($case.name) stdout mismatch: '$stdout'")
+                }
+                if ($probe.stderr.Length -ne 0) {
+                    $errors.Add("Canonical launcher probe $($case.name) wrote stderr: '$($probe.stderr.Trim())'")
+                }
+            } catch {
+                $errors.Add("Canonical launcher probe $($case.name) failed to execute: $($_.Exception.Message)")
+                break
+            }
+        }
+
+        try {
+            if (-not $probeHookReady) { throw "Launcher audit hook preflight failed" }
+            $invalidProbe = Invoke-LauncherAuditProbe `
+                -LauncherPath $canonicalLauncherPath `
+                -LauncherArgs @([string]$contract.invalid_alias_probe) `
+                -ProbeEnvironment $probeEnvironment `
+                -ProbeNonceEnvironment $probeNonceEnvironment `
+                -ProbeNonce $probeNonce `
+                -TimeoutMs $probeTimeoutMs
+            if ($invalidProbe.exit_code -ne [int]$contract.invalid_alias_exit_code) {
+                $errors.Add("Canonical launcher invalid-alias probe exited $($invalidProbe.exit_code), expected $($contract.invalid_alias_exit_code)")
+            }
+            if ($invalidProbe.stdout.Length -ne 0) {
+                $errors.Add("Canonical launcher invalid-alias probe wrote stdout: '$($invalidProbe.stdout.Trim())'")
+            }
+            if ($invalidProbe.stderr.IndexOf("Usage:", [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                $errors.Add("Canonical launcher invalid-alias probe did not write Usage to stderr")
+            }
+            foreach ($term in @($contract.usage_required_terms)) {
+                if ($invalidProbe.stderr.IndexOf([string]$term, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                    $errors.Add("Canonical launcher invalid-alias stderr missing: $term")
+                }
+            }
+        } catch {
+            $errors.Add("Canonical launcher invalid-alias probe failed to execute: $($_.Exception.Message)")
         }
     }
     foreach ($entry in @($Policy.launchers.legacy_root)) {

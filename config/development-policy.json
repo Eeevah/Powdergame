@@ -32,6 +32,37 @@
       ".*powdergame.*\\.(cmd|ps1)$"
     ]
   },
+  "launcher_contract": {
+    "default_args": "--benchmark-gallery",
+    "aliases": {
+      "normal": "--benchmark-gallery",
+      "gallery": "--benchmark-gallery",
+      "runtime": "--runtime-baseline",
+      "g0": "--runtime-baseline",
+      "movement": "--movement-demo",
+      "density": "--density-demo",
+      "thermal": "--thermal-demo",
+      "pressure": "--pressure-demo",
+      "parallel-integrity": "--parallel-integrity-demo",
+      "activity": "--activity-demo"
+    },
+    "raw_cli_prefix": "--",
+    "raw_cli_probe_args": [
+      "--smoke-frames",
+      "3",
+      "--benchmark-gallery"
+    ],
+    "invalid_alias_probe": "definitely-not-a-mode",
+    "invalid_alias_exit_code": 2,
+    "probe_environment": "POWDERGAME_LAUNCHER_AUDIT_ONLY",
+    "probe_nonce_environment": "POWDERGAME_LAUNCHER_AUDIT_NONCE",
+    "probe_timeout_ms": 5000,
+    "probe_stdout_prefix": "POWDERGAME_LAUNCHER_AUDIT_ARGS=",
+    "usage_required_terms": [
+      "default = Gallery",
+      "runtime/g0 = technical empty G0 baseline"
+    ]
+  },
   "worktrees": {
     "max_total": 3,
     "max_canonical": 1,

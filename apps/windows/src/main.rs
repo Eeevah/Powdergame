@@ -2,9 +2,10 @@
 //!
 //! winit window → wgpu/DX12 → RTX 5090 → dense GPU world → frames.
 //!
-//! Default (and `--smoke-frames N`): reference 2048×2048 world, empty
-//! clear/present (G0 baseline). Demo fixtures present a staged 128×128 world
-//! through the read-only world view:
+//! Default (and `--smoke-frames N`): G8-B Benchmark Scenario Gallery.
+//! `--runtime-baseline` explicitly selects the reference 2048×2048 world and
+//! empty clear/present path (G0 technical baseline). Demo fixtures present a
+//! staged world through the read-only world view:
 //!   `--movement-demo` — G2 stylized forest scene (approved by the user),
 //!   `--density-demo`  — G3 laboratory tanks (3 large chambers:
 //!                       SAND+WATER sinking, WATER+OIL layer separation,
@@ -2098,11 +2099,11 @@ fn parse_smoke_frames() -> Result<Option<u32>, String> {
     smoke_frames_from_args(std::env::args().skip(1), environment_value.as_deref())
 }
 
-/// Parses the demo mode: `--movement-demo` / `--density-demo` /
-/// `--thermal-demo` / `--pressure-demo` (or their `POWDERGAME_*_DEMO=1` env equivalents).
+/// Parses the user-facing mode. With no explicit mode, the canonical app opens
+/// the Gallery; the empty G0 runtime remains available only through
+/// `--runtime-baseline` (or the pre-existing demo environment variables).
 fn parse_demo_mode() -> DemoMode {
-    let cli_mode = demo_mode_from_args(std::env::args().skip(1));
-    if cli_mode != DemoMode::None {
+    if let Some(cli_mode) = explicit_demo_mode_from_args(std::env::args().skip(1)) {
         return cli_mode;
     }
     if std::env::var("POWDERGAME_MOVEMENT_DEMO").as_deref() == Ok("1") {
@@ -2117,27 +2118,47 @@ fn parse_demo_mode() -> DemoMode {
     if std::env::var("POWDERGAME_PRESSURE_DEMO").as_deref() == Ok("1") {
         return DemoMode::Pressure;
     }
-    DemoMode::None
+    DemoMode::Gallery
 }
 
+#[cfg(test)]
 fn demo_mode_from_args<I, S>(args: I) -> DemoMode
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    explicit_demo_mode_from_args(args).unwrap_or(DemoMode::Gallery)
+}
+
+fn explicit_demo_mode_from_args<I, S>(args: I) -> Option<DemoMode>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
     for arg in args {
         match arg.as_ref() {
-            "--movement-demo" => return DemoMode::Movement,
-            "--density-demo" => return DemoMode::Density,
-            "--thermal-demo" => return DemoMode::Thermal,
-            "--pressure-demo" => return DemoMode::Pressure,
-            "--parallel-integrity-demo" => return DemoMode::ParallelIntegrity,
-            "--activity-demo" => return DemoMode::Activity,
-            "--benchmark-gallery" => return DemoMode::Gallery,
+            "--runtime-baseline" => return Some(DemoMode::None),
+            "--movement-demo" => return Some(DemoMode::Movement),
+            "--density-demo" => return Some(DemoMode::Density),
+            "--thermal-demo" => return Some(DemoMode::Thermal),
+            "--pressure-demo" => return Some(DemoMode::Pressure),
+            "--parallel-integrity-demo" => return Some(DemoMode::ParallelIntegrity),
+            "--activity-demo" => return Some(DemoMode::Activity),
+            "--benchmark-gallery" => return Some(DemoMode::Gallery),
             _ => {}
         }
     }
-    DemoMode::None
+    None
+}
+
+/// Experiment workers own their hidden Gallery-sized presentation surface and
+/// must never be redirected by the user-facing default-mode policy.
+fn mode_for_launch(experiment_worker: bool, requested_mode: DemoMode) -> DemoMode {
+    if experiment_worker {
+        DemoMode::Gallery
+    } else {
+        requested_mode
+    }
 }
 
 fn experiment_worker_from_args<I, S>(args: I) -> Result<Option<ExperimentWorkerConfig>, String>
@@ -2463,11 +2484,8 @@ fn main() {
     if let Some(n) = smoke_frames {
         println!("[powdergame] smoke run: will exit after {n} frames");
     }
-    let demo_mode = if experiment.is_some() {
-        DemoMode::Gallery
-    } else {
-        parse_demo_mode()
-    };
+    let requested_mode = parse_demo_mode();
+    let demo_mode = mode_for_launch(experiment.is_some(), requested_mode);
     match demo_mode {
         DemoMode::Movement => println!(
             "[powdergame] movement demo: 128×128 stylized-forest scene, \
@@ -2501,7 +2519,9 @@ fn main() {
             "[powdergame] G8-B benchmark scenario Gallery: 256x256, six shared headless fixtures. \
              Starts PAUSED ({GALLERY_CONTROLS}). Diagnostic census is bounded and outside timed benchmark paths."
         ),
-        DemoMode::None => {}
+        DemoMode::None => println!(
+            "[powdergame] G0 Runtime: 2048x2048 empty technical baseline (explicit diagnostic mode)"
+        ),
     }
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
@@ -2520,8 +2540,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        demo_mode_from_args, experiment_worker_from_args, smoke_frames_from_args, DemoMode,
-        DemoState,
+        demo_mode_from_args, experiment_worker_from_args, mode_for_launch, smoke_frames_from_args,
+        DemoMode, DemoState,
     };
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
     use powdergame_gpu::{ActivityCensusReport, Simulation};
@@ -2563,6 +2583,65 @@ mod tests {
         let error = smoke_frames_from_args(["--smoke-frames", "60"], Some("60"))
             .expect_err("CLI and environment must not silently override one another");
         assert!(error.contains("conflicts"));
+    }
+
+    #[test]
+    fn user_mode_defaults_to_gallery_with_no_args_or_smoke_only() {
+        assert_eq!(
+            demo_mode_from_args(std::iter::empty::<&str>()),
+            DemoMode::Gallery
+        );
+        assert_eq!(
+            demo_mode_from_args(["--smoke-frames", "3"]),
+            DemoMode::Gallery
+        );
+        assert_eq!(
+            smoke_frames_from_args(["--smoke-frames", "3"], None).unwrap(),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn runtime_baseline_is_explicit_and_remains_bounded_with_smoke_frames() {
+        assert_eq!(demo_mode_from_args(["--runtime-baseline"]), DemoMode::None);
+        assert_eq!(
+            demo_mode_from_args(["--runtime-baseline", "--smoke-frames", "3"]),
+            DemoMode::None
+        );
+        assert_eq!(
+            smoke_frames_from_args(["--runtime-baseline", "--smoke-frames", "3"], None).unwrap(),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn existing_explicit_demo_flags_keep_their_modes() {
+        for (flag, expected) in [
+            ("--movement-demo", DemoMode::Movement),
+            ("--density-demo", DemoMode::Density),
+            ("--thermal-demo", DemoMode::Thermal),
+            ("--pressure-demo", DemoMode::Pressure),
+            ("--parallel-integrity-demo", DemoMode::ParallelIntegrity),
+            ("--activity-demo", DemoMode::Activity),
+            ("--benchmark-gallery", DemoMode::Gallery),
+        ] {
+            assert_eq!(demo_mode_from_args([flag]), expected, "flag={flag}");
+        }
+    }
+
+    #[test]
+    fn experiment_worker_routing_stays_ahead_of_user_mode_selection() {
+        assert_eq!(
+            mode_for_launch(true, DemoMode::None),
+            DemoMode::Gallery,
+            "workers retain the hidden Gallery-sized presentation surface"
+        );
+        assert_eq!(
+            mode_for_launch(true, DemoMode::Movement),
+            DemoMode::Gallery,
+            "explicit user modes cannot redirect an experiment worker"
+        );
+        assert_eq!(mode_for_launch(false, DemoMode::None), DemoMode::None);
     }
 
     #[test]

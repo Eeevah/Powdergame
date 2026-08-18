@@ -1,49 +1,64 @@
-# Checkpoint — initial Ballast memory pilot — 2026-08-19 01:04 KST
+# Checkpoint — active Ballast cutover approved — 2026-08-19 KST
+
+## Validity
+
+This checkpoint records the approved memory cutover while the G8-C Official Matrix task is already running in another active development context. Do not interrupt, restart, or reinterpret that in-flight task from this file. Before any new Powdergame work after G8-C finishes, refresh this checkpoint from the final report and exact live Git coordinates.
 
 ## Repository coordinate
 
-- Worktree: isolated sibling Ballast pilot (repository-relative role; absolute path belongs in the local report)
-- Target integration branch: `feature/m0-g8b-scenario-suite`
-- Pilot branch: `agent/ballast-memory-pilot`
-- Confirmed fetched remote Base SHA: `e43078737712862c9cc6ccdc4b7e56475bafc6ce`
-- HEAD at checkpoint authoring: `e43078737712862c9cc6ccdc4b7e56475bafc6ce` (`docs: record the Heavy Mixed candidate`)
-- Working tree at authoring: dirty only by the expected six new agent/memory paths; intended publication state: clean
+- Memory branch: `agent/ballast-memory-pilot`
+- Initial pilot commit: `ba2b6406f6605882c51886b0a50bc64d10990a7f`
+- Existing Draft PR: `#4`
+- Target line: `feature/m0-g8b-scenario-suite`, followed by the separately authorized G8-C line
+- Cutover state: user approved Ballast as the single active session-continuity workflow; commit-preserving integration is intentionally deferred until the current G8-C writer finishes so the branch is not raced
+- Live source rule: exact-fetch the active branch and verify its full SHA before relying on any coordinate in memory
 
-## The story so far
+## Story so far
 
-This is a docs-only navigation/return pilot; it does not replace Powdergame authority or prove runtime behavior. The exact remote integration state was fetched before the worktree was created. `docs/planning/STATUS.md` and `docs/HANDOFF.md` describe M0 as `IN_PROGRESS`: G0-G7 are closed, G8-A technical evidence is verified with same-SHA visual validation pending, Scenarios 1-4 and Cell Inspector v0 are user accepted, and Heavy Mixed World is the sole current G8-B acceptance blocker. Heavy is automatic `NEEDS_HUMAN_REVIEW` only for `broad_terminal_tail`, with 14/14 hard predicates passing and `candidate_blocker=false`; G8-B is not closed and G8-C is forbidden.
+The isolated six-file pilot passed its docs-only audit and was useful enough for the user to adopt. Ballast now replaces the old per-session HANDOFF maintenance pattern, not the project's domain documents. `memory/CHECKPOINT.md` becomes the one current resume point; decisions and open questions move through their append-only ledgers; canonical evidence, milestone, architecture, validation, and status documents remain authoritative in their own domains.
 
-Confirmed Git state: fetched `origin/feature/m0-g8b-scenario-suite` and the new pilot both began at the full Base SHA above. Existing documented state: the current status/handoff and evidence records listed below. Reported local state elsewhere: the task identifies the active worktree as protected ongoing user work; its initial `git status --short` was empty at branch/HEAD `feature/m0-g8b-scenario-suite` / `e43078737712862c9cc6ccdc4b7e56475bafc6ce`, and no file contents were inspected. Unknown/pending state: Heavy user acceptance, G8-A same-SHA visual validation, explicit G8-B closure, and later gate/publication choices.
-
-Opened authority: `docs/HANDOFF.md`, `docs/development/QUICKSTART.md`, `docs/planning/STATUS.md`, `docs/development/VALIDATION_POLICY.md`, `docs/development/DEVELOPMENT_LEARNING_LOOP.md`, `docs/development/LESSONS_LEDGER.md`, `docs/development/TESTING.md`, `docs/development/WORKTREE_ARTIFACT_EXECUTABLE_POLICY.md`, `docs/planning/ROADMAP.md`, `docs/planning/MILESTONES.md`, the Gallery evidence record, all current G8-B scenario evidence linked by `STATUS.md`, and the G8-A record.
+The user accepted Heavy Mixed World with a known non-blocking broad terminal Thermal tail. The immutable candidate remains automatic `NEEDS_HUMAN_REVIEW`, all 14 hard predicates remain pass, `candidate_blocker=false`, and no production-physics defect was established. The user then authorized G8-C Official Matrix work. That task is currently running; no G9 or optimization decision has been authorized.
 
 ## Valid evidence
 
-- Heavy Mixed machine publication/manual-review evidence — exact immutable tuple: clean source `07260fffab22e5b4513eb168f0baac36e374ab94`; `cargo build --locked --release -p powdergame-windows`; frozen binary SHA-256 `9b84db005942cf60ae9ef133521e9297413d49c93d72e7ae64133e29622f7583`; source-input manifest SHA-256 `d4cf97dba93a3bf108e6105c623bcfb506baeb4306be327143f993faeec28ff3`; Consolas input SHA-256 `cf00b507b3286870cc5064ebd0633c303f70b491a4af25eec2d32df413db0179`; worker `--experiment-worker heavy-mixed --max-ticks 20000 --diagnostic-interval 8`; release profile; 256×256 world, chunk 64, terminal window 64 samples, overlap minimum 3; RTX 5090 / DX12 hardware check; run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`; Receipt SHA-256 `2abebdef7f9174e63abfd9c67ce4a48d24b48edde4e6c29fab49022e36a2dbd1`; Audit Bundle SHA-256 `bc44c66bd52b5d856decb2317389a455a56ac8ae1f8d67b1bfeb5446cfb5731b`. This tuple supports 14/14 hard PASS, `candidate_blocker=false`, and automatic `NEEDS_HUMAN_REVIEW` solely for `broad_terminal_tail`; it does not supply user acceptance.
-- G8-A v5 technical evidence — exact documented tuple: clean source/upstream `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`; official `apps/benchmark/capture-evidence.ps1 -Official` path with isolated locked Cargo release build; schema `powdergame-g8a-v5`; 2048×2048 world, chunk 64, sleep enabled at threshold 16; RTX 5090 device `0x10DE:0x2B85`, driver `32.0.15.9636`, DX12; capture `g8a-v5-9abec9e-20260817T032827206Z`; package SHA-256 `4b9f44f66c18235f80d33738d15f3418c65c98e68e254aa01d13fc3a66eb6ec8`; Receipt SHA-256 `084012de7549eb8742f8974e40f21407c7d70f5d8bee346c60384a878a0ccbf3`; verifier-record SHA-256 `143b628e4bcd59a77df94c33aa085d4d4144addb403275e89eff1c3097fd260b`. This tuple supports G8-A calibration/technical claims only, not G8-B/G8-C or user validation.
-- Current acceptance records remain indexed rather than re-executed: Sand automatic `PASS` / user accepted; Water automatic `NEEDS_HUMAN_REVIEW` / user accepted with known follow-up; Fire automatic `PASS` / user accepted; Pressure automatic `NEEDS_HUMAN_REVIEW` / user accepted with known follow-up; Cell Inspector v0 user accepted with known follow-up. This compact checkpoint does not reproduce their complete command/toolchain/config tuples. Before reusing any underlying validation command, open the linked canonical evidence/receipt and match every `VALIDATION_POLICY.md` reuse key; absent an exact match, do not claim command-result reuse.
-
-The immutable Heavy and G8-A historical claims remain valid only while every listed source/input/binary/config/hardware identity and receipt/package hash remains intact and complete. A source, fixture, analyzer/capture implementation, schema, build profile, relevant config, hardware/backend, or authenticated artifact-byte change invalidates transfer to a new claim. The canonical records do not expose every toolchain-version value in this compact checkpoint, so no new toolchain-sensitive run may be treated as reused from this file alone. Docs-only changes and branch-pointer movement do not invalidate the old exact-run evidence, and no result transfers runtime provenance to this pilot docs commit.
+- Heavy Mixed immutable candidate:
+  - source `07260fffab22e5b4513eb168f0baac36e374ab94`
+  - run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`
+  - binary SHA-256 `9b84db005942cf60ae9ef133521e9297413d49c93d72e7ae64133e29622f7583`
+  - Receipt SHA-256 `2abebdef7f9174e63abfd9c67ce4a48d24b48edde4e6c29fab49022e36a2dbd1`
+  - Audit Bundle SHA-256 `bc44c66bd52b5d856decb2317389a455a56ac8ae1f8d67b1bfeb5446cfb5731b`
+  - 14/14 hard predicates pass; `candidate_blocker=false`; automatic `NEEDS_HUMAN_REVIEW` only for declining `broad_terminal_tail`
+  - human disposition: `USER ACCEPTED WITH KNOWN FOLLOW-UP`
+- Earlier accepted Sand, Water, Fire, Pressure, and Cell Inspector results remain valid only under their exact canonical evidence/receipt contracts. Open the linked evidence before reuse; this checkpoint does not reproduce every toolchain/config key.
+- Docs-only memory changes do not invalidate those exact historical runs and do not authorize reruns.
 
 ## Decided
 
-- D-001 — Use a bounded isolated Ballast memory pilot that supplements existing authority and imports no active-worktree WIP.
-- D-002 — Treat agent/memory-only updates as docs-only and reuse only evidence whose exact validity inputs remain unchanged.
+- D-003 — Heavy Mixed World is user accepted with known follow-up; automatic verdict and immutable evidence remain unchanged.
+- D-004 — Ballast is adopted as Powdergame's single active session-continuity workflow, superseding the isolated-pilot operating model.
+- D-005 — The cutover is reversible: immediate Hook disable first, then revert the active cutover commit and the pilot commit in reverse order; squash merge is forbidden because it destroys the rollback boundary.
 
-## Waiting on the user
+## Waiting on the user or in-flight work
 
-- Q-001 — Heavy Mixed World acceptance or a concrete finding; this is the current blocker.
 - Q-002 — Same-SHA G8-A user visual validation remains pending.
-- Q-003 — G8-B closure and every later gate/publication choice require a separate explicit decision.
+- Q-004 — G8-C final matrix result and the subsequent choice among G9, optimization review, or further human review.
+- Integration action — after G8-C completes, refresh the exact branch/SHA and integrate PR #4 without squashing.
 
 ## Next first action
 
-The user reviews the immutable Heavy Mixed World Contact Sheet and the three recommended frames in the canonical Gallery/Cell Inspector, then records acceptance or a concrete finding without rerunning the candidate, changing its automatic verdict, or authorizing G8-C implicitly.
+Do not start a new task and do not disturb the running G8-C matrix. When its final report arrives:
 
-## Tried
+1. exact-fetch the live G8-C and G8-B branches;
+2. record the final source, matrix ID, receipt/package identities, recommendation, and remaining gate items;
+3. refresh this checkpoint;
+4. integrate PR #4 with commit boundaries preserved;
+5. make the next product/optimization decision only from the verified G8-C report.
 
-- An initial privileged exact-fetch attempt stopped before mutation because Git rejected the ownership context. The successful retry used command-local `safe.directory`; do not change global Git configuration for this worktree.
-- A same-process wrapper initially mistook the audit's intentional invalid-alias probe `$LASTEXITCODE` for audit failure even though the audit printed PASS. The separate `pwsh -NoProfile -File tools/dev.ps1 audit` process returned exit 0; use the process exit, not ambient `$LASTEXITCODE` left by an internal probe.
-- Do not seed current memory from the older status snapshots in Quickstart, Roadmap, or the initial Gallery evidence; follow current `STATUS.md`/`HANDOFF.md` links.
-- Do not run `tools/dev.ps1 validation-plan` for this new `AGENTS.md`/`memory/**` path set: the current machine patterns classify it as unknown. Use the explicit docs-only policy and six-path allowlist.
-- Do not rerun accepted scenario candidates, G8-A capture, runtime/GPU tests, smoke, or user acceptance for this pilot.
+## Tried / avoid repeating
+
+- Do not maintain `docs/HANDOFF.md` and this checkpoint as two live session coordinates.
+- Do not treat local ahead/behind `0/0` as live remote equality without an exact fetch.
+- Do not rerun valid FULL/GPU/candidates merely because memory or docs changed.
+- Do not record agent proposals as user decisions.
+- Do not merge PR #4 with squash.
+- If Hook injection misbehaves, set `BALLAST_DISABLE=1` or remove Hook trust before changing Git.

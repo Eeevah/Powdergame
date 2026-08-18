@@ -12,7 +12,7 @@
 
 ### Current Milestone Status
 
-`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. G8-B Scenario 1 Sand Fall은 사용자 승인되었고 immutable Harness pilot은 automatic `PASS` / review `APPROVED`다. Scenario 2 Water remediation candidate는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. Scenario 3 Fire / Heat는 tested source `1635fdb9f562192123c92846e137b125c684ede9`의 exactly one sealed candidate automatic `PASS`와 독립 검증 불일치 0을 보존한 채 **USER ACCEPTED**로 승인되었다. Fire source/physics/candidate/artifact는 변경·재실행하지 않았다. **G8-B 전체는 NOT CLOSED**이며 Scenario 4 Pressure Burst가 next, Scenario 5 Heavy Mixed World가 pending이고 G8-C는 별도 pending gate다.
+`IN_PROGRESS` — G0 (Runtime) PASS, G1 (World Integrity) PASS / CLOSED, G2 (Local Movement) PASS / CLOSED, G3 (Density / Displacement) PASS / CLOSED, G4 (Thermal / Phase / Combustion) PASS / CLOSED (User Validation APPROVED on 2026-08-16), G5 (Pressure Chain) PASS / CLOSED (G5 User Validation APPROVED on 2026-08-16), G6 (Parallel Integrity) PASS / CLOSED (G6 User Validation APPROVED on 2026-08-16), G7 (Active / Sleep) PASS / CLOSED (G7 User Validation APPROVED on 2026-08-17). Current gate: G8 — Performance Evidence (IN_PROGRESS). G8-A v5 official capture와 independent verification은 완료되어 verified evidence candidate가 성립했고, 같은 SHA의 user visual validation은 pending이다. Canonical Recovery는 local integration branch에서 완료·검증했다. G8-B Scenario 1 Sand Fall은 사용자 승인되었고 immutable Harness pilot은 automatic `PASS` / review `APPROVED`다. Scenario 2 Water remediation candidate는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`에서 automatic `NEEDS_HUMAN_REVIEW`를 유지한 채 human `ACCEPTED WITH KNOWN FOLLOW-UP`로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. Scenario 3 Fire / Heat는 tested source `1635fdb9f562192123c92846e137b125c684ede9`의 exactly one sealed candidate automatic `PASS`와 독립 검증 불일치 0을 보존한 채 **USER ACCEPTED**로 승인되었다. Fire source/physics/candidate/artifact는 변경·재실행하지 않았다. Scenario 4 Pressure Burst causal-remediation scratch는 모든 hard predicate를 통과해 clean-source candidate가 pending이지만 아직 사용자 승인되지 않았다. **G8-B 전체는 NOT CLOSED**이며 Scenario 5 Heavy Mixed World가 pending이고 G8-C는 별도 pending gate다.
 
 ### Current Phase
 
@@ -401,7 +401,7 @@ Static Analysis & Formatting:
   - Scenario 1 Sand Fall: **USER ACCEPTED (2026-08-17)**. 사용자는 Sand가 완전히 정착하고 모든 chunk가 sleep 상태로 수렴하는 것을 성공으로 승인했다. benchmark identity를 위해 activity를 영구 유지하도록 source/geometry/sleep behavior를 retune하지 않는다.
   - Scenario 2 Water Flow: **USER ACCEPTED WITH KNOWN FOLLOW-UP (2026-08-17)**. Sealed run `g8b-water-flow-v0-20260817T110906547252Z-8b808e66`는 automatic `NEEDS_HUMAN_REVIEW`를 유지한다. Side-wall remediation 뒤 outer-basin Water max/final은 `0 / 0`, conservation/movement/cross-chunk/destination/integrity/reset은 pass했고, 마지막 active `64` cells는 Water/EMPTY `51`, Water/Oil `1`, other `12`였다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. 기존 first candidate는 immutable/superseded 상태로 보존한다.
   - Scenario 3 Fire / Heat: **USER ACCEPTED (2026-08-18)**. Tested source `1635fdb9f562192123c92846e137b125c684ede9`; exactly one candidate automatic `PASS`; independent artifact/raw recomputation found zero mismatch. Genuine Wood/Oil combustion, Smoke generation and decay to zero, Ice/Water/Steam phase work, finite fuel consumption, Reaction first/confirmed zero `11,448 / 11,464`, post-Reaction completion `11,644` with restart `0`, a remaining slightly decreasing Thermal tail, invalid/non-finite `0 / 0`, and exact reset `true` were accepted. Production physics change required: **NO**; candidate rerun required: **NO**.
-  - Scenario 4 Pressure Burst: **NEXT / NOT YET USER ACCEPTED**. Scenario 5 Heavy Mixed World: **PENDING / NOT YET USER ACCEPTED**.
+  - Scenario 4 Pressure Burst: **CAUSAL REMEDIATION SCRATCH HARD PREDICATES PASS / CANDIDATE ELIGIBLE PENDING CLEAN SOURCE / NOT USER ACCEPTED**. Scenario 5 Heavy Mixed World: **PENDING / NOT YET USER ACCEPTED**.
   - Sixth Gallery slot: exact `active-sleep-g7` 256×256×64 regression fixture. It is not a sixth official matrix workload.
   - Shared staging resets production `Simulation`, uploads authored Material/Temperature/Pressure/Flags to Current and Next plus `chunk_edit_wake`, and completes transfer work before measurement or inspection continues.
   - Windows `--benchmark-gallery` / `run_g8_benchmark_gallery.bat` starts paused and provides `1-6`, `SPACE`, `N`, `F`, `R`, `ESC` controls. Scenario selection and reset commit their new attribution only after shared reset/staging succeeds; failure is explicit and suppresses advancement/readback until recovery.
@@ -451,18 +451,32 @@ Static Analysis & Formatting:
   - Acceptance closure is docs-only: Fire source, production physics, candidate, Review Packet, Audit Bundle, Receipt, and generated artifacts were neither changed nor rerun. Scenario 3 acceptance does not close G8-B.
   - Evidence contract: `docs/evidence/G8_B_FIRE_HEAT_HARNESS_CANDIDATE_2026-08-17.md`
 
+- **G8-B Pressure Burst causal remediation**: **SCRATCH CAUSAL PASS / CANDIDATE ELIGIBLE PENDING CLEAN SOURCE / NOT USER ACCEPTED / HEAVY MIXED BLOCKED**
+  - Immutable candidate source/run: `28e4e0bf7736fb95f0a9d7797cc3ab4274b91442` / `g8b-pressure-burst-v0-20260818T014452058676Z-353fb706`. Its automatic verdict remains `NEEDS_HUMAN_REVIEW`; human verdict is `FIX REQUIRED — fixture_causality_confounded_by_combustion`.
+  - Valid observations remain Pressure activity, Wood damage, topology-aware persistent opening, exterior Steam, chamber-mean relief, no runaway, Water+Steam conservation, invalid/non-finite `0 / 0`, and exact reset. No production-physics defect is established.
+  - Causal blocker: authored top relief Wood was `95 C`, above the `90 C` ignition threshold. Tick `896` still had top Wood `318` and through lanes `0` with Smoke/Reaction `3,682 / 4,000`; tick `904` had Wood `0` and all `48` top lanes open with Smoke/Reaction `3,541 / 3,541`. The complete opening coincided with the 900-active-tick combustion lifetime and did not prove Pressure-caused rupture.
+  - The existing Run ID, Receipt, Review Packet, Audit Bundle, source, telemetry, screenshots, and reports are immutable. It is preserved as candidate review evidence and will be superseded only by a fresh unique candidate; it is not retrospectively changed to `PASS`.
+  - First remediation scope is fixture-only: remove the authored top-seam heat while preserving geometry, Water/Steam, chamber temperature/Pressure, Stone, both seam dimensions, rupture thresholds, pass order, Sleep/Wake, and production physics. Pressure telemetry/analysis/report/receipt v1 gains subsystem-specific seam combustion/fuel evidence and `pressure_opening_precedes_combustion` before one permitted scratch; manifest/frames remain v0.
+  - A new confounded scratch is classified as automatic `FIXTURE_CAUSALITY_CONFOUNDED`, not generic FAIL/NHR. Candidate publication is blocked unless causal classification is pressure-first and every hard predicate is non-failing; the prior v0 candidate's immutable automatic `NEEDS_HUMAN_REVIEW` is not rewritten.
+  - Causal remediation scratch: `g8b-pressure-burst-v0-scratch-20260818T100203210143Z-a37e998c`; source HEAD `328757bd8cd5b07cd0ed4c66a592f973dcd66981`; `git_state=dirty`; `run_mode=scratch`; exact `SOURCE_INPUT_MANIFEST.json` SHA-256 `485c1a915afca65757c9994d0036381a92cc40d2134e293f617ead024edc966b`. The exact dirty tracked build-input bytes were sealed for the scratch; it is not clean-source candidate provenance.
+  - Scratch result: causal classification `pressure_opening_precedes_combustion`; all ten hard predicates pass; failed hard predicates `[]`; `candidate_blocker=false`. Pressure activity/Wood damage first tick `1`; first through opening and raw outside Steam `7,216`; three-sample confirmation and confirmation-gated causal exterior-Steam milestone `7,232`; first relief `7,233`; no reseal.
+  - Causal guard: first seam combustion/fuel progress `None / None`; combusting/flame/fuel sum/fuel max through confirmation all `0`. First-opening adjacent Pressure max `83.301017761` across `73` pressure-medium cells exceeded Wood rupture threshold `80`.
+  - Chamber mean/max moved from pre-opening peak `223.582887701 / 319.461242676` to post-opening `61.290115379 / 148.151290894` and terminal `53.460612654 / 145.603897095`. Terminal 64-sample mean slope was `-0.048798238`, runaway false; invalid/non-finite `0 / 0`; exact reset true.
+  - Scratch automatic `NEEDS_HUMAN_REVIEW` is review-only: only one seam ruptured, terminal Pressure activity remained high, vent plume persisted, and terminal activity remained. These flags do not block the candidate. The old candidate remains immutable/human `FIX REQUIRED`; the new scratch makes a candidate eligible only after a clean source seal.
+  - Evidence contract: `docs/evidence/G8_B_PRESSURE_BURST_HARNESS_CANDIDATE_2026-08-18.md`
+
 ---
 
 ### Next Action
 
-1. **Pressure Burst**: Scenario 4 fixture와 Harness candidate가 다음 승인 대상이다. Fire의 immutable source/candidate/artifact를 변경하거나 재실행하지 않는다.
+1. **Pressure Burst**: causal-remediation scratch가 Pressure opening-before-combustion과 all-hard-predicate pass를 확인했다. 동일 remediation을 clean source로 seal/push하고 minimal Gallery smoke 뒤 candidate를 정확히 한 번 생성한다. Fire와 기존 Pressure candidate/artifact는 변경하거나 재실행하지 않는다.
 2. **Scope boundary**: Heavy Mixed World, G8-C, G9, optimization, `main`/PR은 별도 사용자 지시 전 시작하지 않는다.
 
 ---
 
 ### Blockers
 
-Canonical Recovery, v5 technical evidence, Sand Fall behavior, Sand Fall Harness pilot, Water Flow user acceptance, Fire / Heat automatic candidate와 user acceptance에는 확인된 기술 blocker가 없다. Water의 automatic `NEEDS_HUMAN_REVIEW`와 M0 local-liquid free-surface의 소수 셀 지속 재배열은 알려진 후속 과제로 남지만 production-physics defect 증거는 없다. G8-B closure에는 Pressure Burst와 Heavy Mixed World의 사용자 acceptance가 남아 있다. G8-A의 same-SHA visual validation, `main` 승격과 G8-C/G9 진입은 별도 사용자 결정이다.
+Canonical Recovery, v5 technical evidence, Sand Fall behavior, Sand Fall Harness pilot, Water Flow user acceptance, Fire / Heat automatic candidate와 user acceptance에는 확인된 기술 blocker가 없다. Water의 automatic `NEEDS_HUMAN_REVIEW`와 M0 local-liquid free-surface의 소수 셀 지속 재배열은 알려진 후속 과제로 남지만 production-physics defect 증거는 없다. Pressure Burst의 hot-Wood causal confound는 fixture-only cold-seam scratch에서 제거되었고 candidate blocker는 false다. 남은 작업은 동일 remediation의 clean source seal, minimal smoke, exactly one candidate와 사용자 review다. G8-B closure에는 Pressure Burst와 Heavy Mixed World의 사용자 acceptance가 남아 있다. G8-A의 same-SHA visual validation, `main` 승격과 G8-C/G9 진입은 별도 사용자 결정이다.
 
 Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical Recovery Evidence](../evidence/CANONICAL_RECOVERY_2026-08-17.md)에 기록한다.
 
@@ -472,7 +486,7 @@ Canonical Recovery의 source 선택, merge, 검증, 보존 경계는 [Canonical 
 
 Foundation Design direction: **APPROVED BY USER**
 
-M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenarios 1–3 user accepted, Water automatic `NEEDS_HUMAN_REVIEW` unchanged with known follow-up, Scenario 4 Pressure Burst next, Scenario 5 pending, overall NOT CLOSED; G8-C PENDING).
+M0 implementation: **IN_PROGRESS** — G0/G1/G2/G3/G4/G5/G6/G7 PASS / CLOSED (G2/G3/G4/G5/G6/G7 User Validation APPROVED); G8 Performance Evidence: IN_PROGRESS (G8-A verified v5 evidence candidate; official capture and independent verification complete; same-SHA User Visual Validation PENDING; G8-B Scenarios 1–3 user accepted, Water automatic `NEEDS_HUMAN_REVIEW` unchanged with known follow-up, Scenario 4 Pressure Burst remediation scratch candidate-eligible pending clean source and not accepted, Scenario 5 pending, overall NOT CLOSED; G8-C PENDING).
 
 M0 `ACHIEVED`: **NO**
 
@@ -533,6 +547,18 @@ g8b_fire_harness_receipt_sha256: ed17e75f7515d155f8b6e5a41a0aeb751b2876ec573658a
 g8b_fire_harness_audit_bundle_sha256: 1c1df01dfa9004b9273bc45e4b01d3c784d5c377f98a9417bc0b7594c6a83706
 g8b_fire_harness_binary_sha256: 0338dfedbfd226f041cfda1b3ee4a81131ba27a2d5b8035abd4e653b552edbb9
 g8b_fire_harness_independent_verification: PASS; zero concrete mismatch
+g8b_pressure_harness_source_sha: 28e4e0bf7736fb95f0a9d7797cc3ab4274b91442
+g8b_pressure_harness_run_id: g8b-pressure-burst-v0-20260818T014452058676Z-353fb706
+g8b_pressure_harness_automatic_verdict: NEEDS_HUMAN_REVIEW (unchanged)
+g8b_pressure_harness_human_verdict: FIX REQUIRED — fixture_causality_confounded_by_combustion
+g8b_pressure_harness_review_packet_sha256: 10c4ef1e376a416a6895fb3fc7681b7bf7d9cb72610bad6407028807be96f3ed
+g8b_pressure_harness_receipt_sha256: 2c044806e4049d38cdd8edf967af92f118c8a37321d56367fbc7a334a7339a1b
+g8b_pressure_harness_audit_bundle_sha256: 7b51c82171d2d3d800f951967068bdb7e8abf6ce2b97bd0f6b4845d670004471
+g8b_pressure_harness_causal_blocker: top relief Wood authored 95 C > ignition 90 C; complete opening at burn-duration boundary; production physics defect not established
+g8b_pressure_remediation_scratch_run_id: g8b-pressure-burst-v0-scratch-20260818T100203210143Z-a37e998c
+g8b_pressure_remediation_scratch_source: HEAD 328757bd8cd5b07cd0ed4c66a592f973dcd66981; git_state dirty; run_mode scratch
+g8b_pressure_remediation_source_input_manifest_sha256: 485c1a915afca65757c9994d0036381a92cc40d2134e293f617ead024edc966b
+g8b_pressure_remediation_scratch_verdict: NEEDS_HUMAN_REVIEW (review-only); causal classification pressure_opening_precedes_combustion; hard predicates 10/10 PASS; candidate blocker false
 official_capture_completion_marker: CAPTURE_RECEIPT.json (must be written last)
 official_capture_package_hash: ZIP-external PACKAGE_SHA256.txt
 official_capture_id: g8a-v5-9abec9e-20260817T032827206Z
@@ -547,5 +573,5 @@ build: canonical recovery PRE/POST full workspace, clippy, evidence self-tests, 
 source_freeze_checks: official receipt complete; source/upstream clean and unchanged at 9abec9e; independent verifier passed 11/11 with zero findings
 benchmarks: official G8-A v5 P50 = 865.304 TPS / 1.155663 ms per tick and profiled envelope P50 = 1.018080 ms; historical v4 remains unbound historical data
 adversarial_review: optional and explicit-request-only; existing G8-A report is historical and non-blocking
-m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenarios 1-3 accepted, Water automatic NEEDS_HUMAN_REVIEW unchanged with known follow-up, Scenario 4 Pressure Burst next, Scenario 5 pending, overall not closed; G8-C pending)
+m0_status: IN_PROGRESS (G0-G7 PASS/CLOSED User Validation APPROVED; G8 IN_PROGRESS — G8-A verified v5 evidence candidate, same-SHA user visual validation pending; G8-B scenarios 1-3 accepted, Water automatic NEEDS_HUMAN_REVIEW unchanged with known follow-up, Scenario 4 Pressure Burst remediation scratch candidate-eligible pending clean source and not accepted, Scenario 5 pending, overall not closed; G8-C pending)
 ```

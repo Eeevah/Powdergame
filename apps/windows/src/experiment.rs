@@ -197,13 +197,14 @@ fn hex_sha256(input: &[u8]) -> String {
     output
 }
 
-/// The semantic verdict produced from the seven hard Sand Fall predicates.
+/// The semantic verdict produced by a scenario experiment.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExperimentVerdict {
     Pass,
     Fail,
     NeedsHuman,
     NeedsHumanReview,
+    FixtureCausalityConfounded,
 }
 
 impl ExperimentVerdict {
@@ -213,6 +214,7 @@ impl ExperimentVerdict {
             Self::Fail => "FAIL",
             Self::NeedsHuman => "NEEDS_HUMAN",
             Self::NeedsHumanReview => "NEEDS_HUMAN_REVIEW",
+            Self::FixtureCausalityConfounded => "FIXTURE_CAUSALITY_CONFOUNDED",
         }
     }
 }

@@ -9,9 +9,10 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 use powdergame_core::{
-    is_valid_cell_material_value, WorldConfig, ACTIVITY_MATTER, ACTIVITY_PRESSURE,
-    ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING,
-    MATERIAL_EMPTY, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_WATER, MATERIAL_WOOD,
+    fuel_progress, is_pressure_medium, is_valid_cell_material_value, WorldConfig, ACTIVITY_MATTER,
+    ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE,
+    CHUNK_STATE_SLEEPING, FLAG_COMBUSTING, FLAG_FLAME_EVENT, MATERIAL_EMPTY, MATERIAL_SMOKE,
+    MATERIAL_STEAM, MATERIAL_WATER, MATERIAL_WOOD, WOOD_RUPTURE_THRESHOLD,
 };
 use powdergame_gpu::Simulation;
 use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
@@ -27,8 +28,8 @@ use super::{
 };
 
 pub const PRESSURE_EXPERIMENT_ID: &str = "g8b-pressure-burst-v0";
-const PRESSURE_TELEMETRY_SCHEMA_VERSION: &str = "powdergame-pressure-burst-telemetry-v0";
-const PRESSURE_ANALYSIS_SCHEMA_VERSION: &str = "powdergame-pressure-burst-analysis-v0";
+const PRESSURE_TELEMETRY_SCHEMA_VERSION: &str = "powdergame-pressure-burst-telemetry-v1";
+const PRESSURE_ANALYSIS_SCHEMA_VERSION: &str = "powdergame-pressure-burst-analysis-v1";
 const PRESSURE_FRAMES_SCHEMA_VERSION: &str = "powdergame-pressure-burst-frames-v0";
 const REQUIRED_MAX_TICKS: u64 = 20_000;
 const REQUIRED_DIAGNOSTIC_INTERVAL_TICKS: u64 = 8;
@@ -69,7 +70,7 @@ fn quantize_json_9(value: f64) -> f64 {
         .expect("finite nine-decimal Pressure value must parse")
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct SampleIdentity {
     sim_tick: u64,
     sample_sequence: u64,
@@ -117,6 +118,24 @@ struct PressureSampleMetrics {
     relief_seam_through_open_lanes: u64,
     top_relief_seam_through_open_lanes: u64,
     bottom_relief_seam_through_open_lanes: u64,
+    relief_seam_combusting_cells: u64,
+    top_relief_seam_combusting_cells: u64,
+    bottom_relief_seam_combusting_cells: u64,
+    relief_seam_flame_event_cells: u64,
+    top_relief_seam_flame_event_cells: u64,
+    bottom_relief_seam_flame_event_cells: u64,
+    relief_seam_fuel_progress_sum: u64,
+    relief_seam_fuel_progress_max: u32,
+    top_relief_seam_fuel_progress_sum: u64,
+    top_relief_seam_fuel_progress_max: u32,
+    bottom_relief_seam_fuel_progress_sum: u64,
+    bottom_relief_seam_fuel_progress_max: u32,
+    relief_seam_adjacent_pressure_medium_cells: u64,
+    relief_seam_max_adjacent_pressure: f64,
+    top_relief_seam_adjacent_pressure_medium_cells: u64,
+    top_relief_seam_max_adjacent_pressure: f64,
+    bottom_relief_seam_adjacent_pressure_medium_cells: u64,
+    bottom_relief_seam_max_adjacent_pressure: f64,
     steam_in_relief_seam_cells: u64,
     outside_chamber_steam_cells: u64,
     chamber_pressure_cell_count: u64,
@@ -156,6 +175,18 @@ fn in_outer_chamber(x: usize, y: usize) -> bool {
 
 fn in_pressure_cavity(x: usize, y: usize) -> bool {
     (CAVITY_MIN_X..CAVITY_MAX_X).contains(&x) && (CAVITY_MIN_Y..CAVITY_MAX_Y).contains(&y)
+}
+
+fn adjacent_to_rect(
+    x: usize,
+    y: usize,
+    min_x: usize,
+    max_x: usize,
+    min_y: usize,
+    max_y: usize,
+) -> bool {
+    ((min_x..max_x).contains(&x) && (y + 1 == min_y || y == max_y))
+        || ((min_y..max_y).contains(&y) && (x + 1 == min_x || x == max_x))
 }
 
 fn is_vent_passable(material: u32) -> bool {
@@ -211,6 +242,18 @@ fn pressure_metrics_from_snapshot(
     let mut bottom_wood = 0u64;
     let mut top_open = 0u64;
     let mut bottom_open = 0u64;
+    let mut top_combusting = 0u64;
+    let mut bottom_combusting = 0u64;
+    let mut top_flame_event = 0u64;
+    let mut bottom_flame_event = 0u64;
+    let mut top_fuel_progress_sum = 0u64;
+    let mut bottom_fuel_progress_sum = 0u64;
+    let mut top_fuel_progress_max = 0u32;
+    let mut bottom_fuel_progress_max = 0u32;
+    let mut top_adjacent_pressure_medium_cells = 0u64;
+    let mut bottom_adjacent_pressure_medium_cells = 0u64;
+    let mut top_max_adjacent_pressure = 0.0f32;
+    let mut bottom_max_adjacent_pressure = 0.0f32;
     let mut steam_in_seam = 0u64;
     let mut outside_steam = 0u64;
     let mut chamber_pressure_sum = 0.0f64;
@@ -232,6 +275,8 @@ fn pressure_metrics_from_snapshot(
         let top = in_top_seam(x, y);
         let bottom = in_bottom_seam(x, y);
         if top || bottom {
+            let flags = snapshot.flags_current[index];
+            let progress = fuel_progress(flags);
             if material == MATERIAL_WOOD {
                 if top {
                     top_wood = top_wood.saturating_add(1);
@@ -245,6 +290,51 @@ fn pressure_metrics_from_snapshot(
             }
             if material == MATERIAL_STEAM {
                 steam_in_seam = steam_in_seam.saturating_add(1);
+            }
+            if top {
+                top_combusting =
+                    top_combusting.saturating_add(u64::from(flags & FLAG_COMBUSTING != 0));
+                top_flame_event =
+                    top_flame_event.saturating_add(u64::from(flags & FLAG_FLAME_EVENT != 0));
+                top_fuel_progress_sum = top_fuel_progress_sum.saturating_add(u64::from(progress));
+                top_fuel_progress_max = top_fuel_progress_max.max(progress);
+            } else {
+                bottom_combusting =
+                    bottom_combusting.saturating_add(u64::from(flags & FLAG_COMBUSTING != 0));
+                bottom_flame_event =
+                    bottom_flame_event.saturating_add(u64::from(flags & FLAG_FLAME_EVENT != 0));
+                bottom_fuel_progress_sum =
+                    bottom_fuel_progress_sum.saturating_add(u64::from(progress));
+                bottom_fuel_progress_max = bottom_fuel_progress_max.max(progress);
+            }
+        }
+        if is_pressure_medium(material) {
+            let pressure = f32::from_bits(snapshot.pressure_current[index]);
+            if pressure.is_finite() {
+                if adjacent_to_rect(
+                    x,
+                    y,
+                    TOP_SEAM_MIN_X,
+                    TOP_SEAM_MAX_X,
+                    TOP_SEAM_MIN_Y,
+                    TOP_SEAM_MAX_Y,
+                ) {
+                    top_adjacent_pressure_medium_cells =
+                        top_adjacent_pressure_medium_cells.saturating_add(1);
+                    top_max_adjacent_pressure = top_max_adjacent_pressure.max(pressure);
+                }
+                if adjacent_to_rect(
+                    x,
+                    y,
+                    BOTTOM_SEAM_MIN_X,
+                    BOTTOM_SEAM_MAX_X,
+                    BOTTOM_SEAM_MIN_Y,
+                    BOTTOM_SEAM_MAX_Y,
+                ) {
+                    bottom_adjacent_pressure_medium_cells =
+                        bottom_adjacent_pressure_medium_cells.saturating_add(1);
+                    bottom_max_adjacent_pressure = bottom_max_adjacent_pressure.max(pressure);
+                }
             }
         }
         if material == MATERIAL_STEAM && !in_outer_chamber(x, y) {
@@ -341,6 +431,32 @@ fn pressure_metrics_from_snapshot(
             .saturating_add(bottom_through_open_lanes),
         top_relief_seam_through_open_lanes: top_through_open_lanes,
         bottom_relief_seam_through_open_lanes: bottom_through_open_lanes,
+        relief_seam_combusting_cells: top_combusting.saturating_add(bottom_combusting),
+        top_relief_seam_combusting_cells: top_combusting,
+        bottom_relief_seam_combusting_cells: bottom_combusting,
+        relief_seam_flame_event_cells: top_flame_event.saturating_add(bottom_flame_event),
+        top_relief_seam_flame_event_cells: top_flame_event,
+        bottom_relief_seam_flame_event_cells: bottom_flame_event,
+        relief_seam_fuel_progress_sum: top_fuel_progress_sum
+            .saturating_add(bottom_fuel_progress_sum),
+        relief_seam_fuel_progress_max: top_fuel_progress_max.max(bottom_fuel_progress_max),
+        top_relief_seam_fuel_progress_sum: top_fuel_progress_sum,
+        top_relief_seam_fuel_progress_max: top_fuel_progress_max,
+        bottom_relief_seam_fuel_progress_sum: bottom_fuel_progress_sum,
+        bottom_relief_seam_fuel_progress_max: bottom_fuel_progress_max,
+        relief_seam_adjacent_pressure_medium_cells: top_adjacent_pressure_medium_cells
+            .saturating_add(bottom_adjacent_pressure_medium_cells),
+        relief_seam_max_adjacent_pressure: quantize_json_9(f64::from(
+            top_max_adjacent_pressure.max(bottom_max_adjacent_pressure),
+        )),
+        top_relief_seam_adjacent_pressure_medium_cells: top_adjacent_pressure_medium_cells,
+        top_relief_seam_max_adjacent_pressure: quantize_json_9(f64::from(
+            top_max_adjacent_pressure,
+        )),
+        bottom_relief_seam_adjacent_pressure_medium_cells: bottom_adjacent_pressure_medium_cells,
+        bottom_relief_seam_max_adjacent_pressure: quantize_json_9(f64::from(
+            bottom_max_adjacent_pressure,
+        )),
         steam_in_relief_seam_cells: steam_in_seam,
         outside_chamber_steam_cells: outside_steam,
         chamber_pressure_cell_count: chamber_pressure_cells,
@@ -402,6 +518,19 @@ fn baseline_from_tick0(metrics: &PressureSampleMetrics) -> Result<PressureBaseli
         return Err(format!(
             "Pressure tick-0 cavity count={} expected {CHAMBER_PRESSURE_CELL_COUNT}",
             metrics.chamber_pressure_cell_count
+        ));
+    }
+    if metrics.relief_seam_combusting_cells != 0
+        || metrics.relief_seam_flame_event_cells != 0
+        || metrics.relief_seam_fuel_progress_sum != 0
+        || metrics.relief_seam_fuel_progress_max != 0
+    {
+        return Err(format!(
+            "Pressure tick-0 seam combustion state must be pristine: combusting={} flame={} fuel_sum={} fuel_max={}",
+            metrics.relief_seam_combusting_cells,
+            metrics.relief_seam_flame_event_cells,
+            metrics.relief_seam_fuel_progress_sum,
+            metrics.relief_seam_fuel_progress_max
         ));
     }
     Ok(PressureBaseline {
@@ -472,6 +601,24 @@ impl PressureJsonlWriters {
                 "\"relief_seam_through_open_lanes\":{},",
                 "\"top_relief_seam_through_open_lanes\":{},",
                 "\"bottom_relief_seam_through_open_lanes\":{},",
+                "\"top_relief_seam_combusting_cells\":{},",
+                "\"bottom_relief_seam_combusting_cells\":{},",
+                "\"relief_seam_combusting_cells\":{},",
+                "\"top_relief_seam_flame_event_cells\":{},",
+                "\"bottom_relief_seam_flame_event_cells\":{},",
+                "\"relief_seam_flame_event_cells\":{},",
+                "\"top_relief_seam_fuel_progress_sum\":{},",
+                "\"top_relief_seam_fuel_progress_max\":{},",
+                "\"bottom_relief_seam_fuel_progress_sum\":{},",
+                "\"bottom_relief_seam_fuel_progress_max\":{},",
+                "\"relief_seam_fuel_progress_sum\":{},",
+                "\"relief_seam_fuel_progress_max\":{},",
+                "\"top_relief_seam_adjacent_pressure_medium_cells\":{},",
+                "\"bottom_relief_seam_adjacent_pressure_medium_cells\":{},",
+                "\"relief_seam_adjacent_pressure_medium_cells\":{},",
+                "\"top_relief_seam_max_adjacent_pressure\":{:.9},",
+                "\"bottom_relief_seam_max_adjacent_pressure\":{:.9},",
+                "\"relief_seam_max_adjacent_pressure\":{:.9},",
                 "\"steam_in_relief_seam_cells\":{},",
                 "\"outside_chamber_steam_cells\":{},",
                 "\"chamber_pressure_cell_count\":{},",
@@ -522,6 +669,24 @@ impl PressureJsonlWriters {
             metrics.relief_seam_through_open_lanes,
             metrics.top_relief_seam_through_open_lanes,
             metrics.bottom_relief_seam_through_open_lanes,
+            metrics.top_relief_seam_combusting_cells,
+            metrics.bottom_relief_seam_combusting_cells,
+            metrics.relief_seam_combusting_cells,
+            metrics.top_relief_seam_flame_event_cells,
+            metrics.bottom_relief_seam_flame_event_cells,
+            metrics.relief_seam_flame_event_cells,
+            metrics.top_relief_seam_fuel_progress_sum,
+            metrics.top_relief_seam_fuel_progress_max,
+            metrics.bottom_relief_seam_fuel_progress_sum,
+            metrics.bottom_relief_seam_fuel_progress_max,
+            metrics.relief_seam_fuel_progress_sum,
+            metrics.relief_seam_fuel_progress_max,
+            metrics.top_relief_seam_adjacent_pressure_medium_cells,
+            metrics.bottom_relief_seam_adjacent_pressure_medium_cells,
+            metrics.relief_seam_adjacent_pressure_medium_cells,
+            metrics.top_relief_seam_max_adjacent_pressure,
+            metrics.bottom_relief_seam_max_adjacent_pressure,
+            metrics.relief_seam_max_adjacent_pressure,
             metrics.steam_in_relief_seam_cells,
             metrics.outside_chamber_steam_cells,
             metrics.chamber_pressure_cell_count,
@@ -630,6 +795,8 @@ struct ObservationUpdate {
     first_pressure_activity: bool,
     first_wood_damage: bool,
     first_rupture: bool,
+    first_relief_seam_combustion: bool,
+    first_relief_seam_fuel_progress: bool,
     first_steam_in_relief_seam: bool,
     first_exterior_steam: bool,
     first_post_confirmation_reseal: bool,
@@ -659,8 +826,22 @@ struct PressureObservations {
     first_wood_damage: Option<SampleIdentity>,
     /// First complete cavity-to-exterior lane through either authored seam.
     first_rupture: Option<SampleIdentity>,
+    first_relief_seam_combustion: Option<SampleIdentity>,
+    first_relief_seam_fuel_progress: Option<SampleIdentity>,
     persistent_opening_start: Option<SampleIdentity>,
     persistent_opening_confirmed: Option<SampleIdentity>,
+    through_opening_confirmation_relief_seam_combusting_cells_peak: u64,
+    through_opening_confirmation_relief_seam_flame_event_cells_peak: u64,
+    through_opening_confirmation_relief_seam_fuel_progress_sum_peak: u64,
+    through_opening_confirmation_relief_seam_fuel_progress_max: u32,
+    opening_confirmation_relief_seam_combusting_cells: Option<u64>,
+    opening_confirmation_relief_seam_flame_event_cells: Option<u64>,
+    opening_confirmation_relief_seam_fuel_progress_sum: Option<u64>,
+    opening_confirmation_relief_seam_fuel_progress_max: Option<u32>,
+    opening_confirmation_relief_seam_adjacent_pressure_medium_cells: Option<u64>,
+    opening_confirmation_relief_seam_max_adjacent_pressure: Option<f64>,
+    first_opening_relief_seam_adjacent_pressure_medium_cells: Option<u64>,
+    first_opening_relief_seam_max_adjacent_pressure: Option<f64>,
     first_steam_in_relief_seam: Option<SampleIdentity>,
     first_exterior_steam: Option<SampleIdentity>,
     first_post_confirmation_reseal: Option<SampleIdentity>,
@@ -691,8 +872,26 @@ impl PressureObservations {
             first_pressure_activity: None,
             first_wood_damage: None,
             first_rupture: None,
+            first_relief_seam_combustion: None,
+            first_relief_seam_fuel_progress: None,
             persistent_opening_start: None,
             persistent_opening_confirmed: None,
+            through_opening_confirmation_relief_seam_combusting_cells_peak: tick0
+                .relief_seam_combusting_cells,
+            through_opening_confirmation_relief_seam_flame_event_cells_peak: tick0
+                .relief_seam_flame_event_cells,
+            through_opening_confirmation_relief_seam_fuel_progress_sum_peak: tick0
+                .relief_seam_fuel_progress_sum,
+            through_opening_confirmation_relief_seam_fuel_progress_max: tick0
+                .relief_seam_fuel_progress_max,
+            opening_confirmation_relief_seam_combusting_cells: None,
+            opening_confirmation_relief_seam_flame_event_cells: None,
+            opening_confirmation_relief_seam_fuel_progress_sum: None,
+            opening_confirmation_relief_seam_fuel_progress_max: None,
+            opening_confirmation_relief_seam_adjacent_pressure_medium_cells: None,
+            opening_confirmation_relief_seam_max_adjacent_pressure: None,
+            first_opening_relief_seam_adjacent_pressure_medium_cells: None,
+            first_opening_relief_seam_max_adjacent_pressure: None,
             first_steam_in_relief_seam: None,
             first_exterior_steam: None,
             first_post_confirmation_reseal: None,
@@ -720,11 +919,29 @@ impl PressureObservations {
         }
     }
 
+    fn record_through_opening_confirmation(&mut self, metrics: &PressureSampleMetrics) {
+        self.through_opening_confirmation_relief_seam_combusting_cells_peak = self
+            .through_opening_confirmation_relief_seam_combusting_cells_peak
+            .max(metrics.relief_seam_combusting_cells);
+        self.through_opening_confirmation_relief_seam_flame_event_cells_peak = self
+            .through_opening_confirmation_relief_seam_flame_event_cells_peak
+            .max(metrics.relief_seam_flame_event_cells);
+        self.through_opening_confirmation_relief_seam_fuel_progress_sum_peak = self
+            .through_opening_confirmation_relief_seam_fuel_progress_sum_peak
+            .max(metrics.relief_seam_fuel_progress_sum);
+        self.through_opening_confirmation_relief_seam_fuel_progress_max = self
+            .through_opening_confirmation_relief_seam_fuel_progress_max
+            .max(metrics.relief_seam_fuel_progress_max);
+    }
+
     fn observe(
         &mut self,
         metrics: &PressureSampleMetrics,
         baseline: &PressureBaseline,
     ) -> ObservationUpdate {
+        if self.persistent_opening_confirmed.is_none() {
+            self.record_through_opening_confirmation(metrics);
+        }
         self.invalid_material_occurrences = self
             .invalid_material_occurrences
             .saturating_add(metrics.invalid_material_count);
@@ -756,6 +973,20 @@ impl PressureObservations {
             metrics.relief_seam_through_open_lanes != 0 && self.first_rupture.is_none();
         if first_rupture {
             self.first_rupture = Some(metrics.identity());
+            self.first_opening_relief_seam_adjacent_pressure_medium_cells =
+                Some(metrics.relief_seam_adjacent_pressure_medium_cells);
+            self.first_opening_relief_seam_max_adjacent_pressure =
+                Some(metrics.relief_seam_max_adjacent_pressure);
+        }
+        let first_relief_seam_combustion = metrics.relief_seam_combusting_cells != 0
+            && self.first_relief_seam_combustion.is_none();
+        if first_relief_seam_combustion {
+            self.first_relief_seam_combustion = Some(metrics.identity());
+        }
+        let first_relief_seam_fuel_progress = metrics.relief_seam_fuel_progress_sum != 0
+            && self.first_relief_seam_fuel_progress.is_none();
+        if first_relief_seam_fuel_progress {
+            self.first_relief_seam_fuel_progress = Some(metrics.identity());
         }
         self.top_relief_seam_ever_opened |= metrics.top_relief_seam_through_open_lanes != 0;
         self.bottom_relief_seam_ever_opened |= metrics.bottom_relief_seam_through_open_lanes != 0;
@@ -829,6 +1060,8 @@ impl PressureObservations {
             first_pressure_activity,
             first_wood_damage,
             first_rupture,
+            first_relief_seam_combustion,
+            first_relief_seam_fuel_progress,
             first_steam_in_relief_seam,
             first_exterior_steam,
             first_post_confirmation_reseal,
@@ -839,10 +1072,28 @@ impl PressureObservations {
         }
     }
 
-    fn confirm_opening(&mut self, first: SampleIdentity, confirmed: SampleIdentity) {
+    fn confirm_opening(
+        &mut self,
+        first: SampleIdentity,
+        confirmed: SampleIdentity,
+        metrics: &PressureSampleMetrics,
+    ) {
         if self.persistent_opening_confirmed.is_none() {
+            self.record_through_opening_confirmation(metrics);
             self.persistent_opening_start = Some(first);
             self.persistent_opening_confirmed = Some(confirmed);
+            self.opening_confirmation_relief_seam_combusting_cells =
+                Some(metrics.relief_seam_combusting_cells);
+            self.opening_confirmation_relief_seam_flame_event_cells =
+                Some(metrics.relief_seam_flame_event_cells);
+            self.opening_confirmation_relief_seam_fuel_progress_sum =
+                Some(metrics.relief_seam_fuel_progress_sum);
+            self.opening_confirmation_relief_seam_fuel_progress_max =
+                Some(metrics.relief_seam_fuel_progress_max);
+            self.opening_confirmation_relief_seam_adjacent_pressure_medium_cells =
+                Some(metrics.relief_seam_adjacent_pressure_medium_cells);
+            self.opening_confirmation_relief_seam_max_adjacent_pressure =
+                Some(metrics.relief_seam_max_adjacent_pressure);
         }
     }
 }
@@ -1295,11 +1546,56 @@ impl TerminalReason {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PressureCausalClassification {
+    PressureOpeningPrecedesCombustion,
+    FixtureCausalityConfounded,
+    InsufficientCausalEvidence,
+}
+
+impl PressureCausalClassification {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::PressureOpeningPrecedesCombustion => "pressure_opening_precedes_combustion",
+            Self::FixtureCausalityConfounded => "fixture_causality_confounded",
+            Self::InsufficientCausalEvidence => "insufficient_causal_evidence",
+        }
+    }
+}
+
+fn pressure_causal_classification(
+    observations: &PressureObservations,
+) -> PressureCausalClassification {
+    let Some(opening_start) = observations.persistent_opening_start else {
+        return PressureCausalClassification::InsufficientCausalEvidence;
+    };
+    if observations.persistent_opening_confirmed.is_none() {
+        return PressureCausalClassification::InsufficientCausalEvidence;
+    }
+    let combustion_not_after_opening = observations
+        .first_relief_seam_combustion
+        .is_some_and(|identity| identity <= opening_start);
+    let fuel_not_after_opening = observations
+        .first_relief_seam_fuel_progress
+        .is_some_and(|identity| identity <= opening_start);
+    let confounded_through_confirmation =
+        observations.through_opening_confirmation_relief_seam_combusting_cells_peak != 0
+            || observations.through_opening_confirmation_relief_seam_flame_event_cells_peak != 0
+            || observations.through_opening_confirmation_relief_seam_fuel_progress_sum_peak != 0
+            || observations.through_opening_confirmation_relief_seam_fuel_progress_max != 0;
+    if combustion_not_after_opening || fuel_not_after_opening || confounded_through_confirmation {
+        PressureCausalClassification::FixtureCausalityConfounded
+    } else {
+        PressureCausalClassification::PressureOpeningPrecedesCombustion
+    }
+}
+
 #[derive(Clone, Debug)]
 struct PressurePredicates {
     pressure_activity_observed: PredicateResult,
     relief_seam_damaged: PredicateResult,
     persistent_opening_created: PredicateResult,
+    pressure_opening_precedes_combustion: PredicateResult,
     exterior_vent_observed: PredicateResult,
     post_opening_pressure_relieved: PredicateResult,
     terminal_pressure_not_runaway: PredicateResult,
@@ -1309,11 +1605,12 @@ struct PressurePredicates {
 }
 
 impl PressurePredicates {
-    fn statuses(&self) -> [PredicateStatus; 9] {
+    fn statuses(&self) -> [PredicateStatus; 10] {
         [
             self.pressure_activity_observed.status,
             self.relief_seam_damaged.status,
             self.persistent_opening_created.status,
+            self.pressure_opening_precedes_combustion.status,
             self.exterior_vent_observed.status,
             self.post_opening_pressure_relieved.status,
             self.terminal_pressure_not_runaway.status,
@@ -1419,6 +1716,47 @@ fn build_predicates(
             "persistent opening confirmed at tick {} sample {} and remained open through the observation window",
             identity.sim_tick, identity.sample_sequence
         )),
+    };
+    let causal_classification = pressure_causal_classification(observations);
+    let identity_detail = |identity: Option<SampleIdentity>| {
+        identity.map_or_else(
+            || "none".to_string(),
+            |identity| {
+                format!(
+                    "tick {} sample {}",
+                    identity.sim_tick, identity.sample_sequence
+                )
+            },
+        )
+    };
+    let pressure_opening_precedes_combustion = match causal_classification {
+        PressureCausalClassification::InsufficientCausalEvidence => PredicateResult::fail(
+            "no persistent through opening was confirmed, so Pressure-caused opening causality cannot be established",
+        ),
+        PressureCausalClassification::FixtureCausalityConfounded => PredicateResult::fail(
+            format!(
+                "fixture_causality_confounded: opening_start={}; first_combustion={}; first_fuel_progress={}; through_confirmation combusting_peak={} flame_event_peak={} fuel_sum_peak={} fuel_max={}",
+                identity_detail(observations.persistent_opening_start),
+                identity_detail(observations.first_relief_seam_combustion),
+                identity_detail(observations.first_relief_seam_fuel_progress),
+                observations
+                    .through_opening_confirmation_relief_seam_combusting_cells_peak,
+                observations
+                    .through_opening_confirmation_relief_seam_flame_event_cells_peak,
+                observations
+                    .through_opening_confirmation_relief_seam_fuel_progress_sum_peak,
+                observations
+                    .through_opening_confirmation_relief_seam_fuel_progress_max
+            ),
+        ),
+        PressureCausalClassification::PressureOpeningPrecedesCombustion => {
+            PredicateResult::pass(format!(
+                "persistent opening started at {}; seam combustion/flame/fuel were zero through confirmation; first combustion={} and first fuel progress={} are absent or strictly later",
+                identity_detail(observations.persistent_opening_start),
+                identity_detail(observations.first_relief_seam_combustion),
+                identity_detail(observations.first_relief_seam_fuel_progress)
+            ))
+        }
     };
     let exterior_vent_observed = observations.first_exterior_steam.map_or_else(
         || {
@@ -1544,6 +1882,7 @@ fn build_predicates(
         pressure_activity_observed,
         relief_seam_damaged,
         persistent_opening_created,
+        pressure_opening_precedes_combustion,
         exterior_vent_observed,
         post_opening_pressure_relieved,
         terminal_pressure_not_runaway,
@@ -1556,7 +1895,11 @@ fn build_predicates(
 fn pressure_verdict(
     predicates: &PressurePredicates,
     review_flags: &ReviewFlags,
+    causal_classification: PressureCausalClassification,
 ) -> ExperimentVerdict {
+    if causal_classification == PressureCausalClassification::FixtureCausalityConfounded {
+        return ExperimentVerdict::FixtureCausalityConfounded;
+    }
     let statuses = predicates.statuses();
     if statuses.contains(&PredicateStatus::Fail) {
         ExperimentVerdict::Fail
@@ -1603,6 +1946,10 @@ fn write_analysis_json(
             "persistent_opening_created",
             &predicates.persistent_opening_created,
         ),
+        predicate_json(
+            "pressure_opening_precedes_combustion",
+            &predicates.pressure_opening_precedes_combustion,
+        ),
         predicate_json("exterior_vent_observed", &predicates.exterior_vent_observed),
         predicate_json(
             "post_opening_pressure_relieved",
@@ -1623,6 +1970,67 @@ fn write_analysis_json(
     let json_opt_f64 = |value: Option<f64>| {
         value.map_or_else(|| "null".to_string(), |value| format!("{value:.9}"))
     };
+    let json_opt_bool =
+        |value: Option<bool>| value.map_or_else(|| "null".to_string(), |value| value.to_string());
+    let at_or_above_rupture_threshold = |count: Option<u64>, pressure: Option<f64>| {
+        count
+            .zip(pressure)
+            .map(|(count, pressure)| count != 0 && pressure >= f64::from(WOOD_RUPTURE_THRESHOLD))
+    };
+    let causal_metrics_json = format!(
+        concat!(
+            "\"first_relief_seam_combustion_tick\":{},",
+            "\"first_relief_seam_combustion_sample_sequence\":{},",
+            "\"first_relief_seam_fuel_progress_tick\":{},",
+            "\"first_relief_seam_fuel_progress_sample_sequence\":{},",
+            "\"through_opening_confirmation_relief_seam_combusting_cells_peak\":{},",
+            "\"through_opening_confirmation_relief_seam_flame_event_cells_peak\":{},",
+            "\"through_opening_confirmation_relief_seam_fuel_progress_sum_peak\":{},",
+            "\"through_opening_confirmation_relief_seam_fuel_progress_max\":{},",
+            "\"opening_confirmation_relief_seam_combusting_cells\":{},",
+            "\"opening_confirmation_relief_seam_flame_event_cells\":{},",
+            "\"opening_confirmation_relief_seam_fuel_progress_sum\":{},",
+            "\"opening_confirmation_relief_seam_fuel_progress_max\":{},",
+            "\"opening_confirmation_relief_seam_adjacent_pressure_medium_cells\":{},",
+            "\"opening_confirmation_relief_seam_max_adjacent_pressure\":{},",
+            "\"opening_confirmation_adjacent_pressure_at_or_above_wood_rupture_threshold\":{},",
+            "\"first_opening_relief_seam_adjacent_pressure_medium_cells\":{},",
+            "\"first_opening_relief_seam_max_adjacent_pressure\":{},",
+            "\"first_opening_adjacent_pressure_at_or_above_wood_rupture_threshold\":{},",
+            "\"wood_rupture_threshold\":{:.9}"
+        ),
+        json_opt_u64(identity_tick(observations.first_relief_seam_combustion)),
+        json_opt_u64(identity_sample(observations.first_relief_seam_combustion)),
+        json_opt_u64(identity_tick(observations.first_relief_seam_fuel_progress)),
+        json_opt_u64(identity_sample(
+            observations.first_relief_seam_fuel_progress
+        )),
+        observations.through_opening_confirmation_relief_seam_combusting_cells_peak,
+        observations.through_opening_confirmation_relief_seam_flame_event_cells_peak,
+        observations.through_opening_confirmation_relief_seam_fuel_progress_sum_peak,
+        observations.through_opening_confirmation_relief_seam_fuel_progress_max,
+        json_opt_u64(observations.opening_confirmation_relief_seam_combusting_cells),
+        json_opt_u64(observations.opening_confirmation_relief_seam_flame_event_cells),
+        json_opt_u64(observations.opening_confirmation_relief_seam_fuel_progress_sum),
+        json_opt_u64(
+            observations
+                .opening_confirmation_relief_seam_fuel_progress_max
+                .map(u64::from),
+        ),
+        json_opt_u64(observations.opening_confirmation_relief_seam_adjacent_pressure_medium_cells,),
+        json_opt_f64(observations.opening_confirmation_relief_seam_max_adjacent_pressure),
+        json_opt_bool(at_or_above_rupture_threshold(
+            observations.opening_confirmation_relief_seam_adjacent_pressure_medium_cells,
+            observations.opening_confirmation_relief_seam_max_adjacent_pressure,
+        )),
+        json_opt_u64(observations.first_opening_relief_seam_adjacent_pressure_medium_cells),
+        json_opt_f64(observations.first_opening_relief_seam_max_adjacent_pressure),
+        json_opt_bool(at_or_above_rupture_threshold(
+            observations.first_opening_relief_seam_adjacent_pressure_medium_cells,
+            observations.first_opening_relief_seam_max_adjacent_pressure,
+        )),
+        WOOD_RUPTURE_THRESHOLD,
+    );
     let reasons = review_flags
         .reasons
         .iter()
@@ -1656,7 +2064,7 @@ fn write_analysis_json(
             "\"initial_chamber_pressure_cell_count\":{},",
             "\"initial_chamber_mean_pressure\":{:.9},",
             "\"initial_chamber_max_pressure\":{:.9}}},",
-            "\n  \"metrics\": {{\"first_pressure_activity_tick\":{},",
+            "\n  \"metrics\": {{{},\"first_pressure_activity_tick\":{},",
             "\"first_pressure_activity_sample_sequence\":{},",
             "\"first_wood_damage_tick\":{},\"first_wood_damage_sample_sequence\":{},",
             "\"first_rupture_tick\":{},\"first_rupture_sample_sequence\":{},",
@@ -1724,6 +2132,7 @@ fn write_analysis_json(
             "\"persistent_vent_plume\":{},\"terminal_activity_remains\":{},",
             "\"reasons\":[{}]}},",
             "\n  \"predicates\": {{{}}},",
+            "\n  \"causal_classification\": \"{}\",",
             "\n  \"verdict\": \"{}\",\n  \"raw_frame_count\": {}\n}}\n"
         ),
         PRESSURE_ANALYSIS_SCHEMA_VERSION,
@@ -1759,6 +2168,7 @@ fn write_analysis_json(
         baseline.chamber_pressure_cell_count,
         baseline.chamber_mean_pressure,
         baseline.chamber_max_pressure,
+        causal_metrics_json,
         json_opt_u64(identity_tick(observations.first_pressure_activity)),
         json_opt_u64(identity_sample(observations.first_pressure_activity)),
         json_opt_u64(identity_tick(observations.first_wood_damage)),
@@ -1841,6 +2251,7 @@ fn write_analysis_json(
         review_flags.terminal_activity_remains,
         reasons,
         predicates_json,
+        pressure_causal_classification(observations).as_str(),
         verdict.as_str(),
         raw_frame_count,
     );
@@ -1909,11 +2320,44 @@ fn record_observation_updates(
             metrics.sim_tick,
             Some(metrics.sample_sequence),
             &format!(
-                "through_lanes={};top_through_lanes={};bottom_through_lanes={};raw_non_wood_open_cells={}",
+                "through_lanes={};top_through_lanes={};bottom_through_lanes={};raw_non_wood_open_cells={};adjacent_pressure_medium_cells={};max_adjacent_pressure={:.9};wood_rupture_threshold={:.9}",
                 metrics.relief_seam_through_open_lanes,
                 metrics.top_relief_seam_through_open_lanes,
                 metrics.bottom_relief_seam_through_open_lanes,
-                metrics.relief_seam_open_cells
+                metrics.relief_seam_open_cells,
+                metrics.relief_seam_adjacent_pressure_medium_cells,
+                metrics.relief_seam_max_adjacent_pressure,
+                WOOD_RUPTURE_THRESHOLD
+            ),
+        )?;
+    }
+    if update.first_relief_seam_combustion {
+        output.event(
+            config,
+            "relief_seam_combustion_observed",
+            metrics.sim_tick,
+            Some(metrics.sample_sequence),
+            &format!(
+                "combusting_total={};top={};bottom={};flame_event_total={}",
+                metrics.relief_seam_combusting_cells,
+                metrics.top_relief_seam_combusting_cells,
+                metrics.bottom_relief_seam_combusting_cells,
+                metrics.relief_seam_flame_event_cells
+            ),
+        )?;
+    }
+    if update.first_relief_seam_fuel_progress {
+        output.event(
+            config,
+            "relief_seam_fuel_progress_observed",
+            metrics.sim_tick,
+            Some(metrics.sample_sequence),
+            &format!(
+                "fuel_progress_sum={};fuel_progress_max={};top_sum={};bottom_sum={}",
+                metrics.relief_seam_fuel_progress_sum,
+                metrics.relief_seam_fuel_progress_max,
+                metrics.top_relief_seam_fuel_progress_sum,
+                metrics.bottom_relief_seam_fuel_progress_sum
             ),
         )?;
     }
@@ -2190,7 +2634,7 @@ pub fn run_pressure_burst_experiment(
         let opening_update = opening_detector.observe(&metrics);
         let confirmed_first = if opening_update.confirmed {
             let first = opening_detector.first.unwrap_or(metrics.identity());
-            observations.confirm_opening(first, metrics.identity());
+            observations.confirm_opening(first, metrics.identity(), &metrics);
             Some(first)
         } else {
             None
@@ -2258,13 +2702,19 @@ pub fn run_pressure_burst_experiment(
                 metrics.sim_tick,
                 Some(metrics.sample_sequence),
                 &format!(
-                    "required={};first_tick={};first_sample={};through_lanes={};top_through_lanes={};bottom_through_lanes={}",
+                    "required={};first_tick={};first_sample={};through_lanes={};top_through_lanes={};bottom_through_lanes={};seam_combusting={};seam_flame_event={};seam_fuel_sum={};seam_fuel_max={};adjacent_pressure_medium_cells={};max_adjacent_pressure={:.9}",
                     config.consecutive_persistent_opening,
                     first.sim_tick,
                     first.sample_sequence,
                     metrics.relief_seam_through_open_lanes,
                     metrics.top_relief_seam_through_open_lanes,
-                    metrics.bottom_relief_seam_through_open_lanes
+                    metrics.bottom_relief_seam_through_open_lanes,
+                    metrics.relief_seam_combusting_cells,
+                    metrics.relief_seam_flame_event_cells,
+                    metrics.relief_seam_fuel_progress_sum,
+                    metrics.relief_seam_fuel_progress_max,
+                    metrics.relief_seam_adjacent_pressure_medium_cells,
+                    metrics.relief_seam_max_adjacent_pressure
                 ),
             )?;
             output.event(
@@ -2478,7 +2928,8 @@ pub fn run_pressure_burst_experiment(
         exact_reset,
     );
     let review_flags = review_flags(&baseline, &observations, &trend);
-    let verdict = pressure_verdict(&predicates, &review_flags);
+    let causal_classification = pressure_causal_classification(&observations);
+    let verdict = pressure_verdict(&predicates, &review_flags, causal_classification);
     let frames = assemble_frames(
         [
             Some(tick0_frame),
@@ -2543,6 +2994,7 @@ pub fn run_pressure_burst_experiment(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use powdergame_core::with_fuel_progress;
 
     fn snapshot(world: WorldConfig) -> GpuSnapshot {
         let cells = world.cell_count().expect("cell count") as usize;
@@ -2584,6 +3036,12 @@ mod tests {
         snapshot.material_next[index] = value;
     }
 
+    fn set_flags(snapshot: &mut GpuSnapshot, world: WorldConfig, x: usize, y: usize, value: u32) {
+        let index = y * world.width as usize + x;
+        snapshot.flags_current[index] = value;
+        snapshot.flags_next[index] = value;
+    }
+
     fn authored_metric_snapshot() -> (WorldConfig, GpuSnapshot) {
         let world = WorldConfig::new(256, 256, 64).expect("world");
         let mut snapshot = snapshot(world);
@@ -2600,6 +3058,7 @@ mod tests {
         for y in CAVITY_MIN_Y..CAVITY_MAX_Y {
             for x in CAVITY_MIN_X..CAVITY_MAX_X {
                 let index = y * world.width as usize + x;
+                set_material(&mut snapshot, world, x, y, MATERIAL_WATER);
                 snapshot.pressure_current[index] = 180.0f32.to_bits();
                 snapshot.pressure_next[index] = 180.0f32.to_bits();
             }
@@ -2636,6 +3095,24 @@ mod tests {
             relief_seam_through_open_lanes: 0,
             top_relief_seam_through_open_lanes: 0,
             bottom_relief_seam_through_open_lanes: 0,
+            relief_seam_combusting_cells: 0,
+            top_relief_seam_combusting_cells: 0,
+            bottom_relief_seam_combusting_cells: 0,
+            relief_seam_flame_event_cells: 0,
+            top_relief_seam_flame_event_cells: 0,
+            bottom_relief_seam_flame_event_cells: 0,
+            relief_seam_fuel_progress_sum: 0,
+            relief_seam_fuel_progress_max: 0,
+            top_relief_seam_fuel_progress_sum: 0,
+            top_relief_seam_fuel_progress_max: 0,
+            bottom_relief_seam_fuel_progress_sum: 0,
+            bottom_relief_seam_fuel_progress_max: 0,
+            relief_seam_adjacent_pressure_medium_cells: 72,
+            relief_seam_max_adjacent_pressure: 180.0,
+            top_relief_seam_adjacent_pressure_medium_cells: 48,
+            top_relief_seam_max_adjacent_pressure: 180.0,
+            bottom_relief_seam_adjacent_pressure_medium_cells: 24,
+            bottom_relief_seam_max_adjacent_pressure: 180.0,
             steam_in_relief_seam_cells: 0,
             outside_chamber_steam_cells: 0,
             chamber_pressure_cell_count: CHAMBER_PRESSURE_CELL_COUNT,
@@ -2679,7 +3156,54 @@ mod tests {
         assert_eq!(metrics.chamber_pressure_cell_count, 29_920);
         assert_eq!(metrics.chamber_mean_pressure, 180.0);
         assert_eq!(metrics.chamber_max_pressure, 180.0);
+        assert_eq!(metrics.top_relief_seam_adjacent_pressure_medium_cells, 48);
+        assert_eq!(
+            metrics.bottom_relief_seam_adjacent_pressure_medium_cells,
+            24
+        );
+        assert_eq!(metrics.relief_seam_adjacent_pressure_medium_cells, 72);
+        assert_eq!(metrics.relief_seam_max_adjacent_pressure, 180.0);
         baseline_from_tick0(&metrics).expect("authored baseline");
+    }
+
+    #[test]
+    fn pressure_seam_combustion_and_fuel_metrics_are_authored_region_specific() {
+        let (world, mut snapshot) = authored_metric_snapshot();
+        set_flags(
+            &mut snapshot,
+            world,
+            TOP_SEAM_MIN_X,
+            TOP_SEAM_MIN_Y,
+            with_fuel_progress(FLAG_COMBUSTING | FLAG_FLAME_EVENT, 7),
+        );
+        set_flags(
+            &mut snapshot,
+            world,
+            BOTTOM_SEAM_MIN_X,
+            BOTTOM_SEAM_MIN_Y,
+            with_fuel_progress(FLAG_COMBUSTING, 3),
+        );
+        set_flags(
+            &mut snapshot,
+            world,
+            TOP_SEAM_MIN_X - 1,
+            TOP_SEAM_MIN_Y,
+            with_fuel_progress(FLAG_COMBUSTING | FLAG_FLAME_EVENT, 99),
+        );
+        let metrics = pressure_metrics_from_snapshot(&snapshot, world, 1, 1, "test", "test")
+            .expect("metrics");
+        assert_eq!(metrics.top_relief_seam_combusting_cells, 1);
+        assert_eq!(metrics.bottom_relief_seam_combusting_cells, 1);
+        assert_eq!(metrics.relief_seam_combusting_cells, 2);
+        assert_eq!(metrics.top_relief_seam_flame_event_cells, 1);
+        assert_eq!(metrics.bottom_relief_seam_flame_event_cells, 0);
+        assert_eq!(metrics.relief_seam_flame_event_cells, 1);
+        assert_eq!(metrics.top_relief_seam_fuel_progress_sum, 7);
+        assert_eq!(metrics.top_relief_seam_fuel_progress_max, 7);
+        assert_eq!(metrics.bottom_relief_seam_fuel_progress_sum, 3);
+        assert_eq!(metrics.bottom_relief_seam_fuel_progress_max, 3);
+        assert_eq!(metrics.relief_seam_fuel_progress_sum, 10);
+        assert_eq!(metrics.relief_seam_fuel_progress_max, 7);
     }
 
     #[test]
@@ -2800,6 +3324,161 @@ mod tests {
     }
 
     #[test]
+    fn pressure_combustion_confounded_opening_is_rejected_with_explicit_classification() {
+        let initial = metrics(0, 180.0, 180.0, 0);
+        let baseline = baseline(&initial);
+        let mut observations = PressureObservations::new(&initial);
+
+        let mut combustion = metrics(1, 175.0, 180.0, 10);
+        combustion.relief_seam_combusting_cells = 1;
+        combustion.top_relief_seam_combusting_cells = 1;
+        combustion.relief_seam_flame_event_cells = 1;
+        combustion.top_relief_seam_flame_event_cells = 1;
+        combustion.relief_seam_fuel_progress_sum = 1;
+        combustion.relief_seam_fuel_progress_max = 1;
+        combustion.top_relief_seam_fuel_progress_sum = 1;
+        combustion.top_relief_seam_fuel_progress_max = 1;
+        observations.observe(&combustion, &baseline);
+
+        let mut opening = metrics(2, 170.0, 180.0, 10);
+        opening.relief_seam_wood_cells = 575;
+        opening.top_relief_seam_wood_cells = 383;
+        opening.relief_seam_open_cells = 1;
+        opening.top_relief_seam_open_cells = 1;
+        opening.relief_seam_through_open_lanes = 1;
+        opening.top_relief_seam_through_open_lanes = 1;
+        observations.observe(&opening, &baseline);
+
+        let mut confirmed = opening.clone();
+        confirmed.sim_tick = 8;
+        confirmed.sample_sequence = 3;
+        observations.confirm_opening(opening.identity(), confirmed.identity(), &confirmed);
+        observations.observe(&confirmed, &baseline);
+
+        assert_eq!(
+            pressure_causal_classification(&observations),
+            PressureCausalClassification::FixtureCausalityConfounded
+        );
+        let terminal = (0..64)
+            .map(|index| metrics(100 + index, 160.0, 170.0, 10))
+            .collect::<VecDeque<_>>();
+        let predicates = build_predicates(&observations, &terminal_trend(&terminal), 64, true);
+        assert_eq!(
+            predicates.pressure_opening_precedes_combustion.status,
+            PredicateStatus::Fail
+        );
+        assert!(predicates
+            .pressure_opening_precedes_combustion
+            .detail
+            .contains("fixture_causality_confounded"));
+        let flags = review_flags(&baseline, &observations, &terminal_trend(&terminal));
+        let verdict = pressure_verdict(
+            &predicates,
+            &flags,
+            pressure_causal_classification(&observations),
+        );
+        assert_eq!(verdict, ExperimentVerdict::FixtureCausalityConfounded);
+        assert_eq!(verdict.as_str(), "FIXTURE_CAUSALITY_CONFOUNDED");
+    }
+
+    #[test]
+    fn pressure_opening_before_combustion_is_accepted_by_causal_predicate() {
+        let initial = metrics(0, 180.0, 180.0, 0);
+        let baseline = baseline(&initial);
+        let mut observations = PressureObservations::new(&initial);
+
+        let mut opening = metrics(1, 170.0, 180.0, 10);
+        opening.relief_seam_wood_cells = 575;
+        opening.bottom_relief_seam_wood_cells = 191;
+        opening.relief_seam_open_cells = 1;
+        opening.bottom_relief_seam_open_cells = 1;
+        opening.relief_seam_through_open_lanes = 1;
+        opening.bottom_relief_seam_through_open_lanes = 1;
+        observations.observe(&opening, &baseline);
+
+        let mut confirmed = opening.clone();
+        confirmed.sim_tick = 8;
+        confirmed.sample_sequence = 3;
+        observations.confirm_opening(opening.identity(), confirmed.identity(), &confirmed);
+        observations.observe(&confirmed, &baseline);
+
+        let mut later_combustion = confirmed.clone();
+        later_combustion.sim_tick = 9;
+        later_combustion.sample_sequence = 4;
+        later_combustion.relief_seam_combusting_cells = 1;
+        later_combustion.bottom_relief_seam_combusting_cells = 1;
+        later_combustion.relief_seam_flame_event_cells = 1;
+        later_combustion.bottom_relief_seam_flame_event_cells = 1;
+        later_combustion.relief_seam_fuel_progress_sum = 1;
+        later_combustion.relief_seam_fuel_progress_max = 1;
+        later_combustion.bottom_relief_seam_fuel_progress_sum = 1;
+        later_combustion.bottom_relief_seam_fuel_progress_max = 1;
+        observations.observe(&later_combustion, &baseline);
+
+        assert_eq!(
+            pressure_causal_classification(&observations),
+            PressureCausalClassification::PressureOpeningPrecedesCombustion
+        );
+        assert_eq!(
+            observations.through_opening_confirmation_relief_seam_combusting_cells_peak,
+            0
+        );
+        let terminal = (0..64)
+            .map(|index| metrics(100 + index, 160.0, 170.0, 10))
+            .collect::<VecDeque<_>>();
+        let predicates = build_predicates(&observations, &terminal_trend(&terminal), 64, true);
+        assert_eq!(
+            predicates.pressure_opening_precedes_combustion.status,
+            PredicateStatus::Pass
+        );
+    }
+
+    #[test]
+    fn pressure_one_or_two_open_samples_are_insufficient_causal_evidence() {
+        for partial_sample_count in 1..=2 {
+            let initial = metrics(0, 180.0, 180.0, 0);
+            let baseline = baseline(&initial);
+            let mut observations = PressureObservations::new(&initial);
+            let mut detector = PersistentOpeningDetector::new(3);
+
+            for sample_sequence in 1..=partial_sample_count {
+                let mut opening = metrics(sample_sequence * 8, 170.0, 180.0, 10);
+                opening.sample_sequence = sample_sequence;
+                opening.relief_seam_wood_cells = 575;
+                opening.top_relief_seam_wood_cells = 383;
+                opening.relief_seam_open_cells = 1;
+                opening.top_relief_seam_open_cells = 1;
+                opening.relief_seam_through_open_lanes = 1;
+                opening.top_relief_seam_through_open_lanes = 1;
+                let update = detector.observe(&opening);
+                assert!(!update.confirmed);
+                observations.observe(&opening, &baseline);
+            }
+
+            observations.persistent_opening_start = detector.first;
+            assert!(observations.persistent_opening_start.is_some());
+            assert!(observations.persistent_opening_confirmed.is_none());
+            assert_eq!(
+                pressure_causal_classification(&observations),
+                PressureCausalClassification::InsufficientCausalEvidence
+            );
+
+            let terminal = (0..64)
+                .map(|index| metrics(100 + index, 160.0, 170.0, 10))
+                .collect::<VecDeque<_>>();
+            let predicates = build_predicates(&observations, &terminal_trend(&terminal), 64, true);
+            assert_eq!(
+                predicates.pressure_opening_precedes_combustion.status,
+                PredicateStatus::Fail
+            );
+            assert!(predicates
+                .pressure_opening_precedes_combustion
+                .detail
+                .contains("no persistent through opening was confirmed"));
+        }
+    }
+
+    #[test]
     fn pressure_terminal_trend_distinguishes_relief_from_runaway() {
         let falling = (0..64)
             .map(|index| metrics(index, 180.0 - index as f64, 200.0, 100))
@@ -2854,7 +3533,7 @@ mod tests {
         vent.bottom_relief_seam_through_open_lanes = 1;
         vent.steam_in_relief_seam_cells = 1;
         vent.outside_chamber_steam_cells = 1;
-        relief_observations.confirm_opening(vent.identity(), vent.identity());
+        relief_observations.confirm_opening(vent.identity(), vent.identity(), &vent);
         relief_observations.observe(&vent, &initial_baseline);
 
         let mut sub_serialization_drop = metrics(9, 99.999_999_999_9, 99.999_999_999_9, 1);
@@ -2917,7 +3596,7 @@ mod tests {
         assert!(observations.first_steam_in_relief_seam.is_none());
         assert!(observations.first_exterior_steam.is_none());
 
-        observations.confirm_opening(premature.identity(), premature.identity());
+        observations.confirm_opening(premature.identity(), premature.identity(), &premature);
         let mut outside_without_transit = metrics(16, 170.0, 190.0, 10);
         outside_without_transit.relief_seam_open_cells = 1;
         outside_without_transit.bottom_relief_seam_open_cells = 1;
@@ -2993,7 +3672,7 @@ mod tests {
         open.bottom_relief_seam_open_cells = 1;
         open.relief_seam_through_open_lanes = 1;
         open.bottom_relief_seam_through_open_lanes = 1;
-        observations.confirm_opening(open.identity(), open.identity());
+        observations.confirm_opening(open.identity(), open.identity(), &open);
         observations.observe(&open, &baseline);
 
         let resealed = metrics(16, 165.0, 185.0, 10);
@@ -3026,7 +3705,7 @@ mod tests {
         sample.top_relief_seam_through_open_lanes = 1;
         sample.outside_chamber_steam_cells = 1;
         observations.observe(&sample, &baseline);
-        observations.confirm_opening(sample.identity(), sample.identity());
+        observations.confirm_opening(sample.identity(), sample.identity(), &sample);
         observations.first_exterior_steam = Some(sample.identity());
         observations.latest = sample.clone();
         let window = (0..64)
@@ -3038,7 +3717,11 @@ mod tests {
         let flags = review_flags(&baseline, &observations, &trend);
         assert!(flags.only_one_relief_seam_ruptured);
         assert_eq!(
-            pressure_verdict(&predicates, &flags),
+            pressure_verdict(
+                &predicates,
+                &flags,
+                pressure_causal_classification(&observations),
+            ),
             ExperimentVerdict::NeedsHumanReview
         );
     }
@@ -3061,6 +3744,7 @@ mod tests {
             pressure_activity_observed: pass(),
             relief_seam_damaged: pass(),
             persistent_opening_created: pass(),
+            pressure_opening_precedes_combustion: pass(),
             exterior_vent_observed: pass(),
             post_opening_pressure_relieved: pass(),
             terminal_pressure_not_runaway: pass(),
@@ -3068,9 +3752,13 @@ mod tests {
             no_nonfinite_fields: pass(),
             exact_reset: pass(),
         };
-        assert_eq!(predicates.statuses(), [PredicateStatus::Pass; 9]);
+        assert_eq!(predicates.statuses(), [PredicateStatus::Pass; 10]);
         assert_eq!(
-            pressure_verdict(&predicates, &flags),
+            pressure_verdict(
+                &predicates,
+                &flags,
+                PressureCausalClassification::PressureOpeningPrecedesCombustion,
+            ),
             ExperimentVerdict::NeedsHumanReview
         );
 

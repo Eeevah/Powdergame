@@ -760,7 +760,6 @@ fn build_pressure_burst(builder: &mut FixtureBuilder) -> Result<(), ScenarioErro
     builder.fill_pressure_ref(40, 216, 46, 216, 180.0)?;
     builder.fill_pressure_ref(112, 144, 80, 190, 20.0)?;
     builder.fill_material_ref(104, 152, 38, 46, MATERIAL_WOOD)?;
-    builder.fill_temperature_ref(104, 152, 38, 46, 95.0)?;
     builder.fill_material_ref(116, 140, 216, 224, MATERIAL_WOOD)?;
     builder.fill_material_ref(24, 32, 116, 148, MATERIAL_STONE)?;
     builder.fill_material_ref(224, 232, 116, 148, MATERIAL_STONE)?;
@@ -836,6 +835,7 @@ fn build_active_sleep_g7(builder: &mut FixtureBuilder) -> Result<(), ScenarioErr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use powdergame_core::{fuel_progress, COMBUSTION_WOOD_IGNITION};
 
     fn assert_exact(left: &ScenarioFixture, right: &ScenarioFixture) {
         assert_eq!(left.scenario, right.scenario);
@@ -1345,7 +1345,6 @@ mod tests {
                 }
             };
             paint(40..216, 46..216, 110.0);
-            paint(104..152, 38..46, 95.0);
         }
 
         let mut expected_pressures = vec![PRESSURE_REFERENCE; cell_count];
@@ -1416,8 +1415,8 @@ mod tests {
                 .filter(|value| value.to_bits() == temperature.to_bits())
                 .count()
         };
-        assert_eq!(count_temperature(TEMPERATURE_REFERENCE), 35_232);
-        assert_eq!(count_temperature(95.0), 384);
+        assert_eq!(count_temperature(TEMPERATURE_REFERENCE), 35_616);
+        assert_eq!(count_temperature(95.0), 0);
         assert_eq!(count_temperature(110.0), 29_920);
 
         let count_pressure = |pressure: f32| {
@@ -1468,6 +1467,30 @@ mod tests {
         }
         assert_eq!(top_wood, 384);
         assert_eq!(bottom_wood, 192);
+
+        for (name, x_range, y_range) in [("top", 104..152, 38..46), ("bottom", 116..140, 216..224)]
+        {
+            for y in y_range {
+                for x in x_range.clone() {
+                    let index = cell(&fixture, x, y);
+                    assert_eq!(
+                        fixture.temperatures()[index].to_bits(),
+                        TEMPERATURE_REFERENCE.to_bits(),
+                        "{name} seam temperature at ({x},{y})"
+                    );
+                    assert!(
+                        fixture.temperatures()[index] < COMBUSTION_WOOD_IGNITION,
+                        "{name} seam must begin below Wood ignition at ({x},{y})"
+                    );
+                    assert_eq!(fixture.flags()[index], 0, "{name} seam flags at ({x},{y})");
+                    assert_eq!(
+                        fuel_progress(fixture.flags()[index]),
+                        0,
+                        "{name} seam fuel progress at ({x},{y})"
+                    );
+                }
+            }
+        }
 
         // Both authored plugs span the complete eight-cell shell and have a
         // pressurized Water face inside plus EMPTY immediately outside. No

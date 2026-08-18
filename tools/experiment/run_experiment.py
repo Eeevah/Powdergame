@@ -67,11 +67,11 @@ FIRE_REPORT_SCHEMA = "powdergame-fire-heat-report-v0"
 FIRE_RECEIPT_SCHEMA = "powdergame-fire-heat-receipt-v0"
 
 PRESSURE_MANIFEST_SCHEMA = "powdergame-pressure-burst-manifest-v0"
-PRESSURE_ANALYSIS_SCHEMA = "powdergame-pressure-burst-analysis-v0"
+PRESSURE_ANALYSIS_SCHEMA = "powdergame-pressure-burst-analysis-v1"
 PRESSURE_FRAMES_SCHEMA = "powdergame-pressure-burst-frames-v0"
-PRESSURE_TELEMETRY_SCHEMA = "powdergame-pressure-burst-telemetry-v0"
-PRESSURE_REPORT_SCHEMA = "powdergame-pressure-burst-report-v0"
-PRESSURE_RECEIPT_SCHEMA = "powdergame-pressure-burst-receipt-v0"
+PRESSURE_TELEMETRY_SCHEMA = "powdergame-pressure-burst-telemetry-v1"
+PRESSURE_REPORT_SCHEMA = "powdergame-pressure-burst-report-v1"
+PRESSURE_RECEIPT_SCHEMA = "powdergame-pressure-burst-receipt-v1"
 
 WORLD_WIDTH = 256
 WORLD_HEIGHT = 256
@@ -86,6 +86,7 @@ POST_REACTION_TICKS = 180
 CONSECUTIVE_PERSISTENT_OPENING = 3
 POST_OPENING_TICKS = 180
 TERMINAL_WINDOW_SAMPLES = 64
+WOOD_RUPTURE_THRESHOLD = 80.0
 
 RENDERER_WIDTH = 1_600
 RENDERER_HEIGHT = 900
@@ -132,11 +133,23 @@ FIRE_PREDICATE_NAMES = frozenset({
     "no_nonfinite_fields",
     "exact_reset",
 })
-PRESSURE_ALLOWED_VERDICTS = frozenset({"PASS", "FAIL", "NEEDS_HUMAN_REVIEW"})
+PRESSURE_FIXTURE_CAUSALITY_CONFOUNDED_VERDICT = "FIXTURE_CAUSALITY_CONFOUNDED"
+PRESSURE_ALLOWED_VERDICTS = frozenset({
+    "PASS",
+    "FAIL",
+    "NEEDS_HUMAN_REVIEW",
+    PRESSURE_FIXTURE_CAUSALITY_CONFOUNDED_VERDICT,
+})
+PRESSURE_CAUSAL_CLASSIFICATIONS = frozenset({
+    "pressure_opening_precedes_combustion",
+    "fixture_causality_confounded",
+    "insufficient_causal_evidence",
+})
 PRESSURE_PREDICATE_NAMES = frozenset({
     "pressure_activity_observed",
     "relief_seam_damaged",
     "persistent_opening_created",
+    "pressure_opening_precedes_combustion",
     "exterior_vent_observed",
     "post_opening_pressure_relieved",
     "terminal_pressure_not_runaway",
@@ -269,6 +282,8 @@ PRESSURE_OPTIONAL_EVENTS = frozenset(
     {
         "pressure_activity_observed",
         "relief_seam_damage_observed",
+        "relief_seam_combustion_observed",
+        "relief_seam_fuel_progress_observed",
         "rupture_observed",
         "persistent_opening_streak_started",
         "persistent_opening_streak_broken",
@@ -481,6 +496,7 @@ class SourceInfo:
     branch: str
     sha: str
     git_state: str = "clean"
+    tracked_state_sha256: str = ""
 
 
 @dataclass(frozen=True)
@@ -676,17 +692,7 @@ def git_text(source_root: Path, *args: str) -> str:
 
 
 def inspect_clean_named_source(source_root: Path) -> SourceInfo:
-    source = source_root.resolve(strict=True)
-    branch = git_text(source, "branch", "--show-current")
-    if not branch or branch == "HEAD":
-        raise ExperimentError("experiment source must be on a named branch, not detached HEAD")
-    status = git_text(source, "status", "--porcelain", "--untracked-files=all")
-    if status:
-        raise ExperimentError("experiment source must be clean; dirty/untracked paths detected")
-    sha = git_text(source, "rev-parse", "HEAD")
-    if not GIT_OID.fullmatch(sha):
-        raise ExperimentError(f"git returned an invalid source SHA: {sha!r}")
-    return SourceInfo(root=source, branch=branch, sha=sha)
+    return inspect_named_source(source_root, allow_dirty_tracked=False)
 
 
 def git_bytes(source_root: Path, *args: str) -> bytes:
@@ -702,6 +708,55 @@ def git_bytes(source_root: Path, *args: str) -> bytes:
         detail = completed.stderr.decode("utf-8", errors="replace").strip()
         raise ExperimentError(f"git {' '.join(args)} failed: {detail}")
     return completed.stdout
+
+
+def inspect_named_source(
+    source_root: Path, *, allow_dirty_tracked: bool
+) -> SourceInfo:
+    source = source_root.resolve(strict=True)
+    branch = git_text(source, "branch", "--show-current")
+    if not branch or branch == "HEAD":
+        raise ExperimentError("experiment source must be on a named branch, not detached HEAD")
+    status = git_bytes(
+        source,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+    )
+    status_records = [record for record in status.split(b"\0") if record]
+    untracked = [record for record in status_records if record.startswith(b"?? ")]
+    if untracked:
+        raise ExperimentError(
+            "experiment source contains untracked paths; scratch permits tracked changes only"
+        )
+    if status and not allow_dirty_tracked:
+        raise ExperimentError("experiment source must be clean; tracked changes detected")
+    sha = git_text(source, "rev-parse", "HEAD")
+    if not GIT_OID.fullmatch(sha):
+        raise ExperimentError(f"git returned an invalid source SHA: {sha!r}")
+    tracked_diff = git_bytes(
+        source,
+        "diff",
+        "--binary",
+        "--full-index",
+        "--no-ext-diff",
+        "--no-textconv",
+        "HEAD",
+        "--",
+    )
+    tracked_state = hashlib.sha256()
+    tracked_state.update(b"git-status-porcelain-v1-z\0")
+    tracked_state.update(status)
+    tracked_state.update(b"\0git-diff-binary-full-index\0")
+    tracked_state.update(tracked_diff)
+    return SourceInfo(
+        root=source,
+        branch=branch,
+        sha=sha,
+        git_state="dirty" if status else "clean",
+        tracked_state_sha256=tracked_state.hexdigest(),
+    )
 
 
 def is_source_input_path(relative: PurePosixPath) -> bool:
@@ -785,8 +840,12 @@ def capture_external_build_inputs() -> list[dict[str, Any]]:
     return entries
 
 
-def capture_source_seal(source_root: Path) -> SourceSeal:
-    before = inspect_clean_named_source(source_root)
+def capture_source_seal(
+    source_root: Path, *, allow_dirty_tracked: bool = False
+) -> SourceSeal:
+    before = inspect_named_source(
+        source_root, allow_dirty_tracked=allow_dirty_tracked
+    )
     entries: list[dict[str, Any]] = []
     for relative in tracked_source_input_paths(before.root):
         path = before.root.joinpath(*relative.parts)
@@ -794,15 +853,28 @@ def capture_source_seal(source_root: Path) -> SourceSeal:
             raise ExperimentError(
                 f"tracked source input is not a regular file: {relative.as_posix()}"
             )
+        before_stat = path.stat()
+        digest = sha256_file(path)
+        after_stat = path.stat()
+        if (before_stat.st_size, before_stat.st_mtime_ns) != (
+            after_stat.st_size,
+            after_stat.st_mtime_ns,
+        ):
+            raise ExperimentError(
+                "tracked source input changed while hashing: "
+                f"{relative.as_posix()}"
+            )
         entries.append(
             {
                 "path": relative.as_posix(),
-                "sha256": sha256_file(path),
-                "size_bytes": path.stat().st_size,
+                "sha256": digest,
+                "size_bytes": after_stat.st_size,
             }
         )
     external_entries = capture_external_build_inputs()
-    after = inspect_clean_named_source(before.root)
+    after = inspect_named_source(
+        before.root, allow_dirty_tracked=allow_dirty_tracked
+    )
     if after != before:
         raise ExperimentError("source identity changed while capturing input manifest")
     manifest = {
@@ -852,7 +924,10 @@ def assert_source_seal_unchanged(
     source_root: Path, expected: SourceSeal, phase: str
 ) -> None:
     try:
-        observed = capture_source_seal(source_root)
+        observed = capture_source_seal(
+            source_root,
+            allow_dirty_tracked=expected.source.git_state == "dirty",
+        )
     except ExperimentError as error:
         raise ExperimentError(f"source seal check failed at {phase}: {error}") from error
     if observed != expected:
@@ -1011,8 +1086,15 @@ def validate_manifest_dict(data: dict[str, Any]) -> None:
         if not isinstance(value, dict):
             raise ExperimentError(f"manifest [{section}] must be a table")
         require_exact_keys(value, expected, f"manifest [{section}]")
-    if data["source"]["git_state"] != "clean":
-        raise ExperimentError("manifest source must be clean")
+    source_git_state = data["source"]["git_state"]
+    if source_git_state not in {"clean", "dirty"}:
+        raise ExperimentError("manifest source git_state must be clean or dirty")
+    if source_git_state == "dirty" and not (
+        contract.records_run_mode and run_mode == "scratch"
+    ):
+        raise ExperimentError(
+            "dirty source is allowed only for scratch runs with an explicit run_mode"
+        )
     if not isinstance(data["source"]["branch"], str) or data["source"]["branch"] in {
         "",
         "HEAD",
@@ -1222,8 +1304,8 @@ def validate_sand_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -
     )
     if provenance["source_sha"] != manifest["source"]["sha"]:
         raise ExperimentError("analysis provenance source_sha mismatch")
-    if provenance["git_state"] != "clean":
-        raise ExperimentError("analysis provenance git_state must be clean")
+    if provenance["git_state"] != manifest["source"]["git_state"]:
+        raise ExperimentError("analysis provenance git_state mismatch")
     if provenance["build_profile"] != "release":
         raise ExperimentError("analysis provenance build_profile must be release")
     if analysis["world"] != manifest["world"]:
@@ -1415,7 +1497,7 @@ def validate_water_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) 
     )
     if provenance != {
         "source_sha": manifest["source"]["sha"],
-        "git_state": "clean",
+        "git_state": manifest["source"]["git_state"],
         "build_profile": "release",
     }:
         raise ExperimentError("analysis provenance mismatch")
@@ -1661,7 +1743,7 @@ def validate_fire_analysis(analysis: dict[str, Any], manifest: dict[str, Any]) -
     )
     if provenance != {
         "source_sha": manifest["source"]["sha"],
-        "git_state": "clean",
+        "git_state": manifest["source"]["git_state"],
         "build_profile": "release",
     }:
         raise ExperimentError("Fire analysis provenance mismatch")
@@ -1880,6 +1962,7 @@ def validate_pressure_analysis(
             "metrics",
             "terminal_window",
             "review_flags",
+            "causal_classification",
             "predicates",
             "verdict",
             "raw_frame_count",
@@ -1898,7 +1981,7 @@ def validate_pressure_analysis(
             raise ExperimentError(f"Pressure analysis {key} mismatch")
     if analysis["provenance"] != {
         "source_sha": manifest["source"]["sha"],
-        "git_state": "clean",
+        "git_state": manifest["source"]["git_state"],
         "build_profile": "release",
     }:
         raise ExperimentError("Pressure analysis provenance mismatch")
@@ -2002,6 +2085,10 @@ def validate_pressure_analysis(
         "first_post_confirmation_reseal_sample_sequence",
         "first_post_opening_relief_tick",
         "first_post_opening_relief_sample_sequence",
+        "first_relief_seam_combustion_tick",
+        "first_relief_seam_combustion_sample_sequence",
+        "first_relief_seam_fuel_progress_tick",
+        "first_relief_seam_fuel_progress_sample_sequence",
         "peak_chamber_mean_pressure",
         "peak_chamber_mean_pressure_tick",
         "peak_chamber_mean_pressure_sample_sequence",
@@ -2020,6 +2107,21 @@ def validate_pressure_analysis(
         "terminal_chamber_mean_pressure",
         "terminal_chamber_max_pressure",
         "terminal_pressure_relieved",
+        "through_opening_confirmation_relief_seam_combusting_cells_peak",
+        "through_opening_confirmation_relief_seam_flame_event_cells_peak",
+        "through_opening_confirmation_relief_seam_fuel_progress_sum_peak",
+        "through_opening_confirmation_relief_seam_fuel_progress_max",
+        "opening_confirmation_relief_seam_combusting_cells",
+        "opening_confirmation_relief_seam_flame_event_cells",
+        "opening_confirmation_relief_seam_fuel_progress_sum",
+        "opening_confirmation_relief_seam_fuel_progress_max",
+        "opening_confirmation_relief_seam_adjacent_pressure_medium_cells",
+        "opening_confirmation_relief_seam_max_adjacent_pressure",
+        "opening_confirmation_adjacent_pressure_at_or_above_wood_rupture_threshold",
+        "first_opening_relief_seam_adjacent_pressure_medium_cells",
+        "first_opening_relief_seam_max_adjacent_pressure",
+        "first_opening_adjacent_pressure_at_or_above_wood_rupture_threshold",
+        "wood_rupture_threshold",
         "final_relief_seam_wood_cells",
         "final_top_relief_seam_wood_cells",
         "final_bottom_relief_seam_wood_cells",
@@ -2058,6 +2160,8 @@ def validate_pressure_analysis(
         "first_steam_in_relief_seam",
         "first_post_confirmation_reseal",
         "first_post_opening_relief",
+        "first_relief_seam_combustion",
+        "first_relief_seam_fuel_progress",
     ):
         require_optional_identity_pair(
             metrics[f"{prefix}_tick"],
@@ -2087,8 +2191,39 @@ def validate_pressure_analysis(
         "post_opening_chamber_max_pressure",
         "terminal_chamber_mean_pressure",
         "terminal_chamber_max_pressure",
+        "opening_confirmation_relief_seam_max_adjacent_pressure",
+        "first_opening_relief_seam_max_adjacent_pressure",
     ):
         require_optional_finite_number(metrics[key], f"Pressure analysis metrics {key}")
+    rupture_threshold = require_finite_number(
+        metrics["wood_rupture_threshold"],
+        "Pressure analysis metrics wood_rupture_threshold",
+    )
+    if rupture_threshold < 0:
+        raise ExperimentError(
+            "Pressure analysis metrics wood_rupture_threshold must be nonnegative"
+        )
+    optional_integer_metrics = {
+        "opening_confirmation_relief_seam_combusting_cells",
+        "opening_confirmation_relief_seam_flame_event_cells",
+        "opening_confirmation_relief_seam_fuel_progress_sum",
+        "opening_confirmation_relief_seam_fuel_progress_max",
+        "opening_confirmation_relief_seam_adjacent_pressure_medium_cells",
+        "first_opening_relief_seam_adjacent_pressure_medium_cells",
+    }
+    for key in optional_integer_metrics:
+        require_optional_nonnegative_int(
+            metrics[key], f"Pressure analysis metrics {key}"
+        )
+    optional_boolean_metrics = {
+        "opening_confirmation_adjacent_pressure_at_or_above_wood_rupture_threshold",
+        "first_opening_adjacent_pressure_at_or_above_wood_rupture_threshold",
+    }
+    for key in optional_boolean_metrics:
+        if metrics[key] is not None and not isinstance(metrics[key], bool):
+            raise ExperimentError(
+                f"Pressure analysis metrics {key} must be boolean or null"
+            )
     integer_metrics = metrics_keys - {
         *{
             f"{prefix}_{suffix}"
@@ -2102,6 +2237,8 @@ def validate_pressure_analysis(
                 "first_steam_in_relief_seam",
                 "first_post_confirmation_reseal",
                 "first_post_opening_relief",
+                "first_relief_seam_combustion",
+                "first_relief_seam_fuel_progress",
             )
             for suffix in ("tick", "sample_sequence")
         },
@@ -2115,8 +2252,13 @@ def validate_pressure_analysis(
         "post_opening_chamber_max_pressure",
         "terminal_chamber_mean_pressure",
         "terminal_chamber_max_pressure",
+        "opening_confirmation_relief_seam_max_adjacent_pressure",
+        "first_opening_relief_seam_max_adjacent_pressure",
+        "wood_rupture_threshold",
         "terminal_pressure_relieved",
         "reset_exact_equivalence",
+        *optional_integer_metrics,
+        *optional_boolean_metrics,
         "matter_count_delta",
         "water_count_delta",
         "steam_count_delta",
@@ -2129,6 +2271,9 @@ def validate_pressure_analysis(
     for key in ("terminal_pressure_relieved", "reset_exact_equivalence"):
         if not isinstance(metrics[key], bool):
             raise ExperimentError(f"Pressure analysis metrics {key} must be boolean")
+
+    if analysis["causal_classification"] not in PRESSURE_CAUSAL_CLASSIFICATIONS:
+        raise ExperimentError("Pressure analysis causal_classification is invalid")
 
     window = analysis["terminal_window"]
     window_keys = {
@@ -2196,7 +2341,7 @@ def validate_pressure_analysis(
 
     predicates = analysis["predicates"]
     if not isinstance(predicates, dict) or set(predicates) != PRESSURE_PREDICATE_NAMES:
-        raise ExperimentError("Pressure analysis predicates must contain the exact nine checks")
+        raise ExperimentError("Pressure analysis predicates must contain the exact ten checks")
     for name, predicate in predicates.items():
         if not isinstance(predicate, dict):
             raise ExperimentError(f"Pressure analysis predicate {name} must be an object")
@@ -2463,7 +2608,7 @@ def validate_sand_samples(samples: list[dict[str, Any]], manifest: dict[str, Any
             "experiment_id": manifest["experiment_id"],
             "run_id": manifest["run_id"],
             "source_sha": manifest["source"]["sha"],
-            "git_state": "clean",
+            "git_state": manifest["source"]["git_state"],
             "build_profile": "release",
             "binary_sha256": manifest["binary"]["sha256"],
         }
@@ -2592,7 +2737,7 @@ def validate_water_samples(samples: list[dict[str, Any]], manifest: dict[str, An
             "run_id": manifest["run_id"],
             "scenario": WATER_CONTRACT.scenario,
             "source_sha": manifest["source"]["sha"],
-            "git_state": "clean",
+            "git_state": manifest["source"]["git_state"],
             "build_profile": "release",
             "binary_sha256": manifest["binary"]["sha256"],
         }
@@ -2825,7 +2970,7 @@ def validate_fire_samples(samples: list[dict[str, Any]], manifest: dict[str, Any
             "run_id": manifest["run_id"],
             "scenario": FIRE_CONTRACT.scenario,
             "source_sha": manifest["source"]["sha"],
-            "git_state": "clean",
+            "git_state": manifest["source"]["git_state"],
             "build_profile": "release",
             "binary_sha256": manifest["binary"]["sha256"],
         }
@@ -2970,6 +3115,24 @@ def validate_pressure_samples(
         "relief_seam_through_open_lanes",
         "top_relief_seam_through_open_lanes",
         "bottom_relief_seam_through_open_lanes",
+        "top_relief_seam_combusting_cells",
+        "bottom_relief_seam_combusting_cells",
+        "relief_seam_combusting_cells",
+        "top_relief_seam_flame_event_cells",
+        "bottom_relief_seam_flame_event_cells",
+        "relief_seam_flame_event_cells",
+        "top_relief_seam_fuel_progress_sum",
+        "top_relief_seam_fuel_progress_max",
+        "bottom_relief_seam_fuel_progress_sum",
+        "bottom_relief_seam_fuel_progress_max",
+        "relief_seam_fuel_progress_sum",
+        "relief_seam_fuel_progress_max",
+        "top_relief_seam_adjacent_pressure_medium_cells",
+        "bottom_relief_seam_adjacent_pressure_medium_cells",
+        "relief_seam_adjacent_pressure_medium_cells",
+        "top_relief_seam_max_adjacent_pressure",
+        "bottom_relief_seam_max_adjacent_pressure",
+        "relief_seam_max_adjacent_pressure",
         "steam_in_relief_seam_cells",
         "outside_chamber_steam_cells",
         "chamber_pressure_cell_count",
@@ -3002,7 +3165,7 @@ def validate_pressure_samples(
         "run_id": manifest["run_id"],
         "scenario": PRESSURE_CONTRACT.scenario,
         "source_sha": manifest["source"]["sha"],
-        "git_state": "clean",
+        "git_state": manifest["source"]["git_state"],
         "build_profile": "release",
         "binary_sha256": manifest["binary"]["sha256"],
     }
@@ -3087,6 +3250,21 @@ def validate_pressure_samples(
             "relief_seam_through_open_lanes",
             "top_relief_seam_through_open_lanes",
             "bottom_relief_seam_through_open_lanes",
+            "top_relief_seam_combusting_cells",
+            "bottom_relief_seam_combusting_cells",
+            "relief_seam_combusting_cells",
+            "top_relief_seam_flame_event_cells",
+            "bottom_relief_seam_flame_event_cells",
+            "relief_seam_flame_event_cells",
+            "top_relief_seam_fuel_progress_sum",
+            "top_relief_seam_fuel_progress_max",
+            "bottom_relief_seam_fuel_progress_sum",
+            "bottom_relief_seam_fuel_progress_max",
+            "relief_seam_fuel_progress_sum",
+            "relief_seam_fuel_progress_max",
+            "top_relief_seam_adjacent_pressure_medium_cells",
+            "bottom_relief_seam_adjacent_pressure_medium_cells",
+            "relief_seam_adjacent_pressure_medium_cells",
             "steam_in_relief_seam_cells",
             "outside_chamber_steam_cells",
             "chamber_pressure_cell_count",
@@ -3115,6 +3293,52 @@ def validate_pressure_samples(
         ):
             raise ExperimentError(
                 f"Pressure sample {index} seam through-open lane total mismatch"
+            )
+        for suffix in ("combusting_cells", "flame_event_cells"):
+            if sample[f"relief_seam_{suffix}"] != (
+                sample[f"top_relief_seam_{suffix}"]
+                + sample[f"bottom_relief_seam_{suffix}"]
+            ):
+                raise ExperimentError(
+                    f"Pressure sample {index} combined seam {suffix} mismatch"
+                )
+        if sample["relief_seam_fuel_progress_sum"] != (
+            sample["top_relief_seam_fuel_progress_sum"]
+            + sample["bottom_relief_seam_fuel_progress_sum"]
+        ):
+            raise ExperimentError(
+                f"Pressure sample {index} combined seam fuel-progress sum mismatch"
+            )
+        if sample["relief_seam_fuel_progress_max"] != max(
+            sample["top_relief_seam_fuel_progress_max"],
+            sample["bottom_relief_seam_fuel_progress_max"],
+        ):
+            raise ExperimentError(
+                f"Pressure sample {index} combined seam fuel-progress max mismatch"
+            )
+        if sample["relief_seam_adjacent_pressure_medium_cells"] != (
+            sample["top_relief_seam_adjacent_pressure_medium_cells"]
+            + sample["bottom_relief_seam_adjacent_pressure_medium_cells"]
+        ):
+            raise ExperimentError(
+                f"Pressure sample {index} combined adjacent pressure-medium count mismatch"
+            )
+        adjacent_pressures = {}
+        for region in ("top", "bottom", ""):
+            prefix = f"{region}_" if region else ""
+            key = f"{prefix}relief_seam_max_adjacent_pressure"
+            value = require_finite_number(
+                sample[key], f"Pressure sample {index} {key}"
+            )
+            if value < 0:
+                raise ExperimentError(f"Pressure sample {index} {key} is negative")
+            adjacent_pressures[region] = value
+        if not pressure_float_equal(
+            adjacent_pressures[""],
+            max(adjacent_pressures["top"], adjacent_pressures["bottom"]),
+        ):
+            raise ExperimentError(
+                f"Pressure sample {index} combined max adjacent pressure mismatch"
             )
         if sample["relief_seam_wood_cells"] + sample["relief_seam_open_cells"] != 576:
             raise ExperimentError(f"Pressure sample {index} seam census does not total 576")
@@ -4861,8 +5085,12 @@ def pressure_terminal_trend(window_samples: list[dict[str, Any]]) -> dict[str, A
 
 
 def pressure_expected_verdict(
-    predicate_statuses: dict[str, str], review_flags: dict[str, Any]
+    predicate_statuses: dict[str, str],
+    review_flags: dict[str, Any],
+    causal_classification: str,
 ) -> str:
+    if causal_classification == "fixture_causality_confounded":
+        return PRESSURE_FIXTURE_CAUSALITY_CONFOUNDED_VERDICT
     if any(status == "fail" for status in predicate_statuses.values()):
         return "FAIL"
     if any(status == "unknown" for status in predicate_statuses.values()) or review_flags[
@@ -4870,6 +5098,43 @@ def pressure_expected_verdict(
     ]:
         return "NEEDS_HUMAN_REVIEW"
     return "PASS"
+
+
+def pressure_causal_classification(
+    *,
+    opening_start: dict[str, Any] | None,
+    confirmed: dict[str, Any] | None,
+    first_combustion: dict[str, Any] | None,
+    first_fuel_progress: dict[str, Any] | None,
+    combusting_peak: int,
+    flame_event_peak: int,
+    fuel_progress_sum_peak: int,
+    fuel_progress_max: int,
+) -> str:
+    opening_start_sequence = (
+        None if opening_start is None else opening_start["sample_sequence"]
+    )
+    if opening_start_sequence is None:
+        return "insufficient_causal_evidence"
+    confounded = any(
+        value > 0
+        for value in (
+            combusting_peak,
+            flame_event_peak,
+            fuel_progress_sum_peak,
+            fuel_progress_max,
+        )
+    ) or any(
+        sample is not None
+        and opening_start_sequence is not None
+        and sample["sample_sequence"] <= opening_start_sequence
+        for sample in (first_combustion, first_fuel_progress)
+    )
+    if confounded:
+        return "fixture_causality_confounded"
+    if confirmed is None:
+        return "insufficient_causal_evidence"
+    return "pressure_opening_precedes_combustion"
 
 
 def pressure_expected_frame_badges(
@@ -5074,6 +5339,16 @@ def validate_pressure_telemetry(
         tick0["chamber_pressure_cell_count"],
     ) != (576, 384, 192, 0, 0, 29_920):
         raise ExperimentError("Pressure tick0 authored chamber/seam baseline mismatch")
+    for key in (
+        "relief_seam_combusting_cells",
+        "relief_seam_flame_event_cells",
+        "relief_seam_fuel_progress_sum",
+        "relief_seam_fuel_progress_max",
+    ):
+        if tick0[key] != 0:
+            raise ExperimentError(
+                f"Pressure tick0 authored relief seam {key} must be zero"
+            )
     expected_baseline = {
         "initial_matter_count": tick0["matter_count"],
         "initial_water_count": tick0["water_count"],
@@ -5187,6 +5462,49 @@ def validate_pressure_telemetry(
         observed,
         lambda sample: sample["relief_seam_through_open_lanes"] > 0,
     )
+    first_seam_combustion = first_matching(
+        observed,
+        lambda sample: sample["relief_seam_combusting_cells"] > 0,
+    )
+    first_seam_fuel_progress = first_matching(
+        observed,
+        lambda sample: sample["relief_seam_fuel_progress_sum"] > 0,
+    )
+    through_confirmation_samples = (
+        pre_reset
+        if confirmed is None
+        else [
+            sample
+            for sample in pre_reset
+            if sample["sample_sequence"] <= confirmed["sample_sequence"]
+        ]
+    )
+    through_confirmation_combusting_peak = max(
+        sample["relief_seam_combusting_cells"]
+        for sample in through_confirmation_samples
+    )
+    through_confirmation_flame_peak = max(
+        sample["relief_seam_flame_event_cells"]
+        for sample in through_confirmation_samples
+    )
+    through_confirmation_fuel_sum_peak = max(
+        sample["relief_seam_fuel_progress_sum"]
+        for sample in through_confirmation_samples
+    )
+    through_confirmation_fuel_max = max(
+        sample["relief_seam_fuel_progress_max"]
+        for sample in through_confirmation_samples
+    )
+    expected_causal_classification = pressure_causal_classification(
+        opening_start=opening_start,
+        confirmed=confirmed,
+        first_combustion=first_seam_combustion,
+        first_fuel_progress=first_seam_fuel_progress,
+        combusting_peak=through_confirmation_combusting_peak,
+        flame_event_peak=through_confirmation_flame_peak,
+        fuel_progress_sum_peak=through_confirmation_fuel_sum_peak,
+        fuel_progress_max=through_confirmation_fuel_max,
+    )
     first_reseal = None
     first_seam_steam = None
     if confirmed is not None:
@@ -5293,6 +5611,24 @@ def validate_pressure_telemetry(
         "relief_seam_through_open_lanes",
         "top_relief_seam_through_open_lanes",
         "bottom_relief_seam_through_open_lanes",
+        "top_relief_seam_combusting_cells",
+        "bottom_relief_seam_combusting_cells",
+        "relief_seam_combusting_cells",
+        "top_relief_seam_flame_event_cells",
+        "bottom_relief_seam_flame_event_cells",
+        "relief_seam_flame_event_cells",
+        "top_relief_seam_fuel_progress_sum",
+        "top_relief_seam_fuel_progress_max",
+        "bottom_relief_seam_fuel_progress_sum",
+        "bottom_relief_seam_fuel_progress_max",
+        "relief_seam_fuel_progress_sum",
+        "relief_seam_fuel_progress_max",
+        "top_relief_seam_adjacent_pressure_medium_cells",
+        "bottom_relief_seam_adjacent_pressure_medium_cells",
+        "relief_seam_adjacent_pressure_medium_cells",
+        "top_relief_seam_max_adjacent_pressure",
+        "bottom_relief_seam_max_adjacent_pressure",
+        "relief_seam_max_adjacent_pressure",
         "steam_in_relief_seam_cells",
         "outside_chamber_steam_cells",
         "chamber_pressure_cell_count",
@@ -5351,6 +5687,16 @@ def validate_pressure_telemetry(
         )[1],
         "first_post_opening_relief_tick": sample_identity(first_relief)[0],
         "first_post_opening_relief_sample_sequence": sample_identity(first_relief)[1],
+        "first_relief_seam_combustion_tick": sample_identity(first_seam_combustion)[0],
+        "first_relief_seam_combustion_sample_sequence": sample_identity(
+            first_seam_combustion
+        )[1],
+        "first_relief_seam_fuel_progress_tick": sample_identity(
+            first_seam_fuel_progress
+        )[0],
+        "first_relief_seam_fuel_progress_sample_sequence": sample_identity(
+            first_seam_fuel_progress
+        )[1],
         "peak_chamber_mean_pressure": peak_mean["chamber_mean_pressure"],
         "peak_chamber_mean_pressure_tick": peak_mean["sim_tick"],
         "peak_chamber_mean_pressure_sample_sequence": peak_mean["sample_sequence"],
@@ -5373,6 +5719,57 @@ def validate_pressure_telemetry(
         "terminal_chamber_mean_pressure": end_mean,
         "terminal_chamber_max_pressure": end_max,
         "terminal_pressure_relieved": pressure_relieved,
+        "through_opening_confirmation_relief_seam_combusting_cells_peak": (
+            through_confirmation_combusting_peak
+        ),
+        "through_opening_confirmation_relief_seam_flame_event_cells_peak": (
+            through_confirmation_flame_peak
+        ),
+        "through_opening_confirmation_relief_seam_fuel_progress_sum_peak": (
+            through_confirmation_fuel_sum_peak
+        ),
+        "through_opening_confirmation_relief_seam_fuel_progress_max": (
+            through_confirmation_fuel_max
+        ),
+        "opening_confirmation_relief_seam_combusting_cells": None
+        if confirmed is None
+        else confirmed["relief_seam_combusting_cells"],
+        "opening_confirmation_relief_seam_flame_event_cells": None
+        if confirmed is None
+        else confirmed["relief_seam_flame_event_cells"],
+        "opening_confirmation_relief_seam_fuel_progress_sum": None
+        if confirmed is None
+        else confirmed["relief_seam_fuel_progress_sum"],
+        "opening_confirmation_relief_seam_fuel_progress_max": None
+        if confirmed is None
+        else confirmed["relief_seam_fuel_progress_max"],
+        "opening_confirmation_relief_seam_adjacent_pressure_medium_cells": None
+        if confirmed is None
+        else confirmed["relief_seam_adjacent_pressure_medium_cells"],
+        "opening_confirmation_relief_seam_max_adjacent_pressure": None
+        if confirmed is None
+        else confirmed["relief_seam_max_adjacent_pressure"],
+        "opening_confirmation_adjacent_pressure_at_or_above_wood_rupture_threshold": None
+        if confirmed is None
+        else (
+            confirmed["relief_seam_adjacent_pressure_medium_cells"] != 0
+            and confirmed["relief_seam_max_adjacent_pressure"]
+            >= WOOD_RUPTURE_THRESHOLD
+        ),
+        "first_opening_relief_seam_adjacent_pressure_medium_cells": None
+        if first_rupture is None
+        else first_rupture["relief_seam_adjacent_pressure_medium_cells"],
+        "first_opening_relief_seam_max_adjacent_pressure": None
+        if first_rupture is None
+        else first_rupture["relief_seam_max_adjacent_pressure"],
+        "first_opening_adjacent_pressure_at_or_above_wood_rupture_threshold": None
+        if first_rupture is None
+        else (
+            first_rupture["relief_seam_adjacent_pressure_medium_cells"] != 0
+            and first_rupture["relief_seam_max_adjacent_pressure"]
+            >= WOOD_RUPTURE_THRESHOLD
+        ),
+        "wood_rupture_threshold": WOOD_RUPTURE_THRESHOLD,
         "final_relief_seam_wood_cells": final["relief_seam_wood_cells"],
         "final_top_relief_seam_wood_cells": final["top_relief_seam_wood_cells"],
         "final_bottom_relief_seam_wood_cells": final[
@@ -5454,12 +5851,22 @@ def validate_pressure_telemetry(
     }
     if analysis["review_flags"] != expected_flags:
         raise ExperimentError("Pressure review flags disagree with raw telemetry")
+    if analysis["causal_classification"] != expected_causal_classification:
+        raise ExperimentError(
+            "Pressure causal classification disagrees with raw seam-confound telemetry"
+        )
 
     expected_statuses = {
         "pressure_activity_observed": "pass" if first_pressure is not None else "fail",
         "relief_seam_damaged": "pass" if first_damage is not None else "fail",
         "persistent_opening_created": (
             "pass" if confirmed is not None and first_reseal is None else "fail"
+        ),
+        "pressure_opening_precedes_combustion": (
+            "pass"
+            if expected_causal_classification
+            == "pressure_opening_precedes_combustion"
+            else "fail"
         ),
         "exterior_vent_observed": "pass" if first_exterior is not None else "fail",
         "post_opening_pressure_relieved": (
@@ -5481,7 +5888,9 @@ def validate_pressure_telemetry(
     }
     if recorded_statuses != expected_statuses:
         raise ExperimentError("Pressure predicate statuses disagree with raw telemetry")
-    expected_verdict = pressure_expected_verdict(expected_statuses, expected_flags)
+    expected_verdict = pressure_expected_verdict(
+        expected_statuses, expected_flags, expected_causal_classification
+    )
     if analysis["verdict"] != expected_verdict:
         raise ExperimentError("Pressure verdict disagrees with predicates and review flags")
 
@@ -5503,6 +5912,10 @@ def validate_pressure_telemetry(
             expected_events.append(("relief_seam_damage_observed", *identity))
         if sample is first_rupture:
             expected_events.append(("rupture_observed", *identity))
+        if sample is first_seam_combustion:
+            expected_events.append(("relief_seam_combustion_observed", *identity))
+        if sample is first_seam_fuel_progress:
+            expected_events.append(("relief_seam_fuel_progress_observed", *identity))
         if sample is first_seam_steam:
             expected_events.append(("relief_seam_steam_observed", *identity))
         if sample is first_exterior:
@@ -5869,10 +6282,63 @@ def fire_heat_summary(analysis: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def pressure_candidate_blocker(analysis: dict[str, Any]) -> dict[str, Any]:
+    causal_classification = analysis["causal_classification"]
+    causal_blocked = causal_classification != "pressure_opening_precedes_combustion"
+    failed_predicates = sorted(
+        name
+        for name in PRESSURE_PREDICATE_NAMES
+        if analysis["predicates"][name]["status"] == "fail"
+    )
+    details: list[dict[str, Any]] = []
+    if causal_blocked:
+        details.append(
+            {
+                "kind": "causal_classification",
+                "classification": causal_classification,
+                "detail": analysis["predicates"][
+                    "pressure_opening_precedes_combustion"
+                ]["detail"],
+            }
+        )
+    details.extend(
+        {
+            "kind": "hard_predicate_failure",
+            "predicate": name,
+            "detail": analysis["predicates"][name]["detail"],
+        }
+        for name in failed_predicates
+    )
+    blocker = causal_blocked or bool(failed_predicates)
+    classification = (
+        causal_classification
+        if causal_blocked
+        else "hard_predicate_failure"
+        if failed_predicates
+        else None
+    )
+    return {
+        "candidate_blocker": blocker,
+        "candidate_blocker_classification": classification,
+        "candidate_blocker_details": details,
+        "failed_hard_predicates": failed_predicates,
+    }
+
+
 def pressure_burst_summary(analysis: dict[str, Any]) -> dict[str, Any]:
     metrics = analysis["metrics"]
     lifecycle = analysis["lifecycle"]
+    causal_classification = analysis["causal_classification"]
+    blocker = pressure_candidate_blocker(analysis)
     return {
+        "causal_classification": causal_classification,
+        **blocker,
+        # v1 compatibility aliases: these describe whether a completed scratch
+        # run is eligible to advance to candidate publication.
+        "scratch_candidate_blocker": blocker["candidate_blocker"],
+        "scratch_blocker_classification": blocker[
+            "candidate_blocker_classification"
+        ],
         "terminal_reason": lifecycle["terminal_reason"],
         "first_pressure_activity_tick": metrics["first_pressure_activity_tick"],
         "first_wood_damage_tick": metrics["first_wood_damage_tick"],
@@ -5892,6 +6358,55 @@ def pressure_burst_summary(analysis: dict[str, Any]) -> dict[str, Any]:
         "first_post_opening_relief_tick": metrics[
             "first_post_opening_relief_tick"
         ],
+        "first_relief_seam_combustion_tick": metrics[
+            "first_relief_seam_combustion_tick"
+        ],
+        "first_relief_seam_fuel_progress_tick": metrics[
+            "first_relief_seam_fuel_progress_tick"
+        ],
+        "through_opening_confirmation_combusting_peak": metrics[
+            "through_opening_confirmation_relief_seam_combusting_cells_peak"
+        ],
+        "through_opening_confirmation_flame_event_peak": metrics[
+            "through_opening_confirmation_relief_seam_flame_event_cells_peak"
+        ],
+        "through_opening_confirmation_fuel_progress_sum_peak": metrics[
+            "through_opening_confirmation_relief_seam_fuel_progress_sum_peak"
+        ],
+        "through_opening_confirmation_fuel_progress_max": metrics[
+            "through_opening_confirmation_relief_seam_fuel_progress_max"
+        ],
+        "opening_confirmation_combusting_cells": metrics[
+            "opening_confirmation_relief_seam_combusting_cells"
+        ],
+        "opening_confirmation_flame_event_cells": metrics[
+            "opening_confirmation_relief_seam_flame_event_cells"
+        ],
+        "opening_confirmation_fuel_progress_sum": metrics[
+            "opening_confirmation_relief_seam_fuel_progress_sum"
+        ],
+        "opening_confirmation_fuel_progress_max": metrics[
+            "opening_confirmation_relief_seam_fuel_progress_max"
+        ],
+        "opening_confirmation_adjacent_pressure_medium_cells": metrics[
+            "opening_confirmation_relief_seam_adjacent_pressure_medium_cells"
+        ],
+        "opening_confirmation_max_adjacent_pressure": metrics[
+            "opening_confirmation_relief_seam_max_adjacent_pressure"
+        ],
+        "opening_confirmation_pressure_at_or_above_rupture_threshold": metrics[
+            "opening_confirmation_adjacent_pressure_at_or_above_wood_rupture_threshold"
+        ],
+        "first_opening_adjacent_pressure_medium_cells": metrics[
+            "first_opening_relief_seam_adjacent_pressure_medium_cells"
+        ],
+        "first_opening_max_adjacent_pressure": metrics[
+            "first_opening_relief_seam_max_adjacent_pressure"
+        ],
+        "first_opening_pressure_at_or_above_rupture_threshold": metrics[
+            "first_opening_adjacent_pressure_at_or_above_wood_rupture_threshold"
+        ],
+        "wood_rupture_threshold": metrics["wood_rupture_threshold"],
         "vent_reference_chamber_mean_pressure": metrics[
             "vent_reference_chamber_mean_pressure"
         ],
@@ -5945,7 +6460,8 @@ def render_report_markdown(
         "",
         f"- Experiment: `{manifest['experiment_id']}`",
         f"- Run ID: `{manifest['run_id']}`",
-        f"- Source: `{manifest['source']['sha']}` on `{manifest['source']['branch']}` (`clean`)",
+        f"- Source: `{manifest['source']['sha']}` on `{manifest['source']['branch']}` "
+        f"(`{manifest['source']['git_state']}`)",
         f"- Binary SHA-256: `{manifest['binary']['sha256']}`",
         f"- Automatic verdict: **{analysis['verdict']}**",
         f"- Samples / events / frames: {len(samples)} / {len(events)} / {len(screenshots)}",
@@ -6055,16 +6571,44 @@ def render_report_markdown(
                 "",
                 "## Pressure Burst telemetry",
                 "",
+                f"- Causal classification: {summary['causal_classification']}",
+                "- Scratch candidate blocker / classification: "
+                f"{summary['scratch_candidate_blocker']} / "
+                f"{summary['scratch_blocker_classification']}",
                 "- First activity / Wood damage / first through-lane rupture ticks: "
                 f"{summary['first_pressure_activity_tick']} / "
                 f"{summary['first_wood_damage_tick']} / {summary['first_rupture_tick']}",
-                "- Persistent opening / exterior Steam ticks: "
+                "- Persistent opening confirmation / causal exterior Steam ticks: "
                 f"{summary['persistent_opening_confirmed_tick']} / "
                 f"{summary['first_outside_chamber_steam_tick']}",
-                "- Seam Steam / post-confirmation reseal / post-vent relief ticks: "
+                "- Causal seam Steam / post-confirmation reseal / post-vent relief ticks: "
                 f"{summary['first_steam_in_relief_seam_tick']} / "
                 f"{summary['first_post_confirmation_reseal_tick']} / "
                 f"{summary['first_post_opening_relief_tick']}",
+                "- Causal vent milestones are confirmation-gated; any earlier raw Steam "
+                "counts remain available in telemetry samples.",
+                "- First relief-seam combustion / fuel-progress ticks: "
+                f"{summary['first_relief_seam_combustion_tick']} / "
+                f"{summary['first_relief_seam_fuel_progress_tick']}",
+                "- Through-confirmation combustion / flame / fuel sum / fuel max peaks: "
+                f"{summary['through_opening_confirmation_combusting_peak']} / "
+                f"{summary['through_opening_confirmation_flame_event_peak']} / "
+                f"{summary['through_opening_confirmation_fuel_progress_sum_peak']} / "
+                f"{summary['through_opening_confirmation_fuel_progress_max']}",
+                "- At confirmation combustion / flame / fuel sum / fuel max: "
+                f"{summary['opening_confirmation_combusting_cells']} / "
+                f"{summary['opening_confirmation_flame_event_cells']} / "
+                f"{summary['opening_confirmation_fuel_progress_sum']} / "
+                f"{summary['opening_confirmation_fuel_progress_max']}",
+                "- First-opening adjacent Pressure-medium cells / max / threshold met: "
+                f"{summary['first_opening_adjacent_pressure_medium_cells']} / "
+                f"{summary['first_opening_max_adjacent_pressure']} / "
+                f"{summary['first_opening_pressure_at_or_above_rupture_threshold']}",
+                "- Confirmed-opening adjacent Pressure-medium cells / max / threshold met: "
+                f"{summary['opening_confirmation_adjacent_pressure_medium_cells']} / "
+                f"{summary['opening_confirmation_max_adjacent_pressure']} / "
+                f"{summary['opening_confirmation_pressure_at_or_above_rupture_threshold']} "
+                f"(Wood threshold {summary['wood_rupture_threshold']})",
                 "- Vent-reference chamber mean / max: "
                 f"{summary['vent_reference_chamber_mean_pressure']} / "
                 f"{summary['vent_reference_chamber_max_pressure']}",
@@ -6195,7 +6739,17 @@ verdict `{analysis['verdict']}` as a telemetry claim, not user acceptance or clo
 
 Check the causal sequence in the full frames, crops, contact sheet, raw samples, and events:
 Pressure activity, authored relief-seam damage, the first complete eight-cell through-open
-lane, three-sample persistent opening, Steam in the relief seam at or before causal exterior venting,
+lane, three-sample persistent opening, zero relief-seam combustion/flame/fuel progress through
+opening confirmation, and seam-adjacent Pressure evidence against the Wood rupture threshold.
+The machine causal classification is `{summary['causal_classification']}`; first seam
+combustion/fuel-progress ticks are `{summary['first_relief_seam_combustion_tick']}` /
+`{summary['first_relief_seam_fuel_progress_tick']}`, and through-confirmation
+combusting/flame/fuel-sum/fuel-max peaks are
+`{summary['through_opening_confirmation_combusting_peak']}` /
+`{summary['through_opening_confirmation_flame_event_peak']}` /
+`{summary['through_opening_confirmation_fuel_progress_sum_peak']}` /
+`{summary['through_opening_confirmation_fuel_progress_max']}`. Then verify Steam in the relief
+seam at or before causal exterior venting,
 any post-confirmation reseal, sustained post-vent mean/max relief, the 180-tick
 post-opening window, and the 64-sample terminal mean/max Pressure trend. Frame badges
 sharing one physical state are folded
@@ -6354,6 +6908,16 @@ def postprocess_run(
     manifest = read_and_validate_manifest(manifest_path)
     contract = contract_for_manifest(manifest)
     analysis, frames_doc, samples, events = validate_telemetry(run_dir, manifest)
+    if contract is PRESSURE_CONTRACT and manifest["run_mode"] == "candidate":
+        blocker = pressure_candidate_blocker(analysis)
+        if blocker["candidate_blocker"]:
+            classification = blocker["candidate_blocker_classification"]
+            failed = ",".join(blocker["failed_hard_predicates"]) or "none"
+            raise ExperimentError(
+                "Pressure candidate publication blocked after telemetry validation: "
+                f"classification={classification}; failed_hard_predicates={failed}; "
+                "run preserved incomplete without report, receipt, or Audit Bundle"
+            )
     screenshots = create_screenshots(run_dir, frames_doc["frames"], log)
     if contract.records_run_mode:
         for screenshot, frame in zip(screenshots, frames_doc["frames"], strict=True):
@@ -6427,6 +6991,8 @@ def postprocess_run(
         report_json["review_guidance"] = {
             "automatic_verdict_is_user_acceptance": False,
             "review_flags_force_human_review": True,
+            "fixture_causality_confounded_is_candidate_blocker": True,
+            "named_causal_chain_required": True,
             "g8b_closed": False,
         }
     write_new_text(
@@ -6677,7 +7243,7 @@ def pressure_source_input_bytes(
         "root": str(source_root.resolve()),
         "branch": manifest["source"]["branch"],
         "head_sha": manifest["source"]["sha"],
-        "git_state": "clean",
+        "git_state": manifest["source"]["git_state"],
     }:
         raise ExperimentError("source input manifest source identity mismatch")
     files = source_inputs["files"]
@@ -7118,7 +7684,10 @@ def run_experiment(
     contract = contract_for_scenario(scenario)
     validate_run_mode(contract, mode)
     validate_external_artifact_root(source_root, artifact_root)
-    source_seal = capture_source_seal(source_root)
+    source_seal = capture_source_seal(
+        source_root,
+        allow_dirty_tracked=contract.records_run_mode and mode == "scratch",
+    )
     source = source_seal.source
     run_id = generate_run_id(contract=contract, run_mode=mode)
     run_dir = create_run_directory(artifact_root.resolve(), run_id)

@@ -3,7 +3,8 @@
 Date: 2026-08-18
 Branch: `feature/m0-g8b-scenario-suite`
 Pressure start SHA: `941a888c1d7398a9bb1423ecc26a2acd626f7177`
-Status: **SCRATCH REJECTED / HARNESS DETECTION ISSUE REMEDIATED / TARGETED VALIDATION PASS / CANDIDATE PENDING / NOT USER ACCEPTED**
+Causal remediation start SHA: `28e4e0bf7736fb95f0a9d7797cc3ab4274b91442`
+Status: **CAUSAL REMEDIATION SCRATCH HARD PREDICATES PASS / CANDIDATE ELIGIBLE PENDING CLEAN SOURCE / NOT USER ACCEPTED**
 
 ## Scope
 
@@ -29,6 +30,45 @@ Raw seam Steam first appeared at tick 2 and remained inside the authored seam (`
 
 The scratch artifact is immutable rejected evidence. It is not modified, overwritten, repackaged, or reclassified as a candidate. Because the false opening confirmation prematurely selected the lifecycle endpoint, the run cannot determine whether the unchanged fixture would eventually form a through channel or whether production venting would then occur.
 
+## Immutable causally confounded candidate
+
+- Run ID: `g8b-pressure-burst-v0-20260818T014452058676Z-353fb706`
+- Source SHA: `28e4e0bf7736fb95f0a9d7797cc3ab4274b91442`
+- Automatic verdict: `NEEDS_HUMAN_REVIEW` (unchanged)
+- Human verdict: `FIX REQUIRED`
+- Classification: `fixture_causality_confounded_by_combustion`
+- Production physics defect established: **NO**
+- Pressure Burst user acceptance: **NO**
+
+This candidate correctly demonstrated Pressure activity, Wood damage, a topology-aware persistent through opening, exterior Steam, decreasing chamber mean Pressure after opening, no runaway, Water+Steam conservation, invalid/non-finite `0 / 0`, and exact reset. The artifact and its Run ID, Receipt, Review Packet, and Audit Bundle remain immutable and no retrospective automatic `PASS` is assigned.
+
+The acceptance blocker is causal attribution. The authored top Wood seam started at `95 C`, above the Wood ignition threshold `90 C`, and Wood burn duration is `900` active ticks. At tick `896`, top Wood was `318`, top through-open lanes were `0`, Smoke was `3,682`, and Reaction-active cells were `4,000`. At tick `904`, top Wood reached `0`, all `48` top through-open lanes appeared, Smoke was `3,541`, and Reaction-active cells were `3,541`. The complete opening therefore coincided with finite combustion consumption and did not isolate the required chain `Pressure -> structural rupture -> opening -> vent`.
+
+Primary remediation changes only the authored top-seam temperature to a value below ignition while retaining seam geometry, chamber Water/Steam, chamber temperature and Pressure, Stone, bottom seam, rupture threshold, production pass order, Sleep/Wake, and all production physics. Pressure telemetry/analysis v1 adds seam combustion, flame-event, fuel-progress, and adjacent-Pressure evidence plus the hard causal predicate `pressure_opening_precedes_combustion`. The candidate becomes superseded only when a fresh unique candidate is published; until then it remains preserved review evidence.
+
+The remediation contract keeps manifest and frames at v0, while telemetry/events, analysis, report, and receipt use Pressure v1 because their exact causal fields and summary shape changed. A remediation scratch with pre-opening seam combustion publishes the distinct automatic outcome `FIXTURE_CAUSALITY_CONFOUNDED` and machine classification `fixture_causality_confounded`; it is not collapsed into generic `FAIL` or `NEEDS_HUMAN_REVIEW`. A complete scratch is candidate-eligible only when the causal classification is `pressure_opening_precedes_combustion` and no hard predicate fails. Candidate-mode post-processing enforces that boundary before screenshots, report, hashes, Receipt, or the sibling Audit Bundle are published; a rejected attempt remains an incomplete unique run.
+
+## Causal remediation scratch — candidate eligible
+
+- Run ID: `g8b-pressure-burst-v0-scratch-20260818T100203210143Z-a37e998c`
+- Source HEAD: `328757bd8cd5b07cd0ed4c66a592f973dcd66981`
+- Source state / run mode: exact tracked dirty build inputs / `scratch` (`git_state=dirty`)
+- Exact source-input bytes seal: `SOURCE_INPUT_MANIFEST.json` SHA-256 `485c1a915afca65757c9994d0036381a92cc40d2134e293f617ead024edc966b`
+- Frozen binary SHA-256: `a419aa5273009787d265db6bd444126589890a82d7839b82a9c31ed56918303a`
+- Automatic verdict: `NEEDS_HUMAN_REVIEW` (review-only)
+- Causal classification: `pressure_opening_precedes_combustion`
+- Hard predicates: **10 / 10 PASS**
+- Candidate blocker / failed hard predicates: `false` / `[]`
+- Candidate eligibility: **YES, after the same remediation is sealed as a clean source**
+
+Pressure activity and initial Wood damage first appeared at tick `1`. The first topology-aware rupture/through opening started at tick `7,216` (sample `904`) and was confirmed after three diagnostics at tick `7,232` (sample `906`). Raw outside-chamber Steam first appeared with one cell at tick `7,216`; the confirmation-gated causal exterior-Steam milestone is tick `7,232`. First post-opening chamber relief followed at tick `7,233`. At first opening, `73` adjacent pressure-medium cells reached max Pressure `83.301017761`, above the Wood rupture threshold `80`. No reseal was observed.
+
+The causal confound guard is clean: first seam combustion and first seam fuel progress are both `None`; combusting cells, flame-event cells, fuel-progress sum, and fuel-progress max all remained `0` through opening confirmation. Thus the opening was observed before any seam combustion/fuel path could produce it.
+
+Chamber mean/max Pressure fell from the pre-opening peaks `223.582887701 / 319.461242676` to the post-opening reference `61.290115379 / 148.151290894`, then to terminal `53.460612654 / 145.603897095`. The 64-sample terminal mean declined `56.547848156 -> 53.460612654` with slope `-0.048798238` per sample and no positive mean/max steps, so runaway was false. Exterior Steam peak/final was `99 / 99`; invalid material/non-finite occurrences were `0 / 0`; exact reset was true.
+
+The automatic result remains `NEEDS_HUMAN_REVIEW` only because one seam ruptured, Pressure activity and a vent plume remained, and terminal activity was nonzero. Those are explicitly review-only conditions, not causal or hard-predicate failures. This scratch does not supersede the immutable human-rejected candidate and is not itself user acceptance or a clean-source candidate.
+
 ## Authored 256 x 256 x 64 fixture
 
 All rectangles below are half-open.
@@ -39,12 +79,12 @@ All rectangles below are half-open.
 | Filled cavity | `[40,216) x [46,216)` | Water, T=110, P=180 |
 | Steam core | `[52,204) x [58,132)` | Steam replaces Water, T=110 |
 | Low-pressure band | `[112,144) x [80,190)` | P=20 replaces P=180 |
-| Top relief seam | `[104,152) x [38,46)` | Wood, T=95 |
+| Top relief seam | `[104,152) x [38,46)` | Wood, T=0 after causal remediation |
 | Bottom relief seam | `[116,140) x [216,224)` | Wood, T=0 |
 | Left reinforcement | `[24,32) x [116,148)` | Stone |
 | Right reinforcement | `[224,232) x [116,148)` | Stone |
 
-Exact tick-0 counts are Water `18,672`, Steam `11,248`, Wood `576` (`384` top + `192` bottom), Stone `5,728`, Boundary `1,020`, and Empty `28,292`. Temperature counts are T=110 `29,920`, T=95 `384`, and T=0 `35,232`. Pressure counts are P=180 `26,400`, P=20 `3,520`, and P=0 `35,616`. The fixed cavity mean/max Pressure is `161.1764705882 / 180`. All flags and 16 chunk edit-wake values are zero.
+Exact tick-0 counts remain Water `18,672`, Steam `11,248`, Wood `576` (`384` top + `192` bottom), Stone `5,728`, Boundary `1,020`, and Empty `28,292`. Temperature counts after the single remediation are T=110 `29,920`, T=95 `0`, and T=0 `35,616`. Pressure counts remain P=180 `26,400`, P=20 `3,520`, and P=0 `35,616`. The fixed cavity mean/max Pressure remains `161.1764705882 / 180`. All flags, seam fuel progress, and 16 chunk edit-wake values are zero.
 
 The cavity has no authored Empty cells. The two eight-cell-thick Wood seams are the only breakable paths from the cavity to the exterior. Their inner faces touch Water at P=180 and their outer faces touch Empty.
 
@@ -56,7 +96,7 @@ The evidence target is:
 
 Production pass order means rupture occurs after the current tick's movement; vent movement can begin on later ticks. Pressure is spatial rather than Matter-owned, and vacated Empty cells are cleared by the production pressure path.
 
-Both seam inner faces already touch P=180, above the Wood rupture threshold, so early milestones may share tick 1. The top seam also begins at T=95, above the Wood ignition threshold. Top Wood loss or Smoke alone is therefore not sufficient rupture attribution. The Harness records the cold bottom seam, opening persistence, outside-chamber Steam, and chamber Pressure response separately.
+Both seam inner faces already touch P=180, above the Wood rupture threshold, so early damage milestones may share tick 1. After causal remediation both seams begin at T=0, below the Wood ignition threshold T=90, with authored flags and fuel progress zero. Top Wood loss or Smoke alone is still insufficient rupture attribution; the Harness separately records subsystem-specific seam combustion/flame/fuel, opening persistence, outside-chamber Steam, and chamber Pressure response.
 
 ## Measurement boundary
 
@@ -100,8 +140,8 @@ The validation-plan output counted Git LF/CRLF advisory text as additional unkno
 
 ## Next execution
 
-- The permitted unchanged-fixture scratch execution count is `1`; it is exhausted.
-- No Pressure candidate was generated from the rejected scratch or source `c7e9b75a...`.
-- Production physics, fixture geometry, authored Pressure, rupture thresholds, and shared staging/reset remain unchanged.
-- The current task authorizes one candidate only after this topology-aware remediation is sealed as a clean, pushed source and the required minimal Gallery smoke passes.
+- The causal-remediation scratch execution count is `1`; it is exhausted with causal classification `pressure_opening_precedes_combustion`, all hard predicates passing, and `candidate_blocker=false`.
+- No Pressure candidate was generated from either rejected scratch or from dirty source HEAD `328757bd...`.
+- Production physics, fixture geometry, authored Pressure, rupture thresholds, and shared staging/reset remain unchanged; only the authored top-seam temperature was removed.
+- The current task authorizes one candidate only after this exact remediation is sealed as a clean, pushed source and the required minimal Gallery smoke passes.
 - Pressure Burst remains **NOT USER ACCEPTED** and G8-B overall remains **NOT CLOSED**.

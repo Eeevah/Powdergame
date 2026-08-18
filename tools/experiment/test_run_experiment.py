@@ -92,6 +92,7 @@ class ExperimentRunnerTests(unittest.TestCase):
         run_dir: Path,
         contract: experiment.ScenarioContract = experiment.SAND_CONTRACT,
         mode: str = "candidate",
+        git_state: str = "clean",
     ) -> experiment.ManifestData:
         binary = (
             run_dir.joinpath(*experiment.FROZEN_BINARY_RELATIVE_PATH.parts)
@@ -106,6 +107,7 @@ class ExperimentRunnerTests(unittest.TestCase):
                 root=self.source.resolve(),
                 branch="feature/g8b-experiment-harness-v0",
                 sha="a" * 40,
+                git_state=git_state,
             ),
             binary_path=binary.resolve(),
             binary_sha256=binary_sha256,
@@ -136,12 +138,15 @@ class ExperimentRunnerTests(unittest.TestCase):
         run_id: str = "g8b-sand-fall-v0-test-run",
         contract: experiment.ScenarioContract = experiment.SAND_CONTRACT,
         mode: str = "candidate",
+        git_state: str = "clean",
     ) -> tuple[Path, dict]:
         run_dir = experiment.create_run_directory(self.artifacts, run_id)
         manifest_path = run_dir / "EXPERIMENT_MANIFEST.toml"
         experiment.write_new_text(
             manifest_path,
-            experiment.render_manifest(self.manifest_data(run_dir, contract, mode)),
+            experiment.render_manifest(
+                self.manifest_data(run_dir, contract, mode, git_state)
+            ),
         )
         return run_dir, experiment.read_and_validate_manifest(manifest_path)
 
@@ -1200,13 +1205,14 @@ class ExperimentRunnerTests(unittest.TestCase):
         self,
         run_id: str = "g8b-pressure-burst-v0-test-run",
         mode: str = "candidate",
+        git_state: str = "clean",
     ) -> Path:
         if mode == "scratch" and "-scratch-" not in run_id:
             run_id = run_id.replace(
                 "g8b-pressure-burst-v0-", "g8b-pressure-burst-v0-scratch-"
             )
         run_dir, manifest = self.create_manifest(
-            run_id, experiment.PRESSURE_CONTRACT, mode
+            run_id, experiment.PRESSURE_CONTRACT, mode, git_state
         )
         logs = run_dir / "logs"
         logs.mkdir()
@@ -1241,6 +1247,18 @@ class ExperimentRunnerTests(unittest.TestCase):
             bottom_through_lanes: int = 0,
             seam_steam: int = 0,
             changed: int = 2,
+            top_combusting: int = 0,
+            bottom_combusting: int = 0,
+            top_flame_event: int = 0,
+            bottom_flame_event: int = 0,
+            top_fuel_progress_sum: int = 0,
+            top_fuel_progress_max: int = 0,
+            bottom_fuel_progress_sum: int = 0,
+            bottom_fuel_progress_max: int = 0,
+            top_adjacent_pressure_medium: int | None = None,
+            bottom_adjacent_pressure_medium: int | None = None,
+            top_max_adjacent_pressure: float | None = None,
+            bottom_max_adjacent_pressure: float | None = None,
         ) -> dict:
             seam_wood = top_wood + bottom_wood
             seam_lost = 576 - seam_wood
@@ -1264,13 +1282,38 @@ class ExperimentRunnerTests(unittest.TestCase):
             bottom_open = 192 - bottom_wood
             seam_open = top_open + bottom_open
             through_lanes = top_through_lanes + bottom_through_lanes
+            top_adjacent_pressure_medium = (
+                top_through_lanes
+                if top_adjacent_pressure_medium is None
+                else top_adjacent_pressure_medium
+            )
+            bottom_adjacent_pressure_medium = (
+                bottom_through_lanes
+                if bottom_adjacent_pressure_medium is None
+                else bottom_adjacent_pressure_medium
+            )
+            top_max_adjacent_pressure = (
+                max_pressure
+                if top_max_adjacent_pressure is None and top_adjacent_pressure_medium > 0
+                else 0.0
+                if top_max_adjacent_pressure is None
+                else top_max_adjacent_pressure
+            )
+            bottom_max_adjacent_pressure = (
+                max_pressure
+                if bottom_max_adjacent_pressure is None
+                and bottom_adjacent_pressure_medium > 0
+                else 0.0
+                if bottom_max_adjacent_pressure is None
+                else bottom_max_adjacent_pressure
+            )
             return {
                 "schema_version": experiment.PRESSURE_TELEMETRY_SCHEMA,
                 "experiment_id": experiment.PRESSURE_CONTRACT.experiment_id,
                 "run_id": run_dir.name,
                 "scenario": experiment.PRESSURE_CONTRACT.scenario,
                 "source_sha": manifest["source"]["sha"],
-                "git_state": "clean",
+                "git_state": manifest["source"]["git_state"],
                 "build_profile": "release",
                 "binary_sha256": manifest["binary"]["sha256"],
                 "sample_sequence": -1,
@@ -1304,6 +1347,33 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "relief_seam_through_open_lanes": through_lanes,
                 "top_relief_seam_through_open_lanes": top_through_lanes,
                 "bottom_relief_seam_through_open_lanes": bottom_through_lanes,
+                "top_relief_seam_combusting_cells": top_combusting,
+                "bottom_relief_seam_combusting_cells": bottom_combusting,
+                "relief_seam_combusting_cells": top_combusting + bottom_combusting,
+                "top_relief_seam_flame_event_cells": top_flame_event,
+                "bottom_relief_seam_flame_event_cells": bottom_flame_event,
+                "relief_seam_flame_event_cells": top_flame_event
+                + bottom_flame_event,
+                "top_relief_seam_fuel_progress_sum": top_fuel_progress_sum,
+                "top_relief_seam_fuel_progress_max": top_fuel_progress_max,
+                "bottom_relief_seam_fuel_progress_sum": bottom_fuel_progress_sum,
+                "bottom_relief_seam_fuel_progress_max": bottom_fuel_progress_max,
+                "relief_seam_fuel_progress_sum": top_fuel_progress_sum
+                + bottom_fuel_progress_sum,
+                "relief_seam_fuel_progress_max": max(
+                    top_fuel_progress_max, bottom_fuel_progress_max
+                ),
+                "top_relief_seam_adjacent_pressure_medium_cells": top_adjacent_pressure_medium,
+                "bottom_relief_seam_adjacent_pressure_medium_cells": (
+                    bottom_adjacent_pressure_medium
+                ),
+                "relief_seam_adjacent_pressure_medium_cells": top_adjacent_pressure_medium
+                + bottom_adjacent_pressure_medium,
+                "top_relief_seam_max_adjacent_pressure": top_max_adjacent_pressure,
+                "bottom_relief_seam_max_adjacent_pressure": bottom_max_adjacent_pressure,
+                "relief_seam_max_adjacent_pressure": max(
+                    top_max_adjacent_pressure, bottom_max_adjacent_pressure
+                ),
                 "steam_in_relief_seam_cells": seam_steam,
                 "outside_chamber_steam_cells": outside_steam,
                 "chamber_pressure_cell_count": 29_920,
@@ -1587,7 +1657,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             "binary_sha256": manifest["binary"]["sha256"],
             "provenance": {
                 "source_sha": manifest["source"]["sha"],
-                "git_state": "clean",
+                "git_state": manifest["source"]["git_state"],
                 "build_profile": "release",
             },
             "world": manifest["world"],
@@ -1595,7 +1665,9 @@ class ExperimentRunnerTests(unittest.TestCase):
             "lifecycle": {
                 "max_ticks": experiment.MAX_TICKS,
                 "diagnostic_interval_ticks": experiment.DIAGNOSTIC_INTERVAL,
-                "consecutive_persistent_opening_samples": experiment.CONSECUTIVE_PERSISTENT_OPENING,
+                "consecutive_persistent_opening_samples": (
+                    experiment.CONSECUTIVE_PERSISTENT_OPENING
+                ),
                 "post_opening_ticks": experiment.POST_OPENING_TICKS,
                 "terminal_window_samples": experiment.TERMINAL_WINDOW_SAMPLES,
                 "terminal_reason": "post-opening-observation-complete",
@@ -1646,6 +1718,10 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "first_post_opening_relief_sample_sequence": first_relief[
                     "sample_sequence"
                 ],
+                "first_relief_seam_combustion_tick": None,
+                "first_relief_seam_combustion_sample_sequence": None,
+                "first_relief_seam_fuel_progress_tick": None,
+                "first_relief_seam_fuel_progress_sample_sequence": None,
                 "peak_chamber_mean_pressure": 130.0,
                 "peak_chamber_mean_pressure_tick": 2,
                 "peak_chamber_mean_pressure_sample_sequence": tick2["sample_sequence"],
@@ -1672,6 +1748,29 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "terminal_chamber_mean_pressure": trend["end_mean_pressure"],
                 "terminal_chamber_max_pressure": trend["end_max_pressure"],
                 "terminal_pressure_relieved": True,
+                "through_opening_confirmation_relief_seam_combusting_cells_peak": 0,
+                "through_opening_confirmation_relief_seam_flame_event_cells_peak": 0,
+                "through_opening_confirmation_relief_seam_fuel_progress_sum_peak": 0,
+                "through_opening_confirmation_relief_seam_fuel_progress_max": 0,
+                "opening_confirmation_relief_seam_combusting_cells": 0,
+                "opening_confirmation_relief_seam_flame_event_cells": 0,
+                "opening_confirmation_relief_seam_fuel_progress_sum": 0,
+                "opening_confirmation_relief_seam_fuel_progress_max": 0,
+                "opening_confirmation_relief_seam_adjacent_pressure_medium_cells": tick16[
+                    "relief_seam_adjacent_pressure_medium_cells"
+                ],
+                "opening_confirmation_relief_seam_max_adjacent_pressure": tick16[
+                    "relief_seam_max_adjacent_pressure"
+                ],
+                "opening_confirmation_adjacent_pressure_at_or_above_wood_rupture_threshold": True,
+                "first_opening_relief_seam_adjacent_pressure_medium_cells": tick2[
+                    "relief_seam_adjacent_pressure_medium_cells"
+                ],
+                "first_opening_relief_seam_max_adjacent_pressure": tick2[
+                    "relief_seam_max_adjacent_pressure"
+                ],
+                "first_opening_adjacent_pressure_at_or_above_wood_rupture_threshold": True,
+                "wood_rupture_threshold": 80.0,
                 "final_relief_seam_wood_cells": final["relief_seam_wood_cells"],
                 "final_top_relief_seam_wood_cells": final[
                     "top_relief_seam_wood_cells"
@@ -1728,6 +1827,7 @@ class ExperimentRunnerTests(unittest.TestCase):
                 "terminal_activity_remains": False,
                 "reasons": [],
             },
+            "causal_classification": "pressure_opening_precedes_combustion",
             "predicates": predicates,
             "verdict": "PASS",
             "raw_frame_count": len(frames),
@@ -1736,6 +1836,85 @@ class ExperimentRunnerTests(unittest.TestCase):
             json.dumps(analysis), encoding="utf-8"
         )
         return run_dir
+
+    def make_pressure_fixture_combustion_confounded(
+        self, run_dir: Path
+    ) -> dict[str, object]:
+        samples_path = run_dir / "telemetry" / "samples.jsonl"
+        samples = experiment.read_jsonl(samples_path, "Pressure confound samples")
+        confounded = samples[2]
+        confounded.update(
+            {
+                "top_relief_seam_combusting_cells": 1,
+                "relief_seam_combusting_cells": 1,
+                "top_relief_seam_flame_event_cells": 1,
+                "relief_seam_flame_event_cells": 1,
+                "top_relief_seam_fuel_progress_sum": 900,
+                "top_relief_seam_fuel_progress_max": 9,
+                "relief_seam_fuel_progress_sum": 900,
+                "relief_seam_fuel_progress_max": 9,
+            }
+        )
+        samples_path.write_text(
+            "".join(
+                json.dumps(item, separators=(",", ":")) + "\n" for item in samples
+            ),
+            encoding="utf-8",
+        )
+
+        analysis_path = run_dir / "work" / "analysis.json"
+        analysis = json.loads(analysis_path.read_text(encoding="utf-8"))
+        analysis["metrics"].update(
+            {
+                "first_relief_seam_combustion_tick": confounded["sim_tick"],
+                "first_relief_seam_combustion_sample_sequence": confounded[
+                    "sample_sequence"
+                ],
+                "first_relief_seam_fuel_progress_tick": confounded["sim_tick"],
+                "first_relief_seam_fuel_progress_sample_sequence": confounded[
+                    "sample_sequence"
+                ],
+                "through_opening_confirmation_relief_seam_combusting_cells_peak": 1,
+                "through_opening_confirmation_relief_seam_flame_event_cells_peak": 1,
+                "through_opening_confirmation_relief_seam_fuel_progress_sum_peak": 900,
+                "through_opening_confirmation_relief_seam_fuel_progress_max": 9,
+            }
+        )
+        analysis["causal_classification"] = "fixture_causality_confounded"
+        analysis["predicates"]["pressure_opening_precedes_combustion"][
+            "status"
+        ] = "fail"
+        analysis["verdict"] = (
+            experiment.PRESSURE_FIXTURE_CAUSALITY_CONFOUNDED_VERDICT
+        )
+        analysis_path.write_text(json.dumps(analysis), encoding="utf-8")
+
+        events_path = run_dir / "telemetry" / "events.jsonl"
+        events = experiment.read_jsonl(events_path, "Pressure confound events")
+        rupture_index = next(
+            index
+            for index, event in enumerate(events)
+            if event["event"] == "rupture_observed"
+        )
+        inserted = []
+        for event_name in (
+            "relief_seam_combustion_observed",
+            "relief_seam_fuel_progress_observed",
+        ):
+            record = copy.deepcopy(events[rupture_index])
+            record["event"] = event_name
+            record["detail"] = "synthetic causal confound"
+            inserted.append(record)
+        events[rupture_index + 1 : rupture_index + 1] = inserted
+        for sequence, event in enumerate(events):
+            event["event_sequence"] = sequence
+        events_path.write_text(
+            "".join(
+                json.dumps(item, separators=(",", ":")) + "\n" for item in events
+            ),
+            encoding="utf-8",
+        )
+        return analysis
 
     def create_pressure_sealed_delivery_fixture(
         self,
@@ -2469,6 +2648,76 @@ class ExperimentRunnerTests(unittest.TestCase):
             experiment.assert_source_seal_unchanged(
                 self.source, seal, "post-build"
             )
+
+    def test_dirty_tracked_scratch_seal_is_exact_and_rejects_input_drift(self) -> None:
+        self.initialize_source_repository()
+        selected = self.source / "apps" / "windows" / "src" / "main.rs"
+        selected.write_text("fn main() { println!(\"dirty scratch\"); }\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(experiment.ExperimentError, "must be clean"):
+            experiment.capture_source_seal(self.source)
+        seal = experiment.capture_source_seal(
+            self.source, allow_dirty_tracked=True
+        )
+        self.assertEqual(seal.source.git_state, "dirty")
+        self.assertTrue(experiment.HEX64.fullmatch(seal.source.tracked_state_sha256))
+        self.assertEqual(seal.manifest["source"]["git_state"], "dirty")
+        selected_entry = next(
+            entry
+            for entry in seal.manifest["files"]
+            if entry["path"] == "apps/windows/src/main.rs"
+        )
+        self.assertEqual(selected_entry["sha256"], experiment.sha256_file(selected))
+
+        selected.write_text(
+            "fn main() { println!(\"drift after seal\"); }\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(experiment.ExperimentError, "pre-worker"):
+            experiment.assert_source_seal_unchanged(
+                self.source, seal, "pre-worker"
+            )
+
+    def test_dirty_scratch_manifest_and_pressure_telemetry_are_accepted(self) -> None:
+        run_dir = self.create_valid_pressure_worker_fixture(
+            "g8b-pressure-burst-v0-dirty-scratch",
+            mode="scratch",
+            git_state="dirty",
+        )
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        self.assertEqual(manifest["run_mode"], "scratch")
+        self.assertEqual(manifest["source"]["git_state"], "dirty")
+        analysis, _, samples, _ = experiment.validate_telemetry(run_dir, manifest)
+        self.assertEqual(analysis["provenance"]["git_state"], "dirty")
+        self.assertTrue(all(sample["git_state"] == "dirty" for sample in samples))
+        experiment.postprocess_run(run_dir)
+        report_markdown = (run_dir / "report" / "REPORT.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            f"- Source: `{manifest['source']['sha']}` on "
+            f"`{manifest['source']['branch']}` (`dirty`)",
+            report_markdown,
+        )
+        self.assertIn(
+            "Causal vent milestones are confirmation-gated",
+            report_markdown,
+        )
+
+    def test_dirty_candidate_manifest_is_rejected(self) -> None:
+        run_dir = self.artifacts / "g8b-pressure-burst-v0-dirty-candidate"
+        run_dir.mkdir(parents=True)
+        manifest = self.manifest_data(
+            run_dir,
+            experiment.PRESSURE_CONTRACT,
+            "candidate",
+            "dirty",
+        ).as_dict()
+        with self.assertRaisesRegex(
+            experiment.ExperimentError, "dirty source is allowed only for scratch"
+        ):
+            experiment.validate_manifest_dict(manifest)
 
     def test_source_seal_detects_external_font_drift_and_missing_input(self) -> None:
         self.initialize_source_repository()
@@ -3292,6 +3541,29 @@ class ExperimentRunnerTests(unittest.TestCase):
             run_dir, manifest
         )
         self.assertEqual(analysis["verdict"], "PASS")
+        self.assertEqual(
+            analysis["causal_classification"],
+            "pressure_opening_precedes_combustion",
+        )
+        self.assertEqual(
+            analysis["predicates"]["pressure_opening_precedes_combustion"][
+                "status"
+            ],
+            "pass",
+        )
+        self.assertEqual(
+            analysis["schema_version"], "powdergame-pressure-burst-analysis-v1"
+        )
+        self.assertEqual(
+            frames_doc["schema_version"], "powdergame-pressure-burst-frames-v0"
+        )
+        self.assertTrue(
+            all(
+                sample["schema_version"]
+                == "powdergame-pressure-burst-telemetry-v1"
+                for sample in samples
+            )
+        )
         self.assertEqual(analysis["metrics"]["persistent_opening_confirmed_tick"], 16)
         self.assertEqual(analysis["metrics"]["first_rupture_tick"], 2)
         self.assertEqual(analysis["metrics"]["first_outside_chamber_steam_tick"], 17)
@@ -3303,6 +3575,14 @@ class ExperimentRunnerTests(unittest.TestCase):
         self.assertEqual(samples[1]["bottom_relief_seam_open_cells"], 24)
         self.assertEqual(samples[1]["relief_seam_through_open_lanes"], 0)
         self.assertEqual(samples[2]["relief_seam_through_open_lanes"], 2)
+        self.assertEqual(samples[2]["relief_seam_combusting_cells"], 0)
+        self.assertEqual(samples[2]["relief_seam_fuel_progress_sum"], 0)
+        self.assertEqual(
+            analysis["metrics"][
+                "through_opening_confirmation_relief_seam_combusting_cells_peak"
+            ],
+            0,
+        )
         self.assertEqual(analysis["terminal_window"]["sample_count"], 64)
         self.assertFalse(analysis["terminal_window"]["unbounded_growth"])
         self.assertEqual(len(frames_doc["frames"]), 8)
@@ -3443,12 +3723,17 @@ class ExperimentRunnerTests(unittest.TestCase):
             "reasons": ["only_one_relief_seam_ruptured"],
         }
         self.assertEqual(
-            experiment.pressure_expected_verdict(pass_statuses, flags),
+            experiment.pressure_expected_verdict(
+                pass_statuses, flags, "pressure_opening_precedes_combustion"
+            ),
             "NEEDS_HUMAN_REVIEW",
         )
         fail_statuses = {**pass_statuses, "exact_reset": "fail"}
         self.assertEqual(
-            experiment.pressure_expected_verdict(fail_statuses, flags), "FAIL"
+            experiment.pressure_expected_verdict(
+                fail_statuses, flags, "pressure_opening_precedes_combustion"
+            ),
+            "FAIL",
         )
         terminal_activity_flags = {
             **flags,
@@ -3458,9 +3743,146 @@ class ExperimentRunnerTests(unittest.TestCase):
         }
         self.assertEqual(
             experiment.pressure_expected_verdict(
-                pass_statuses, terminal_activity_flags
+                pass_statuses,
+                terminal_activity_flags,
+                "pressure_opening_precedes_combustion",
             ),
             "NEEDS_HUMAN_REVIEW",
+        )
+        self.assertEqual(
+            experiment.pressure_expected_verdict(
+                fail_statuses, flags, "fixture_causality_confounded"
+            ),
+            experiment.PRESSURE_FIXTURE_CAUSALITY_CONFOUNDED_VERDICT,
+        )
+
+    def test_pressure_combustion_confound_is_rejected_and_pressure_first_is_accepted(
+        self,
+    ) -> None:
+        opening_start = {"sample_sequence": 3}
+        confirmed = {"sample_sequence": 5}
+        self.assertEqual(
+            experiment.pressure_causal_classification(
+                opening_start=opening_start,
+                confirmed=confirmed,
+                first_combustion=None,
+                first_fuel_progress=None,
+                combusting_peak=0,
+                flame_event_peak=0,
+                fuel_progress_sum_peak=0,
+                fuel_progress_max=0,
+            ),
+            "pressure_opening_precedes_combustion",
+        )
+        self.assertEqual(
+            experiment.pressure_causal_classification(
+                opening_start=opening_start,
+                confirmed=confirmed,
+                first_combustion={"sample_sequence": 3},
+                first_fuel_progress={"sample_sequence": 3},
+                combusting_peak=1,
+                flame_event_peak=1,
+                fuel_progress_sum_peak=900,
+                fuel_progress_max=9,
+            ),
+            "fixture_causality_confounded",
+        )
+        self.assertEqual(
+            experiment.pressure_causal_classification(
+                opening_start=None,
+                confirmed=None,
+                first_combustion={"sample_sequence": 2},
+                first_fuel_progress={"sample_sequence": 2},
+                combusting_peak=1,
+                flame_event_peak=1,
+                fuel_progress_sum_peak=1,
+                fuel_progress_max=1,
+            ),
+            "insufficient_causal_evidence",
+        )
+
+    def test_pressure_confounded_worker_fixture_is_explicitly_classified(self) -> None:
+        run_dir = self.create_valid_pressure_worker_fixture(
+            "g8b-pressure-burst-v0-scratch-combustion-confound", mode="scratch"
+        )
+        self.make_pressure_fixture_combustion_confounded(run_dir)
+        manifest = experiment.read_and_validate_manifest(
+            run_dir / "EXPERIMENT_MANIFEST.toml"
+        )
+        validated, _, _, _ = experiment.validate_telemetry(run_dir, manifest)
+        self.assertEqual(
+            validated["verdict"],
+            experiment.PRESSURE_FIXTURE_CAUSALITY_CONFOUNDED_VERDICT,
+        )
+        self.assertEqual(
+            validated["causal_classification"], "fixture_causality_confounded"
+        )
+        self.assertEqual(
+            validated["predicates"]["pressure_opening_precedes_combustion"][
+                "status"
+            ],
+            "fail",
+        )
+        receipt_path = experiment.postprocess_run(run_dir)
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        self.assertEqual(receipt["run_mode"], "scratch")
+        self.assertEqual(
+            receipt["automatic_verdict"],
+            experiment.PRESSURE_FIXTURE_CAUSALITY_CONFOUNDED_VERDICT,
+        )
+        self.assertTrue(receipt["pressure_burst"]["candidate_blocker"])
+        self.assertEqual(
+            receipt["pressure_burst"]["candidate_blocker_classification"],
+            "fixture_causality_confounded",
+        )
+        self.assertTrue(receipt["pressure_burst"]["candidate_blocker_details"])
+
+    def test_pressure_first_with_failed_hard_predicates_is_candidate_blocked(self) -> None:
+        predicates = {
+            name: {"status": "pass", "detail": f"{name} passed"}
+            for name in experiment.PRESSURE_PREDICATE_NAMES
+        }
+        for name in ("exterior_vent_observed", "no_invalid_materials", "exact_reset"):
+            predicates[name] = {"status": "fail", "detail": f"{name} failed"}
+        blocker = experiment.pressure_candidate_blocker(
+            {
+                "causal_classification": "pressure_opening_precedes_combustion",
+                "predicates": predicates,
+            }
+        )
+        self.assertTrue(blocker["candidate_blocker"])
+        self.assertEqual(
+            blocker["candidate_blocker_classification"], "hard_predicate_failure"
+        )
+        self.assertEqual(
+            blocker["failed_hard_predicates"],
+            ["exact_reset", "exterior_vent_observed", "no_invalid_materials"],
+        )
+        self.assertEqual(
+            {detail["predicate"] for detail in blocker["candidate_blocker_details"]},
+            {"exact_reset", "exterior_vent_observed", "no_invalid_materials"},
+        )
+
+    def test_pressure_candidate_blocker_leaves_no_receipt_report_or_bundle(self) -> None:
+        run_dir = self.create_valid_pressure_worker_fixture(
+            "g8b-pressure-burst-v0-candidate-blocker"
+        )
+        self.make_pressure_fixture_combustion_confounded(run_dir)
+        with self.assertRaisesRegex(
+            experiment.ExperimentError,
+            "Pressure candidate publication blocked.*fixture_causality_confounded",
+        ):
+            experiment.postprocess_run(run_dir)
+        self.assertFalse((run_dir / "EXPERIMENT_RECEIPT.json").exists())
+        self.assertFalse((run_dir / "report").exists())
+        self.assertFalse(
+            (run_dir.parent / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SUFFIX}").exists()
+        )
+        self.assertFalse(
+            (
+                run_dir.parent
+                / f"{run_dir.name}{experiment.AUDIT_BUNDLE_SHA256_SUFFIX}"
+            ).exists()
         )
 
     def test_pressure_causal_vent_reseal_and_max_runaway_are_raw_recomputed(
@@ -3567,6 +3989,43 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_pressure_audit_bundle_vnext_is_exact_hashed_and_create_new(self) -> None:
         run_dir = self.create_pressure_sealed_delivery_fixture()
+        report = json.loads(
+            (run_dir / "report" / "REPORT.json").read_text(encoding="utf-8")
+        )
+        receipt = json.loads(
+            (run_dir / "EXPERIMENT_RECEIPT.json").read_text(encoding="utf-8")
+        )
+        prompt = (run_dir / "report" / "CHATGPT_REVIEW_PROMPT.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(
+            report["schema_version"], "powdergame-pressure-burst-report-v1"
+        )
+        self.assertEqual(
+            receipt["schema_version"], "powdergame-pressure-burst-receipt-v1"
+        )
+        self.assertEqual(
+            report["pressure_burst"]["causal_classification"],
+            "pressure_opening_precedes_combustion",
+        )
+        self.assertFalse(report["pressure_burst"]["candidate_blocker"])
+        self.assertIsNone(
+            report["pressure_burst"]["candidate_blocker_classification"]
+        )
+        self.assertEqual(report["pressure_burst"]["candidate_blocker_details"], [])
+        self.assertEqual(report["pressure_burst"]["failed_hard_predicates"], [])
+        self.assertFalse(report["pressure_burst"]["scratch_candidate_blocker"])
+        self.assertIsNone(
+            report["pressure_burst"]["scratch_blocker_classification"]
+        )
+        self.assertEqual(report["pressure_burst"], receipt["pressure_burst"])
+        self.assertTrue(
+            report["review_guidance"][
+                "fixture_causality_confounded_is_candidate_blocker"
+            ]
+        )
+        self.assertIn("zero relief-seam combustion/flame/fuel progress", prompt)
+        self.assertIn("pressure_opening_precedes_combustion", prompt)
         receipt_sha = experiment.sha256_file(run_dir / "EXPERIMENT_RECEIPT.json")
         bundle, sidecar = experiment.create_pressure_audit_bundle_vnext(
             run_dir, self.source, receipt_sha

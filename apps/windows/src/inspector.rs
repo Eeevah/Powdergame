@@ -208,9 +208,9 @@ impl CellInspectorSample {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum InspectorDisplayState {
     Hidden,
-    Collecting,
+    Pending,
     Ready,
-    Unavailable,
+    Failed,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -224,6 +224,23 @@ pub(crate) struct InspectorHudData {
     pub sample_age_ticks: Option<u64>,
     pub sample_age_millis: Option<u64>,
     pub sample_tick_is_future: bool,
+}
+
+fn inspector_display_state(
+    hovered_cell: Option<CellCoordinate>,
+    world_ready: bool,
+    has_matching_sample: bool,
+    has_readback_failure: bool,
+) -> InspectorDisplayState {
+    if hovered_cell.is_none() {
+        InspectorDisplayState::Hidden
+    } else if has_readback_failure {
+        InspectorDisplayState::Failed
+    } else if !world_ready || !has_matching_sample {
+        InspectorDisplayState::Pending
+    } else {
+        InspectorDisplayState::Ready
+    }
 }
 
 pub(crate) fn material_display_name(id: u32) -> String {
@@ -488,7 +505,7 @@ pub(crate) struct CellInspectorCollector {
     latest_sample: Option<CellInspectorSample>,
     details_visible: bool,
     world_ready: bool,
-    unavailable_message: Option<String>,
+    failure_message: Option<String>,
     world_epoch: u64,
     selection_generation: u64,
     next_request_generation: u64,
@@ -514,7 +531,7 @@ impl CellInspectorCollector {
             latest_sample: None,
             details_visible: false,
             world_ready: true,
-            unavailable_message: None,
+            failure_message: None,
             world_epoch: 0,
             selection_generation: 0,
             next_request_generation: 0,
@@ -538,27 +555,39 @@ impl CellInspectorCollector {
     }
 
     pub(crate) fn begin_world_change(&mut self) {
-        self.world_epoch = self.world_epoch.wrapping_add(1);
-        self.selection_generation = self.selection_generation.wrapping_add(1);
-        self.world_ready = false;
-        self.unavailable_message = Some("Inspector unavailable: reset pending".to_string());
-        self.latest_sample = None;
-        self.last_request_at = None;
-        self.cancel_pending();
+        self.invalidate_for_pending_world();
     }
 
     pub(crate) fn mark_ready(&mut self) {
         self.world_ready = true;
-        self.unavailable_message = None;
+        self.failure_message = None;
         self.latest_sample = None;
         self.last_request_at = None;
     }
 
     pub(crate) fn mark_unavailable(&mut self, message: impl Into<String>) {
+        // World/scenario staging unavailability is not an Inspector readback
+        // failure. Its structured error is logged by the caller, while the
+        // presentation remains silent until a world is ready to sample again.
+        let _ = message.into();
+        self.invalidate_for_pending_world();
+    }
+
+    fn invalidate_for_pending_world(&mut self) {
         self.world_epoch = self.world_epoch.wrapping_add(1);
         self.selection_generation = self.selection_generation.wrapping_add(1);
         self.world_ready = false;
-        self.unavailable_message = Some(message.into());
+        self.failure_message = None;
+        self.latest_sample = None;
+        self.last_request_at = None;
+        self.cancel_pending();
+    }
+
+    fn record_readback_failure(&mut self, error: &CellInspectorReadbackError) {
+        self.world_epoch = self.world_epoch.wrapping_add(1);
+        self.selection_generation = self.selection_generation.wrapping_add(1);
+        self.world_ready = false;
+        self.failure_message = Some(format!("Inspector unavailable: {error}"));
         self.latest_sample = None;
         self.last_request_at = None;
         self.cancel_pending();
@@ -584,21 +613,18 @@ impl CellInspectorCollector {
             )
             .unwrap_or(u64::MAX)
         });
-        let display_state = if self.hovered_cell.is_none() {
-            InspectorDisplayState::Hidden
-        } else if !self.world_ready || self.unavailable_message.is_some() {
-            InspectorDisplayState::Unavailable
-        } else if matching_sample.is_some() {
-            InspectorDisplayState::Ready
-        } else {
-            InspectorDisplayState::Collecting
-        };
+        let display_state = inspector_display_state(
+            self.hovered_cell,
+            self.world_ready,
+            matching_sample.is_some(),
+            self.failure_message.is_some(),
+        );
         InspectorHudData {
             display_state,
             details_visible: self.details_visible,
             hovered_cell: self.hovered_cell,
             sample: matching_sample.cloned(),
-            error_message: self.unavailable_message.clone(),
+            error_message: self.failure_message.clone(),
             current_simulation_tick,
             sample_age_ticks,
             sample_age_millis,
@@ -613,8 +639,7 @@ impl CellInspectorCollector {
         now: Instant,
     ) -> Result<(), CellInspectorReadbackError> {
         if let Err(error) = self.poll_pending(simulation, now) {
-            self.world_ready = false;
-            self.unavailable_message = Some(format!("Inspector unavailable: {error}"));
+            self.record_readback_failure(&error);
             return Err(error);
         }
 
@@ -636,7 +661,12 @@ impl CellInspectorCollector {
             .last_request_at
             .is_none_or(|last| now.saturating_duration_since(last) >= INSPECTOR_SAMPLE_INTERVAL);
         if cadence_elapsed {
-            self.request_readback(simulation, cell, current_simulation_tick, now)?;
+            if let Err(error) =
+                self.request_readback(simulation, cell, current_simulation_tick, now)
+            {
+                self.record_readback_failure(&error);
+                return Err(error);
+            }
         }
         Ok(())
     }
@@ -972,6 +1002,35 @@ mod tests {
     }
 
     #[test]
+    fn presentation_state_separates_silent_pending_from_readback_failure() {
+        let cell = Some(CellCoordinate { x: 7, y: 9 });
+        assert_eq!(
+            inspector_display_state(None, true, false, false),
+            InspectorDisplayState::Hidden
+        );
+        assert_eq!(
+            inspector_display_state(cell, true, false, false),
+            InspectorDisplayState::Pending
+        );
+        assert_eq!(
+            inspector_display_state(cell, false, false, false),
+            InspectorDisplayState::Pending
+        );
+        assert_eq!(
+            inspector_display_state(cell, true, true, false),
+            InspectorDisplayState::Ready
+        );
+        assert_eq!(
+            inspector_display_state(cell, false, false, true),
+            InspectorDisplayState::Failed
+        );
+        assert_eq!(
+            inspector_display_state(None, false, false, true),
+            InspectorDisplayState::Hidden
+        );
+    }
+
+    #[test]
     fn readback_contract_is_one_mapped_batch_of_six_four_byte_fields() {
         assert_eq!(INSPECTOR_READBACK_BYTES, 24);
         assert_eq!(INSPECTOR_SAMPLE_INTERVAL, Duration::from_millis(100));
@@ -1182,8 +1241,14 @@ mod tests {
         assert!(!collector.hud_data(0, started).details_visible);
         assert!(collector.toggle_details());
         assert!(collector.hud_data(0, started).details_visible);
-        assert!(!collector.toggle_details());
         collector.set_hover(Some(first));
+        let initial_pending = collector.hud_data(0, started);
+        assert_eq!(
+            initial_pending.display_state,
+            InspectorDisplayState::Pending
+        );
+        assert!(initial_pending.details_visible);
+        assert!(initial_pending.sample.is_none());
         collector
             .update(&simulation, 0, started)
             .expect("paused tick-0 request");
@@ -1213,15 +1278,35 @@ mod tests {
         assert_eq!(sample.cell_activity, ACTIVITY_ALL_BITS);
         assert_eq!(sample.chunk_state, CHUNK_STATE_RUNNABLE);
         assert_eq!((sample.simulation_tick, sample.diagnostic_sequence), (0, 1));
+        assert_eq!(
+            collector.hud_data(0, started).display_state,
+            InspectorDisplayState::Ready
+        );
+
+        // A periodic refresh for the same Cell keeps the last matching sample
+        // visible until its replacement arrives.
+        collector
+            .update(&simulation, 1, started + Duration::from_millis(101))
+            .expect("same-Cell periodic refresh");
+        assert!(collector.pending.is_some());
+        assert_eq!(
+            collector.hud_data(1, started).display_state,
+            InspectorDisplayState::Ready
+        );
 
         // A request may finish after hover changes, but its old identity must
         // never be published for the new Cell.
         collector.set_hover(Some(second));
-        collector
-            .update(&simulation, 8, started + Duration::from_millis(101))
-            .expect("second request");
+        assert_eq!(
+            collector.hud_data(8, started).display_state,
+            InspectorDisplayState::Pending
+        );
         assert!(collector.pending.is_some());
         collector.set_hover(Some(third));
+        assert_eq!(
+            collector.hud_data(8, started).display_state,
+            InspectorDisplayState::Pending
+        );
         simulation
             .context
             .device
@@ -1232,6 +1317,10 @@ mod tests {
             .expect("stale completion is discarded");
         assert!(collector.pending.is_none());
         assert!(collector.latest_sample.is_none());
+        assert_eq!(
+            collector.hud_data(8, started).display_state,
+            InspectorDisplayState::Pending
+        );
         collector
             .update(&simulation, 8, started + Duration::from_millis(202))
             .expect("fresh request after cadence");
@@ -1248,6 +1337,10 @@ mod tests {
         assert_eq!(sample.material_id, MATERIAL_SAND);
         assert_eq!(sample.simulation_tick, 8);
         assert_eq!(sample.diagnostic_sequence, 2);
+        assert_eq!(
+            collector.hud_data(8, started).display_state,
+            InspectorDisplayState::Ready
+        );
 
         // Reset/scenario invalidation cancels a pending map, is idempotent,
         // and permits an immediate request on the same persistent staging
@@ -1263,9 +1356,17 @@ mod tests {
         assert!(collector.latest_sample.is_none());
         assert_eq!(
             collector.hud_data(0, started).display_state,
-            InspectorDisplayState::Unavailable
+            InspectorDisplayState::Pending
         );
+        let reset_pending = collector.hud_data(0, started);
+        assert!(reset_pending.details_visible);
+        assert!(reset_pending.error_message.is_none());
         collector.mark_ready();
+        assert_eq!(
+            collector.hud_data(0, started).display_state,
+            InspectorDisplayState::Pending
+        );
+        assert!(collector.hud_data(0, started).details_visible);
         collector
             .update(&simulation, 0, started + Duration::from_millis(303))
             .expect("immediate post-reset request");
@@ -1283,13 +1384,29 @@ mod tests {
         assert_eq!(sample.simulation_tick, 0);
         assert_eq!(sample.world_epoch, collector.world_epoch);
         assert_eq!(sample.diagnostic_sequence, 3);
+        assert_eq!(
+            collector.hud_data(0, started).display_state,
+            InspectorDisplayState::Ready
+        );
+
+        let injected_failure = CellInspectorReadbackError::MapFailed("injected".to_string());
+        collector.record_readback_failure(&injected_failure);
+        let failed = collector.hud_data(0, started);
+        assert_eq!(failed.display_state, InspectorDisplayState::Failed);
+        assert!(failed.details_visible);
+        assert!(failed.sample.is_none());
+        assert!(failed
+            .error_message
+            .as_deref()
+            .is_some_and(|message| message.contains("Inspector map failed: injected")));
 
         collector.mark_unavailable("Inspector unavailable: staging failed");
         assert!(collector.latest_sample.is_none());
         assert_eq!(
             collector.hud_data(0, started).display_state,
-            InspectorDisplayState::Unavailable
+            InspectorDisplayState::Pending
         );
+        assert!(collector.hud_data(0, started).error_message.is_none());
         collector.shutdown();
         collector.shutdown();
         assert!(collector.pending.is_none());

@@ -22,9 +22,8 @@ use crate::observatory::{
 };
 
 const INSPECTOR_TITLE: &str = "CELL INSPECTOR [I]";
-const INSPECTOR_HOVER_PROMPT: &str = "Hover a world Cell";
-const INSPECTOR_COLLECTING: &str = "Collecting...";
 const INSPECTOR_UNAVAILABLE: &str = "Inspector unavailable";
+const INSPECTOR_FAILURE_PANEL_HEIGHT: f32 = 64.0;
 
 fn ascii_only(text: &str) -> String {
     text.chars()
@@ -41,37 +40,28 @@ fn ascii_only(text: &str) -> String {
 }
 
 fn compact_inspector_text(data: &InspectorHudData) -> Option<String> {
-    let text = match data.display_state {
-        InspectorDisplayState::Hidden => return None,
-        InspectorDisplayState::Collecting => INSPECTOR_COLLECTING.to_string(),
+    match data.display_state {
         InspectorDisplayState::Ready => data
             .sample
             .as_ref()
-            .map_or_else(|| INSPECTOR_COLLECTING.to_string(), compact_sample_label),
-        InspectorDisplayState::Unavailable => INSPECTOR_UNAVAILABLE.to_string(),
-    };
-    Some(ascii_only(&text))
+            .map(compact_sample_label)
+            .map(|text| ascii_only(&text)),
+        InspectorDisplayState::Hidden
+        | InspectorDisplayState::Pending
+        | InspectorDisplayState::Failed => None,
+    }
 }
 
 fn inspector_detail_lines(data: &InspectorHudData) -> Vec<String> {
+    if !data.details_visible {
+        return Vec::new();
+    }
     let mut lines = Vec::with_capacity(12);
     match data.display_state {
-        InspectorDisplayState::Hidden => lines.push(INSPECTOR_HOVER_PROMPT.to_string()),
-        InspectorDisplayState::Collecting => {
-            if let Some(cell) = data.hovered_cell {
-                lines.push(format!("Cell: {}, {}", cell.x, cell.y));
-            }
-            lines.push(INSPECTOR_COLLECTING.to_string());
-        }
-        InspectorDisplayState::Unavailable => {
-            lines.push(INSPECTOR_UNAVAILABLE.to_string());
-            if let Some(message) = &data.error_message {
-                lines.push(message.clone());
-            }
-        }
+        InspectorDisplayState::Hidden | InspectorDisplayState::Pending => {}
+        InspectorDisplayState::Failed => lines.push(INSPECTOR_UNAVAILABLE.to_string()),
         InspectorDisplayState::Ready => {
             let Some(sample) = data.sample.as_ref() else {
-                lines.push(INSPECTOR_COLLECTING.to_string());
                 return lines;
             };
             let material_name = material_display_name(sample.material_id);
@@ -112,6 +102,19 @@ fn inspector_detail_lines(data: &InspectorHudData) -> Vec<String> {
         }
     }
     lines.into_iter().map(|line| ascii_only(&line)).collect()
+}
+
+fn inspector_detail_panel_rect(
+    surface_width: f32,
+    surface_height: f32,
+    content_top: f32,
+    state: InspectorDisplayState,
+) -> Option<ScreenRect> {
+    let mut rect = detail_panel_rect(surface_width, surface_height, content_top)?;
+    if state == InspectorDisplayState::Failed {
+        rect.height = INSPECTOR_FAILURE_PANEL_HEIGHT;
+    }
+    Some(rect)
 }
 
 /// Single vertex for the text / UI quad batcher.
@@ -3349,8 +3352,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         card_border: [f32; 4],
         white_uv: [f32; 2],
     ) {
-        if data.details_visible {
-            if let Some(panel) = detail_panel_rect(surface_w, surface_h, content_top) {
+        let detail_lines = inspector_detail_lines(data);
+        if !detail_lines.is_empty() {
+            if let Some(panel) =
+                inspector_detail_panel_rect(surface_w, surface_h, content_top, data.display_state)
+            {
                 let panel_bg = [0.035, 0.055, 0.085, 0.98];
                 self.batch.draw_rect(
                     panel.x,
@@ -3380,7 +3386,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
                 let mut line_y = panel.y + 34.0;
                 let line_bottom = panel.bottom() - 8.0;
-                for (index, line) in inspector_detail_lines(data).into_iter().enumerate() {
+                for (index, line) in detail_lines.into_iter().enumerate() {
                     if line_y + 15.0 > line_bottom {
                         break;
                     }
@@ -3389,9 +3395,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     let line_color = if index == 0 {
                         match data.display_state {
                             InspectorDisplayState::Ready => value,
-                            InspectorDisplayState::Hidden => label,
-                            InspectorDisplayState::Collecting
-                            | InspectorDisplayState::Unavailable => orange,
+                            InspectorDisplayState::Failed => orange,
+                            InspectorDisplayState::Hidden | InspectorDisplayState::Pending => label,
                         }
                     } else {
                         value
@@ -3443,19 +3448,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             white_uv,
         );
         let fitted = fit_ascii_text(&self.batch, &self.atlas, 14, &text, rect.width - 16.0);
-        let tooltip_color = match data.display_state {
-            InspectorDisplayState::Ready => value,
-            InspectorDisplayState::Hidden => label,
-            InspectorDisplayState::Collecting | InspectorDisplayState::Unavailable => orange,
-        };
-        self.batch.draw_text(
-            &self.atlas,
-            rect.x + 8.0,
-            rect.y + 8.0,
-            14,
-            &fitted,
-            tooltip_color,
-        );
+        self.batch
+            .draw_text(&self.atlas, rect.x + 8.0, rect.y + 8.0, 14, &fitted, value);
     }
 
     /// G8-B benchmark scenario Gallery HUD. All simulation counts come from
@@ -3807,35 +3801,29 @@ mod tests {
     }
 
     #[test]
-    fn gallery_inspector_copy_is_ascii_and_covers_non_ready_states() {
-        for text in [
-            INSPECTOR_TITLE,
-            INSPECTOR_HOVER_PROMPT,
-            INSPECTOR_COLLECTING,
-            INSPECTOR_UNAVAILABLE,
-            GALLERY_CONTROLS,
-        ] {
+    fn gallery_inspector_pending_is_silent_and_failed_is_detail_only() {
+        for text in [INSPECTOR_TITLE, INSPECTOR_UNAVAILABLE, GALLERY_CONTROLS] {
             assert!(text.is_ascii(), "non-ASCII Inspector copy: {text}");
         }
 
         let hidden = inspector_hud(InspectorDisplayState::Hidden);
         assert_eq!(compact_inspector_text(&hidden), None);
+        assert!(inspector_detail_lines(&hidden).is_empty());
 
-        let collecting = inspector_hud(InspectorDisplayState::Collecting);
-        assert_eq!(
-            compact_inspector_text(&collecting).as_deref(),
-            Some("Collecting...")
-        );
-        assert_eq!(
-            inspector_detail_lines(&collecting),
-            vec!["Collecting...".to_string()]
-        );
+        let mut pending = inspector_hud(InspectorDisplayState::Pending);
+        pending.hovered_cell = Some(crate::inspector::CellCoordinate { x: 7, y: 9 });
+        assert_eq!(compact_inspector_text(&pending), None);
+        assert!(inspector_detail_lines(&pending).is_empty());
 
-        let mut unavailable = inspector_hud(InspectorDisplayState::Unavailable);
-        unavailable.error_message = Some("reset failed: 승패".to_string());
-        let lines = inspector_detail_lines(&unavailable);
+        let mut failed = inspector_hud(InspectorDisplayState::Failed);
+        failed.error_message = Some("map failed: 승패".to_string());
+        failed.details_visible = false;
+        assert_eq!(compact_inspector_text(&failed), None);
+        assert!(inspector_detail_lines(&failed).is_empty());
+        failed.details_visible = true;
+        let lines = inspector_detail_lines(&failed);
         assert!(lines.iter().all(|line| line.is_ascii()));
-        assert_eq!(lines[0], INSPECTOR_UNAVAILABLE);
+        assert_eq!(lines, vec![INSPECTOR_UNAVAILABLE.to_string()]);
     }
 
     #[test]
@@ -3898,6 +3886,24 @@ mod tests {
         assert!(detail.x >= 18.0);
         assert!(detail.right() < 400.0);
         assert!(detail.bottom() <= 1080.0 - 66.0);
+
+        let ready_panel = inspector_detail_panel_rect(
+            1920.0,
+            1080.0,
+            existing_rows_bottom,
+            InspectorDisplayState::Ready,
+        )
+        .unwrap();
+        let failed_panel = inspector_detail_panel_rect(
+            1920.0,
+            1080.0,
+            existing_rows_bottom,
+            InspectorDisplayState::Failed,
+        )
+        .unwrap();
+        assert_eq!(ready_panel, detail);
+        assert_eq!(failed_panel.height, INSPECTOR_FAILURE_PANEL_HEIGHT);
+        assert!(failed_panel.height < ready_panel.height);
     }
 
     #[test]

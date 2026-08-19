@@ -46,9 +46,9 @@ Owner: user
 
 Blocks: G9 start, optimization review/implementation, G8 closure, and later publication choices.
 
-Known state: The first non-evidence G8-C pilot failed before any official matrix, Receipt, package, or independent-verifier result existed. Therefore there is no verified matrix recommendation yet.
+Known state: Both G8-C non-evidence pilots stopped before any official matrix, final Receipt, official package, or independent official verifier result existed. Therefore there is no verified matrix recommendation yet.
 
-Next check: After Q-006 is resolved and a verified official matrix exists, refresh `memory/CHECKPOINT.md` from exact live Git and evidence, then ask the user for the next explicit product/optimization decision. Do not auto-start G9 or optimization.
+Next check: After Q-007 is resolved and a verified official matrix exists, refresh `memory/CHECKPOINT.md` from exact live Git and evidence, then ask the user for the next explicit product/optimization decision. Do not auto-start G9 or optimization.
 
 Status: open
 
@@ -58,7 +58,7 @@ Owner: project operator
 
 Blocks: Repository-wide enforcement of the active memory workflow in future Powdergame sessions.
 
-Known state: The user approved adoption. PR #4 contains the isolated pilot and active cutover, but commit-preserving integration is deferred while the G8-C writer owns a dirty staged worktree. Squash is forbidden.
+Known state: The user approved adoption. PR #4 contains the isolated pilot and active cutover, but commit-preserving integration is deferred while the G8-C writer owns a dirty staged/unstaged worktree. Squash is forbidden.
 
 Next check: After the G8-C writer reaches a clean safe stop, exact-fetch the active line, refresh the checkpoint, reconcile the PR against the live history, and integrate PR #4 using a commit-preserving method.
 
@@ -68,23 +68,36 @@ Status: open
 
 Owner: user
 
+Original block: G8-C official matrix, independent verification, and any later performance/product decision.
+
+### Disposition — closed 2026-08-19
+
+The user authorized the narrow window-lifecycle remediation, one replacement non-evidence pilot, and conditional official capture. The remediation succeeded: all ten Mode C/D workers stayed live at 1600×900, ten stale 2864×1560 event payloads were ignored safely, and fatal live resize/surface/device errors were zero. The one replacement pilot ran all 15 measurement subprocesses successfully but failed final aggregation because the coordinator searched for `wall_ms_per_tick` while the historical producer emits metric name `wall_per_tick` with unit `ms/tick`. No official capture was run. The bounded authorization was consumed without producing official evidence.
+
+Status: closed
+
+## Q-007 · Is the narrow historical-CSV adapter fix and conditional official capture authorized? — opened 2026-08-19
+
+Owner: user
+
 Blocks: G8-C official matrix, independent verification, and any later performance/product decision.
 
 Known evidence:
 
-- G8-B is `CLOSED / FROZEN` at closure commit `18391e6a9fc8f9bc7b2757f3504366f106c05435`.
-- G8-C branch is `feature/m0-g8c-official-matrix` at clean upstream base `8ee1ae238c324c1db1d7e2882af071fec179a8f1`, with intended 14-file staged work and no sealed G8-C source commit.
-- Pilot `g8c-pilot-8ee1ae238c32-c64090539536` completed all five headless Mode A/B subprocesses but failed the first Sand Fall Mode C process.
-- The renderer had already confirmed live 1600×900. A late initial `Resized(2864×1560)` payload was misclassified as a real post-init resize.
-- No official capture, Receipt, hash inventory, package, matrix report, or verifier result exists.
+- G8-C remains on `feature/m0-g8c-official-matrix` at upstream-equal HEAD `8ee1ae238c324c1db1d7e2882af071fec179a8f1`; no sealed G8-C source commit exists.
+- The original 14 intended paths remain staged with patch SHA-256 `eba224c3f39c2a0a40fc47be46bdc5a7863a6062027b1952bbb114535c1d6733`.
+- Five lifecycle/coordinator remediation files remain unstaged with patch SHA-256 `069338e8922c4b717ead60fb5fdabef0a0ac93739c064e60faa74c56443d2150`.
+- Replacement pilot `g8c-pilot-8ee1ae238c32-6341f4f59218` completed all five Headless A/B, five Mode C, and five Mode D subprocesses with exit `0`.
+- The historical benchmark summary producer emits throughput metric `wall_per_tick` and unit `ms/tick`; the new coordinator expected internal name `wall_ms_per_tick` and stopped with `headless summary is incomplete`.
+- No official Matrix ID, final Receipt, official package, official binary hashes, or independent official verification exists.
 
 Proposed bounded authorization:
 
-1. preserve the failed pilot and staged work;
-2. distinguish stale resize payload from the current live `window.inner_size()` without allowing arbitrary sizes;
-3. run targeted lifecycle regressions;
-4. run exactly one replacement non-evidence pilot;
-5. only if it passes, seal/commit/push source and run exactly one official capture, one independent verification, and one package;
-6. stop without G9 or optimization.
+1. preserve both failed pilots and the staged/unstaged worktree state;
+2. map raw `wall_per_tick` with exact unit `ms/tick` to internal `wall_ms_per_tick` without changing historical CSV vocabulary;
+3. add actual-producer-schema plus missing/duplicate/wrong-unit regressions;
+4. run one aggregation-only scratch replay over copied and hash-bound raw outputs from the completed replacement pilot, exercising report/Receipt/package/verifier without rerunning GPU measurement subprocesses;
+5. only if that replay passes, seal/commit/push source and run exactly one official matrix capture, one independent verification, and one package;
+6. stop without G9 or optimization; any replay or official failure requires a new explicit decision.
 
 Status: open

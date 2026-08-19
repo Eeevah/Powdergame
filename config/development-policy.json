@@ -33,13 +33,20 @@
       "thermal": "--thermal-demo",
       "pressure": "--pressure-demo",
       "parallel-integrity": "--parallel-integrity-demo",
-      "activity": "--activity-demo"
+      "activity": "--activity-demo",
+      "sandbox": "--sandbox",
+      "play": "--sandbox"
     },
     "raw_cli_prefix": "--",
     "raw_cli_probe_args": [
       "--smoke-frames",
       "3",
       "--benchmark-gallery"
+    ],
+    "sandbox_smoke_probe_args": [
+      "sandbox",
+      "--smoke-frames",
+      "3"
     ],
     "invalid_alias_probe": "definitely-not-a-mode",
     "invalid_alias_exit_code": 2,
@@ -49,6 +56,7 @@
     "probe_stdout_prefix": "POWDERGAME_LAUNCHER_AUDIT_ARGS=",
     "usage_required_terms": [
       "default = Gallery",
+      "sandbox/play = G9-A first playable Sandbox",
       "runtime/g0 = technical empty G0 baseline"
     ]
   },
@@ -128,7 +136,7 @@
       "id": "app-readback-provenance",
       "priority": 80,
       "patterns": [
-        "^apps/windows/src/(main|renderer|observatory|gallery)\\.rs$",
+        "^apps/windows/src/(main|renderer|observatory|gallery|inspector|sandbox|text_renderer)\\.rs$",
         "^apps/windows/build\\.rs$",
         "^apps/benchmark/",
         "^tools/experiment/run_experiment\\.py$"

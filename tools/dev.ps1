@@ -442,6 +442,8 @@ function Invoke-DevelopmentAudit {
             pressure = "--pressure-demo"
             "parallel-integrity" = "--parallel-integrity-demo"
             activity = "--activity-demo"
+            sandbox = "--sandbox"
+            play = "--sandbox"
         }
         if ([string]$contract.default_args -cne "--benchmark-gallery") {
             $errors.Add("Canonical launcher policy default must be --benchmark-gallery")
@@ -480,6 +482,7 @@ function Invoke-DevelopmentAudit {
         }
         $requiredUsageTerms = @(
             "default = Gallery",
+            "sandbox/play = G9-A first playable Sandbox",
             "runtime/g0 = technical empty G0 baseline"
         )
         $declaredUsageTerms = @($contract.usage_required_terms | ForEach-Object { [string]$_ })
@@ -528,6 +531,18 @@ function Invoke-DevelopmentAudit {
                 name = "raw-cli"
                 args = $rawArgs
                 expected_args = $rawArgs -join " "
+            })
+        }
+        $requiredSandboxSmokeProbeArgs = @("sandbox", "--smoke-frames", "3")
+        $declaredSandboxSmokeProbeArgs = @($contract.sandbox_smoke_probe_args | ForEach-Object { [string]$_ })
+        if ($declaredSandboxSmokeProbeArgs.Count -ne $requiredSandboxSmokeProbeArgs.Count -or
+            ($declaredSandboxSmokeProbeArgs -join "`0") -cne ($requiredSandboxSmokeProbeArgs -join "`0")) {
+            $errors.Add("Canonical launcher Sandbox smoke probe must remain sandbox --smoke-frames 3")
+        } else {
+            $successCases.Add([pscustomobject]@{
+                name = "sandbox-smoke"
+                args = $declaredSandboxSmokeProbeArgs
+                expected_args = "--sandbox --smoke-frames 3"
             })
         }
 

@@ -10,6 +10,9 @@ if "%~1"=="" goto route_gallery
 set "FIRST_ARG=%~1"
 if "%FIRST_ARG:~0,2%"=="--" goto build
 
+if /i "%~1"=="sandbox" goto route_sandbox
+if /i "%~1"=="play" goto route_sandbox
+
 if not "%~2"=="" goto usage
 if /i "%~1"=="normal" goto route_gallery
 if /i "%~1"=="gallery" goto route_gallery
@@ -55,6 +58,15 @@ goto build
 set "APP_ARGS=--activity-demo"
 goto build
 
+:route_sandbox
+set "APP_ARGS=--sandbox"
+if "%~2"=="" goto build
+if /i not "%~2"=="--smoke-frames" goto usage
+if "%~3"=="" goto usage
+if not "%~4"=="" goto usage
+set "APP_ARGS=--sandbox --smoke-frames %~3"
+goto build
+
 :build
 if defined POWDERGAME_LAUNCHER_AUDIT_ONLY (
     if "%POWDERGAME_LAUNCHER_AUDIT_ONLY%"=="%POWDERGAME_LAUNCHER_AUDIT_NONCE%" goto launcher_audit
@@ -79,7 +91,8 @@ echo POWDERGAME_LAUNCHER_AUDIT_ARGS=%APP_ARGS%
 exit /b 0
 
 :usage
-echo Usage: run_powdergame.bat [normal^|gallery^|runtime^|g0^|movement^|density^|thermal^|pressure^|parallel-integrity^|activity^|app CLI args...] 1>&2
+echo Usage: run_powdergame.bat [sandbox^|play^|normal^|gallery^|runtime^|g0^|movement^|density^|thermal^|pressure^|parallel-integrity^|activity^|app CLI args...] 1>&2
 echo   default = Gallery ^(no args, normal, gallery^) 1>&2
+echo   sandbox/play = G9-A first playable Sandbox 1>&2
 echo   runtime/g0 = technical empty G0 baseline 1>&2
 exit /b 2

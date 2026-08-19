@@ -65,6 +65,9 @@ pub enum PresentationPalette {
     /// G8-B benchmark Gallery: neutral material identity plus generic,
     /// coordinate-independent temperature, pressure, and reaction tinting.
     Gallery = 5,
+    /// G9-A first-playable Sandbox: neutral product colors with the same
+    /// camera transform used by rendering, picking, and the Inspector.
+    Sandbox = 6,
 }
 
 /// Physical-pixel rectangle occupied by the rendered world.
@@ -128,6 +131,11 @@ impl WorldViewport {
                 (surface_height - 140.0).max(1.0),
                 60.0,
             ),
+            PresentationPalette::Sandbox => (
+                (surface_width - 310.0 * 2.0).max(1.0),
+                (surface_height - 120.0).max(1.0),
+                56.0,
+            ),
         };
 
         let scale = (available_width / world_width_f).min(available_height / world_height_f);
@@ -156,6 +164,7 @@ impl WorldViewport {
     }
 
     /// Maps a physical cursor point to a top-left-origin world cell.
+    #[allow(dead_code)] // retained as the full-world compatibility picker
     pub fn cell_at(self, cursor: PhysicalPosition<f64>) -> Option<(u32, u32)> {
         if !cursor.x.is_finite() || !cursor.y.is_finite() {
             return None;
@@ -176,8 +185,142 @@ impl WorldViewport {
     }
 }
 
+/// Finite, clamped world-space camera state. `zoom == 1` is the full-world
+/// fitted view; larger values zoom in around `center_*`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldCamera {
+    pub center_x: f32,
+    pub center_y: f32,
+    pub zoom: f32,
+}
+
+impl WorldCamera {
+    pub fn fitted(world_width: u32, world_height: u32) -> Self {
+        Self {
+            center_x: world_width as f32 * 0.5,
+            center_y: world_height as f32 * 0.5,
+            zoom: 1.0,
+        }
+    }
+
+    fn normalized(self, world_width: u32, world_height: u32) -> Self {
+        let mut camera = self;
+        if !camera.zoom.is_finite() {
+            camera.zoom = 1.0;
+        }
+        camera.zoom = camera.zoom.clamp(1.0, 16.0);
+        if !camera.center_x.is_finite() {
+            camera.center_x = world_width as f32 * 0.5;
+        }
+        if !camera.center_y.is_finite() {
+            camera.center_y = world_height as f32 * 0.5;
+        }
+        let half_w = world_width as f32 / (2.0 * camera.zoom);
+        let half_h = world_height as f32 / (2.0 * camera.zoom);
+        camera.center_x = camera.center_x.clamp(half_w, world_width as f32 - half_w);
+        camera.center_y = camera.center_y.clamp(half_h, world_height as f32 - half_h);
+        camera
+    }
+
+    fn panned_by_pixels(self, viewport: WorldViewport, delta_x: f32, delta_y: f32) -> Self {
+        if !delta_x.is_finite() || !delta_y.is_finite() {
+            return self.normalized(viewport.world_width, viewport.world_height);
+        }
+        let transform = WorldTransform::calculate(viewport, self);
+        Self {
+            center_x: self.center_x - delta_x / transform.scale,
+            center_y: self.center_y - delta_y / transform.scale,
+            zoom: self.zoom,
+        }
+        .normalized(viewport.world_width, viewport.world_height)
+    }
+
+    fn zoomed_at(
+        self,
+        viewport: WorldViewport,
+        cursor: PhysicalPosition<f64>,
+        factor: f32,
+    ) -> Self {
+        if !factor.is_finite() || factor <= 0.0 {
+            return self.normalized(viewport.world_width, viewport.world_height);
+        }
+        let before = WorldTransform::calculate(viewport, self);
+        let Some(anchor) = before.world_at(cursor) else {
+            return self.normalized(viewport.world_width, viewport.world_height);
+        };
+        let zoom = (self.zoom * factor).clamp(1.0, 16.0);
+        let scale = viewport.scale * zoom;
+        let cursor_world_offset_x = (cursor.x as f32 - viewport.x) / scale;
+        let cursor_world_offset_y = (cursor.y as f32 - viewport.y) / scale;
+        let visible_w = viewport.world_width as f32 / zoom;
+        let visible_h = viewport.world_height as f32 / zoom;
+        Self {
+            center_x: anchor.0 - cursor_world_offset_x + visible_w * 0.5,
+            center_y: anchor.1 - cursor_world_offset_y + visible_h * 0.5,
+            zoom,
+        }
+        .normalized(viewport.world_width, viewport.world_height)
+    }
+}
+
+/// Exact camera-aware physical-pixel transform shared by shader and picking.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorldTransform {
+    pub viewport: WorldViewport,
+    pub origin_x: f32,
+    pub origin_y: f32,
+    pub scale: f32,
+    world_width: u32,
+    world_height: u32,
+}
+
+impl WorldTransform {
+    fn calculate(viewport: WorldViewport, camera: WorldCamera) -> Self {
+        let camera = camera.normalized(viewport.world_width, viewport.world_height);
+        let visible_w = viewport.world_width as f32 / camera.zoom;
+        let visible_h = viewport.world_height as f32 / camera.zoom;
+        Self {
+            viewport,
+            origin_x: camera.center_x - visible_w * 0.5,
+            origin_y: camera.center_y - visible_h * 0.5,
+            scale: viewport.scale * camera.zoom,
+            world_width: viewport.world_width,
+            world_height: viewport.world_height,
+        }
+    }
+
+    pub fn cell_at(self, cursor: PhysicalPosition<f64>) -> Option<(u32, u32)> {
+        if !cursor.x.is_finite() || !cursor.y.is_finite() {
+            return None;
+        }
+        if cursor.x < f64::from(self.viewport.x)
+            || cursor.x >= f64::from(self.viewport.right())
+            || cursor.y < f64::from(self.viewport.y)
+            || cursor.y >= f64::from(self.viewport.bottom())
+        {
+            return None;
+        }
+        let x = (f64::from(self.origin_x)
+            + (cursor.x - f64::from(self.viewport.x)) / f64::from(self.scale))
+        .floor() as u32;
+        let y = (f64::from(self.origin_y)
+            + (cursor.y - f64::from(self.viewport.y)) / f64::from(self.scale))
+        .floor() as u32;
+        (x < self.world_width && y < self.world_height).then_some((x, y))
+    }
+
+    fn world_at(self, cursor: PhysicalPosition<f64>) -> Option<(f32, f32)> {
+        self.cell_at(cursor)?;
+        Some((
+            self.origin_x + (cursor.x as f32 - self.viewport.x) / self.scale,
+            self.origin_y + (cursor.y as f32 - self.viewport.y) / self.scale,
+        ))
+    }
+}
+
 /// Pure physical-pixel picking entry point. `None` represents modes without a
 /// `WorldView` (for example the explicit runtime baseline).
+#[allow(dead_code)] // pure compatibility entry point used by viewport regressions
 pub fn pick_world_cell(
     viewport: Option<WorldViewport>,
     cursor: PhysicalPosition<f64>,
@@ -376,8 +519,8 @@ const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     a: 1.0,
 };
 
-/// Params uniform: world/surface/layout metadata + CPU viewport (48 B).
-const WORLD_VIEW_PARAMS_SIZE: u64 = 48;
+/// Params uniform: world/surface/layout metadata + CPU camera transform (64 B).
+const WORLD_VIEW_PARAMS_SIZE: u64 = 64;
 /// Metrics uniform: 32 u32/f32 values = 128 B.
 const METRICS_UNIFORM_SIZE: u64 = 128;
 
@@ -393,7 +536,11 @@ struct Params {
     _pad2: u32,
     viewport_x: f32,
     viewport_y: f32,
-    viewport_scale: f32,
+    viewport_width: f32,
+    viewport_height: f32,
+    camera_origin_x: f32,
+    camera_origin_y: f32,
+    camera_scale: f32,
     _pad3: f32,
 };
 
@@ -460,6 +607,7 @@ const PALETTE_THERMAL: u32 = 2u;
 const PALETTE_INTEGRITY: u32 = 3u;
 const PALETTE_ACTIVITY: u32 = 4u;
 const PALETTE_GALLERY: u32 = 5u;
+const PALETTE_SANDBOX: u32 = 6u;
 
 const ACT_MATTER: u32 = 1u << 0u;
 const ACT_THERMAL: u32 = 1u << 1u;
@@ -614,7 +762,8 @@ fn debug_color(id: u32, palette: u32) -> vec4<f32> {
         || palette == PALETTE_THERMAL
         || palette == PALETTE_INTEGRITY
         || palette == PALETTE_ACTIVITY
-        || palette == PALETTE_GALLERY) {
+        || palette == PALETTE_GALLERY
+        || palette == PALETTE_SANDBOX) {
         if (id == EMPTY) { return vec4<f32>(0.05, 0.055, 0.07, 1.0); }
         if (id == BOUNDARY) { return vec4<f32>(0.22, 0.23, 0.25, 1.0); }
         if (id == STONE) { return vec4<f32>(0.46, 0.47, 0.50, 1.0); }
@@ -783,16 +932,17 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let integrity = params.palette == PALETTE_INTEGRITY;
     let activity = params.palette == PALETTE_ACTIVITY;
     let gallery = params.palette == PALETTE_GALLERY;
-    let scale = params.viewport_scale;
+    let sandbox = params.palette == PALETTE_SANDBOX;
+    let scale = params.camera_scale;
     let off_x = params.viewport_x;
     let off_y = params.viewport_y;
     let px = frag.x;
     let py = frag.y;
-    let in_viewport = px >= off_x && px < off_x + ww * scale
-                   && py >= off_y && py < off_y + wh * scale;
+    let in_viewport = px >= off_x && px < off_x + params.viewport_width
+                   && py >= off_y && py < off_y + params.viewport_height;
     if (in_viewport) {
-        let cell_x = min(u32((px - off_x) / scale), params.width - 1u);
-        let cell_y = min(u32((py - off_y) / scale), params.height - 1u);
+        let cell_x = min(u32(params.camera_origin_x + (px - off_x) / scale), params.width - 1u);
+        let cell_y = min(u32(params.camera_origin_y + (py - off_y) / scale), params.height - 1u);
         let idx = cell_y * params.width + cell_x;
         if (thermal) {
             return thermal_lab_color(
@@ -831,7 +981,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         }
         return vec4<f32>(0.07, 0.08, 0.11, 1.0);
     }
-    if (integrity || gallery) {
+    if (integrity || gallery || sandbox) {
         // No procedural G3 HUD here — the G6 HUD is the screen-space text
         // renderer. Just a crisp viewport border over the dark lab backdrop.
         let border_t = 1.0;
@@ -1001,6 +1151,7 @@ impl Renderer {
                         | PresentationPalette::Integrity
                         | PresentationPalette::Activity
                         | PresentationPalette::Gallery
+                        | PresentationPalette::Sandbox
                 )
             })
             .unwrap_or(false);
@@ -1038,19 +1189,78 @@ impl Renderer {
     /// Returns the world rectangle currently sent to the shader, in physical
     /// surface pixels. Runtime-baseline mode has no world viewport.
     pub fn world_viewport(&self) -> Option<WorldViewport> {
+        Some(self.world_transform()?.viewport)
+    }
+
+    /// Returns the exact camera-aware transform currently sent to the shader.
+    pub fn world_transform(&self) -> Option<WorldTransform> {
         let world_view = self.world_view.as_ref()?;
-        WorldViewport::calculate(
+        let viewport = WorldViewport::calculate(
             self.config.width,
             self.config.height,
             world_view.world_width,
             world_view.world_height,
             world_view.palette,
-        )
+        )?;
+        Some(WorldTransform::calculate(viewport, world_view.camera))
     }
 
     /// Picks a top-left-origin world cell from a physical cursor position.
     pub fn world_cell_at(&self, cursor: PhysicalPosition<f64>) -> Option<(u32, u32)> {
-        pick_world_cell(self.world_viewport(), cursor)
+        self.world_transform()?.cell_at(cursor)
+    }
+
+    pub fn reset_world_camera(&mut self) {
+        let Some(world_view) = &mut self.world_view else {
+            return;
+        };
+        world_view.camera = WorldCamera::fitted(world_view.world_width, world_view.world_height);
+        write_world_view_params(&self.queue, world_view, &self.config);
+    }
+
+    /// Pans the world with a physical-pixel drag. Positive pointer movement
+    /// moves the presented world with the pointer.
+    pub fn pan_world_camera(&mut self, delta_x: f32, delta_y: f32) {
+        if !delta_x.is_finite() || !delta_y.is_finite() {
+            return;
+        }
+        let Some(world_view) = &mut self.world_view else {
+            return;
+        };
+        let Some(viewport) = WorldViewport::calculate(
+            self.config.width,
+            self.config.height,
+            world_view.world_width,
+            world_view.world_height,
+            world_view.palette,
+        ) else {
+            return;
+        };
+        world_view.camera = world_view
+            .camera
+            .panned_by_pixels(viewport, delta_x, delta_y);
+        write_world_view_params(&self.queue, world_view, &self.config);
+    }
+
+    /// Cursor-anchored zoom using the same transform as shader and picking.
+    pub fn zoom_world_camera_at(&mut self, cursor: PhysicalPosition<f64>, factor: f32) {
+        if !factor.is_finite() || factor <= 0.0 {
+            return;
+        }
+        let Some(world_view) = &mut self.world_view else {
+            return;
+        };
+        let Some(viewport) = WorldViewport::calculate(
+            self.config.width,
+            self.config.height,
+            world_view.world_width,
+            world_view.world_height,
+            world_view.palette,
+        ) else {
+            return;
+        };
+        world_view.camera = world_view.camera.zoomed_at(viewport, cursor, factor);
+        write_world_view_params(&self.queue, world_view, &self.config);
     }
 
     /// Updates the live observatory metrics uniform buffer for HUD display.
@@ -1070,6 +1280,7 @@ pub enum HudData<'a> {
     ParallelIntegrity(&'a crate::observatory::IntegrityMetrics, u64),
     Activity(&'a crate::observatory::ActivityMetrics, u64),
     Gallery(&'a crate::gallery::GalleryHudData),
+    Sandbox(&'a crate::sandbox::SandboxHudData),
 }
 
 impl Renderer {
@@ -1446,6 +1657,16 @@ impl Renderer {
                         data,
                     );
                 }
+                HudData::Sandbox(data) => {
+                    tr.render_sandbox_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        data,
+                    );
+                }
             }
         }
     }
@@ -1548,6 +1769,7 @@ struct WorldView {
     world_height: u32,
     chunk_size: u32,
     palette: PresentationPalette,
+    camera: WorldCamera,
 }
 
 /// Builds the read-only world-view pipeline + bind group.
@@ -1738,6 +1960,7 @@ fn build_world_view(
         world_height: spec.height,
         chunk_size: spec.chunk_size,
         palette: spec.palette,
+        camera: WorldCamera::fitted(spec.width, spec.height),
     };
     write_world_view_params(queue, &world_view, config);
     world_view
@@ -1757,6 +1980,7 @@ fn write_world_view_params(
         wv.palette,
     )
     .expect("configured surface and WorldConfig dimensions are non-zero");
+    let transform = WorldTransform::calculate(viewport, wv.camera);
     let mut data = [0u8; WORLD_VIEW_PARAMS_SIZE as usize];
     data[0..4].copy_from_slice(&wv.world_width.to_ne_bytes());
     data[4..8].copy_from_slice(&wv.world_height.to_ne_bytes());
@@ -1772,7 +1996,11 @@ fn write_world_view_params(
     data[24..28].copy_from_slice(&chunks_x.to_ne_bytes());
     data[32..36].copy_from_slice(&viewport.x.to_ne_bytes());
     data[36..40].copy_from_slice(&viewport.y.to_ne_bytes());
-    data[40..44].copy_from_slice(&viewport.scale.to_ne_bytes());
+    data[40..44].copy_from_slice(&viewport.width.to_ne_bytes());
+    data[44..48].copy_from_slice(&viewport.height.to_ne_bytes());
+    data[48..52].copy_from_slice(&transform.origin_x.to_ne_bytes());
+    data[52..56].copy_from_slice(&transform.origin_y.to_ne_bytes());
+    data[56..60].copy_from_slice(&transform.scale.to_ne_bytes());
     queue.write_buffer(&wv.params, 0, &data);
 }
 
@@ -1935,6 +2163,102 @@ mod viewport_tests {
         assert!(
             WorldViewport::calculate(1600, 900, 256, 0, PresentationPalette::Gallery).is_none()
         );
+    }
+
+    #[test]
+    fn sandbox_camera_transform_pans_zooms_and_keeps_renderer_picker_shared() {
+        let viewport =
+            WorldViewport::calculate(1600, 900, 256, 256, PresentationPalette::Sandbox).unwrap();
+        assert_eq!(
+            (viewport.x, viewport.y, viewport.width, viewport.height),
+            (410.0, 56.0, 780.0, 780.0)
+        );
+        let fitted = WorldTransform::calculate(viewport, WorldCamera::fitted(256, 256));
+        assert_eq!(
+            fitted.cell_at(PhysicalPosition::new(
+                f64::from(viewport.x + 1.0),
+                f64::from(viewport.y + 1.0),
+            )),
+            Some((0, 0))
+        );
+
+        let camera = WorldCamera {
+            center_x: 96.0,
+            center_y: 160.0,
+            zoom: 4.0,
+        };
+        let zoomed = WorldTransform::calculate(viewport, camera);
+        assert_eq!((zoomed.origin_x, zoomed.origin_y), (64.0, 128.0));
+        assert_eq!(
+            zoomed.cell_at(PhysicalPosition::new(
+                f64::from(viewport.x + 0.5 * zoomed.scale),
+                f64::from(viewport.y + 0.5 * zoomed.scale),
+            )),
+            Some((64, 128))
+        );
+        assert_eq!(
+            zoomed.cell_at(PhysicalPosition::new(
+                f64::from(viewport.right()),
+                f64::from(viewport.y),
+            )),
+            None
+        );
+    }
+
+    #[test]
+    fn sandbox_camera_clamps_nonfinite_and_world_loss() {
+        let viewport =
+            WorldViewport::calculate(1200, 1000, 256, 256, PresentationPalette::Sandbox).unwrap();
+        let transform = WorldTransform::calculate(
+            viewport,
+            WorldCamera {
+                center_x: f32::NAN,
+                center_y: f32::INFINITY,
+                zoom: f32::NEG_INFINITY,
+            },
+        );
+        assert!(transform.origin_x.is_finite());
+        assert!(transform.origin_y.is_finite());
+        assert!(transform.scale.is_finite());
+        assert_eq!((transform.origin_x, transform.origin_y), (0.0, 0.0));
+
+        let edge = WorldTransform::calculate(
+            viewport,
+            WorldCamera {
+                center_x: -1000.0,
+                center_y: 1000.0,
+                zoom: 16.0,
+            },
+        );
+        assert_eq!(edge.origin_x, 0.0);
+        assert_eq!(edge.origin_y, 240.0);
+    }
+
+    #[test]
+    fn sandbox_pan_and_cursor_anchored_zoom_are_deterministic_after_resize() {
+        for (width, height) in [(1600, 900), (1400, 1000), (2400, 1350)] {
+            let viewport =
+                WorldViewport::calculate(width, height, 256, 256, PresentationPalette::Sandbox)
+                    .unwrap();
+            let cursor = PhysicalPosition::new(
+                f64::from(viewport.x + viewport.width * 0.63),
+                f64::from(viewport.y + viewport.height * 0.41),
+            );
+            let camera = WorldCamera::fitted(256, 256).zoomed_at(viewport, cursor, 4.0);
+            let before = WorldTransform::calculate(viewport, camera)
+                .world_at(cursor)
+                .unwrap();
+            let camera = camera.zoomed_at(viewport, cursor, 1.25);
+            let after = WorldTransform::calculate(viewport, camera)
+                .world_at(cursor)
+                .unwrap();
+            assert!((before.0 - after.0).abs() < 0.001);
+            assert!((before.1 - after.1).abs() < 0.001);
+
+            let panned = camera.panned_by_pixels(viewport, 25.0, -40.0);
+            assert!(panned.center_x.is_finite() && panned.center_y.is_finite());
+            assert_ne!(panned, camera);
+        }
     }
 }
 

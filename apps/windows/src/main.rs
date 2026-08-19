@@ -47,6 +47,7 @@ mod gallery;
 mod inspector;
 mod observatory;
 mod renderer;
+mod sandbox;
 mod text_renderer;
 
 use std::sync::Arc;
@@ -55,7 +56,7 @@ use std::{path::PathBuf, process};
 
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
-use winit::event::{ElementState, WindowEvent};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
@@ -79,6 +80,11 @@ use powdergame_gpu::{verify_target_hardware, AdapterReport, GpuError, Simulation
 use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
 
 use renderer::{PresentationPalette, Renderer, WorldViewSpec};
+use sandbox::{
+    sandbox_hud_action_at, sandbox_key_action, stage_preset, SandboxCell, SandboxHudAction,
+    SandboxHudData, SandboxKeyAction, SandboxPreset, SandboxRuntime, SandboxTool,
+    SANDBOX_CHUNK_SIZE, SANDBOX_TITLE, SANDBOX_TPS, SANDBOX_WORLD_HEIGHT, SANDBOX_WORLD_WIDTH,
+};
 
 /// Demo observation rates: independent of the render FPS. Movement/Density
 /// keep the approved 15 TPS fixture timing; Thermal runs at 60 TPS so the
@@ -115,6 +121,7 @@ enum DemoMode {
     ParallelIntegrity,
     Activity,
     Gallery,
+    Sandbox,
 }
 
 impl DemoMode {
@@ -131,6 +138,7 @@ impl DemoMode {
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TPS,
             DemoMode::Activity => ACTIVITY_DEMO_TPS,
             DemoMode::Gallery => GALLERY_TPS,
+            DemoMode::Sandbox => SANDBOX_TPS,
         }
     }
 
@@ -305,6 +313,7 @@ struct App {
     demo_mode: DemoMode,
     demo: Option<DemoState>,
     gallery_provenance: Option<RuntimeProvenance>,
+    sandbox: Option<SandboxRuntime>,
     experiment: Option<ExperimentWorkerConfig>,
     cursor_position: Option<PhysicalPosition<f64>>,
     fatal_error: Option<String>,
@@ -327,6 +336,7 @@ impl App {
             demo_mode,
             demo: None,
             gallery_provenance: None,
+            sandbox: None,
             experiment,
             cursor_position: None,
             fatal_error: None,
@@ -342,6 +352,7 @@ impl App {
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TITLE,
             DemoMode::Activity => ACTIVITY_DEMO_TITLE,
             DemoMode::Gallery => GALLERY_TITLE,
+            DemoMode::Sandbox => SANDBOX_TITLE,
             DemoMode::None => "Powdergame — G0 Runtime",
         };
         // The thermal and pressure observatories use a larger world (320×192 / 256×256),
@@ -351,6 +362,7 @@ impl App {
             || self.demo_mode == DemoMode::ParallelIntegrity
             || self.demo_mode == DemoMode::Activity
             || self.demo_mode == DemoMode::Gallery
+            || self.demo_mode == DemoMode::Sandbox
         {
             (1600.0, 900.0)
         } else {
@@ -398,9 +410,15 @@ impl App {
                 DemoMode::ParallelIntegrity => (256, 256),
                 DemoMode::Activity => (256, 256),
                 DemoMode::Gallery => (256, 256),
+                DemoMode::Sandbox => (SANDBOX_WORLD_WIDTH, SANDBOX_WORLD_HEIGHT),
                 _ => (128, 128),
             };
-            WorldConfig::new(w, h, 64).expect("demo world config")
+            let chunk_size = if self.demo_mode == DemoMode::Sandbox {
+                SANDBOX_CHUNK_SIZE
+            } else {
+                64
+            };
+            WorldConfig::new(w, h, chunk_size).expect("demo world config")
         };
         let mut simulation = Simulation::with_context(context, config)?;
         println!("[powdergame] === world allocation ===");
@@ -483,7 +501,17 @@ impl App {
                     );
                 }
             }
+            DemoMode::Sandbox => {
+                stage_preset(&mut simulation, SandboxPreset::StarterLab)?;
+                println!("[powdergame][sandbox] Starter Lab staged at tick 0; starts PAUSED");
+            }
         }
+
+        let sandbox = if self.demo_mode == DemoMode::Sandbox {
+            Some(SandboxRuntime::new(&simulation)?)
+        } else {
+            None
+        };
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
             material_buffer: &simulation.world.material_current,
@@ -498,6 +526,7 @@ impl App {
                 DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
                 DemoMode::Activity => PresentationPalette::Activity,
                 DemoMode::Gallery => PresentationPalette::Gallery,
+                DemoMode::Sandbox => PresentationPalette::Sandbox,
                 _ => PresentationPalette::Forest,
             },
             chunk_activity_buffer: (self.demo_mode == DemoMode::Activity)
@@ -618,7 +647,8 @@ impl App {
             // visible; bounded smoke runs start PLAYING to exercise ticks.
             // Gallery is an inspection surface and always starts PAUSED, even
             // when a bounded presentation run is requested.
-            let start_playing = self.smoke_frames.is_some() && self.demo_mode != DemoMode::Gallery;
+            let start_playing = self.smoke_frames.is_some()
+                && !matches!(self.demo_mode, DemoMode::Gallery | DemoMode::Sandbox);
             let gallery = (self.demo_mode == DemoMode::Gallery).then(GalleryState::new);
             let demo = DemoState::new(
                 base_title,
@@ -635,6 +665,11 @@ impl App {
                 println!(
                     "[powdergame][inspector] compact hover ON | details OFF | {}-byte readback | max 10 Hz",
                     inspector::INSPECTOR_READBACK_BYTES
+                );
+            }
+            if self.demo_mode == DemoMode::Sandbox {
+                println!(
+                    "[powdergame][sandbox] product HUD ready | palette 9/9 | Draw/Erase/Heat/Cool | 24-byte Inspector max 10 Hz"
                 );
             }
             self.demo = Some(demo);
@@ -655,6 +690,7 @@ impl App {
         self.simulation = Some(simulation);
         self.renderer = Some(renderer);
         self.observatory_collector = observatory_collector;
+        self.sandbox = sandbox;
         Ok(())
     }
 
@@ -702,7 +738,10 @@ impl App {
         // exactly one tick.
         if !matches!(
             self.demo_mode,
-            DemoMode::ParallelIntegrity | DemoMode::Activity | DemoMode::Gallery
+            DemoMode::ParallelIntegrity
+                | DemoMode::Activity
+                | DemoMode::Gallery
+                | DemoMode::Sandbox
         ) {
             return;
         }
@@ -715,6 +754,23 @@ impl App {
     }
 
     fn request_reset(&mut self, window: &Window) {
+        if self.demo_mode == DemoMode::Sandbox {
+            let Some(sandbox) = &mut self.sandbox else {
+                return;
+            };
+            sandbox.request_preset(sandbox.preset);
+            if let Some(demo) = &mut self.demo {
+                demo.playing = false;
+                demo.step_pending = false;
+                demo.last_tick = None;
+            }
+            if let Some(inspector) = &mut self.cell_inspector {
+                inspector.begin_world_change();
+            }
+            println!("[powdergame][sandbox] current preset reset requested");
+            window.request_redraw();
+            return;
+        }
         if let Some(demo) = &mut self.demo {
             if let Some(gallery) = &mut demo.gallery {
                 let scenario = gallery.request_current_reset();
@@ -805,6 +861,262 @@ impl App {
             );
             window.request_redraw();
         }
+    }
+
+    fn request_sandbox_preset(&mut self, preset: SandboxPreset, window: &Window) {
+        if self.demo_mode != DemoMode::Sandbox {
+            return;
+        }
+        let Some(sandbox) = &mut self.sandbox else {
+            return;
+        };
+        sandbox.request_preset(preset);
+        if let Some(demo) = &mut self.demo {
+            demo.playing = false;
+            demo.step_pending = false;
+            demo.last_tick = None;
+        }
+        if let Some(inspector) = &mut self.cell_inspector {
+            inspector.begin_world_change();
+        }
+        println!(
+            "[powdergame][sandbox] pristine preset requested: {}",
+            preset.display_name()
+        );
+        window.request_redraw();
+    }
+
+    fn process_sandbox_world_boundary(&mut self) {
+        if self.demo_mode != DemoMode::Sandbox {
+            return;
+        }
+        let Some(simulation) = &mut self.simulation else {
+            return;
+        };
+        let Some(sandbox) = &mut self.sandbox else {
+            return;
+        };
+
+        if let Some(preset) = sandbox.pending_preset.take() {
+            match stage_preset(simulation, preset) {
+                Ok(()) => {
+                    sandbox.preset = preset;
+                    sandbox.edits.clear_pending();
+                    if let Some(demo) = &mut self.demo {
+                        demo.commit_pristine_reset();
+                        demo.fast = 1;
+                    }
+                    if let Some(renderer) = &mut self.renderer {
+                        renderer.reset_world_camera();
+                    }
+                    if let Some(inspector) = &mut self.cell_inspector {
+                        inspector.mark_ready();
+                    }
+                    println!(
+                        "[powdergame][sandbox] pristine preset committed: {} | tick 0",
+                        preset.display_name()
+                    );
+                }
+                Err(error) => {
+                    eprintln!("[powdergame][sandbox] preset staging failed: {error}");
+                    if let Some(inspector) = &mut self.cell_inspector {
+                        inspector.mark_unavailable(format!(
+                            "Inspector unavailable: Sandbox preset staging failed: {error}"
+                        ));
+                    }
+                }
+            }
+            return;
+        }
+
+        match sandbox.edits.apply_pending(simulation) {
+            Ok(0) => {}
+            Ok(count) => {
+                if let Some(inspector) = &mut self.cell_inspector {
+                    inspector.begin_world_change();
+                    inspector.mark_ready();
+                }
+                println!("[powdergame][sandbox] committed bounded edit batch: {count} cells");
+            }
+            Err(error) => {
+                eprintln!("[powdergame][sandbox] edit batch failed before tick: {error}");
+                sandbox.edits.clear_pending();
+            }
+        }
+    }
+
+    fn queue_sandbox_stroke(&mut self, cell: SandboxCell, force_erase: bool) {
+        let Some(sandbox) = &mut self.sandbox else {
+            return;
+        };
+        let from = sandbox.last_edit_cell.unwrap_or(cell);
+        let edit = sandbox.selected_edit(force_erase);
+        let diameter = sandbox.brush_diameter();
+        match sandbox.edits.queue_stroke(from, cell, diameter, edit) {
+            Ok(_) => sandbox.last_edit_cell = Some(cell),
+            Err(error) => {
+                sandbox.cancel_pointer_gestures();
+                eprintln!("[powdergame][sandbox] edit command rejected: {error}");
+            }
+        }
+    }
+
+    fn apply_sandbox_key_action(&mut self, action: SandboxKeyAction, window: &Window) {
+        match action {
+            SandboxKeyAction::SelectMaterial(material_id) => {
+                if let Some(sandbox) = &mut self.sandbox {
+                    sandbox.selected_material_id = material_id;
+                    sandbox.tool = SandboxTool::Draw;
+                }
+                window.request_redraw();
+            }
+            SandboxKeyAction::SelectTool(tool) => {
+                if let Some(sandbox) = &mut self.sandbox {
+                    sandbox.tool = tool;
+                }
+                window.request_redraw();
+            }
+            SandboxKeyAction::LoadPreset(preset) => self.request_sandbox_preset(preset, window),
+        }
+    }
+
+    fn sandbox_cursor_moved(&mut self, position: PhysicalPosition<f64>, window: &Window) {
+        if self.demo_mode != DemoMode::Sandbox {
+            return;
+        }
+        let picked = self
+            .renderer
+            .as_ref()
+            .and_then(|renderer| renderer.world_cell_at(position))
+            .map(|(x, y)| SandboxCell { x, y });
+        let (primary, erase, pan, previous_cursor) =
+            self.sandbox
+                .as_ref()
+                .map_or((false, false, false, None), |sandbox| {
+                    (
+                        sandbox.primary_down,
+                        sandbox.erase_down,
+                        sandbox.pan_down,
+                        sandbox.last_cursor,
+                    )
+                });
+        if pan {
+            if let Some(previous) = previous_cursor {
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.pan_world_camera(
+                        (position.x - previous[0]) as f32,
+                        (position.y - previous[1]) as f32,
+                    );
+                }
+            }
+        } else if let Some(cell) = picked {
+            if primary || erase {
+                self.queue_sandbox_stroke(cell, erase);
+            }
+        } else if let Some(sandbox) = &mut self.sandbox {
+            sandbox.last_edit_cell = None;
+        }
+        if let Some(sandbox) = &mut self.sandbox {
+            sandbox.last_cursor = Some([position.x, position.y]);
+        }
+        window.request_redraw();
+    }
+
+    fn sandbox_mouse_input(&mut self, button: MouseButton, state: ElementState, window: &Window) {
+        if self.demo_mode != DemoMode::Sandbox {
+            return;
+        }
+        let pressed = state == ElementState::Pressed;
+        if button == MouseButton::Left && pressed {
+            let action = self.cursor_position.and_then(|position| {
+                let surface = self.renderer.as_ref()?.surface_info();
+                sandbox_hud_action_at(
+                    surface.width,
+                    surface.height,
+                    [position.x as f32, position.y as f32],
+                )
+            });
+            match action {
+                Some(SandboxHudAction::SelectMaterial(material_id)) => {
+                    if let Some(sandbox) = &mut self.sandbox {
+                        sandbox.selected_material_id = material_id;
+                        sandbox.tool = SandboxTool::Draw;
+                    }
+                    println!(
+                        "[powdergame][sandbox] selected Matter {} ({material_id})",
+                        powdergame_core::registry_lookup(material_id)
+                            .map(|descriptor| descriptor.name)
+                            .unwrap_or("Invalid Material")
+                    );
+                    window.request_redraw();
+                    return;
+                }
+                Some(SandboxHudAction::LoadPreset(preset)) => {
+                    self.request_sandbox_preset(preset, window);
+                    return;
+                }
+                None => {}
+            }
+        }
+
+        let picked = self.cursor_position.and_then(|position| {
+            self.renderer
+                .as_ref()
+                .and_then(|renderer| renderer.world_cell_at(position))
+                .map(|(x, y)| SandboxCell { x, y })
+        });
+        let Some(sandbox) = &mut self.sandbox else {
+            return;
+        };
+        match button {
+            MouseButton::Left => sandbox.primary_down = pressed,
+            MouseButton::Right => sandbox.erase_down = pressed,
+            MouseButton::Middle => sandbox.pan_down = pressed,
+            _ => return,
+        }
+        if pressed {
+            sandbox.last_edit_cell = None;
+            sandbox.last_cursor = self.cursor_position.map(|p| [p.x, p.y]);
+        } else {
+            sandbox.last_edit_cell = None;
+        }
+        if pressed && matches!(button, MouseButton::Left | MouseButton::Right) {
+            if let Some(cell) = picked {
+                self.queue_sandbox_stroke(cell, button == MouseButton::Right);
+            }
+        }
+        window.request_redraw();
+    }
+
+    fn sandbox_mouse_wheel(&mut self, delta: MouseScrollDelta, window: &Window) {
+        if self.demo_mode != DemoMode::Sandbox {
+            return;
+        }
+        let direction = match delta {
+            MouseScrollDelta::LineDelta(_, y) => y.signum(),
+            MouseScrollDelta::PixelDelta(position) => position.y.signum() as f32,
+        };
+        if direction == 0.0 {
+            return;
+        }
+        let shift = self
+            .sandbox
+            .as_ref()
+            .is_some_and(|sandbox| sandbox.shift_down);
+        if shift {
+            if let Some(sandbox) = &mut self.sandbox {
+                sandbox.cycle_brush(if direction > 0.0 { 1 } else { -1 });
+                println!(
+                    "[powdergame][sandbox] brush diameter {}",
+                    sandbox.brush_diameter()
+                );
+            }
+        } else if let (Some(cursor), Some(renderer)) =
+            (self.cursor_position, self.renderer.as_mut())
+        {
+            renderer.zoom_world_camera_at(cursor, if direction > 0.0 { 1.25 } else { 0.8 });
+        }
+        window.request_redraw();
     }
 
     fn refresh_cell_inspector(&mut self, now: Instant) {
@@ -1698,6 +2010,9 @@ fn reset_demo_world(
         DemoMode::Pressure => stage_pressure_demo(simulation),
         DemoMode::ParallelIntegrity => stage_parallel_integrity_demo(simulation),
         DemoMode::Activity | DemoMode::Gallery => unreachable!("handled above"),
+        DemoMode::Sandbox => Err(GpuError::Other(
+            "Sandbox resets are owned by the product preset boundary".to_string(),
+        )),
         DemoMode::None => Ok(()),
     }
 }
@@ -1975,7 +2290,7 @@ fn should_toggle_gallery_inspector(
 }
 
 fn cell_inspector_is_enabled(mode: DemoMode, experiment_worker: bool) -> bool {
-    mode == DemoMode::Gallery && !experiment_worker
+    matches!(mode, DemoMode::Gallery | DemoMode::Sandbox) && !experiment_worker
 }
 
 impl ApplicationHandler for App {
@@ -2049,14 +2364,30 @@ impl ApplicationHandler for App {
                         self.select_gallery_scenario(number, &window);
                     }
                     Key::Character(ref c)
-                        if self.demo_mode != DemoMode::Gallery && c.eq_ignore_ascii_case("s") =>
+                        if self.demo_mode == DemoMode::Sandbox
+                            && sandbox_key_action(c).is_some() =>
+                    {
+                        self.apply_sandbox_key_action(
+                            sandbox_key_action(c).expect("guarded Sandbox key action"),
+                            &window,
+                        );
+                    }
+                    Key::Character(ref c)
+                        if !matches!(self.demo_mode, DemoMode::Gallery | DemoMode::Sandbox)
+                            && c.eq_ignore_ascii_case("s") =>
                     {
                         self.toggle_sleep(&window);
                     }
-                    Key::Character(ref c) if self.demo_mode != DemoMode::Gallery && c == "[" => {
+                    Key::Character(ref c)
+                        if !matches!(self.demo_mode, DemoMode::Gallery | DemoMode::Sandbox)
+                            && c == "[" =>
+                    {
                         self.adjust_sleep_threshold(-1, &window);
                     }
-                    Key::Character(ref c) if self.demo_mode != DemoMode::Gallery && c == "]" => {
+                    Key::Character(ref c)
+                        if !matches!(self.demo_mode, DemoMode::Gallery | DemoMode::Sandbox)
+                            && c == "]" =>
+                    {
                         self.adjust_sleep_threshold(1, &window);
                     }
                     Key::Character(ref c) if c.eq_ignore_ascii_case("n") => {
@@ -2074,14 +2405,29 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 if self.cell_inspector.is_some() {
                     self.cursor_position = Some(position);
-                    window.request_redraw();
                 }
+                self.sandbox_cursor_moved(position, &window);
+                window.request_redraw();
             }
             WindowEvent::CursorLeft { .. } => {
                 if let Some(inspector) = &mut self.cell_inspector {
                     self.cursor_position = None;
                     inspector.set_hover(None);
                     window.request_redraw();
+                }
+                if let Some(sandbox) = &mut self.sandbox {
+                    sandbox.cancel_pointer_gestures();
+                }
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.sandbox_mouse_input(button, state, &window);
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.sandbox_mouse_wheel(delta, &window);
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                if let Some(sandbox) = &mut self.sandbox {
+                    sandbox.shift_down = modifiers.state().shift_key();
                 }
             }
             WindowEvent::Resized(size) => {
@@ -2091,6 +2437,7 @@ impl ApplicationHandler for App {
                 window.request_redraw();
             }
             WindowEvent::RedrawRequested => {
+                self.process_sandbox_world_boundary();
                 if let Some(simulation) = &mut self.simulation {
                     if let Some(demo) = &mut self.demo {
                         step_demo(
@@ -2142,6 +2489,30 @@ impl ApplicationHandler for App {
                 } else {
                     None
                 };
+                let sandbox_hud = if self.demo_mode == DemoMode::Sandbox {
+                    match (
+                        self.sandbox.as_ref(),
+                        self.demo.as_ref(),
+                        self.simulation.as_ref(),
+                    ) {
+                        (Some(sandbox), Some(demo), Some(simulation)) => Some(SandboxHudData {
+                            preset: sandbox.preset,
+                            tool: sandbox.tool,
+                            selected_material_id: sandbox.selected_material_id,
+                            brush_diameter: sandbox.brush_diameter(),
+                            playing: demo.playing,
+                            speed: demo.fast,
+                            simulation_tick: simulation.tick_count,
+                            pending_edits: sandbox.edits.pending_count(),
+                            inspector: inspector_hud.clone(),
+                            inspector_cursor,
+                            world_viewport,
+                        }),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
                 if let Some(renderer) = &mut self.renderer {
                     let hud_data = match self.demo_mode {
                         DemoMode::Thermal => self.observatory_collector.as_ref().map(|c| {
@@ -2171,6 +2542,7 @@ impl ApplicationHandler for App {
                             )
                         }),
                         DemoMode::Gallery => gallery_hud.as_ref().map(renderer::HudData::Gallery),
+                        DemoMode::Sandbox => sandbox_hud.as_ref().map(renderer::HudData::Sandbox),
                         _ => None,
                     };
                     if let Err(e) = renderer.render(hud_data) {
@@ -2317,6 +2689,7 @@ where
             "--parallel-integrity-demo" => return Some(DemoMode::ParallelIntegrity),
             "--activity-demo" => return Some(DemoMode::Activity),
             "--benchmark-gallery" => return Some(DemoMode::Gallery),
+            "--sandbox" => return Some(DemoMode::Sandbox),
             _ => {}
         }
     }
@@ -2725,6 +3098,10 @@ fn main() {
             "[powdergame] G8-B benchmark scenario Gallery: 256x256, six shared headless fixtures. \
              Starts PAUSED ({GALLERY_CONTROLS}). Diagnostic census is bounded and outside timed benchmark paths."
         ),
+        DemoMode::Sandbox => println!(
+            "[powdergame] G9-A first-playable Sandbox: 256x256 Starter Lab, starts PAUSED. \
+             Draw/Erase/Heat/Cool, palette 1-9, Pan/Zoom, Inspector, Starter/Blank presets."
+        ),
         DemoMode::None => println!(
             "[powdergame] G0 Runtime: 2048x2048 empty technical baseline (explicit diagnostic mode)"
         ),
@@ -2832,6 +3209,7 @@ mod tests {
             ("--parallel-integrity-demo", DemoMode::ParallelIntegrity),
             ("--activity-demo", DemoMode::Activity),
             ("--benchmark-gallery", DemoMode::Gallery),
+            ("--sandbox", DemoMode::Sandbox),
         ] {
             assert_eq!(demo_mode_from_args([flag]), expected, "flag={flag}");
         }
@@ -2842,9 +3220,18 @@ mod tests {
         assert!(cell_inspector_is_enabled(DemoMode::Gallery, false));
         assert!(!cell_inspector_is_enabled(DemoMode::Gallery, true));
         assert!(!cell_inspector_is_enabled(DemoMode::None, false));
+        assert!(cell_inspector_is_enabled(DemoMode::Sandbox, false));
+        assert!(!cell_inspector_is_enabled(DemoMode::Sandbox, true));
         for character in ["i", "I"] {
             assert!(should_toggle_gallery_inspector(
                 DemoMode::Gallery,
+                false,
+                ElementState::Pressed,
+                false,
+                Some(character),
+            ));
+            assert!(should_toggle_gallery_inspector(
+                DemoMode::Sandbox,
                 false,
                 ElementState::Pressed,
                 false,
@@ -2913,6 +3300,11 @@ mod tests {
             mode_for_launch(true, DemoMode::Movement),
             DemoMode::Gallery,
             "explicit user modes cannot redirect an experiment worker"
+        );
+        assert_eq!(
+            mode_for_launch(true, DemoMode::Sandbox),
+            DemoMode::Gallery,
+            "Sandbox cannot redirect an authenticated experiment worker"
         );
         assert_eq!(mode_for_launch(false, DemoMode::None), DemoMode::None);
     }

@@ -20,6 +20,7 @@ use crate::observatory::{
     ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
     ACTIVITY_PANEL_NAMES,
 };
+use crate::sandbox::{SandboxHudData, SANDBOX_PALETTE_IDS};
 
 const INSPECTOR_TITLE: &str = "CELL INSPECTOR [I]";
 const INSPECTOR_UNAVAILABLE: &str = "Inspector unavailable";
@@ -3758,6 +3759,236 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.index_capacity = (self.batch.indices.len() * 3) / 2;
             self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("gallery_text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// G9-A product HUD. It intentionally omits provenance, benchmark
+    /// identity, hashes, predicates, and full diagnostic counters.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_sandbox_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        data: &SandboxHudData,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+        self.batch.clear();
+        let white_uv = self.atlas.solid_white_uv;
+        let title = [0.96, 0.98, 1.0, 1.0];
+        let header = [0.60, 0.86, 1.0, 1.0];
+        let label = [0.64, 0.70, 0.80, 1.0];
+        let value = [0.96, 0.97, 0.99, 1.0];
+        let selected = [0.38, 0.98, 0.62, 1.0];
+        let orange = [1.0, 0.65, 0.28, 1.0];
+        let card_bg = [0.045, 0.062, 0.09, 0.95];
+        let card_border = [0.20, 0.31, 0.44, 1.0];
+
+        self.batch
+            .draw_text(&self.atlas, 22.0, 14.0, 24, "POWDERGAME SANDBOX", title);
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            43.0,
+            13,
+            "Build freely, then press SPACE to observe production physics",
+            label,
+        );
+
+        let card_w = 292.0f32;
+        let top = 70.0f32;
+        let card_h = (sh - 120.0).max(360.0);
+        let left = 14.0f32;
+        let right = sw - card_w - 14.0;
+        for x in [left, right] {
+            self.batch
+                .draw_rect(x, top, card_w, card_h, card_bg, white_uv);
+            self.batch
+                .draw_outline(x, top, card_w, card_h, 1.0, card_border, white_uv);
+        }
+
+        let mut y = top + 15.0;
+        self.batch
+            .draw_text(&self.atlas, left + 14.0, y, 17, "WORLD & TOOLS", header);
+        y += 31.0;
+        let rows = [
+            ("Preset", data.preset.display_name().to_string()),
+            ("Tool", data.tool.display_name().to_string()),
+            (
+                "Matter",
+                format!("{} ({})", data.material_name(), data.selected_material_id),
+            ),
+            ("Brush", format!("{} cells", data.brush_diameter)),
+            (
+                "State",
+                if data.playing { "PLAY" } else { "PAUSED" }.to_string(),
+            ),
+            ("Speed", format!("x{}", data.speed)),
+            ("Tick", data.simulation_tick.to_string()),
+        ];
+        for (row_label, row_value) in rows {
+            self.batch
+                .draw_text(&self.atlas, left + 14.0, y, 13, row_label, label);
+            self.batch.draw_text_right(
+                &self.atlas,
+                left + card_w - 14.0,
+                y,
+                13,
+                &fit_ascii_text(&self.batch, &self.atlas, 13, &row_value, 176.0),
+                value,
+            );
+            y += 25.0;
+        }
+        y += 12.0;
+        for line in [
+            "D Draw  E Erase  H Heat  C Cool",
+            "Left drag: selected tool",
+            "Right drag: Erase  Middle: Pan",
+            "Wheel: Zoom  Shift+wheel: Brush",
+            "SPACE Play/Pause  N Step  F Speed",
+            "R Reset preset  I Inspector",
+            "L Starter Lab  B New Blank World",
+        ] {
+            self.batch
+                .draw_text(&self.atlas, left + 14.0, y, 12, line, label);
+            y += 22.0;
+        }
+        if data.pending_edits > 0 {
+            self.batch.draw_text(
+                &self.atlas,
+                left + 14.0,
+                y + 4.0,
+                12,
+                &format!("Applying {} edited cells", data.pending_edits),
+                orange,
+            );
+        }
+
+        let mut py = top + 15.0;
+        self.batch
+            .draw_text(&self.atlas, right + 14.0, py, 17, "MATTER PALETTE", header);
+        py += 27.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right + 14.0,
+            py,
+            12,
+            "Click a row or press 1-9",
+            label,
+        );
+        py += 28.0;
+        for (index, material_id) in SANDBOX_PALETTE_IDS.iter().copied().enumerate() {
+            let name = powdergame_core::registry_lookup(material_id)
+                .map(|descriptor| descriptor.name)
+                .unwrap_or("Invalid Material");
+            let is_selected = material_id == data.selected_material_id;
+            if is_selected {
+                self.batch.draw_rect(
+                    right + 9.0,
+                    py - 4.0,
+                    card_w - 18.0,
+                    25.0,
+                    [0.08, 0.19, 0.16, 0.95],
+                    white_uv,
+                );
+            }
+            self.batch.draw_text(
+                &self.atlas,
+                right + 16.0,
+                py,
+                14,
+                &format!("{}  {} ({})", index + 1, name, material_id),
+                if is_selected { selected } else { value },
+            );
+            py += 31.0;
+        }
+        py += 8.0;
+        self.batch
+            .draw_text(&self.atlas, right + 14.0, py, 14, "PRESETS", header);
+        py += 27.0;
+        self.batch
+            .draw_text(&self.atlas, right + 16.0, py, 13, "L  Starter Lab", value);
+        py += 28.0;
+        self.batch.draw_text(
+            &self.atlas,
+            right + 16.0,
+            py,
+            13,
+            "B  New Blank World",
+            value,
+        );
+
+        if let Some(inspector) = data.inspector.as_ref() {
+            self.draw_gallery_inspector(
+                sw,
+                sh,
+                y + 34.0,
+                inspector,
+                data.inspector_cursor,
+                data.world_viewport,
+                header,
+                label,
+                value,
+                orange,
+                card_border,
+                white_uv,
+            );
+        }
+
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            sh - 31.0,
+            13,
+            "World is primary | ESC Quit | All edits use the production GPU world",
+            label,
+        );
+
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("sandbox_text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("sandbox_text_index_buffer"),
                 size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,

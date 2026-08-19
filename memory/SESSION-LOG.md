@@ -74,3 +74,11 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Bounded/coalesced edit commands update Current/Next together before ticks, clean field/flags state, wake touched/halo chunks, and keep CPU free of world truth. Renderer, picking and Inspector share one camera transform.
 - Targeted Windows validation, affected check/clippy, strict policy audit, exact scenario reset and one 3-frame release Sandbox smoke passed. Workspace FULL was not required and ran `0` times.
 - Candidate status is **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**. G9-B/C/D/E, Discovery, Save/Load, Rewind, optimization, main merge and M0 closure remain not started.
+
+## 2026-08-19 · Smoke terminology disambiguated
+
+- User clarified that Codex's frequent short software checks are not measurements of combustion-generated Smoke Matter.
+- D-009 reserves `Smoke` for the in-game Matter and requires `bounded launch check` or `application startup check` for software startup/mode/bounded-exit validation.
+- `--smoke-frames` remains a legacy compatibility option and is described as a bounded launch-frame limit.
+- Historical immutable evidence and prior log wording were not rewritten; new prompts, reports, checkpoints and policy prose use the unambiguous terms.
+- This terminology-only change did not run Rust/GPU/FULL, a bounded launch check, candidate, capture or user acceptance.

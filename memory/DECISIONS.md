@@ -114,3 +114,17 @@ Scope: Powdergame's integrated Ballast history after merge `6b5f0201f882f212f991
 Evidence: User-approved reversible integration; Powdergame PR #4 merge; `personal-infra-wiki` decision and rollback troubleshooting updated through Wiki PR #40.
 
 Invalidated by: A later explicit user decision that adopts another audited rollback mechanism.
+
+## D-009 · Reserve Smoke for the in-game Matter and rename software checks in prose — 2026-08-19
+
+Decision: In new Powdergame prompts, reports, checkpoints, policy text and user-facing explanations, do not use the bare phrase `smoke test` for software validation. Call the short binary startup/mode/bounded-exit validation a **bounded launch check** or **application startup check**. Reserve **Smoke** for the registered in-game Matter and use explicit phrases such as `Smoke generation/decay validation` when testing it.
+
+The legacy CLI option `--smoke-frames` and historical machine/evidence vocabulary may remain for compatibility and provenance. Current prose must describe that option as a bounded launch-frame limit and must never imply that it measures Smoke Matter.
+
+Reason: Powdergame contains actual combustion-generated Smoke. Reusing the same word for Codex's frequent short application checks caused a plausible category error between software validation and game behavior.
+
+Scope: Powdergame project memory, AGENTS instructions, active validation policy, new prompts/reports and future user-facing documentation. Immutable historical evidence is not rewritten solely for terminology.
+
+Evidence: Explicit user clarification that Codex's frequent software checks are not measurements of in-game Smoke.
+
+Invalidated by: A later explicit user terminology decision.

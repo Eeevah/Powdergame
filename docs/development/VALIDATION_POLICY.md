@@ -20,12 +20,21 @@
 |---|---|---|
 | Targeted test | 변경한 정상·오류 경로가 계약을 지키는가 | 앱 startup, 사용자 관찰 |
 | FULL workspace test | Engine/Core/WGSL/Layout/shared runtime 회귀가 없는가 | 사용자 승인, 공식 성능 |
-| Minimal app smoke | 정식 EXE가 시작되고 renderer/mode가 로드되고 정상 종료하는가 | 장기 lifecycle correctness |
+| Bounded app launch check | 정식 EXE가 시작되고 renderer/mode가 로드되고 제한된 frame/tick 뒤 정상 종료하는가 | 장기 lifecycle correctness, Smoke Matter behavior |
 | Candidate | 실제 production simulation과 telemetry가 승인 계약을 만족하는가 | map 실패·CLI 오류 등 비정상 경로 |
 | Official evidence capture | source/binary/run/artifact가 forensic provenance로 봉인됐는가 | 제품 재미와 사용자 승인 |
 | User validation | 결과가 이해 가능하고 다음 실험 욕구를 만드는가 | 자동 invariant 증명 |
 
 Candidate가 강하더라도 targeted error-path test를 생략하지 않는다. FULL이 통과해도 candidate나 사용자 승인을 대신하지 않는다.
+
+### Terminology boundary
+
+Powdergame에는 combustion으로 생성되는 실제 Matter **Smoke**가 있다. 따라서 새 prompt, report, checkpoint, policy, 사용자 설명에서 짧은 소프트웨어 실행 확인을 bare `smoke test`라고 부르지 않는다.
+
+- 소프트웨어 startup/mode/bounded-exit 확인: **bounded launch check** 또는 **application startup check**
+- 게임 속 물질 검증: **Smoke Matter generation/decay validation**처럼 명시
+- legacy CLI `--smoke-frames`: bounded launch frame limit을 뜻하는 compatibility 이름일 뿐 Smoke Matter를 측정하지 않음
+- historical evidence, CLI option, machine field는 provenance를 위해 그대로 둘 수 있으나 현재 prose에서는 의미를 풀어 쓴다
 
 ---
 
@@ -51,7 +60,7 @@ git diff --check
 
 ```text
 Rust/GPU FULL
-app smoke
+bounded app launch check
 candidate 재실행
 ```
 
@@ -79,7 +88,7 @@ docs_closure_sha  = 문서 commit
 fmt/check
 직접 관련 Rust/Python targeted tests
 필요한 오류 경로 test
-minimal bounded app smoke
+minimal bounded app launch check
 candidate가 작업 산출물일 때 candidate 정확히 1회
 ```
 
@@ -107,7 +116,7 @@ workspace FULL = NOT REQUIRED
 ```text
 영향받는 앱 모드 targeted tests
 map/poll/reset/CLI 실패 경로 tests
-minimal bounded app smoke
+minimal bounded app launch check
 clippy + diff-check
 ```
 
@@ -162,7 +171,7 @@ shared reset/staging infrastructure 자체를 수정하면 E 등급으로 올린
 ```text
 변경 관련 targeted tests
 workspace FULL 정확히 1회
-minimal app smoke
+minimal bounded app launch check
 candidate가 영향을 받으면 candidate 1회
 clippy + diff-check
 ```
@@ -229,7 +238,7 @@ scope freeze
 → clippy/diff-check
 → clean source seal
 → 필요한 FULL 1회
-→ minimal smoke 1회
+→ bounded launch check 1회
 → candidate 1회
 ```
 
@@ -242,20 +251,24 @@ FULL이 시작된 뒤 새 요구가 도착하면:
 
 ---
 
-## 5. Minimal smoke contract
+## 5. Bounded launch check contract
 
-Smoke는 다음만 확인한다.
+Bounded launch check는 다음만 확인한다.
 
 ```text
 strict argument parsing
 정식 binary startup
 GPU/renderer initialization
 요청 mode/fixture load
-bounded 몇 frame 또는 몇 tick
+제한된 몇 frame 또는 몇 tick
 정상 exit code
 ```
 
-Smoke에서 장시간 lifecycle을 다시 실행하지 않는다. 잘못된 bounded 인자는 대화형 실행으로 fallback하지 않고 nonzero로 실패해야 한다.
+이 단계에서 장시간 lifecycle을 다시 실행하지 않는다. 잘못된 bounded 인자는 대화형 실행으로 fallback하지 않고 nonzero로 실패해야 한다.
+
+현재 legacy option `--smoke-frames N`은 이 bounded launch-frame limit을 제공한다. 이름에 `smoke`가 남아 있어도 combustion, Smoke 생성량, Smoke decay 또는 다른 in-game Smoke Matter behavior를 검증하지 않는다.
+
+실제 Smoke Matter behavior는 Fire/Heat semantic test, scenario candidate, telemetry predicate 등 별도의 명시적 계약에서 검증한다.
 
 ---
 
@@ -265,6 +278,7 @@ Smoke에서 장시간 lifecycle을 다시 실행하지 않는다. 잘못된 boun
 
 - FULL 실행 횟수
 - candidate 실행 횟수
+- bounded launch check 실행 횟수
 - 가장 긴 command 5개
 - source seal 이후 source 변경 횟수
 - interrupted validation

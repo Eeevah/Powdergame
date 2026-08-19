@@ -40,15 +40,25 @@ The user authorized G8-C Official Performance Matrix. This authorization did not
 
 Status: closed
 
-## Q-004 · What should follow a verified G8-C matrix? — opened 2026-08-19
+## Q-004 · What should follow the verified G8-C matrix? — opened 2026-08-19
 
 Owner: user
 
-Blocks: G9 start, optimization review/implementation, G8 closure, and later publication choices.
+Blocks: G9 start, any optimization implementation, G8 overall closure, and later publication choices.
 
-Known state: Both G8-C non-evidence pilots stopped before any official matrix, final Receipt, official package, or independent official verifier result existed. Therefore there is no verified matrix recommendation yet.
+Known evidence:
 
-Next check: After Q-007 is resolved and a verified official matrix exists, refresh `memory/CHECKPOINT.md` from exact live Git and evidence, then ask the user for the next explicit product/optimization decision. Do not auto-start G9 or optimization.
+- sealed source `4653d7c2e09e93f80fb81eeb73458d992c86858f`
+- Matrix ID `g8c-official-matrix-4653d7c2e09e-64df60ba0d79`
+- Receipt SHA-256 `1fbf4599893cc29e99b6033996b42fcdf025aac0b421cb80b95b3e55807455f6`
+- package SHA-256 `92f8b85cc0e34ea6e71a9f6b4fc95b0f70704263a0f798a69a830cce1d40b729`
+- independent verification SHA-256 `77c7e1c982296277c451de02c3dca68fa6d7d9a90e9fd5426c4dffa1abd9bb0d`
+- verifier result `verified=true`, 230 recomputed matrix fields, mismatch `0`
+- matrix recommendation `PROCEED_TO_G9`
+
+The verified matrix found no current 60-TPS simulation, coexistence, rendering, or memory blocker. The recommendation is evidence, not automatic user authorization.
+
+Next check: Ask the user to define and authorize the G9 product brief, or to request a narrower review/override. Do not auto-start G9 or optimization.
 
 Status: open
 
@@ -58,9 +68,9 @@ Owner: project operator
 
 Blocks: Repository-wide enforcement of the active memory workflow in future Powdergame sessions.
 
-Known state: The user approved adoption. PR #4 contains the isolated pilot and active cutover, but commit-preserving integration is deferred while the G8-C writer owns a dirty staged/unstaged worktree. Squash is forbidden.
+Known state: G8-C reached a clean upstream-equal safe stop at `4653d7c2e09e93f80fb81eeb73458d992c86858f`. PR #4 contains the approved Ballast cutover and current final-matrix checkpoint. Squash is forbidden.
 
-Next check: After the G8-C writer reaches a clean safe stop, exact-fetch the active line, refresh the checkpoint, reconcile the PR against the live history, and integrate PR #4 using a commit-preserving method.
+Next check: Retarget PR #4 to `feature/m0-g8c-official-matrix`, confirm CI/mergeability, integrate with commit boundaries preserved, and record the exact merge-based rollback.
 
 Status: open
 
@@ -72,7 +82,7 @@ Original block: G8-C official matrix, independent verification, and any later pe
 
 ### Disposition — closed 2026-08-19
 
-The user authorized the narrow window-lifecycle remediation, one replacement non-evidence pilot, and conditional official capture. The remediation succeeded: all ten Mode C/D workers stayed live at 1600×900, ten stale 2864×1560 event payloads were ignored safely, and fatal live resize/surface/device errors were zero. The one replacement pilot ran all 15 measurement subprocesses successfully but failed final aggregation because the coordinator searched for `wall_ms_per_tick` while the historical producer emits metric name `wall_per_tick` with unit `ms/tick`. No official capture was run. The bounded authorization was consumed without producing official evidence.
+The user authorized the narrow window-lifecycle remediation, one replacement non-evidence pilot, and conditional official capture. The remediation succeeded and all 15 replacement-pilot measurement subprocesses exited `0`, but final aggregation stopped on the historical CSV vocabulary mismatch. No official capture was run under this authorization.
 
 Status: closed
 
@@ -80,24 +90,20 @@ Status: closed
 
 Owner: user
 
-Blocks: G8-C official matrix, independent verification, and any later performance/product decision.
+Original block: G8-C official matrix, independent verification, and any later performance/product decision.
 
-Known evidence:
+### Disposition — closed 2026-08-19
 
-- G8-C remains on `feature/m0-g8c-official-matrix` at upstream-equal HEAD `8ee1ae238c324c1db1d7e2882af071fec179a8f1`; no sealed G8-C source commit exists.
-- The original 14 intended paths remain staged with patch SHA-256 `eba224c3f39c2a0a40fc47be46bdc5a7863a6062027b1952bbb114535c1d6733`.
-- Five lifecycle/coordinator remediation files remain unstaged with patch SHA-256 `069338e8922c4b717ead60fb5fdabef0a0ac93739c064e60faa74c56443d2150`.
-- Replacement pilot `g8c-pilot-8ee1ae238c32-6341f4f59218` completed all five Headless A/B, five Mode C, and five Mode D subprocesses with exit `0`.
-- The historical benchmark summary producer emits throughput metric `wall_per_tick` and unit `ms/tick`; the new coordinator expected internal name `wall_ms_per_tick` and stopped with `headless summary is incomplete`.
-- No official Matrix ID, final Receipt, official package, official binary hashes, or independent official verification exists.
+The user authorized the strict adapter correction, one aggregation-only replay over hash-bound replacement-pilot raw outputs, and—only if the replay passed—one official matrix capture, independent verification, and package.
 
-Proposed bounded authorization:
+Outcome:
 
-1. preserve both failed pilots and the staged/unstaged worktree state;
-2. map raw `wall_per_tick` with exact unit `ms/tick` to internal `wall_ms_per_tick` without changing historical CSV vocabulary;
-3. add actual-producer-schema plus missing/duplicate/wrong-unit regressions;
-4. run one aggregation-only scratch replay over copied and hash-bound raw outputs from the completed replacement pilot, exercising report/Receipt/package/verifier without rerunning GPU measurement subprocesses;
-5. only if that replay passes, seal/commit/push source and run exactly one official matrix capture, one independent verification, and one package;
-6. stop without G9 or optimization; any replay or official failure requires a new explicit decision.
+- canonical producer vocabulary `wall_per_tick` + `ms/tick` was preserved and mapped explicitly to internal `wall_ms_per_tick`
+- actual-producer-schema and missing/duplicate/wrong-unit/alias regressions were added
+- aggregation replay `g8c-aggregation-replay-20260819T015515996891Z-fc408076b67a` passed while launching zero executable/GPU/measurement subprocesses and remained `non_evidence=true`
+- sealed source `4653d7c2e09e93f80fb81eeb73458d992c86858f` was committed and pushed clean/upstream-equal
+- official Matrix `g8c-official-matrix-4653d7c2e09e-64df60ba0d79` ran exactly once
+- independent verification passed with 230 fields recomputed and mismatch `0`
+- final recommendation: `PROCEED_TO_G9`
 
-Status: open
+Status: closed

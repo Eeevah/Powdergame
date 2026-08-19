@@ -29,7 +29,6 @@ This is a terse append-only audit trail, not a transcript.
 - Pilot: `g8c-pilot-8ee1ae238c32-c64090539536`; all five headless Mode A/B processes passed; first Sand Fall Mode C process exited `1`; remaining Mode C/D and all official publication stages were skipped.
 - Failure: renderer initialization confirmed live 1600×900, then a late initial `Resized(2864×1560)` event payload was treated as a real resize. Proposed remediation rechecks live `window.inner_size()` and ignores only stale payloads while keeping genuine noncanonical live sizes fatal.
 - Evidence boundary: incomplete scratch only, no Receipt, hash inventory, package, matrix report, or verifier result; no performance/bottleneck conclusion exists.
-- Next: Q-006 asks the user whether to authorize one narrow remediation, one replacement pilot, and conditional official capture. PR #4 remains unmerged while the writer is dirty.
 
 ## 2026-08-19 · G8-C replacement pilot fixed lifecycle and exposed aggregation mismatch
 
@@ -40,5 +39,16 @@ This is a terse append-only audit trail, not a transcript.
 - Lifecycle result: ten Mode C/D workers began and ended at live 1600×900; ten stale 2864×1560 event payloads were safely ignored; fatal live resize, surface error, and device error were all `0`.
 - Aggregation stopped before publication because the historical benchmark summary uses metric name `wall_per_tick` with unit `ms/tick`, while the new coordinator searched for internal field name `wall_ms_per_tick`. Complete raw rows existed but the headless summary list was empty.
 - Evidence boundary: no official Matrix ID, final Receipt, package, official frozen hashes, or independent official verification. Pilot-only raw Mode C/D rows are diagnostic and support no performance or bottleneck conclusion.
-- Worktree remains protected: original 14 paths staged with unchanged patch SHA-256 `eba224c3...`; five remediation files unstaged with patch SHA-256 `069338e8...`; no source commit or push.
-- Q-006 is closed as consumed. Q-007 asks whether to authorize the narrow historical-CSV adapter correction, one aggregation-only replay using hash-bound existing raw outputs, and conditional official capture. PR #4 remains Draft/Open/Unmerged.
+- Worktree remained protected: original 14 paths staged with unchanged patch SHA-256 `eba224c3...`; five remediation files unstaged with patch SHA-256 `069338e8...`; no source commit or push.
+
+## 2026-08-19 · G8-C aggregation replay and official Matrix completed
+
+- User authorized Q-007's strict historical-CSV adapter correction, one aggregation-only replay, and conditional official capture.
+- The canonical producer remained unchanged: external `wall_per_tick` with unit `ms/tick` maps explicitly to internal `wall_ms_per_tick`. Raw aliases, wrong units, missing/duplicate rows, wrong scenario/mode/selection/trial, and non-finite values are rejected. Actual 37-column producer fixtures back the regressions.
+- Aggregation replay `g8c-aggregation-replay-20260819T015515996891Z-fc408076b67a` launched zero executable, process, GPU context, or measurement subprocess and passed downstream aggregation, Receipt, package, and independent verification while remaining `non_evidence=true`.
+- Clean sealed source `4653d7c2e09e93f80fb81eeb73458d992c86858f` was committed and pushed on `feature/m0-g8c-official-matrix`; final Git state was clean and local/remote `0/0`.
+- Official Matrix `g8c-official-matrix-4653d7c2e09e-64df60ba0d79` ran exactly once: isolated build plus five Headless A/B, five Mode C, and five Mode D subprocesses all exited `0`; independent verification ran exactly once and recomputed 230 matrix fields with mismatch `0`.
+- Evidence identity: Receipt `1fbf4599...`, package `92f8b85c...`, verification `77c7e1c...`, benchmark binary `29131418...`, Windows binary `2c1670bf...`.
+- Performance result: minimum Mode A P50 `931.602 TPS`; maximum Mode B P95 `1.046784 ms`; minimum Mode C simulation `59.898580 TPS` with zero deadline misses/catch-up/dropped frames; maximum Mode C frame P95 `4.2005 ms`; maximum Mode D render P95 `0.021280 ms`; tracked persistent GPU bytes `184,576,672` per scenario.
+- Recommendation: `PROCEED_TO_G9`. No G9, optimization, G8 closure, main merge, or PR was started by the measurement writer.
+- Remaining decisions: Q-004 asks the user to authorize the next product action; Q-002 keeps G8-A same-SHA visual disposition separate; Q-005 tracks commit-preserving Ballast integration into the now-clean G8-C line.

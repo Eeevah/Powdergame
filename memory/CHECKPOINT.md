@@ -1,10 +1,10 @@
-# Checkpoint — G8-C lifecycle fixed; aggregation blocked by historical CSV vocabulary — 2026-08-19 KST
+# Checkpoint — G8-C official matrix verified; product decision pending — 2026-08-19 KST
 
 ## Validity
 
-This checkpoint records the completed replacement G8-C pilot attempt. It is a session-resume coordinate, not official performance evidence. The active G8-C writer worktree remains intentionally dirty with reviewed staged and unstaged changes; no other session may reset, unstage, stash, clean, overwrite, or independently continue it.
+This checkpoint records the verified G8-C Official Performance Matrix. It is the active session-resume coordinate after the G8-C writer reached a clean, upstream-equal safe stop. The official Matrix and its independent verification are exact-source evidence; the earlier pilots and aggregation replay remain non-evidence diagnostics.
 
-PR #4 remains Draft/Open/Unmerged. Its memory branch may record this checkpoint, but it must not be integrated into the active product line until the G8-C writer reaches a clean safe stop and the live history is reconciled.
+No G9 or optimization work has started. The matrix recommendation is an evidence-derived recommendation, not an automatic user decision.
 
 ## Repository coordinate
 
@@ -12,56 +12,61 @@ PR #4 remains Draft/Open/Unmerged. Its memory branch may record this checkpoint,
 - Legacy launcher retirement commit: `8ee1ae238c324c1db1d7e2882af071fec179a8f1`
 - G8-B state: **CLOSED / FROZEN**
 - Active G8-C branch: `feature/m0-g8c-official-matrix`
-- Active G8-C HEAD / upstream: `8ee1ae238c324c1db1d7e2882af071fec179a8f1` / identical, divergence `0/0`
-- G8-C source commit: none; aggregation failure stopped source-seal/commit/push
-- Active writer state: original 14 intended paths remain staged; five lifecycle/coordinator remediation files remain unstaged; untracked files `0`
-- Original staged patch SHA-256: `eba224c3f39c2a0a40fc47be46bdc5a7863a6062027b1952bbb114535c1d6733`, unchanged after remediation
-- Remediation unstaged patch SHA-256: `069338e8922c4b717ead60fb5fdabef0a0ac93739c064e60faa74c56443d2150`
-- Worktree count: `3`
-- Target cache: preserved; `cargo clean` was not run
+- Sealed G8-C source: `4653d7c2e09e93f80fb81eeb73458d992c86858f`
+- Source commit: `fix: complete the G8-C measurement aggregation contract`
+- Writer state at final report: clean, local/remote divergence `0/0`
+- Worktree count: `3`; target cache preserved; workspace FULL `0`
 
 ## Story so far
 
-The window lifecycle remediation succeeded. `window.inner_size()` is now the final authority: a stale noncanonical event payload is ignored only while the live size remains exactly 1600×900; a genuinely noncanonical or zero live size remains fatal. `Resized` and `ScaleFactorChanged` share the same helper, renderer resize is not invoked, and Mode C/D record structured lifecycle metadata.
+The first pilot exposed a stale initial window-size event. The bounded lifecycle remediation made live `window.inner_size()` authoritative while keeping genuine noncanonical sizes fatal. The replacement pilot then completed all five Headless A/B, five Mode C, and five Mode D workers, but exposed a historical CSV adapter mismatch. The coordinator expected internal `wall_ms_per_tick`, while the canonical producer emits `wall_per_tick` with unit `ms/tick`.
 
-Targeted validation passed: Windows lifecycle tests `15/15`, renderer lifecycle/timestamp tests `3/3`, affected checks/clippy, coordinator/verifier tests `47/47`, legacy benchmark verifier fixtures, policy audit, formatting, and staged/unstaged diff checks. Workspace FULL, Gallery smoke, and G8-B candidate reruns remained `0`.
+The user authorized one aggregation-only replay over hash-bound existing raw outputs and one conditional official capture. The explicit adapter now maps the external producer vocabulary to the internal model without changing historical G8-A/G8-B CSV schemas. The replay launched no executable or GPU process and passed report, Receipt, package, and independent-verifier validation. Clean source was then sealed and the official Matrix was captured exactly once.
 
-The replacement non-evidence pilot was executed exactly once:
+Official result:
 
-- Pilot ID: `g8c-pilot-8ee1ae238c32-6341f4f59218`
-- Isolated build: PASS
-- Headless Mode A/B: five scenarios, all exit `0`
-- Mode C: five scenarios, each 60 frames, all exit `0`
-- Mode D: five scenarios, each 16 frames, all exit `0`
-- Lifecycle: all 10 workers initial/last live size 1600×900; one stale 2864×1560 payload per worker, 10 total, safely ignored; fatal live resize `0`; surface/device error `0/0`
-- Final aggregation: FAIL
-- Official capture / verification / package: `0 / 0 / 0`
+- Matrix ID: `g8c-official-matrix-4653d7c2e09e-64df60ba0d79`
+- Official capture / independent verification / package: `1 / 1 / 1`
+- Independent verifier: `verified=true`; 230 matrix fields recomputed from raw inputs; mismatch `0`
+- Recommendation: **PROCEED_TO_G9**
+- G9 and optimization implementation: not started
 
-The remaining blocker is a coordinator adapter mismatch, not a GPU, renderer, window-lifecycle, fixture, or performance failure. The historical benchmark summary vocabulary emits throughput metric name `wall_per_tick` with unit `ms/tick`; the new coordinator searched for an internal field named `wall_ms_per_tick`. Complete raw measurement files therefore existed, but the coordinator produced an empty headless summary and stopped with `headless summary is incomplete`.
+## Official evidence identity
 
-Historical G8-A/G8-B CSV vocabulary must remain unchanged. The narrow correction is to map raw `wall_per_tick` plus strict `ms/tick` unit validation into the internal aggregate field `wall_ms_per_tick`, and to add an actual-schema regression based on the real producer vocabulary.
+- Source SHA: `4653d7c2e09e93f80fb81eeb73458d992c86858f`
+- Benchmark executable SHA-256: `29131418a091d1657960c8cf1307d533582fa69e140af330b69be530c4394ed5`
+- Windows executable SHA-256: `2c1670bff506cc9793da9e3708cafb28b6485d14bc577abbcb5faa04f897c4e5`
+- Matrix Receipt SHA-256: `1fbf4599893cc29e99b6033996b42fcdf025aac0b421cb80b95b3e55807455f6`
+- Matrix package SHA-256: `92f8b85cc0e34ea6e71a9f6b4fc95b0f70704263a0f798a69a830cce1d40b729`
+- Verification result SHA-256: `77c7e1c982296277c451de02c3dca68fa6d7d9a90e9fd5426c4dffa1abd9bb0d`
+- Run `HASHES.sha256`: `8ade901cc359c2cdfb750f01fff35f0fae463046757e6cee4ba44100c0b8c260`
+- Official run / delivery bytes: `2,495,594,656 / 70,073,360`
 
-## Evidence boundary
+These identities support only the authenticated G8-C matrix contract. They do not transfer to another source, build, hardware/backend, config, or altered artifact set.
 
-Original failed pilot:
+## Performance conclusion
 
-- ID: `g8c-pilot-8ee1ae238c32-c64090539536`
-- Path: `C:\Users\mdkap\source\Powdergame-artifacts\scratch\g8c-pilot-8ee1ae238c32-c64090539536`
-- Files / bytes: `53 / 56,911,997`
-- Failure: first Sand Fall Mode C lifecycle guard
+Across the five accepted official workloads:
 
-Replacement failed pilot:
+- minimum Mode A P50: `931.602 TPS` (Pressure Burst)
+- Mode A 60-TPS headroom: at least `15.527x`
+- maximum Mode B GPU envelope P95: `1.046784 ms`
+- minimum Mode C simulation rate: `59.898580 TPS`
+- Mode C deadline misses / catch-up ticks / dropped frames: `0 / 0 / 0`
+- maximum Mode C frame P95: `4.2005 ms`
+- maximum Mode D GPU render P95: `0.021280 ms`
+- persistent tracked GPU allocation per scenario: `184,576,672 bytes` (`~0.172 GiB`, `~0.537%` of RTX 5090 32 GiB)
+- repeated largest Mode B grouped P50: Active / Sleep management
 
-- ID: `g8c-pilot-8ee1ae238c32-6341f4f59218`
-- Files / bytes: `98 / 57,021,663`
-- All 15 measurement subprocesses exited `0`
-- Failure: coordinator CSV metric-name mismatch during final aggregation
-- Pilot-only benchmark binary SHA-256: `991c0cca831ab14d3ba47b3b03151ff782541e9a72521a33b2e1984090ec3f64`
-- Pilot-only Windows binary SHA-256: `4f164060f198fca6c644a7252d44aab19b61c0de18b6464b144dbc528f9221ad`
+The matrix found no current simulation, rendering, memory, or coexistence blocker for the 60-TPS M0 product target. Active / Sleep is the largest measured subsystem group, but the evidence does not justify implementing compaction, indirect dispatch, packing, f16, or another optimization before G9.
 
-Neither pilot has official Matrix identity, official frozen-binary identity, final Receipt, official package, or independent official verification. Mode C/D raw rows are diagnostic only and must not be reported as official performance or bottleneck conclusions.
+## Non-evidence diagnostics retained
 
-The task timer's `PASS` means only that UTC/monotonic timing accounting closed consistently. The G8-C task remains `NEEDS_HUMAN_REVIEW — measurement aggregation integrity blocker`.
+- lifecycle-failed pilot: `g8c-pilot-8ee1ae238c32-c64090539536`
+- aggregation-failed replacement pilot: `g8c-pilot-8ee1ae238c32-6341f4f59218`
+- passing aggregation replay: `g8c-aggregation-replay-20260819T015515996891Z-fc408076b67a`
+
+The replay is explicitly `non_evidence=true` and launched zero measurement subprocesses. All three diagnostic artifacts remain preserved pending a separate retention/prune decision.
 
 ## Decided
 
@@ -69,36 +74,25 @@ The task timer's `PASS` means only that UTC/monotonic timing accounting closed c
 - D-004 — Ballast is the approved single active Powdergame session-continuity workflow after commit-preserving integration.
 - D-005 — Ballast remains selectively reversible; squash merge is forbidden.
 
-## Waiting on the user or in-flight state
+## Waiting on the user / operator
 
-- Q-007 — Whether to authorize the narrow historical-CSV adapter correction, one aggregation-only replay over immutable replacement-pilot raw outputs, and—only if that replay passes—one official matrix capture and independent verification.
-- Q-002 — Same-SHA G8-A user visual validation remains pending.
-- Q-004 — The post-matrix choice among G9, optimization review, or further human review remains blocked until a verified official matrix exists.
-- Q-005 — PR #4 integration remains deferred until the active G8-C writer reaches a clean safe stop and the exact live history/checkpoint is refreshed.
+- Q-004 — Choose the next product action from the verified recommendation: authorize G9 planning/implementation, request a narrower human review, or explicitly override the recommendation.
+- Q-002 — Same-SHA G8-A user visual durable disposition remains pending. It is a separate closure item and must not be inferred from G8-C.
+- Q-005 — Integrate PR #4 into the clean G8-C line with commit boundaries preserved, then record the exact merge-based rollback.
 
 ## Next first action
 
-Do not start another task and do not disturb the staged/unstaged G8-C worktree.
-
-If the user explicitly authorizes the narrow continuation:
-
-1. continue in the same G8-C writer session and worktree;
-2. preserve both failed pilot directories and the staged/unstaged patch identities;
-3. change only the coordinator/verifier adapter so raw `wall_per_tick` with exact unit `ms/tick` maps to internal `wall_ms_per_tick`; do not rename or rewrite historical CSV output;
-4. add actual-producer-schema and wrong-unit/missing/duplicate metric regressions;
-5. exercise downstream aggregation, report, Receipt, package, and verifier with one new aggregation-only scratch replay over copied and hash-bound raw outputs from the completed replacement pilot; do not rerun GPU measurement subprocesses for this adapter check;
-6. if and only if the replay passes, seal/commit/push the clean source and run the official matrix exactly once, followed by independent verification and one package;
-7. stop without starting G9 or optimization.
-
-If the aggregation-only replay fails, preserve it, do not run official capture, and return a blocker report. A further pilot or official retry requires a new explicit user decision.
+1. Integrate PR #4 into `feature/m0-g8c-official-matrix` with a merge commit or rebase-and-merge; never squash.
+2. Record the exact integrated rollback command and retire `docs/HANDOFF.md` as a live checkpoint.
+3. Ask the user for the G9 product brief before implementation. Do not start G9 from the machine recommendation alone.
+4. Keep optimization deferred unless later product work or a new benchmark establishes a concrete blocker.
 
 ## Tried / avoid repeating
 
-- Window lifecycle remediation is proven by all ten Mode C/D workers; do not redesign window sizing again for this blocker.
-- Do not change the historical producer metric name `wall_per_tick` or its unit `ms/tick` merely to fit the new coordinator.
-- Do not treat complete raw rows as official matrix evidence while aggregation, Receipt, package, and independent verification are incomplete.
-- Do not rerun all 15 pilot measurement subprocesses when the current defect is a pure aggregation adapter mismatch; prefer an aggregation-only replay.
-- Do not reset, unstage, stash, clean, or recreate the active worktree.
-- Do not interpret task-timer `PASS` as G8-C task success.
-- Do not merge or squash PR #4 while the G8-C writer is dirty.
+- Do not rerun the official Matrix merely because docs or memory change.
+- Do not report the two failed pilots or aggregation replay as official performance evidence.
+- Do not rename historical producer fields to fit a consumer; keep the external schema and internal model separated by a strict adapter.
+- Do not infer user authorization for G9, optimization, G8 closure, main promotion, or G8-A visual acceptance from `PROCEED_TO_G9`.
+- Do not maintain `docs/HANDOFF.md` and this checkpoint as parallel live session coordinates after cutover.
+- Do not squash PR #4.
 - If Ballast Hook injection misbehaves, set `BALLAST_DISABLE=1` or remove Hook trust before changing Git.

@@ -1,26 +1,30 @@
-# Checkpoint — G8-C verified, Ballast integrated, G9 brief pending — 2026-08-19 KST
+# Checkpoint — G8-C verified, docs closed, G9 brief pending — 2026-08-19 KST
 
 ## Validity
 
-This is Powdergame's current session-resume coordinate after G8-C official verification and Ballast integration. It is not a substitute for the official Matrix evidence or live Git. Before code work, exact-fetch the active branch and treat contradictory live state as authoritative.
+This is Powdergame's current session-resume coordinate after G8-C official verification, Ballast integration and the G8 documentation closure. It is not a substitute for official evidence or live Git. Before code work, exact-fetch the active branch and treat contradictory live state as authoritative.
 
 ## Repository coordinate
 
 - Active branch: `feature/m0-g8c-official-matrix`
-- G8-C sealed source: `4653d7c2e09e93f80fb81eeb73458d992c86858f`
+- G8-C sealed runtime source: `4653d7c2e09e93f80fb81eeb73458d992c86858f`
 - Ballast integration merge: `6b5f0201f882f212f9916521aec689261d97b4a6`
-- G8-C evidence closure: `51699d1a73be6f484a8436720463d1aa6c037de9`
+- G8-C evidence/status closure: `51699d1a73be6f484a8436720463d1aa6c037de9`
+- Integrated Ballast checkpoint activation: `dd2f897f29773a44af7ce23fe3e5cf8d07f8110b`
+- Milestone contract/status separation: `00e8860dfbf0a05482aa8128dfc683292b4364e8`
 - G8-B closure: `18391e6a9fc8f9bc7b2757f3504366f106c05435`
 - G8-B state: **CLOSED / FROZEN**
 - G8-C state: **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS**
 - Matrix recommendation: **PROCEED_TO_G9**
 - G9 / optimization / main promotion: **NOT STARTED**
 
+`docs/planning/STATUS.md` now contains only live state and next decisions. `docs/planning/MILESTONES.md` contains Gate contracts without copied volatile status. `docs/HANDOFF.md` is retired as a live checkpoint.
+
 ## Story so far
 
-All five G8-B scenarios and Cell Inspector v0 were user accepted. G8-C then measured those workloads through headless production throughput, synchronized GPU breakdown, windowed simulation/render coexistence and separate GPU render timing.
+All five G8-B scenarios and Cell Inspector v0 were user accepted. G8-C measured those workloads through headless production throughput, synchronized GPU breakdown, windowed simulation/render coexistence and separate GPU render timing.
 
-Two non-evidence pilots found and isolated measurement-tool defects rather than engine-performance defects:
+Two non-evidence pilots found measurement-tool defects rather than engine-performance defects:
 
 1. a stale initial window-size payload was mistaken for a live resize;
 2. the coordinator searched for internal `wall_ms_per_tick` instead of canonical external `wall_per_tick` + `ms/tick`.
@@ -79,10 +83,12 @@ Do not report these as official performance evidence and do not rerun the offici
 **Requirements first; no implementation yet.** Ask the user to decide:
 
 1. initial sandbox state: blank world, guided starter world, or both;
-2. G9-A editor MVP tools and default controls;
-3. Discovery MVP timing and visible feedback;
-4. whether save/load or Rewind belongs in the first slice or is deferred;
-5. the exact manual acceptance session that closes G9/M0.
+2. initial Matter palette visibility;
+3. G9-A editor MVP tools and default controls;
+4. Discovery MVP timing and visible feedback;
+5. whether save/load or Rewind belongs in the first slice or is deferred;
+6. the exact manual acceptance session that closes G9/M0;
+7. how to dispose of the separate G8-A visual requirement.
 
 Then create a bounded G9 implementation plan and branch. Do not start optimization, new Matter, main promotion or runtime work before that product brief is accepted.
 
@@ -90,6 +96,7 @@ Then create a bounded G9 implementation plan and branch. Do not start optimizati
 
 - Do not treat `PROCEED_TO_G9` as automatic user authorization.
 - Do not keep `docs/HANDOFF.md` and this checkpoint as parallel live coordinates.
+- Do not copy volatile status into Milestones again.
 - Do not rerun exact-source official evidence after docs/memory changes.
 - Do not optimize Active / Sleep merely because it is the largest group; require a product blocker.
 - Do not promote agent proposals into `memory/DECISIONS.md`.

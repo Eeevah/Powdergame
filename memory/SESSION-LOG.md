@@ -48,3 +48,14 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - G8-C authoritative docs closure: `51699d1a73be6f484a8436720463d1aa6c037de9`.
 - `docs/HANDOFF.md` retired as live checkpoint; current resume path is memory index/checkpoint/decisions.
 - G8-A visual durable disposition and G9 product brief remain user-owned decisions. No runtime evidence was rerun for these docs/memory changes.
+
+## 2026-08-19 · G8 closed and G9 product brief approved
+
+- User accepted the recommended post-Matrix choices.
+- Product/evidence commit `78d8e9325bc224e0ec193af75bacc945eccc0a7d` formally superseded the separate old G8-A visual requirement without retroactively marking it `PASS`, recorded G8 `CLOSED / FROZEN`, and added the canonical G9 product brief.
+- G9 starts with an editable Starter Lab plus immediate New Blank World; all M0 Matter is visible from the beginning.
+- G9-A scope is the bounded editor/control set with Cell Inspector reuse. Discovery follows after the editor works and records phenomena without unlocking Matter.
+- Save/Load and Rewind are deferred from the first acceptance slice; Rewind remains part of the longer experiment-tool direction.
+- The first direct product-validation session is approximately 10–15 minutes and unguided. A voluntary second experiment and causal explanation are primary strong signals.
+- G9-A is authorized; optimization, new Matter, main promotion and M0 `ACHIEVED` are not.
+- Docs/memory-only closure: no Rust/GPU/FULL, app smoke, candidate, official capture or evidence rerun.

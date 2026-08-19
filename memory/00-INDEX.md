@@ -27,6 +27,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 |---|---|---|
 | [`docs/START_HERE.md`](../docs/START_HERE.md) | Product intent and surface taxonomy | When recovering why the game exists or reviewing product direction |
 | [`docs/planning/STATUS.md`](../docs/planning/STATUS.md) | Current milestone, gate, verdict, evidence router | When actual project state or next gate matters |
+| [`docs/planning/G9_PRODUCT_BRIEF_2026-08-19.md`](../docs/planning/G9_PRODUCT_BRIEF_2026-08-19.md) | User-approved first playable scope, sequencing and exclusions | Before any G9 implementation or product-scope change |
 | [`docs/planning/MILESTONES.md`](../docs/planning/MILESTONES.md) | Gate completion contracts | Before claiming closure |
 | [`docs/planning/ROADMAP.md`](../docs/planning/ROADMAP.md) | Adopted long-term direction and ordering | When choosing a later product path |
 | [`docs/development/VALIDATION_POLICY.md`](../docs/development/VALIDATION_POLICY.md) | Change-impact validation and same-SHA reuse | Before any validation or evidence reuse |

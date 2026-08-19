@@ -6,25 +6,29 @@ This is an append-only register of user-owned pending choices and dated disposit
 
 Disposition: `USER ACCEPTED WITH KNOWN FOLLOW-UP`. Automatic `NEEDS_HUMAN_REVIEW`, 14/14 hard PASS, `candidate_blocker=false`, immutable artifacts and declining `broad_terminal_tail` remain unchanged. See D-003 and the Heavy evidence record.
 
-## Q-002 · G8-A same-SHA visual durable disposition — open
+## Q-002 · G8-A same-SHA visual durable disposition — closed 2026-08-19
 
-Owner: user
+Original owner: user
 
-Known evidence:
+Original known evidence:
 
 - source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`
 - capture `g8a-v5-9abec9e-20260817T032827206Z`
 - official capture and independent verification complete
 
-Decision required: approve, explicitly defer, or formally supersede the separate same-SHA visual-disposition requirement. Do not infer this decision from G8-C.
+Disposition:
+
+The user selected formal supersession. G8-A v5 remains verified technical evidence. The separate old same-SHA visual requirement is **SUPERSEDED**, not retroactively marked `PASS`, by the later direct G8-B Gallery/Cell Inspector user approvals and the independently verified G8-C windowed Matrix. The old capture is not replayed or rebound.
+
+See D-007 and `docs/evidence/G8_PERFORMANCE_GATE_USER_CLOSURE_2026-08-19.md`.
 
 ## Q-003 · Authorize G8-C after Heavy acceptance — closed 2026-08-19
 
 Disposition: user authorized G8-C Official Performance Matrix only. This did not authorize G9, optimization, G8 closure or `main` promotion.
 
-## Q-004 · What follows the verified G8-C Matrix? — open
+## Q-004 · What follows the verified G8-C Matrix? — closed 2026-08-19
 
-Owner: user
+Original owner: user
 
 Known official evidence:
 
@@ -36,7 +40,9 @@ Known official evidence:
 - verifier: 230 recomputed fields, mismatch `0`
 - recommendation: `PROCEED_TO_G9`
 
-Decision required: approve a G9 product brief, request a narrower human review, or override the recommendation. The evidence found no current simulation/rendering/coexistence/persistent-memory blocker for the 60-TPS M0 target, but it cannot make the product decision for the user.
+Disposition:
+
+The user approved the recommended G9 product brief in D-006. G9-A is the next implementation step; optimization remains deferred. The first task stops at a user-testable editor/sandbox candidate before Discovery or other expansion.
 
 ## Q-005 · Integrate Ballast into the active product line — closed 2026-08-19
 
@@ -63,3 +69,14 @@ Disposition:
 - sealed source `4653d7c2e09e93f80fb81eeb73458d992c86858f` was pushed clean/upstream-equal;
 - official Matrix, independent verification and package each ran exactly once;
 - recommendation `PROCEED_TO_G9`.
+
+## Current pending user-owned choices
+
+No product-scope question blocks G9-A implementation.
+
+Future user decisions occur at the next evidence boundary:
+
+- accept, revise or reject the G9-A user-testable editor/sandbox candidate;
+- authorize later G9-B/C/D progression after that candidate;
+- approve shared `main` promotion;
+- give the final G9/M0 product disposition after direct play.

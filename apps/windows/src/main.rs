@@ -2,7 +2,7 @@
 //!
 //! winit window → wgpu/DX12 → RTX 5090 → dense GPU world → frames.
 //!
-//! Default (and `--smoke-frames N`): G8-B Benchmark Scenario Gallery.
+//! Default (and `--smoke-frames N`): G9-A First Playable Sandbox.
 //! `--runtime-baseline` explicitly selects the reference 2048×2048 world and
 //! empty clear/present path (G0 technical baseline). Demo fixtures present a
 //! staged world through the read-only world view:
@@ -2644,8 +2644,8 @@ fn parse_smoke_frames() -> Result<Option<u32>, String> {
 }
 
 /// Parses the user-facing mode. With no explicit mode, the canonical app opens
-/// the Gallery; the empty G0 runtime remains available only through
-/// `--runtime-baseline` (or the pre-existing demo environment variables).
+/// the G9-A Sandbox; Gallery and the empty G0 runtime remain available through
+/// their explicit flags (or the pre-existing demo environment variables).
 fn parse_demo_mode() -> DemoMode {
     if let Some(cli_mode) = explicit_demo_mode_from_args(std::env::args().skip(1)) {
         return cli_mode;
@@ -2662,7 +2662,7 @@ fn parse_demo_mode() -> DemoMode {
     if std::env::var("POWDERGAME_PRESSURE_DEMO").as_deref() == Ok("1") {
         return DemoMode::Pressure;
     }
-    DemoMode::Gallery
+    DemoMode::Sandbox
 }
 
 #[cfg(test)]
@@ -2671,7 +2671,7 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    explicit_demo_mode_from_args(args).unwrap_or(DemoMode::Gallery)
+    explicit_demo_mode_from_args(args).unwrap_or(DemoMode::Sandbox)
 }
 
 fn explicit_demo_mode_from_args<I, S>(args: I) -> Option<DemoMode>
@@ -3171,14 +3171,14 @@ mod tests {
     }
 
     #[test]
-    fn user_mode_defaults_to_gallery_with_no_args_or_smoke_only() {
+    fn user_mode_defaults_to_sandbox_with_no_args_or_smoke_only() {
         assert_eq!(
             demo_mode_from_args(std::iter::empty::<&str>()),
-            DemoMode::Gallery
+            DemoMode::Sandbox
         );
         assert_eq!(
             demo_mode_from_args(["--smoke-frames", "3"]),
-            DemoMode::Gallery
+            DemoMode::Sandbox
         );
         assert_eq!(
             smoke_frames_from_args(["--smoke-frames", "3"], None).unwrap(),

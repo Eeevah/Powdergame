@@ -5,7 +5,7 @@ if not defined RUST_LOG set "RUST_LOG=warn"
 set "APP=%~dp0target\release\powdergame-windows.exe"
 set "APP_ARGS=%*"
 
-if "%~1"=="" goto route_gallery
+if "%~1"=="" goto route_sandbox
 
 set "FIRST_ARG=%~1"
 if "%FIRST_ARG:~0,2%"=="--" goto build
@@ -92,7 +92,8 @@ exit /b 0
 
 :usage
 echo Usage: run_powdergame.bat [sandbox^|play^|normal^|gallery^|runtime^|g0^|movement^|density^|thermal^|pressure^|parallel-integrity^|activity^|app CLI args...] 1>&2
-echo   default = Gallery ^(no args, normal, gallery^) 1>&2
+echo   default = G9-A first playable Sandbox ^(no args^) 1>&2
+echo   normal/gallery = G8-B Benchmark Gallery 1>&2
 echo   sandbox/play = G9-A first playable Sandbox 1>&2
 echo   runtime/g0 = technical empty G0 baseline 1>&2
 exit /b 2

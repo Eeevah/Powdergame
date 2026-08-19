@@ -445,8 +445,8 @@ function Invoke-DevelopmentAudit {
             sandbox = "--sandbox"
             play = "--sandbox"
         }
-        if ([string]$contract.default_args -cne "--benchmark-gallery") {
-            $errors.Add("Canonical launcher policy default must be --benchmark-gallery")
+        if ([string]$contract.default_args -cne "--sandbox") {
+            $errors.Add("Canonical launcher policy default must be --sandbox")
         }
         $declaredAliases = @($contract.aliases.PSObject.Properties)
         if ($declaredAliases.Count -ne $requiredAliases.Count) {
@@ -481,7 +481,8 @@ function Invoke-DevelopmentAudit {
             $errors.Add("Canonical launcher audit stdout prefix changed")
         }
         $requiredUsageTerms = @(
-            "default = Gallery",
+            "default = G9-A first playable Sandbox",
+            "normal/gallery = G8-B Benchmark Gallery",
             "sandbox/play = G9-A first playable Sandbox",
             "runtime/g0 = technical empty G0 baseline"
         )

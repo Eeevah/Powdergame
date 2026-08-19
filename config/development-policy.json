@@ -22,7 +22,7 @@
     ]
   },
   "launcher_contract": {
-    "default_args": "--benchmark-gallery",
+    "default_args": "--sandbox",
     "aliases": {
       "normal": "--benchmark-gallery",
       "gallery": "--benchmark-gallery",
@@ -55,7 +55,8 @@
     "probe_timeout_ms": 5000,
     "probe_stdout_prefix": "POWDERGAME_LAUNCHER_AUDIT_ARGS=",
     "usage_required_terms": [
-      "default = Gallery",
+      "default = G9-A first playable Sandbox",
+      "normal/gallery = G8-B Benchmark Gallery",
       "sandbox/play = G9-A first playable Sandbox",
       "runtime/g0 = technical empty G0 baseline"
     ]

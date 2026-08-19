@@ -235,10 +235,11 @@ G9는 신규 Matter 수를 늘리는 단계가 아니다. 현재 세트로 먼�
 25. Cell Inspector v0 — tested source `3c342d25099683df53e303d1920cebe1f6578b74` **USER ACCEPTED WITH KNOWN FOLLOW-UP**; prior silent-pending docs closure `6a521c07c23d9817f6abb9d3e1eab47758b5d5c4`
 26. 같은 source SHA의 G8-A user visual validation
 27. Heavy Mixed World — source `07260fff`, run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`, automatic `NEEDS_HUMAN_REVIEW` unchanged solely for `broad_terminal_tail`, 14/14 hard pass, `candidate_blocker=false`; human **USER ACCEPTED WITH KNOWN FOLLOW-UP**
-28. G8-B **CLOSED / FROZEN**; G8-C Official Matrix **NEXT / AUTHORIZED**
-29. 사용자 결정 B: G9 Playable First World 진행
-30. 사용자 결정 C: M0 승인 이후에만 P1 identity/descriptor 등록 검토
-31. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
+28. G8-B **CLOSED / FROZEN**; G8-C Official Matrix **IMPLEMENTATION CANDIDATE / CAPTURE PENDING**
+29. G8-C non-evidence pilot 한 번, clean source seal, official matrix 한 번, independent verification/package
+30. 사용자 결정 B: G9 Playable First World 진행
+31. 사용자 결정 C: M0 승인 이후에만 P1 identity/descriptor 등록 검토
+32. M0 승인 후 M1 Interaction Grammar Alpha 설계 확정
 
 Do not start with aggressive packing/f16/indirect dispatch.
 
@@ -277,6 +278,10 @@ Record subsystem cost separately during G8-C, not from Gallery diagnostics.
 Include rendering and simulation+rendering coexistence evidence; calibration-only headless TPS is not the entire product performance result.
 
 Do not set arbitrary M0 maximum-TPS pass/fail before the official matrix exists.
+
+G8-C implementation candidate는 `pwsh -NoProfile -File tools/dev.ps1 g8c-matrix pilot|official`로만 실행한다. Mode A는 existing ordinary-context sustained throughput, Mode B는 separate profiling-context 17-pass/6-group breakdown, Mode C는 HUD/Inspector/text/readback을 끈 1600×900 Fifo coexistence, Mode D는 별도 timestamp-enabled render profiling이다. Outer schemas는 matrix/headless/coexistence/render-profile v1이며 G8-A/G8-B inner output을 바꾸지 않는다. Official Run은 exact source bytes + canonical Git archive + 두 역할별 frozen binary + raw A/B/C/D + reports + hashes + receipt-last를 한 matrix root에 묶고, sibling ZIP/package hash/independent verification result 하나만 만든다. Screenshot/contact sheet/video와 scenario별 bundle은 만들지 않는다.
+
+현재는 source/CLI/reset/accounting/percentile/receipt/package/verifier targeted checks가 통과한 **implementation candidate**일 뿐이다. Pilot, clean source seal, isolated build, official capture와 independent verification 전에는 수치나 recommendation을 현재 성능 사실로 기록하지 않는다. G8-A same-SHA user visual durable closure는 별도 pending이며 G9 또는 optimization은 자동 시작하지 않는다.
 
 Current boundary: all five official scenarios and Cell Inspector v0 are user accepted, so G8-B is **CLOSED / FROZEN**. Water keeps its immutable automatic `NEEDS_HUMAN_REVIEW` and known M0 liquid free-surface follow-up. Scenario 3 Fire / Heat keeps its sealed unchanged-fixture automatic-`PASS` candidate and immutable artifacts; no physics change or rerun was required. Scenario 4 Pressure Burst preserves the rejected/confounded first candidate and dirty-source causal scratch, while the accepted immutable clean-source candidate is run `g8b-pressure-burst-v0-20260818T101046792957Z-17158748` at source `43e19d0f3b43aa0c15bf31e98f6401ba5f885170`. Its automatic `NEEDS_HUMAN_REVIEW` is unchanged; human verdict is `USER ACCEPTED WITH KNOWN FOLLOW-UP`. `pressure_opening_precedes_combustion` passed, opening-time combustion/flame/fuel progress was zero, adjacent Pressure exceeded the rupture threshold, terminal Pressure trended downward, invalid/non-finite was `0 / 0`, and reset was exact. Known follow-up is top-seam-only opening, a small persistent plume, broad terminal Pressure activity, and G8-C workload-cost measurement; no production-physics defect is established. Cell Inspector v0 is **USER ACCEPTED WITH KNOWN FOLLOW-UP** at tested source `3c342d25099683df53e303d1920cebe1f6578b74`; its slight bounded hover delay is non-blocking. Scenario 5 Heavy Mixed World has an immutable clean-source candidate at source/run `07260fffab22e5b4513eb168f0baac36e374ab94` / `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`. Its 14 hard predicates pass and `candidate_blocker=false`; automatic `NEEDS_HUMAN_REVIEW` remains solely for review-only `broad_terminal_tail`, while human verdict is **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Terminal Thermal activity is large but decreases monotonically through the terminal window; Pressure and Reaction have ended, so this is not a correctness failure. G8-C is **NEXT / AUTHORIZED** to measure actual workload cost. Do not retune accepted scenarios or change production physics. No physics/Material/G9/optimization addition belongs to this closure.
 

@@ -556,7 +556,22 @@ The immutable Heavy binary / Review Packet / Receipt / Audit Bundle SHA-256 valu
 - Gallery의 rendering, HUD, wall-clock TPS, sampled activity census는 시각적·진단용 surface다. bounded census도 out-of-band readback이며 official timed loop에 들어가지 않는다.
 - headless harness는 `--scenario calibration|sand-fall|water-flow|fire-heat|pressure-burst|heavy-mixed-world|active-sleep-g7`을 받는다. Gallery crate/window/renderer를 통과하지 않는다.
 - 기본 `calibration`은 기존 `powdergame-g8a-v5`, `g8a-*`, `target/calibration_report.csv` 계약을 유지한다. shared fixture는 같은 CSV column shape에서 `powdergame-g8b-fixture-v1`, `g8b-<slug>-*`, `target/<slug>_report.csv`로 identity와 기본 output을 분리한다.
-- 이 구현은 scenario 반복 가능성과 관찰 surface를 제공할 뿐이다. official G8-C throughput/render/coexistence matrix, bottleneck 결정, 숫자 budget은 별도 단계다.
+- G8-B 구현은 scenario 반복 가능성과 관찰 surface를 제공할 뿐이다. G8-C는 아래 별도 coordinator와 outer schema에서 throughput/render/coexistence를 함께 측정한다.
+
+### G8-C Official Matrix implementation candidate
+
+Developer entry는 `pwsh -NoProfile -File tools/dev.ps1 g8c-matrix pilot|official`이다. 새 root launcher나 사용자용 binary는 만들지 않는다. 다섯 official workload는 `sand-fall`, `water-flow`, `fire-heat`, `pressure-burst`, `heavy-mixed-world` 순서로 정확히 한 번씩 포함하며, scenario fixture와 production physics는 변경하지 않는다.
+
+- Mode A — Headless Production Throughput: ordinary `GpuContext`, batch production ticks, measured window 끝 한 번의 wait, sustained TPS와 wall ms/tick. 기존 G8-A inner CSV/schema를 유지한다.
+- Mode B — Headless GPU Breakdown: 같은 adapter의 별도 timestamp-enabled context, synchronized profiled ticks, 17 pass / 6 subsystem group / envelope / residual과 raw tick identity. Mode A sustained throughput으로 표현하지 않는다.
+- Mode C — Windowed Production Coexistence: 2048×2048 official world, 1600×900 physical `PresentMode::Fifo`, simulation target 60 TPS, 2-second prewarm와 10-second window를 3회 측정한다. HUD, Inspector, text diagnostics, screenshot/readback은 꺼진다. Simulation TPS, presented FPS, frame P50/P95/P99, missed deadline/catch-up, surface/device error를 기록한다.
+- Mode D — Windowed GPU Render Timing: Mode C와 분리된 timestamp-enabled context에서 256 measured frames × 3 trials를 실행하고 render-pass GPU P50/P95/mean을 기록한다. Query resolve/readback은 trial window 뒤 한 번이며 profiling overhead는 Mode C에 섞지 않는다.
+
+Outer schemas는 matrix `powdergame-g8c-official-matrix-v1`, headless wrapper `powdergame-g8c-headless-v1`, coexistence `powdergame-g8c-coexistence-v1`, render profile `powdergame-g8c-render-profile-v1`이다. `powdergame-g8a-v5`, `powdergame-g8b-fixture-v1`, 기존 CSV shape와 capture/verifier fixture는 소급 변경하지 않는다. 모든 trial/prewarm/control window는 shared pristine reset/staging을 사용한다.
+
+Output은 `C:\Users\mdkap\source\Powdergame-artifacts\g8c-official-matrix-<unique-id>`의 raw-first matrix Run 하나다. Exact source-input archive, canonical Git archive, 두 frozen binary, command/log/exit, raw A/B/C/D rows, report, `HASHES.sha256`, receipt-last marker를 포함한다. 그 뒤 sibling delivery에 ZIP64 package, external SHA-256 sidecar, independent verification result 하나를 publish한다. Per-scenario Audit Bundle, screenshot, contact sheet, video, G8-B artifact 복사는 만들지 않는다.
+
+현재 상태는 **IMPLEMENTATION CANDIDATE / CAPTURE PENDING**이다. Targeted source/CLI/arithmetic/verifier checks가 통과했더라도 non-evidence pilot, clean source seal, isolated locked build, official capture와 independent verification 전에는 G8-C result나 optimization recommendation을 주장하지 않는다. FULL은 변경 경로상 recommended일 때 실행하지 않으며, required로 판정되면 capture 전에 중단한다.
 
 ### Scenario Experiment Evidence Harness
 

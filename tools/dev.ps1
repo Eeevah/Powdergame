@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("audit", "validation-plan", "session-start", "session-span", "session-phase-start", "session-phase-end", "measure", "session-end")]
+    [ValidateSet("audit", "validation-plan", "g8c-matrix", "session-start", "session-span", "session-phase-start", "session-phase-end", "measure", "session-end")]
     [string]$Command = "audit",
     [string]$BaseRef = "HEAD~1",
     [string]$Task = "",
@@ -1122,6 +1122,17 @@ function Stop-DevelopmentSession {
 
 switch ($Command) {
     "audit" { Invoke-DevelopmentAudit }
+    "g8c-matrix" {
+        $pythonCommand = Get-Command python -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($null -eq $pythonCommand) {
+            throw "g8c-matrix requires a Python 3 interpreter named 'python' on PATH"
+        }
+        & $pythonCommand.Source -B (Join-Path $RepoRoot "tools\g8c_matrix.py") @RemainingArgs
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+    }
     "validation-plan" {
         $plan = Get-ValidationPlan
         if ($Json) {

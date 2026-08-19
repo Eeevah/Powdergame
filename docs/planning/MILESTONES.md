@@ -423,7 +423,17 @@ Acceptance boundary:
 
 ### G8-C — Official Matrix Measurement
 
-**Status:** NEXT / AUTHORIZED — G8-B closure와 별개이며 official capture 전이다.
+**Status:** IMPLEMENTATION CANDIDATE / CAPTURE PENDING — G8-B closure와 별개이며 pilot 및 official capture 전이다.
+
+Current measurement contract:
+
+- developer entry는 `pwsh -NoProfile -File tools/dev.ps1 g8c-matrix pilot|official`이며 새 root BAT나 사용자용 EXE를 추가하지 않는다.
+- Mode A는 기존 ordinary-context batch throughput, Mode B는 별도 profiling-context의 17-pass / 6-group GPU breakdown 계약과 historical G8-A schema를 그대로 보존한다.
+- Mode C는 1600×900 physical `PresentMode::Fifo` window에서 simulation 60 TPS와 production rendering의 coexistence responsiveness를 측정한다. HUD, Cell Inspector, text diagnostics, screenshot/readback은 끈다.
+- Mode D는 별도 timestamp-enabled window context에서 simulation과 rendering을 함께 실행하되 render-pass timestamp를 window 종료 후 resolve/readback한다. 그 profiling overhead를 Mode C FPS로 표현하지 않는다.
+- outer schemas는 `powdergame-g8c-official-matrix-v1`, `powdergame-g8c-headless-v1`, `powdergame-g8c-coexistence-v1`, `powdergame-g8c-render-profile-v1`이다. Historical G8-A/G8-B output은 소급 변경하지 않는다.
+- pilot은 256×256 non-evidence orchestration 검증 한 번만 허용한다. Official은 clean/upstream-aligned source에서 다섯 scenario를 정확히 한 번 capture하고 independent verifier와 matrix-level package 하나로 봉인한다.
+- 현재 구현·targeted validation은 capture를 승인하지 않는다. Pilot PASS, clean source seal, isolated locked release build, official capture, independent verification과 recommendation이 모두 남아 있다.
 
 Required metrics:
 

@@ -215,6 +215,53 @@ pub struct Renderer {
     text_renderer: Option<crate::text_renderer::TextRenderer>,
 }
 
+/// Immutable surface facts recorded by the G8-C windowed measurement worker.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SurfaceInfo {
+    pub width: u32,
+    pub height: u32,
+    pub format: TextureFormat,
+    pub present_mode: wgpu::PresentMode,
+}
+
+/// Stable classification for a failed G8-C measured surface acquisition.
+/// Normal application rendering continues to use its existing `GpuError`
+/// behavior; this type exists only so evidence can count typed frame drops.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MeasurementSurfaceFailure {
+    pub kind: &'static str,
+    pub message: String,
+    pub reconfigured: bool,
+    pub fatal: bool,
+}
+
+/// Result of one explicit G8-C surface presentation attempt.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MeasurementFrameStatus {
+    Presented,
+    Dropped(MeasurementSurfaceFailure),
+}
+
+/// One resolved render-pass timestamp pair. Raw ticks are retained so the
+/// independent verifier can reconstruct every duration without trusting the
+/// worker's floating-point conversion.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RenderTimestampSample {
+    pub start_tick: u64,
+    pub end_tick: u64,
+    pub duration_ms: f64,
+}
+
+/// Mode-D-only timestamp resources. Ordinary renderer construction and
+/// [`Renderer::render`] never allocate this type or request TIMESTAMP_QUERY.
+pub struct RenderTimestampBatch {
+    query_set: wgpu::QuerySet,
+    resolve_buffer: wgpu::Buffer,
+    readback_buffer: wgpu::Buffer,
+    capacity: u32,
+    submitted: u32,
+}
+
 /// CPU-owned RGBA8 pixels captured from the exact renderer draw path.
 #[allow(dead_code)] // Used by the automated capture worker when that mode is linked.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1042,11 +1089,184 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("powdergame-render-encoder"),
             });
-        self.encode_frame(&mut encoder, &view, hud_data);
+        self.encode_frame(&mut encoder, &view, hud_data, None);
 
         self.queue.submit([encoder.finish()]);
         frame.present();
         Ok(())
+    }
+
+    /// Presents one HUD-free G8-C measurement frame while retaining the
+    /// exact surface-acquisition failure class. Lost/outdated surfaces are
+    /// reconfigured for the next attempt; the failed attempt remains a
+    /// counted drop and is never reported as presented.
+    pub fn render_measurement(&mut self) -> MeasurementFrameStatus {
+        let frame = match self.acquire_measurement_frame() {
+            Ok(frame) => frame,
+            Err(error) => return MeasurementFrameStatus::Dropped(error),
+        };
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("powdergame-g8c-coexistence-render-encoder"),
+            });
+        self.encode_frame(&mut encoder, &view, None, None);
+        self.queue.submit([encoder.finish()]);
+        frame.present();
+        MeasurementFrameStatus::Presented
+    }
+
+    /// Allocates one bounded render timestamp window. This is intentionally an
+    /// explicit diagnostic API: it succeeds only when the caller created the
+    /// device with TIMESTAMP_QUERY, and it has no effect on ordinary renders.
+    pub fn begin_render_timestamp_batch(
+        &self,
+        frame_capacity: u32,
+    ) -> Result<RenderTimestampBatch, GpuError> {
+        if frame_capacity == 0 {
+            return Err(GpuError::Other(
+                "render timestamp batch capacity must be greater than zero".into(),
+            ));
+        }
+        if !self
+            .device
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY)
+        {
+            return Err(GpuError::FeatureNotSupported("TIMESTAMP_QUERY".into()));
+        }
+        let query_count = frame_capacity.checked_mul(2).ok_or_else(|| {
+            GpuError::Other(format!(
+                "render timestamp query count overflows for {frame_capacity} frames"
+            ))
+        })?;
+        let byte_size = u64::from(query_count) * 8;
+        let query_set = self.device.create_query_set(&wgpu::QuerySetDescriptor {
+            label: Some("powdergame-g8c-render/query-set"),
+            ty: wgpu::QueryType::Timestamp,
+            count: query_count,
+        });
+        let resolve_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("powdergame-g8c-render/resolve-buffer"),
+            size: byte_size,
+            usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+        let readback_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("powdergame-g8c-render/readback-buffer"),
+            size: byte_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        Ok(RenderTimestampBatch {
+            query_set,
+            resolve_buffer,
+            readback_buffer,
+            capacity: frame_capacity,
+            submitted: 0,
+        })
+    }
+
+    /// Presents one HUD-free frame with a begin/end timestamp on the render
+    /// pass. Query resolve and CPU mapping are deliberately deferred to
+    /// [`Renderer::finish_render_timestamp_batch`].
+    pub fn render_timestamped(
+        &mut self,
+        batch: &mut RenderTimestampBatch,
+    ) -> Result<MeasurementFrameStatus, GpuError> {
+        if batch.submitted >= batch.capacity {
+            return Err(GpuError::Other(format!(
+                "render timestamp batch capacity {} exhausted",
+                batch.capacity
+            )));
+        }
+        let frame = match self.acquire_measurement_frame() {
+            Ok(frame) => frame,
+            Err(error) => return Ok(MeasurementFrameStatus::Dropped(error)),
+        };
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("powdergame-g8c-render-encoder"),
+            });
+        let first_query = batch.submitted * 2;
+        self.encode_frame(
+            &mut encoder,
+            &view,
+            None,
+            Some((&batch.query_set, first_query)),
+        );
+        self.queue.submit([encoder.finish()]);
+        frame.present();
+        batch.submitted += 1;
+        Ok(MeasurementFrameStatus::Presented)
+    }
+
+    /// Resolves and maps the complete timestamp window once, after every
+    /// measured frame has been submitted.
+    pub fn finish_render_timestamp_batch(
+        &self,
+        batch: RenderTimestampBatch,
+        timestamp_period_ns: f32,
+    ) -> Result<Vec<RenderTimestampSample>, GpuError> {
+        if batch.submitted == 0 {
+            return Err(GpuError::ReadbackFailed(
+                "cannot resolve an empty render timestamp batch".into(),
+            ));
+        }
+        if !timestamp_period_ns.is_finite() || timestamp_period_ns <= 0.0 {
+            return Err(GpuError::ReadbackFailed(format!(
+                "invalid render timestamp period {timestamp_period_ns:?}"
+            )));
+        }
+        let query_count = batch.submitted * 2;
+        let byte_size = u64::from(query_count) * 8;
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("powdergame-g8c-render-resolve-encoder"),
+            });
+        encoder.resolve_query_set(&batch.query_set, 0..query_count, &batch.resolve_buffer, 0);
+        encoder.copy_buffer_to_buffer(
+            &batch.resolve_buffer,
+            0,
+            &batch.readback_buffer,
+            0,
+            byte_size,
+        );
+        self.queue.submit([encoder.finish()]);
+
+        let slice = batch.readback_buffer.slice(..byte_size);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+        self.device.poll(wgpu::PollType::Wait).map_err(|error| {
+            GpuError::ReadbackFailed(format!("render timestamp GPU wait failed: {error}"))
+        })?;
+        receiver
+            .recv()
+            .map_err(|error| {
+                GpuError::ReadbackFailed(format!("render timestamp map callback lost: {error}"))
+            })?
+            .map_err(|error| GpuError::ReadbackFailed(error.to_string()))?;
+
+        let mapped = slice.get_mapped_range();
+        let raw = mapped
+            .chunks_exact(8)
+            .take(query_count as usize)
+            .map(|bytes| u64::from_ne_bytes(bytes.try_into().expect("eight-byte timestamp")))
+            .collect::<Vec<_>>();
+        drop(mapped);
+        batch.readback_buffer.unmap();
+
+        timestamp_samples_from_raw(&raw, timestamp_period_ns).map_err(GpuError::ReadbackFailed)
     }
 
     /// Draws the complete renderer frame into an offscreen texture and reads
@@ -1088,7 +1308,7 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("powdergame-full-frame-capture-encoder"),
             });
-        self.encode_frame(&mut encoder, &view, hud_data);
+        self.encode_frame(&mut encoder, &view, hud_data, None);
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -1142,7 +1362,14 @@ impl Renderer {
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         hud_data: Option<HudData<'_>>,
+        timestamp: Option<(&wgpu::QuerySet, u32)>,
     ) {
+        let timestamp_writes =
+            timestamp.map(|(query_set, first)| wgpu::RenderPassTimestampWrites {
+                query_set,
+                beginning_of_pass_write_index: Some(first),
+                end_of_pass_write_index: Some(first + 1),
+            });
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("powdergame-present-pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1155,7 +1382,7 @@ impl Renderer {
                 },
             })],
             depth_stencil_attachment: None,
-            timestamp_writes: None,
+            timestamp_writes,
             occlusion_query_set: None,
         });
         if let Some(wv) = &self.world_view {
@@ -1227,6 +1454,85 @@ impl Renderer {
     pub fn format(&self) -> TextureFormat {
         self.config.format
     }
+
+    /// Returns the actual configured surface contract used by a frame.
+    pub fn surface_info(&self) -> SurfaceInfo {
+        SurfaceInfo {
+            width: self.config.width,
+            height: self.config.height,
+            format: self.config.format,
+            present_mode: self.config.present_mode,
+        }
+    }
+
+    fn acquire_measurement_frame(
+        &mut self,
+    ) -> Result<wgpu::SurfaceTexture, MeasurementSurfaceFailure> {
+        self.surface.get_current_texture().map_err(|error| {
+            let (kind, reconfigure, fatal) = classify_measurement_surface_error(&error);
+            if reconfigure {
+                self.surface.configure(&self.device, &self.config);
+            }
+            MeasurementSurfaceFailure {
+                kind,
+                message: error.to_string(),
+                reconfigured: reconfigure,
+                fatal,
+            }
+        })
+    }
+}
+
+fn classify_measurement_surface_error(error: &wgpu::SurfaceError) -> (&'static str, bool, bool) {
+    match error {
+        wgpu::SurfaceError::Timeout => ("timeout", false, false),
+        wgpu::SurfaceError::Outdated => ("outdated", true, false),
+        wgpu::SurfaceError::Lost => ("lost", true, false),
+        wgpu::SurfaceError::OutOfMemory => ("out_of_memory", false, true),
+        wgpu::SurfaceError::Other => ("other", false, false),
+    }
+}
+
+fn timestamp_samples_from_raw(
+    raw: &[u64],
+    timestamp_period_ns: f32,
+) -> Result<Vec<RenderTimestampSample>, String> {
+    if raw.is_empty() || !raw.len().is_multiple_of(2) {
+        return Err(format!(
+            "render timestamps require a non-empty even-length sequence, got {} values",
+            raw.len()
+        ));
+    }
+    if !timestamp_period_ns.is_finite() || timestamp_period_ns <= 0.0 {
+        return Err(format!(
+            "invalid render timestamp period {timestamp_period_ns:?}"
+        ));
+    }
+    let mut samples = Vec::with_capacity(raw.len() / 2);
+    let mut previous_end = None;
+    for (frame, pair) in raw.chunks_exact(2).enumerate() {
+        let start_tick = pair[0];
+        let end_tick = pair[1];
+        if end_tick <= start_tick {
+            return Err(format!(
+                "render frame {frame} timestamp order invalid: {start_tick}..{end_tick}"
+            ));
+        }
+        if previous_end.is_some_and(|end| start_tick < end) {
+            return Err(format!(
+                "render frame {frame} starts at {start_tick} before prior end {}",
+                previous_end.expect("checked")
+            ));
+        }
+        samples.push(RenderTimestampSample {
+            start_tick,
+            end_tick,
+            duration_ms: (end_tick - start_tick) as f64 * f64::from(timestamp_period_ns)
+                / 1_000_000.0,
+        });
+        previous_end = Some(end_tick);
+    }
+    Ok(samples)
 }
 
 struct WorldView {
@@ -1678,5 +1984,53 @@ mod capture_tests {
 
         let layout = capture_layout(1, 2, TextureFormat::Rgba8UnormSrgb).unwrap();
         assert!(captured_bytes_to_rgba(&[0; 511], 1, 2, layout).is_err());
+    }
+}
+
+#[cfg(test)]
+mod render_timestamp_tests {
+    use super::*;
+
+    #[test]
+    fn render_timestamps_preserve_raw_identity_and_period_conversion() {
+        let samples = timestamp_samples_from_raw(&[10, 30, 40, 65], 2.0).unwrap();
+        assert_eq!(samples.len(), 2);
+        assert_eq!((samples[0].start_tick, samples[0].end_tick), (10, 30));
+        assert_eq!(samples[0].duration_ms, 0.000_04);
+        assert_eq!((samples[1].start_tick, samples[1].end_tick), (40, 65));
+        assert_eq!(samples[1].duration_ms, 0.000_05);
+    }
+
+    #[test]
+    fn render_timestamps_reject_malformed_and_out_of_order_windows() {
+        assert!(timestamp_samples_from_raw(&[], 1.0).is_err());
+        assert!(timestamp_samples_from_raw(&[1], 1.0).is_err());
+        assert!(timestamp_samples_from_raw(&[1, 2], 0.0).is_err());
+        assert!(timestamp_samples_from_raw(&[2, 2], 1.0).is_err());
+        assert!(timestamp_samples_from_raw(&[4, 8, 7, 9], 1.0).is_err());
+    }
+
+    #[test]
+    fn measured_surface_errors_have_stable_recovery_and_fatal_classes() {
+        assert_eq!(
+            classify_measurement_surface_error(&wgpu::SurfaceError::Timeout),
+            ("timeout", false, false)
+        );
+        assert_eq!(
+            classify_measurement_surface_error(&wgpu::SurfaceError::Outdated),
+            ("outdated", true, false)
+        );
+        assert_eq!(
+            classify_measurement_surface_error(&wgpu::SurfaceError::Lost),
+            ("lost", true, false)
+        );
+        assert_eq!(
+            classify_measurement_surface_error(&wgpu::SurfaceError::OutOfMemory),
+            ("out_of_memory", false, true)
+        );
+        assert_eq!(
+            classify_measurement_surface_error(&wgpu::SurfaceError::Other),
+            ("other", false, false)
+        );
     }
 }

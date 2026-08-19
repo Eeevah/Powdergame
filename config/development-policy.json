@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "adopted",
-  "last_updated": "2026-08-17",
+  "last_updated": "2026-08-19",
   "canonical_app": {
     "binary": "target/release/powdergame-windows.exe",
     "normal_launcher": "run_powdergame.bat",
@@ -161,6 +161,26 @@
         "cargo test -p powdergame-windows experiment:: -- --test-threads=1",
         "python -m unittest tools.experiment.test_run_experiment",
         "cargo clippy --workspace --all-targets -- -D warnings",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "g8c-official-evidence-tooling",
+      "priority": 75,
+      "patterns": [
+        "^apps/windows/src/g8c_measurement\\.rs$",
+        "^tools/(g8c_matrix|verify_g8c_matrix|test_g8c_matrix|test_verify_g8c_matrix)\\.py$"
+      ],
+      "full": "recommended",
+      "smoke": "required",
+      "candidate": "when-task-output",
+      "commands": [
+        "cargo fmt --all -- --check",
+        "cargo check -p powdergame-windows --all-targets",
+        "cargo test -p powdergame-windows g8c_measurement:: -- --test-threads=1",
+        "python -B -m unittest tools.test_g8c_matrix tools.test_verify_g8c_matrix",
+        "cargo clippy -p powdergame-windows --all-targets -- -D warnings",
+        "pwsh -NoProfile -File tools/dev.ps1 audit -Strict",
         "git diff --check"
       ]
     },

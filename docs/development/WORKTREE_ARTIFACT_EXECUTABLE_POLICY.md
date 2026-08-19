@@ -143,6 +143,17 @@ Audit Bundle을 만들지 않는다. Frozen copy는 immutable Run과 함께 보�
 명시적인 artifact-retention 결정으로 전체 Run을 retire할 때만 제거한다. 사용자
 앱처럼 게시하거나 별도 복사하지 않는다.
 
+G8-C official matrix도 역할이 다른 두 binary에 한해 matrix-level evidence 예외를
+사용한다. `powdergame-benchmark.exe`는 headless Mode A/B, `powdergame-windows.exe`는
+windowed coexistence Mode C와 render-profile Mode D를 담당한다. 둘은 같은 clean
+source의 isolated `cargo build --locked --release`에서 한 번 만들고, unique matrix
+Run의 `frozen-binary/`에 각각 create-new copy 한 개만 둔다. Scenario별 binary나
+Audit Bundle을 복제하지 않는다. 두 SHA-256, source SHA, exact build command/log/exit,
+adapter identity와 역할을 matrix manifest/receipt/package에 묶는다. 이 예외는
+사용자용 executable이 두 개라는 뜻이 아니며 canonical app은 계속
+`powdergame-windows.exe` 하나다. Matrix Run을 명시적으로 retire할 때만 frozen
+copies도 함께 제거한다.
+
 ---
 
 ## 5. Artifact root and retention

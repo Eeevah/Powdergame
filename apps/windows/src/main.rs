@@ -42,6 +42,7 @@
 //! The Simulation runs headless; the Renderer only reads/presents.
 
 mod experiment;
+mod g8c_measurement;
 mod gallery;
 mod inspector;
 mod observatory;
@@ -2649,6 +2650,22 @@ where
 fn main() {
     let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .try_init();
+
+    let g8c_worker = match g8c_measurement::worker_from_args(std::env::args().skip(1)) {
+        Ok(worker) => worker,
+        Err(error) => {
+            eprintln!("[powdergame][g8c] argument error: {error}");
+            process::exit(2);
+        }
+    };
+    if let Some(config) = g8c_worker {
+        if let Err(error) = g8c_measurement::run_worker(config) {
+            eprintln!("[powdergame][g8c] FATAL: {error}");
+            process::exit(1);
+        }
+        println!("[powdergame][g8c] worker completed cleanly");
+        return;
+    }
 
     let experiment = match experiment_worker_from_args(std::env::args().skip(1)) {
         Ok(experiment) => experiment,

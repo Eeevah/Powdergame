@@ -66,3 +66,11 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - The original D-005 text was restored byte-for-meaning, and D-008 now records the current merge-based rollback after PR #4 integration.
 - Checkpoint references were updated to distinguish D-005 historical scope from D-008 current scope.
 - This was a memory-only correction; no product decision, runtime evidence, test, smoke or capture changed.
+
+## 2026-08-19 · G9-A First Playable implementation candidate
+
+- Source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3` added an explicit Sandbox mode to the canonical Windows EXE; no-argument launch remains Gallery and experiment/G8-C routing remains isolated.
+- Starter Lab and New Blank World use production GPU staging. All nine M0 Matter, Draw/Erase/Heat/Cool, four brush sizes, Pause/Play/Step/speed/Reset, Pan/Zoom and Cell Inspector are available without Discovery or unlock gates.
+- Bounded/coalesced edit commands update Current/Next together before ticks, clean field/flags state, wake touched/halo chunks, and keep CPU free of world truth. Renderer, picking and Inspector share one camera transform.
+- Targeted Windows validation, affected check/clippy, strict policy audit, exact scenario reset and one 3-frame release Sandbox smoke passed. Workspace FULL was not required and ran `0` times.
+- Candidate status is **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**. G9-B/C/D/E, Discovery, Save/Load, Rewind, optimization, main merge and M0 closure remain not started.

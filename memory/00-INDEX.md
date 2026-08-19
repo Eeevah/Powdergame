@@ -20,6 +20,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/OPEN-QUESTIONS.md`](OPEN-QUESTIONS.md) | Active unresolved choices and dated dispositions | Pending-question register, not project-state proof | Append openings and closures; never erase history |
 | [`memory/SESSION-LOG.md`](SESSION-LOG.md) | Compact continuity audit | Historical session record | Append after a meaningful session or cutover |
 | [`memory/checkpoints/`](checkpoints/) | Archived previous checkpoints | Historical only | Add an archive when replacing a checkpoint with materially different scope |
+| [`memory/checkpoints/20260819-1357-g8-closed-g9a-next.md`](checkpoints/20260819-1357-g8-closed-g9a-next.md) | Last pre-implementation G9-A return point | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

@@ -59,3 +59,10 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - The first direct product-validation session is approximately 10–15 minutes and unguided. A voluntary second experiment and causal explanation are primary strong signals.
 - G9-A is authorized; optimization, new Matter, main promotion and M0 `ACHIEVED` are not.
 - Docs/memory-only closure: no Rust/GPU/FULL, app smoke, candidate, official capture or evidence rerun.
+
+## 2026-08-19 · Decision-ledger append-only correction
+
+- The first G9 memory checkpoint draft accidentally rewrote D-005's pre-integration rollback wording instead of appending a superseding entry.
+- The original D-005 text was restored byte-for-meaning, and D-008 now records the current merge-based rollback after PR #4 integration.
+- Checkpoint references were updated to distinguish D-005 historical scope from D-008 current scope.
+- This was a memory-only correction; no product decision, runtime evidence, test, smoke or capture changed.

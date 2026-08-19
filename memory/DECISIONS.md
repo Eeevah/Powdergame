@@ -59,13 +59,13 @@ Invalidated by: Explicit user rollback or supersession, or a rollback trigger in
 
 ## D-005 · Preserve a reversible Ballast cutover — 2026-08-19
 
-Decision: Keep the pilot initialization and active cutover as separate commits and forbid squash merge. The fastest incident response is `BALLAST_DISABLE=1` or removing Hook trust. Project rollback then reverts Ballast-only commits newest-first and reverts integration merge `6b5f0201f882f212f9916521aec689261d97b4a6` with `-m 1`. Existing domain documents are preserved, so rollback restores the previous resume model rather than reconstructing it from memory.
+Decision: Keep the pilot initialization and active cutover as separate commits and forbid squash merge. The fastest incident response is `BALLAST_DISABLE=1` or removing Hook trust. Project rollback then reverts the active cutover commit first and `ba2b6406f6605882c51886b0a50bc64d10990a7f` second. Existing domain documents are preserved, so rollback restores the previous resume model rather than reconstructing it from memory.
 
 Reason: Powdergame needs one active memory workflow during normal development without making the adoption irreversible or coupling it to product/evidence decisions.
 
-Scope: Project AGENTS/memory/cutover documents and their merge history. Heavy Mixed acceptance, G8-B/G8-C results and other canonical product decisions remain outside the rollback unit.
+Scope: Project AGENTS/memory/cutover documents and their merge history. Heavy Mixed acceptance and other canonical product decisions must remain outside the rollback unit.
 
-Evidence: User-approved rollback requirement; merge commit `6b5f0201f882f212f9916521aec689261d97b4a6`; `docs/development/BALLAST_MEMORY_CUTOVER.md`; Wiki Ballast workflow and troubleshooting.
+Evidence: User-approved rollback requirement; `docs/development/BALLAST_MEMORY_CUTOVER.md`; Wiki Ballast workflow.
 
 Invalidated by: A later explicit user decision that adopts a different rollback mechanism after the commit history has been migrated safely.
 
@@ -102,3 +102,15 @@ Scope: G8-A source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`, capture `g8a-v5-9
 Evidence: Explicit user selection of recommendation C; G8-A official capture/verification; G8-B user acceptance records; G8-C official independent verification.
 
 Invalidated by: A later explicit user decision that reopens the old visual requirement or authenticated evidence that invalidates one of the recorded identities. A future source is a new claim and does not rewrite this historical closure.
+
+## D-008 · Use merge-based rollback after Ballast integration — 2026-08-19
+
+Decision: Supersede D-005's pre-integration two-commit rollback sequence now that PR #4 has been integrated. Immediate disable remains `BALLAST_DISABLE=1` or Hook untrust. Project rollback reverts Ballast-only commits newest-first, then reverts merge commit `6b5f0201f882f212f9916521aec689261d97b4a6` with `git revert -m 1`.
+
+Reason: The merge commit preserves the G8-C product/evidence line as first parent and the complete Ballast history as second parent. Reverting that merge cleanly removes the project opt-in while preserving product/evidence commits.
+
+Scope: Powdergame's integrated Ballast history after merge `6b5f0201f882f212f9916521aec689261d97b4a6`. Later Ballast-only checkpoint commits must be reverted newest-first before the merge revert.
+
+Evidence: User-approved reversible integration; Powdergame PR #4 merge; `personal-infra-wiki` decision and rollback troubleshooting updated through Wiki PR #40.
+
+Invalidated by: A later explicit user decision that adopts another audited rollback mechanism.

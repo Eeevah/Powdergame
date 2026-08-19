@@ -53,9 +53,10 @@ Do not rerun G8 evidence because product/memory docs changed.
 
 - D-003 — Heavy Mixed accepted with known follow-up.
 - D-004 — Ballast is the single active session-continuity workflow.
-- D-005 — Ballast remains selectively reversible.
+- D-005 — original pre-integration rollback decision; superseded by D-008 after the merge.
 - D-006 — G9 Product Brief approved.
 - D-007 — old G8-A visual requirement superseded; G8 closed/frozen.
+- D-008 — current Ballast rollback is newest-first Ballast-only reverts, then `git revert -m 1 6b5f0201...`.
 
 ## Waiting on the user
 
@@ -82,5 +83,6 @@ The next user decision is at the G9-A candidate boundary: accept, revise or reje
 - Do not optimize Active / Sleep without a new product blocker.
 - Do not rerun official G8 evidence after docs/memory changes.
 - Do not keep `docs/HANDOFF.md` as a parallel live checkpoint.
+- Do not rewrite an existing decision entry; append a superseding decision.
 - Do not promote implementation proposals into decisions without user confirmation.
 - If Ballast misbehaves, set `BALLAST_DISABLE=1` or untrust the Hook before changing Git.

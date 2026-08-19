@@ -1,6 +1,6 @@
 # First Playable World — 첫 5분 제품 계약
 
-Status: **PRODUCT DIRECTION / G9 INPUT / NOT YET IMPLEMENTED**
+Status: **G9-A IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**
 
 이 문서는 첫 플레이어가 Powdergame을 켠 뒤 약 5분 동안 무엇을 하고, 무엇을 이해하고, 어떤 다음 질문을 떠올려야 하는지 정의한다.
 
@@ -212,6 +212,14 @@ First Playable World는 Benchmark Gallery를 그대로 편집 가능하게 만�
 - 다음 실험으로 빠르게 이어짐
 
 개발 중에는 같은 renderer, staging, Inspector infrastructure를 재사용할 수 있지만, 정보 구조와 조작 흐름은 별도로 검증한다.
+
+### G9-A implementation candidate
+
+Source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3` implements a distinct Sandbox product surface inside the canonical Windows EXE. It starts with a mostly empty, fully editable Starter Lab or an immediate Boundary/EMPTY Blank World. All nine current Matter are visible; Draw/Erase/Heat/Cool, bounded brush sizes, simulation controls, Pan/Zoom and Cell Inspector operate against the same production GPU world.
+
+Starter Lab intentionally avoids five benchmark panels: a Stone foundation supports one open left basin with Water and Sand, a central Wood bridge, and one open right cup with Oil and Ice, while more than 75% of the world remains empty for player-built experiments. It has no authored heat, pressure, flags, scripted outcome or automatic progression.
+
+The candidate passed automated integrity and one bounded startup smoke. It has not passed the user questions below. G9-B/C/D/E remain **NOT STARTED**.
 
 ---
 

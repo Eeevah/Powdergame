@@ -441,6 +441,8 @@ G9는 고정 fixture를 구경하는 마지막 승인 절차가 아니다.
 
 ### G9-A — Sandbox Interaction
 
+Current status: **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** at source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`. Automated checks and the bounded startup smoke establish implementation integrity only; the evidence below remains open until direct user play accepts the experience.
+
 Required evidence:
 
 - Matter 선택
@@ -455,6 +457,8 @@ Required evidence:
 - fixed demo 없이 사용자가 원인을 직접 만들 수 있음
 
 ### G9-B — Open Emergence
+
+Current status: **NOT STARTED**.
 
 현재 M0 Matter와 공통 Rule만으로 사용자가 만든 sandbox setup에서 다음 chain이 가능해야 한다.
 
@@ -474,6 +478,8 @@ Required evidence:
 - user edit와 production physics의 causal chain을 읽을 수 있음
 
 ### G9-C — Discovery MVP
+
+Current status: **NOT STARTED**.
 
 실제 simulation truth와 semantic event에서 첫 의미 있는 관찰을 기록한다.
 
@@ -496,6 +502,8 @@ Policy:
 
 ### G9-D — Honest Presentation
 
+Current status: **NOT STARTED**.
+
 Required evidence:
 
 - Simulation Truth와 Presentation Effect 구조적 분리
@@ -507,6 +515,8 @@ Required evidence:
 완성된 art/audio stack 전체는 M0 요구사항이 아니다. 그러나 진단 HUD만으로 제품 재미를 판정하지 않는다.
 
 ### G9-E — User Product Validation
+
+Current status: **NOT STARTED**.
 
 사용자 확인 질문:
 

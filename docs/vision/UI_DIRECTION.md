@@ -1,6 +1,6 @@
 # UI Direction — 세계를 먼저 보고, 디테일은 필요할 때 연다
 
-Status: **PRODUCT DIRECTION / G9 INPUT / CELL INSPECTOR V0 CONTRACT**
+Status: **PRODUCT DIRECTION / G9-A IMPLEMENTATION CANDIDATE / CELL INSPECTOR V0 CONTRACT**
 
 Powdergame UI의 목적은 많은 숫자를 보여주는 것이 아니다.
 
@@ -279,6 +279,8 @@ Overlay는 v0 Inspector를 막지 않는다. 먼저 이름과 Cell detail을 해
 ## 5. 기본 제품 HUD
 
 First Playable의 기본 HUD는 다음만 상시 유지하는 것을 목표로 한다.
+
+G9-A source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`는 이 계약의 첫 candidate다. 좌측에는 preset/tool/play-state/speed/control hints, 우측에는 canonical Matter name과 현재 selection을 표시한다. Source SHA, benchmark identity, receipt, full counters와 predicate table은 Sandbox HUD에 표시하지 않는다. Hidden/pending Inspector는 계속 silent하며, camera와 picking은 renderer의 동일 physical-pixel transform을 공유한다. Candidate는 **USER ACCEPTANCE PENDING**이다.
 
 - 현재 선택한 Material/도구
 - brush size

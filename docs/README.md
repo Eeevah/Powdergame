@@ -224,7 +224,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- 최신 Scenario 5 record는 [`G8_B_HEAVY_MIXED_WORLD_HARNESS_CANDIDATE_2026-08-19.md`](evidence/G8_B_HEAVY_MIXED_WORLD_HARNESS_CANDIDATE_2026-08-19.md)다. Heavy Mixed World는 automatic `NEEDS_HUMAN_REVIEW`를 그대로 유지하며 14-of-14 hard pass / `candidate_blocker=false` 상태에서 human **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. 다섯 official scenario와 Cell Inspector v0의 사용자 승인이 기록되어 G8-B는 **CLOSED / FROZEN**이고, G8-C는 **NEXT / AUTHORIZED**지만 아직 실행되지 않았다. G8 전체는 `IN_PROGRESS`, G9은 `PENDING`이다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9 Product Brief는 승인되었고 G9-A Sandbox source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`는 **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**이다. G9-B/C/D/E는 시작하지 않았다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

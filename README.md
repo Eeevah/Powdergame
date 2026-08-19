@@ -14,11 +14,11 @@ Powdergame은 Doodle God의 **조합·발견·세계 창조**와 DAN-BALL Powder
 
 **M0 — First World 구현 진행 중**
 
-G0-G7은 닫혔고 G8 Performance Evidence가 진행 중이다. G8-A v5는 clean source `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`의 official capture와 독립 검증을 완료한 verified evidence candidate다. 같은 SHA의 user visual validation은 아직 pending이며, 기존 v4 timing CSV는 source/binary 실행 연결과 raw census가 없는 historical data로만 보존한다.
+G0-G8은 **CLOSED / FROZEN**이다. Independently verified G8-C official Matrix는 `PROCEED_TO_G9`을 권고했고 optimization은 **DEFERRED / NOT STARTED**다. G9 Product Brief는 사용자 승인되었으며, source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`의 G9-A First Playable Sandbox는 **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**이다. G9-B/C/D/E는 시작하지 않았다.
 
 `integration/canonical-recovery`는 이 검증 구현선과 최신 research/Foundation Material Wiki를 하나의 tested local integration line으로 결합했다. 그 위의 `feature/m0-g8b-scenario-suite` checkpoint `e77d102`에서 G8-B의 다섯 official fixture와 여섯 번째 G7 Active/Sleep 회귀 fixture를 같은 shared staging API로 제공하는 구현 candidate가 만들어졌다. Scenario 1 Sand Fall은 사용자가 승인했고, 그 immutable Harness pilot은 experiment source `9e1fdac44aa14a546c7fe5ad6ceba49e71777eb5`에서 automatic verdict **PASS**와 Harness review output **APPROVED**를 기록했다. Scenario 2 Water Flow는 source `5af031f1a04af866127616d4f1b0faa6c85e4d8e`의 remediation candidate에서 automatic **NEEDS_HUMAN_REVIEW**를 유지한 채 human **ACCEPTED WITH KNOWN FOLLOW-UP**로 승인되었다. 알려진 후속 과제는 M0 local-liquid free-surface의 소수 셀 지속 재배열이며 production-physics defect 증거는 없다. Scenario 3 Fire / Heat는 tested source `1635fdb9f562192123c92846e137b125c684ede9`의 run `g8b-fire-heat-v0-20260817T133938546075Z-0e6aa901`에서 automatic **PASS**와 독립 재계산 불일치 0을 기록했고 **USER ACCEPTED**로 승인되었다. Scenario 4 Pressure Burst는 clean source `43e19d0f3b43aa0c15bf31e98f6401ba5f885170`의 run `g8b-pressure-burst-v0-20260818T101046792957Z-17158748`에서 automatic **NEEDS_HUMAN_REVIEW**를 유지한 채 human **USER ACCEPTED WITH KNOWN FOLLOW-UP**로 승인되었다. Pressure-caused opening이 combustion보다 먼저 발생했고 Pressure relief/integrity/reset 계약이 통과했다. 알려진 후속 과제는 top-seam-only opening, small persistent vent plume, broad terminal Pressure activity와 G8-C workload-cost 측정이며 production-physics defect 증거는 없다. Scenario 5 Heavy Mixed World도 아래의 immutable candidate에서 사용자 승인되었다. **All five official scenarios are USER ACCEPTED**이며 각 automatic verdict와 historical artifact는 그대로 보존한다.
 
-Cell Inspector v0는 tested source `3c342d25099683df53e303d1920cebe1f6578b74`에서 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. Scenario 5 Heavy Mixed World는 clean source `07260fffab22e5b4513eb168f0baac36e374ab94`의 immutable candidate run `g8b-heavy-mixed-v0-20260818T154006091598Z-22d9edc4`에서 **USER ACCEPTED WITH KNOWN FOLLOW-UP**다. Automatic `NEEDS_HUMAN_REVIEW`는 review-only `broad_terminal_tail` 때문에 그대로 유지하고, 14개 hard predicate는 전부 pass했으며 `candidate_blocker=false`다. Terminal Thermal activity는 크지만 terminal window에서 단조 감소했고 Pressure와 Reaction은 종료했다. 이는 correctness failure나 production-physics defect 증거가 아니며 실제 workload cost는 G8-C에서 측정한다. Fixture remediation과 candidate rerun은 필요 없다. 따라서 G8-B Benchmark Scenario Suite는 **CLOSED / FROZEN**, G8-C Official Matrix는 **NEXT / AUTHORIZED**, G8 전체는 **IN_PROGRESS**, G9은 **PENDING**이다. 정확한 provenance, hash, size, metric과 `first_vent*` raw-kind 용어 경계는 [`docs/evidence/G8_B_HEAVY_MIXED_WORLD_HARNESS_CANDIDATE_2026-08-19.md`](docs/evidence/G8_B_HEAVY_MIXED_WORLD_HARNESS_CANDIDATE_2026-08-19.md)에 고정한다.
+Cell Inspector v0와 다섯 G8-B official scenario는 사용자 승인되었고, G8-B 및 G8-C의 immutable evidence와 automatic verdict는 그대로 보존한다. G9-A는 Gallery를 편집 가능하게 만든 화면이 아니라 별도 Sandbox product surface다. 같은 production GPU world에서 Starter Lab 또는 Blank World를 선택하고 Matter Draw/Erase, Heat/Cool, Pause/Step/speed, Pan/Zoom과 Inspector를 사용할 수 있다.
 
 ## 현재 공식 개발 경로
 
@@ -35,6 +35,14 @@ Target:        60 simulation TPS baseline
 ```
 
 현재는 Browser/macOS/범용 GPU 호환을 위해 구조와 성능을 희생하지 않는다. 이 프로젝트는 우선 사용자의 Windows + RTX 5090 환경에서 **큰 세계와 많은 상호작용을 가능한 한 싸게 병렬 실행하는 것**을 최우선으로 한다.
+
+## G9-A First Playable Sandbox candidate
+
+```bat
+run_powdergame.bat sandbox
+```
+
+`play`는 같은 mode의 compatibility alias다. No-argument launch는 첫 candidate 동안 기존 Gallery를 유지한다. Sandbox는 256×256 Starter Lab을 pristine tick 0 / PAUSED로 시작하고, `L` Starter Lab, `B` New Blank World, `1`–`9` Matter, `D/E/H/C` Draw/Erase/Heat/Cool, `SPACE`, `N`, `F`, `R`, middle-drag Pan, wheel Zoom, Shift+wheel brush size, `I` Inspector를 제공한다. 자동 smoke는 startup만 검증했으며 사용자 UX 승인을 대신하지 않는다.
 
 ## G8-B Benchmark Scenario Gallery
 

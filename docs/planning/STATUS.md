@@ -14,7 +14,8 @@
 | G8-B Benchmark Scenario Suite | **CLOSED / FROZEN** — 다섯 official scenario와 Cell Inspector v0 사용자 승인 완료 |
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
-| G9 Playable First World | **PRODUCT BRIEF USER APPROVED / AUTHORIZED / IMPLEMENTATION NOT STARTED** |
+| G9-A First Playable Sandbox | **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** — source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3` |
+| G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
 ## 현재 작업선
@@ -23,8 +24,8 @@
 - Ballast integration merge: `6b5f0201f882f212f9916521aec689261d97b4a6`
 - G8-B closure: `18391e6a9fc8f9bc7b2757f3504366f106c05435`
 - Legacy launcher retirement: `8ee1ae238c324c1db1d7e2882af071fec179a8f1`
-- Current closure line: `feature/m0-g8c-official-matrix`
-- Authorized next implementation line: `feature/m0-g9-first-playable`
+- Current implementation line: `feature/m0-g9-first-playable`
+- G9-A tested source: `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -117,6 +118,18 @@ Approved decisions:
 
 G9 does not authorize new Matter, recipe/unlock progression, final FX, speculative optimization, G8 recapture, `main` promotion or M0 `ACHIEVED`.
 
+### G9-A implementation candidate
+
+- product surface: explicit `run_powdergame.bat sandbox` (`play` compatibility alias), same canonical `powdergame-windows.exe`; no-argument Gallery unchanged;
+- presets: fully editable Starter Lab and immediate New Blank World, both reset/staged through the production GPU world and start paused;
+- tools: nine canonical M0 Matter, Draw, Erase, four brush sizes, Heat, Cool, Pause/Play, Single Step, x1/x4/x16, Reset, Pan, Zoom and existing Cell Inspector;
+- edit boundary: bounded/coalesced command batch before simulation ticks, exact Current/Next hygiene, affected chunk plus clipped neighbor halo wake, no CPU world truth or pointer-driven full-world readback;
+- camera: one finite physical-pixel transform shared by rendering, picking and Inspector hover;
+- validation: Windows unit suite `149 passed / 0 failed / 1 ignored`, exact scenario reset `1/1`, affected check/clippy, strict policy audit and one 3-frame release Sandbox smoke all pass;
+- FULL: `0` because validation-plan classified it recommended, not required, and no engine/Core/fixture/Cargo graph/shared Simulation layout changed.
+
+This is not user acceptance. Direct 10–15 minute control/comprehension review is the next gate.
+
 ---
 
 ## 비공식 진단 artifact
@@ -137,11 +150,9 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 다음 행동
 
-1. exact-fetch the current closure line and start `feature/m0-g9-first-playable` from the approved brief checkpoint;
-2. implement only the bounded G9-A sandbox/editor candidate;
-3. preserve the canonical app EXE and launcher policy;
-4. stop for direct user control/comprehension review before Discovery, Save/Load, Rewind or broad presentation work;
-5. do not start optimization without a new measured product blocker.
+1. run `run_powdergame.bat sandbox` and complete the G9-A manual acceptance checklist;
+2. accept, revise or reject the actual editor/sandbox experience;
+3. do not start G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization before that decision.
 
 ## 아직 별도 결정인 것
 

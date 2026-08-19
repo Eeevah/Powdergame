@@ -13,14 +13,13 @@ automated scenario evidence; do not add a Gate-specific executable or launcher.
 - G0-G7: PASS / CLOSED
 - G7-A: USER VALIDATED / FROZEN
 - G7-B: PASS / CLOSED / FROZEN
-- G8: Performance Evidence (IN_PROGRESS; historical v4 remains unbound historical data)
-- G8-A: v5 official capture + independent verification complete / verified evidence candidate; same-SHA user visual validation pending
-- G8-B: five-scenario shared fixture + Windows Gallery + headless selection at checkpoint `e77d102`; Scenarios 1 Sand Fall, 2 Water Flow, and 3 Fire / Heat are user accepted; Water keeps automatic `NEEDS_HUMAN_REVIEW` with a known M0 liquid-surface follow-up; Fire keeps its one sealed automatic-`PASS` candidate at source `1635fdb`; Scenario 4 Pressure Burst is next and Scenario 5 remains pending; **overall NOT CLOSED**
-- Sand Fall Experiment Harness v0: experiment source `9e1fdac`; pilot automatic **PASS**; Harness review output **APPROVED**; G8-B overall **NOT CLOSED**
-- Water Flow Harness: first v1 candidate remains immutable/superseded; source `5af031f` v2 remediation candidate keeps automatic `NEEDS_HUMAN_REVIEW` and is human `ACCEPTED WITH KNOWN FOLLOW-UP`
-- Fire / Heat Harness: source `1635fdb`; exactly one sealed candidate automatic **PASS**; independent recomputation/inventory verification found zero mismatch; **USER ACCEPTED** with no physics change or candidate rerun
-- G8-C: official matrix measurement not started
-- Current G8-B work line after closure integration: `feature/m0-g8b-scenario-suite`; retained `feature/g8b-experiment-harness-v0` is aligned at the same later docs-only closure commit. Experiment provenance remains `9e1fdac`; `main` promotion and Gate closure require explicit user direction
+- G8: CLOSED / FROZEN; official Matrix independently verified and recommends `PROCEED_TO_G9`
+- G8-A: verified official capture; separate historical visual requirement formally superseded without relabeling the old capture
+- G8-B: five official scenarios and Cell Inspector user accepted; **CLOSED / FROZEN**; automatic verdicts and immutable artifacts unchanged
+- G8-C: official A/B/C/D Matrix independently reconstructed with mismatch `0`; recommendation `PROCEED_TO_G9`
+- G9-A: source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`, **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**
+- G9-B/C/D/E and optimization: **NOT STARTED**
+- Current work line: `feature/m0-g9-first-playable`; shared `main` promotion requires explicit user direction
 
 ## Windows
 
@@ -30,6 +29,14 @@ Typical repo/worktree root:
 Use the gate-specific worktree when present. Never blindly pull/rebase a dirty worktree.
 
 The preserved correction was attached without reset/stash/rebase/pull to `fix/g8a-evidence-remediation-v5` from base `a67abaf959aba0423627f35b79fce7c82d8ec9b5` and sealed at `9abec9ee632b9abe429b13cf0cfb2e3ae7eacefe`. Keep that source branch frozen. Canonical Recovery uses it as the implementation parent and merges `feature/foundation-material-wiki` separately.
+
+## Run the G9-A First Playable Sandbox candidate
+
+```bat
+run_powdergame.bat sandbox
+```
+
+Compatibility alias: `run_powdergame.bat play`. Both launch the same `target/release/powdergame-windows.exe`; no-argument launch remains Gallery. Controls: left drag selected tool, right drag Erase, middle drag Pan, wheel Zoom, Shift+wheel brush size; `1`–`9` Matter, `D/E/H/C` tools, `SPACE` pause/play, `N` single step, `F` speed, `R` current preset reset, `L/B` Starter/Blank, `I` Inspector, `ESC` quit.
 
 ## Run the G8-B inspection Gallery
 

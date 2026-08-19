@@ -193,6 +193,14 @@ CPU와 GPU 사이에 전체 월드를 매 Tick 복사하지 않는다.
 
 CPU는 입력/명령/config를 전달하고 GPU는 simulation을 수행한다. CPU로 가져오는 것은 필요한 event, diagnostics, save/inspection 데이터 정도다.
 
+### G9-A interactive edit boundary
+
+The Sandbox keeps GPU production authority. Pointer input is rasterized into bounded, deterministic cell commands on CPU, but it never becomes a CPU copy of world truth. Once per redraw, before any normal simulation tick, duplicate cells coalesce with last-write-wins semantics and one GPU submission applies two compute passes to both Current and Next buffers. The split keeps each bind group within the hardware storage-buffer limit while preserving an atomic command boundary.
+
+Draw/Erase write canonical Material/EMPTY field hygiene; Heat/Cool preserve non-EMPTY identity and clamp finite temperature. Touched chunks plus a clipped eight-neighbor chunk halo are made runnable and edit-woken. Reset or preset change drops pending commands before staging the pristine product preset. The existing Inspector remains a separate bounded 24-byte, at-most-10-Hz observation path and is invalidated across edits/preset epochs.
+
+Sandbox rendering, physical-pixel cursor picking and Inspector hover share one finite/clamped `WorldTransform`. Camera pan/zoom changes presentation only and never changes `WorldConfig` or simulation coordinates.
+
 ### CPU Reference
 
 CPU Reference는:

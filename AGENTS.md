@@ -23,10 +23,20 @@ Operating boundaries:
 - `docs/HANDOFF.md` is preserved as historical/domain reference and is not maintained as a competing per-session checkpoint after cutover.
 - `docs/planning/STATUS.md` remains the milestone/evidence router and changes only when actual project state changes.
 - Evidence, ADRs, architecture, specifications, validation policy, milestones, and lessons retain authority in their own domains. Memory links to them and does not copy or replace their proof.
-- A docs-only or memory-only change does not trigger Rust/GPU FULL, app smoke, scenario candidates, official capture, or user acceptance.
+- A docs-only or memory-only change does not trigger Rust/GPU FULL, a bounded app launch check, scenario candidates, official capture, or user acceptance.
 - Reuse a result only within its stated source SHA, command, toolchain/profile, relevant configuration, hardware/backend, artifact identity, and invalidation conditions.
 - Do not promote an agent proposal, implementation observation, or pending item into a decision without explicit user confirmation.
 - Commit, push, merge, destructive cleanup, and external review retain existing approval rules.
 
 Emergency stop and rollback are defined in `docs/development/BALLAST_MEMORY_CUTOVER.md`. The fastest stop is `BALLAST_DISABLE=1` or removing trust from the Ballast Hook; this disables rule injection without changing Git files.
 <!-- END managed: ballast-project-memory -->
+
+## Powdergame terminology guard
+
+Powdergame contains a real registered Matter named **Smoke**, so software-validation terminology must not reuse that word ambiguously.
+
+- In new prompts, reports, checkpoints, policies, and user-facing prose, do **not** use the bare phrase `smoke test`.
+- Call the short software check a **bounded launch check** or **application startup check**. It verifies binary startup, GPU/renderer initialization, requested mode loading, a bounded number of frames/ticks, and a clean exit.
+- Use **Smoke Matter behavior**, **Smoke generation/decay**, or similarly explicit wording when validating the in-game Matter produced by combustion.
+- The legacy CLI option `--smoke-frames` and historical machine fields may remain for compatibility. Describe that option as a bounded launch-frame limit; it does not test Smoke Matter.
+- Do not rewrite immutable historical evidence merely to change terminology. Interpret older unqualified software uses according to D-009 and `docs/development/VALIDATION_POLICY.md`.

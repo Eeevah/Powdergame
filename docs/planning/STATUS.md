@@ -125,7 +125,7 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 - tools: nine canonical M0 Matter, Draw, Erase, four brush sizes, Heat, Cool, Pause/Play, Single Step, x1/x4/x16, Reset, Pan, Zoom and existing Cell Inspector;
 - edit boundary: bounded/coalesced command batch before simulation ticks, exact Current/Next hygiene, affected chunk plus clipped neighbor halo wake, no CPU world truth or pointer-driven full-world readback;
 - camera: one finite physical-pixel transform shared by rendering, picking and Inspector hover;
-- validation: edit-core source `f9a7087...` Windows suite `149 passed / 0 failed / 1 ignored` and exact scenario reset `1/1`; launch remediation source `0d03daf...` default/explicit-route tests, affected check/clippy, strict policy audit and one no-mode 3-frame release Sandbox smoke all pass;
+- validation: edit-core source `f9a7087...` Windows suite `149 passed / 0 failed / 1 ignored` and exact scenario reset `1/1`; launch remediation source `0d03daf...` default/explicit-route tests, affected check/clippy, strict policy audit and one no-mode 3-frame release Sandbox bounded launch check all pass;
 - FULL: `0` because validation-plan classified it recommended, not required, and no engine/Core/fixture/Cargo graph/shared Simulation layout changed.
 
 This is not user acceptance. Direct 10–15 minute control/comprehension review is the next gate.

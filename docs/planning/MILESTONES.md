@@ -441,7 +441,7 @@ G9는 고정 fixture를 구경하는 마지막 승인 절차가 아니다.
 
 ### G9-A — Sandbox Interaction
 
-Current status: **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** at source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. Automated checks and the bounded startup smoke establish implementation integrity only; the evidence below remains open until direct user play accepts the experience.
+Current status: **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** at source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. Automated checks and the bounded launch check establish implementation integrity only; the evidence below remains open until direct user play accepts the experience.
 
 Required evidence:
 

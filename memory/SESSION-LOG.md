@@ -75,9 +75,17 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Targeted Windows validation, affected check/clippy, strict policy audit, exact scenario reset and one 3-frame release Sandbox smoke passed. Workspace FULL was not required and ran `0` times.
 - Candidate status is **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**. G9-B/C/D/E, Discovery, Save/Load, Rewind, optimization, main merge and M0 closure remain not started.
 
+## 2026-08-19 · Smoke terminology disambiguated
+
+- User clarified that Codex's frequent short software checks are not measurements of combustion-generated Smoke Matter.
+- D-009 reserves `Smoke` for the in-game Matter and requires `bounded launch check` or `application startup check` for software startup/mode/bounded-exit validation.
+- `--smoke-frames` remains a legacy compatibility option and is described as a bounded launch-frame limit.
+- Historical immutable evidence and prior log wording were not rewritten; new prompts, reports, checkpoints and policy prose use the unambiguous terms.
+- This terminology-only change did not run Rust/GPU/FULL, a bounded launch check, candidate, capture or user acceptance.
+
 ## 2026-08-19 · G9-A canonical launch corrected from direct feedback
 
 - The first candidate required an explicit `sandbox` argument, so double-clicking the root BAT still opened the frozen G8 Gallery and failed the practical user-test handoff.
-- User feedback established D-009: canonical BAT/EXE no-argument launch now opens Starter Lab Sandbox; explicit `gallery`/`normal` preserves G8-B.
-- Source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` passed default and explicit-route tests, affected check/clippy, strict launcher audit and a no-mode 3-frame release smoke. The rebuilt canonical EXE SHA-256 is `9e809342074c313c79a1080a89b9aa6e84e0e39238b4c8d9aa1368ad8bc72f3c`.
+- User feedback established D-010: canonical BAT/EXE no-argument launch now opens Starter Lab Sandbox; explicit `gallery`/`normal` preserves G8-B.
+- Source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` passed default and explicit-route tests, affected check/clippy, strict launcher audit and a no-mode 3-frame release bounded launch check. The rebuilt canonical EXE SHA-256 is `9e809342074c313c79a1080a89b9aa6e84e0e39238b4c8d9aa1368ad8bc72f3c`.
 - Candidate remains **USER ACCEPTANCE PENDING**; no later G9 slice or optimization started.

@@ -115,7 +115,21 @@ Evidence: User-approved reversible integration; Powdergame PR #4 merge; `persona
 
 Invalidated by: A later explicit user decision that adopts another audited rollback mechanism.
 
-## D-009 · Make Sandbox the canonical no-argument G9-A candidate — 2026-08-19 (source: direct user candidate feedback)
+## D-009 · Reserve Smoke for the in-game Matter and rename software checks in prose — 2026-08-19
+
+Decision: In new Powdergame prompts, reports, checkpoints, policy text and user-facing explanations, do not use the bare phrase `smoke test` for software validation. Call the short binary startup/mode/bounded-exit validation a **bounded launch check** or **application startup check**. Reserve **Smoke** for the registered in-game Matter and use explicit phrases such as `Smoke generation/decay validation` when testing it.
+
+The legacy CLI option `--smoke-frames` and historical machine/evidence vocabulary may remain for compatibility and provenance. Current prose must describe that option as a bounded launch-frame limit and must never imply that it measures Smoke Matter.
+
+Reason: Powdergame contains actual combustion-generated Smoke. Reusing the same word for Codex's frequent short application checks caused a plausible category error between software validation and game behavior.
+
+Scope: Powdergame project memory, AGENTS instructions, active validation policy, new prompts/reports and future user-facing documentation. Immutable historical evidence is not rewritten solely for terminology.
+
+Evidence: Explicit user clarification that Codex's frequent software checks are not measurements of in-game Smoke.
+
+Invalidated by: A later explicit user terminology decision.
+
+## D-010 · Make Sandbox the canonical no-argument G9-A candidate — 2026-08-19 (source: direct user candidate feedback)
 
 Decision: Double-clicking `run_powdergame.bat` and launching the canonical `powdergame-windows.exe` without arguments must open the G9-A Starter Lab Sandbox. Keep `sandbox` and `play` as explicit aliases, and preserve the frozen G8-B Gallery through explicit `gallery` / `normal` / `--benchmark-gallery` routes.
 
@@ -123,6 +137,6 @@ Reason: The argument-only candidate technically existed but the actual user-faci
 
 Scope: G9-A launch UX on `feature/m0-g9-first-playable`. This refines D-006 without authorizing G9-B/C/D/E, Discovery, Save/Load, Rewind, optimization, main promotion or M0 closure.
 
-Evidence: Direct user feedback “run bat 실행했는데 g8이랑 똑같잖아” and “실행파일을 만들어놓으라고 했잖아”; source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`; no-mode 3-frame release smoke on the canonical EXE.
+Evidence: Direct user feedback “run bat 실행했는데 g8이랑 똑같잖아” and “실행파일을 만들어놓으라고 했잖아”; source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`; no-mode 3-frame release bounded launch check on the canonical EXE.
 
 Invalidated by: A later explicit user decision selecting a different canonical default after direct product review.

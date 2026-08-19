@@ -219,7 +219,7 @@ Source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` implements a distinct Sandbox 
 
 Starter Lab intentionally avoids five benchmark panels: a Stone foundation supports one open left basin with Water and Sand, a central Wood bridge, and one open right cup with Oil and Ice, while more than 75% of the world remains empty for player-built experiments. It has no authored heat, pressure, flags, scripted outcome or automatic progression.
 
-The candidate passed automated integrity and one bounded startup smoke. It has not passed the user questions below. G9-B/C/D/E remain **NOT STARTED**.
+The candidate passed automated integrity and one bounded launch check. It has not passed the user questions below. G9-B/C/D/E remain **NOT STARTED**.
 
 ---
 

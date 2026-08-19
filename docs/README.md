@@ -210,7 +210,7 @@ docs/
 개발 비용과 품질을 동시에 관리한다.
 
 - 변경 영향 기반 validation
-- targeted/FULL/smoke/candidate 역할 분리
+- targeted/FULL/bounded launch check/candidate 역할 분리
 - append-only Lessons Ledger
 - 단일 사용자 앱 EXE와 launcher
 - worktree/artifact WIP limit

@@ -169,7 +169,7 @@ cargo test --workspace -- --test-threads=1
 cargo clippy --workspace --all-targets -- -D warnings
 git diff --check
 ```
-Do not run broad or repetitive demo smoke matrices by default. Run only the smallest smoke that is genuinely required by the current change. If user testing later exposes a problem, reproduce and validate only that affected path.
+Do not run broad or repetitive bounded launch matrices by default. Run only the smallest application startup check genuinely required by the current change. If user testing later exposes a problem, reproduce and validate only that affected path.
 
 **PERFORMANCE — manual only**
 Do not run performance benchmarks during normal build/test loops. G8-B fixture selection exists, but G8-C official matrix measurement remains a separate, not-yet-started step.

@@ -42,7 +42,7 @@ Target:        60 simulation TPS baseline
 run_powdergame.bat sandbox
 ```
 
-`run_powdergame.bat`을 더블클릭하거나 canonical EXE를 무인자로 실행하면 Sandbox가 열린다. `sandbox`와 `play`도 같은 mode의 explicit alias이며, G8 Gallery는 `run_powdergame.bat gallery`로 보존한다. Sandbox는 256×256 Starter Lab을 pristine tick 0 / PAUSED로 시작하고, `L` Starter Lab, `B` New Blank World, `1`–`9` Matter, `D/E/H/C` Draw/Erase/Heat/Cool, `SPACE`, `N`, `F`, `R`, middle-drag Pan, wheel Zoom, Shift+wheel brush size, `I` Inspector를 제공한다. 자동 smoke는 startup만 검증했으며 사용자 UX 승인을 대신하지 않는다.
+`run_powdergame.bat`을 더블클릭하거나 canonical EXE를 무인자로 실행하면 Sandbox가 열린다. `sandbox`와 `play`도 같은 mode의 explicit alias이며, G8 Gallery는 `run_powdergame.bat gallery`로 보존한다. Sandbox는 256×256 Starter Lab을 pristine tick 0 / PAUSED로 시작하고, `L` Starter Lab, `B` New Blank World, `1`–`9` Matter, `D/E/H/C` Draw/Erase/Heat/Cool, `SPACE`, `N`, `F`, `R`, middle-drag Pan, wheel Zoom, Shift+wheel brush size, `I` Inspector를 제공한다. 자동 bounded launch check는 startup만 검증했으며 사용자 UX 승인을 대신하지 않는다.
 
 ## G8-B Benchmark Scenario Gallery
 

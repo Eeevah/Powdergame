@@ -114,3 +114,15 @@ Scope: Powdergame's integrated Ballast history after merge `6b5f0201f882f212f991
 Evidence: User-approved reversible integration; Powdergame PR #4 merge; `personal-infra-wiki` decision and rollback troubleshooting updated through Wiki PR #40.
 
 Invalidated by: A later explicit user decision that adopts another audited rollback mechanism.
+
+## D-009 · Make Sandbox the canonical no-argument G9-A candidate — 2026-08-19 (source: direct user candidate feedback)
+
+Decision: Double-clicking `run_powdergame.bat` and launching the canonical `powdergame-windows.exe` without arguments must open the G9-A Starter Lab Sandbox. Keep `sandbox` and `play` as explicit aliases, and preserve the frozen G8-B Gallery through explicit `gallery` / `normal` / `--benchmark-gallery` routes.
+
+Reason: The argument-only candidate technically existed but the actual user-facing BAT still opened the G8 Gallery, so it did not deliver the requested immediately runnable first-playable executable experience.
+
+Scope: G9-A launch UX on `feature/m0-g9-first-playable`. This refines D-006 without authorizing G9-B/C/D/E, Discovery, Save/Load, Rewind, optimization, main promotion or M0 closure.
+
+Evidence: Direct user feedback “run bat 실행했는데 g8이랑 똑같잖아” and “실행파일을 만들어놓으라고 했잖아”; source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`; no-mode 3-frame release smoke on the canonical EXE.
+
+Invalidated by: A later explicit user decision selecting a different canonical default after direct product review.

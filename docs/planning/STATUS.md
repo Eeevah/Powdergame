@@ -14,7 +14,7 @@
 | G8-B Benchmark Scenario Suite | **CLOSED / FROZEN** — 다섯 official scenario와 Cell Inspector v0 사용자 승인 완료 |
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
-| G9-A First Playable Sandbox | **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** — source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3` |
+| G9-A First Playable Sandbox | **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** — source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -25,7 +25,7 @@
 - G8-B closure: `18391e6a9fc8f9bc7b2757f3504366f106c05435`
 - Legacy launcher retirement: `8ee1ae238c324c1db1d7e2882af071fec179a8f1`
 - Current implementation line: `feature/m0-g9-first-playable`
-- G9-A tested source: `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`
+- G9-A tested source: `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -120,12 +120,12 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 
 ### G9-A implementation candidate
 
-- product surface: explicit `run_powdergame.bat sandbox` (`play` compatibility alias), same canonical `powdergame-windows.exe`; no-argument Gallery unchanged;
+- product surface: canonical BAT/EXE no-argument launch and explicit `sandbox`/`play` open Sandbox in the same `powdergame-windows.exe`; explicit `gallery`/`normal` preserve the G8-B surface;
 - presets: fully editable Starter Lab and immediate New Blank World, both reset/staged through the production GPU world and start paused;
 - tools: nine canonical M0 Matter, Draw, Erase, four brush sizes, Heat, Cool, Pause/Play, Single Step, x1/x4/x16, Reset, Pan, Zoom and existing Cell Inspector;
 - edit boundary: bounded/coalesced command batch before simulation ticks, exact Current/Next hygiene, affected chunk plus clipped neighbor halo wake, no CPU world truth or pointer-driven full-world readback;
 - camera: one finite physical-pixel transform shared by rendering, picking and Inspector hover;
-- validation: Windows unit suite `149 passed / 0 failed / 1 ignored`, exact scenario reset `1/1`, affected check/clippy, strict policy audit and one 3-frame release Sandbox smoke all pass;
+- validation: edit-core source `f9a7087...` Windows suite `149 passed / 0 failed / 1 ignored` and exact scenario reset `1/1`; launch remediation source `0d03daf...` default/explicit-route tests, affected check/clippy, strict policy audit and one no-mode 3-frame release Sandbox smoke all pass;
 - FULL: `0` because validation-plan classified it recommended, not required, and no engine/Core/fixture/Cargo graph/shared Simulation layout changed.
 
 This is not user acceptance. Direct 10–15 minute control/comprehension review is the next gate.

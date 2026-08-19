@@ -18,6 +18,8 @@ G9 is not another fixed Gallery fixture and not another performance-instrument r
 
 The first playable opens into a small, editable Starter Lab that helps the player act immediately without forcing one correct solution.
 
+The user-testable candidate uses this product default for the canonical no-argument BAT/EXE launch. The frozen G8 Gallery remains available only through its explicit `gallery` / `--benchmark-gallery` route.
+
 The Starter Lab must:
 
 - use the ordinary production simulation and common M0 rules;

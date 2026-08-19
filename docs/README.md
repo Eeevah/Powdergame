@@ -224,7 +224,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9 Product Brief는 승인되었고 G9-A Sandbox source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3`는 **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**이다. G9-B/C/D/E는 시작하지 않았다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9 Product Brief는 승인되었고 G9-A Sandbox source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`는 **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**이다. Canonical BAT/EXE의 무인자 launch는 Sandbox이며 explicit `gallery`는 보존한다. G9-B/C/D/E는 시작하지 않았다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

@@ -34,7 +34,7 @@ Open that historical version only for older recovery narrative or domain context
 
 ## Current product direction
 
-The verified G8-C Matrix recommends `PROCEED_TO_G9`; no current simulation, coexistence, rendering, or persistent-memory blocker requires optimization before the first playable sandbox. The product brief is user approved and G9-A source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3` is an **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**. G9-B/C/D/E, Discovery, Save/Load, Rewind and optimization remain not started. Live session continuity remains in `memory/CHECKPOINT.md`. See:
+The verified G8-C Matrix recommends `PROCEED_TO_G9`; no current simulation, coexistence, rendering, or persistent-memory blocker requires optimization before the first playable sandbox. The product brief is user approved and G9-A source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` is an **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**. Canonical BAT/EXE no-argument launch now opens Sandbox; explicit `gallery` retains the frozen G8 inspection surface. G9-B/C/D/E, Discovery, Save/Load, Rewind and optimization remain not started. Live session continuity remains in `memory/CHECKPOINT.md`. See:
 
 - [`planning/STATUS.md`](planning/STATUS.md)
 - [`evidence/G8_C_OFFICIAL_MATRIX_2026-08-19.md`](evidence/G8_C_OFFICIAL_MATRIX_2026-08-19.md)

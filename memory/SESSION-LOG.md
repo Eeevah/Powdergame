@@ -74,3 +74,10 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Bounded/coalesced edit commands update Current/Next together before ticks, clean field/flags state, wake touched/halo chunks, and keep CPU free of world truth. Renderer, picking and Inspector share one camera transform.
 - Targeted Windows validation, affected check/clippy, strict policy audit, exact scenario reset and one 3-frame release Sandbox smoke passed. Workspace FULL was not required and ran `0` times.
 - Candidate status is **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**. G9-B/C/D/E, Discovery, Save/Load, Rewind, optimization, main merge and M0 closure remain not started.
+
+## 2026-08-19 · G9-A canonical launch corrected from direct feedback
+
+- The first candidate required an explicit `sandbox` argument, so double-clicking the root BAT still opened the frozen G8 Gallery and failed the practical user-test handoff.
+- User feedback established D-009: canonical BAT/EXE no-argument launch now opens Starter Lab Sandbox; explicit `gallery`/`normal` preserves G8-B.
+- Source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` passed default and explicit-route tests, affected check/clippy, strict launcher audit and a no-mode 3-frame release smoke. The rebuilt canonical EXE SHA-256 is `9e809342074c313c79a1080a89b9aa6e84e0e39238b4c8d9aa1368ad8bc72f3c`.
+- Candidate remains **USER ACCEPTANCE PENDING**; no later G9 slice or optimization started.

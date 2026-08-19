@@ -215,7 +215,7 @@ First Playable World는 Benchmark Gallery를 그대로 편집 가능하게 만�
 
 ### G9-A implementation candidate
 
-Source `f9a7087249bf6ffa0b6d47ad7568ba1798f591a3` implements a distinct Sandbox product surface inside the canonical Windows EXE. It starts with a mostly empty, fully editable Starter Lab or an immediate Boundary/EMPTY Blank World. All nine current Matter are visible; Draw/Erase/Heat/Cool, bounded brush sizes, simulation controls, Pan/Zoom and Cell Inspector operate against the same production GPU world.
+Source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` implements a distinct Sandbox product surface inside the canonical Windows EXE. The canonical no-argument BAT/EXE launch opens this surface, while the frozen Gallery remains explicit. It starts with a mostly empty, fully editable Starter Lab or an immediate Boundary/EMPTY Blank World. All nine current Matter are visible; Draw/Erase/Heat/Cool, bounded brush sizes, simulation controls, Pan/Zoom and Cell Inspector operate against the same production GPU world.
 
 Starter Lab intentionally avoids five benchmark panels: a Stone foundation supports one open left basin with Water and Sand, a central Wood bridge, and one open right cup with Oil and Ice, while more than 75% of the world remains empty for player-built experiments. It has no authored heat, pressure, flags, scripted outcome or automatic progression.
 

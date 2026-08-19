@@ -30,3 +30,15 @@ This is a terse append-only audit trail, not a transcript.
 - Failure: renderer initialization confirmed live 1600×900, then a late initial `Resized(2864×1560)` event payload was treated as a real resize. Proposed remediation rechecks live `window.inner_size()` and ignores only stale payloads while keeping genuine noncanonical live sizes fatal.
 - Evidence boundary: incomplete scratch only, no Receipt, hash inventory, package, matrix report, or verifier result; no performance/bottleneck conclusion exists.
 - Next: Q-006 asks the user whether to authorize one narrow remediation, one replacement pilot, and conditional official capture. PR #4 remains unmerged while the writer is dirty.
+
+## 2026-08-19 · G8-C replacement pilot fixed lifecycle and exposed aggregation mismatch
+
+- User authorized Q-006's bounded lifecycle remediation and one replacement non-evidence pilot.
+- Lifecycle implementation used live `window.inner_size()` as final authority, shared one classifier across `Resized` and `ScaleFactorChanged`, kept genuine noncanonical/zero live sizes fatal, and never resized the renderer to stale payload values.
+- Validation passed: Windows lifecycle `15/15`, renderer lifecycle/timestamp `3/3`, coordinator/verifier `47/47`, legacy verifier fixtures, fmt/check/clippy/audit/diff. FULL, Gallery smoke, and G8-B candidate reruns stayed `0`.
+- Replacement pilot `g8c-pilot-8ee1ae238c32-6341f4f59218` completed isolated build and all 15 measurement subprocesses: five Headless A/B, five Mode C, and five Mode D, all exit `0`.
+- Lifecycle result: ten Mode C/D workers began and ended at live 1600×900; ten stale 2864×1560 event payloads were safely ignored; fatal live resize, surface error, and device error were all `0`.
+- Aggregation stopped before publication because the historical benchmark summary uses metric name `wall_per_tick` with unit `ms/tick`, while the new coordinator searched for internal field name `wall_ms_per_tick`. Complete raw rows existed but the headless summary list was empty.
+- Evidence boundary: no official Matrix ID, final Receipt, package, official frozen hashes, or independent official verification. Pilot-only raw Mode C/D rows are diagnostic and support no performance or bottleneck conclusion.
+- Worktree remains protected: original 14 paths staged with unchanged patch SHA-256 `eba224c3...`; five remediation files unstaged with patch SHA-256 `069338e8...`; no source commit or push.
+- Q-006 is closed as consumed. Q-007 asks whether to authorize the narrow historical-CSV adapter correction, one aggregation-only replay using hash-bound existing raw outputs, and conditional official capture. PR #4 remains Draft/Open/Unmerged.

@@ -152,3 +152,15 @@ Scope: G9-A remediation on `feature/m0-g9-first-playable`. Completion returns to
 Evidence: Direct user handover on 2026-08-20; last validated runtime implementation source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`.
 
 Invalidated by: A later explicit user re-review disposition or a superseding interaction contract.
+
+## D-012 · Require Inspector continuity v2 and register thermal causality work — 2026-08-20 (source: direct user re-review)
+
+Decision: Record the revised G9-A candidate as **USER RE-REVIEWED / REVISION REQUIRED** because Cell Inspector continuity still visibly flickers during rapid hover movement. Replace the identity-only grace with a bounded presented-sample hold: requested hover and presented sample remain separate; the held sample keeps its original Cell, Material, simulation tick and freshness identity; compact cursor copy appears only for a fresh current-Cell sample; the detailed panel keeps fixed geometry and becomes a stable Sampling state after timeout. Separately register **Thermal Transport & Ignition Causality** as **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED** and a prerequisite to G9-B emergence validation.
+
+Reason: Direct re-review confirmed that Draw, Ice/Steam defaults, palette grouping and Heat/Cool feedback were present, but Inspector on/off flicker remained. The same review observed that heat does not cross EMPTY and that hot Stone can cause near-immediate adjacent Oil/Wood ignition, requiring a dedicated design project rather than an unreviewed engine tweak.
+
+Scope: Inspector continuity only in the G9-A Windows presentation/readback consumer, plus docs/memory registration of thermal design work. Do not change engine/Core, production WGSL, shared Simulation state, thermal behavior or fixtures in this task. G9-B/C/D/E, Ash, Discovery, Save/Load, Rewind, optimization, main promotion, PR creation and M0 closure remain not started or unauthorized.
+
+Evidence: Direct user re-review on 2026-08-20; reported runtime source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`; reported docs closure `ae49e7c60c29a7c0478215e36fab5010c11d9b3c`.
+
+Invalidated by: A later explicit user disposition after continuity v2 re-review, or an approved thermal architecture decision.

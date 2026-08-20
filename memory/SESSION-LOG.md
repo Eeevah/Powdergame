@@ -97,3 +97,11 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - GPU authority, Current/Next ordering, touched/halo wake, Inspector 24-byte/10-Hz sampling, Gallery/worker/G8-C routing and all G8 evidence remain unchanged.
 - Validation passed: fmt; Windows suite `150 passed / 0 failed / 1 ignored`; affected check/clippy; strict audit; and one canonical release Sandbox 3-frame bounded launch check on RTX 5090/DX12. The EXE SHA-256 is `26512598746c21858a81c85a2e4f8f2635e2e1deed6c1ebff661bc2810a126d1`. FULL ran `0` times.
 - Status is **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**. G9-B/C/D/E, Ash, Discovery, Save/Load, Rewind, optimization, main promotion, PR creation and M0 closure remain not started.
+
+## 2026-08-20 · G9-A Inspector continuity v2 and thermal project registration
+
+- Direct re-review confirmed the previous Draw/Ice/Steam/palette/Heat-Cool revisions were present but classified G9-A **USER RE-REVIEWED / REVISION REQUIRED** because rapid Cell hover still flickered.
+- D-012 records continuity v2 and registers Thermal Transport & Ignition Causality as planned/design-required/not-started before G9-B.
+- Source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4` separates requested hover from one presented sample, preserves the original Cell/Material/tick/freshness through second/third rapid hovers, keeps one Ready/Held/Sampling panel geometry, hides compact stale identity and atomically replaces with a fresh current-Cell sample. Reset/preset/epoch/failure invalidation remains immediate; readback stays 24 bytes at most 10 Hz.
+- Focused validation passed: Inspector `11/11`, Inspector UI `3/3`, affected check/clippy, strict audit and exactly one 3-frame release Sandbox bounded launch check. EXE SHA-256 `5062f0cb0ac9f23828765ce6c2fe2c2137caaa2f055c1c4fcfd9fb0cf7f177d5`; FULL `0`.
+- No engine/Core/WGSL/shared Simulation/fixture change and no G8 rerun occurred. Thermal implementation and G9-B/C/D/E remain not started.

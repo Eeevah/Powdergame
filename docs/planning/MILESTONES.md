@@ -441,7 +441,7 @@ G9는 고정 fixture를 구경하는 마지막 승인 절차가 아니다.
 
 ### G9-A — Sandbox Interaction
 
-Current status: **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** at source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`. The first candidate was **USER REVIEWED / REVISION REQUIRED**. The revision is limited to EMPTY-only Draw, stable Ice/Steam placement defaults, Core/Generated/Advanced palette grouping, a 150 ms identity-only Inspector grace, and presentation-only Heat/Cool brush feedback. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. Automated checks and the bounded launch check establish implementation integrity only; G9-A remains open until direct user re-review accepts the experience.
+Current status: **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** at continuity v2 source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`. The user re-reviewed the previous revision and still required Inspector continuity remediation; no USER ACCEPTED verdict exists. Continuity v2 holds one honestly labelled previous sample across rapid hover movement, then keeps a fixed Sampling panel until a fresh current-Cell sample atomically replaces it. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. Automated checks and the bounded launch check establish implementation integrity only.
 
 Required evidence:
 
@@ -459,6 +459,8 @@ Required evidence:
 ### G9-B — Open Emergence
 
 Current status: **NOT STARTED**.
+
+Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) is **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED**. G9-B emergence validation does not begin until the user approves an ambient-transport architecture and ignition exposure contract.
 
 현재 M0 Matter와 공통 Rule만으로 사용자가 만든 sandbox setup에서 다음 chain이 가능해야 한다.
 

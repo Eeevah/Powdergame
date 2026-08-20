@@ -1,0 +1,117 @@
+# Thermal Transport & Ignition Causality
+
+Status: **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED**
+
+Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
+
+## 1. Direct observation and problem statement
+
+Direct G9-A re-review produced two linked observations:
+
+- heat does not travel through EMPTY space;
+- hot Stone can bring adjacent Oil or Wood to its ignition threshold so quickly that ignition appears immediate.
+
+These observations are not, by themselves, a production defect verdict. They expose a product-causality question: how should heat cross open space, and how much thermal exposure should combustible Matter require before ignition becomes legible and useful? Exact architecture remains open.
+
+## 2. Current production baseline
+
+The current baseline remains authoritative until a later design is explicitly approved:
+
+- `EMPTY` is absence of Matter, has no physical properties and is not hidden Air.
+- A temperature value stored at an EMPTY index is not a physical thermal medium; EMPTY self temperature resolves to the reference state.
+- Thermal transfer is direct contact through the four orthogonal neighbors only.
+- Each participating Matter uses its conductivity and heat-capacity gameplay scalars; no diagonal, distance or line-of-sight transport is present.
+- Combustible Matter ignites as soon as its own current temperature reaches its Material ignition threshold. Oil and Wood share this generic threshold grammar and currently have no exposure-time or accumulated-dose requirement.
+- There is no Oxygen requirement and no separate ambient-temperature field.
+
+The project must not quietly change any of those statements while it remains **NOT STARTED**.
+
+## 3. Architecture options requiring a decision
+
+### Option A — implicit ambient carried by the existing temperature field
+
+Allow the existing dense temperature field to carry an ambient value through EMPTY while continuing to treat EMPTY as non-Matter for identity, density, pressure, movement and reactions. A future rule would need to define transport, dissipation, boundary behavior, wake/sleep participation, edit/reset hygiene and the exact point where ambient heat couples into adjacent Matter.
+
+This is the smaller state-layout option but explicitly revises the current “EMPTY is not a hidden thermal medium” contract. It cannot be adopted by implementation accident; specs and semantic tests must make the limited ambient exception explicit.
+
+### Option B — separate ambient temperature field
+
+Keep Matter temperature strictly attached to non-EMPTY Matter and add a distinct ambient-temperature field for open-space transport. A future rule would need to define field allocation, Current/Next ordering, source coupling, diffusion/dissipation, chunk activity, reset/staging, Inspector visibility and memory/performance cost.
+
+This keeps the EMPTY/Matter contract conceptually clean but adds world state, bandwidth and pass cost. It therefore requires measurement before selection.
+
+Neither option is selected by this planning document.
+
+## 4. Ignition exposure or dose requirement
+
+The project must evaluate a causal ignition gate beyond one-frame threshold crossing. Candidate grammar:
+
+```text
+combustible Matter above its ignition threshold
++ sustained local exposure or accumulated thermal dose
+→ ignition
+```
+
+Open design questions include:
+
+- continuous-above-threshold ticks versus integrated excess-temperature dose;
+- whether dose decays when cooling and whether partial exposure persists;
+- per-Matter thresholds/dose budgets versus one generic grammar;
+- how direct flame contact differs, if at all, from a hot inert neighbor;
+- how the state is represented without adding unjustified universal per-cell data;
+- how the player and Inspector can read “heating” before ignition without exposing a debug table.
+
+The target is legible causality, not real-world combustion simulation.
+
+## 5. Required semantic fixtures before implementation approval
+
+A later implementation proposal must first define deterministic fixtures for at least:
+
+1. hot Stone separated from Wood/Oil by one EMPTY Cell;
+2. direct hot-Stone contact with Wood and Oil;
+3. short threshold spike that must not ignite under the selected dose rule;
+4. sustained exposure that does ignite at a bounded, explainable time;
+5. cooling that reduces or clears pending exposure according to the selected rule;
+6. ambient transport near world Boundary and through narrow/open cavities;
+7. reset/staging exactness for every new field or state;
+8. sleep/wake behavior at a slowly moving thermal frontier;
+9. no invalid/non-finite temperature or exposure state;
+10. CPU reference and production GPU agreement for the chosen local rule.
+
+These are semantic design fixtures, not G8 candidate reruns and not acceptance evidence until their source/harness contract exists.
+
+## 6. Performance and integration questions
+
+Before choosing an option, measure or bound:
+
+- persistent GPU bytes at 256×256 and 2048×2048;
+- additional reads/writes, dispatches and timestamped pass cost;
+- active-chunk expansion caused by ambient diffusion or exposure decay;
+- interaction with thermal deadband, sleeping chunks and long terminal tails;
+- whether ambient work can remain sparse/local rather than waking the whole world;
+- Current/Next consistency and failure-safe reset/staging;
+- Inspector/readback impact without increasing its existing 24-byte, at-most-10-Hz contract;
+- Mode C responsiveness and whether any cost threatens the verified 60-TPS product target.
+
+No optimization implementation is authorized by asking these questions.
+
+## 7. Initial exclusions
+
+The initial project explicitly excludes:
+
+- Oxygen or oxidizer simulation;
+- Ash or any new Matter;
+- final Fire/Smoke visual effects;
+- CFD, velocity fields or physically complete radiation/convection;
+- broad pressure redesign;
+- Save/Load or Rewind;
+- G7-C compaction, indirect dispatch, f16/packing or speculative optimization;
+- G8 scenario/candidate or G8-C Matrix reruns.
+
+## 8. Stop and approval boundary
+
+The next thermal task is architecture selection and contract design, not code. Implementation may start only after the user chooses or approves an option, exposure grammar, semantic fixtures and validation budget. Until then:
+
+- Thermal Transport & Ignition Causality remains **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED**;
+- G9-B emergence validation remains blocked on this prerequisite;
+- G9-A continuity work may proceed independently within its existing readback/presentation boundary.

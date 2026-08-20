@@ -228,11 +228,13 @@ Gallery에 full cell snapshot이 없다면, bounded inspector sample을 별도 �
 
 - cursor position: 매 frame 업데이트 가능
 - Inspector value: 최신 완료 diagnostic sample 사용
-- 정상적인 sample pending은 visually silent하다. Compact tooltip, detailed panel, placeholder를 모두 그리지 않는다.
-- 새 hover Cell의 fresh sample이 도착하기 전까지 이전 Cell의 Material이나 field 값을 재사용하지 않는다.
-- `I` toggle 상태는 pending 동안 유지하지만, matching sample이 `Ready`가 된 frame부터 detailed panel을 다시 표시한다.
-- reset/scenario switch/world epoch 변경/staging recovery 동안 이전 world의 값을 숨기고, 새 world의 fresh sample 뒤에만 UI를 복원한다.
-- 실제 readback/map/channel 실패는 정상 pending과 분리한다. Compact hover에는 오류를 표시하지 않고, detail mode가 ON일 때만 작은 고정 `Inspector unavailable` 상태를 표시한다. 상세 오류는 structured log에 남긴다.
+- Compact tooltip의 정상 pending은 visually silent하며 fresh current-Cell sample에서만 보인다.
+- `I` detail이 ON이고 cursor가 world 안에 있으면 panel shell은 Ready/Held/Sampling에서 같은 위치와 크기를 유지한다.
+- hover가 바뀌면 requested Cell과 presented sample을 분리한다. 최대 150 ms Held 상태는 이전 sample의 원본 Cell, Material, simulation tick, diagnostic sequence와 freshness를 `Previous sample`로 명시하고 새 hovered Cell의 값처럼 relabel하지 않는다.
+- 두 번째·세 번째 rapid hover도 같은 presented sample과 최초 만료 시각을 유지한다. Fresh current-Cell sample이 완료된 한 frame에서 전체 panel을 atomically 교체한다.
+- hold timeout 뒤에는 panel을 숨기지 않고 같은 geometry의 `Sampling current Cell...` 상태를 유지한다.
+- reset/preset/world epoch 변경/staging recovery는 held sample을 즉시 무효화하고 Sampling으로 돌아간다.
+- 실제 readback/map/channel 실패는 정상 Sampling과 분리한다. Compact hover에는 오류를 표시하지 않고, detail mode가 ON일 때 같은 panel shell에 `Inspector unavailable`을 표시한다. 상세 오류는 structured log에 남긴다.
 
 ---
 
@@ -280,7 +282,7 @@ Overlay는 v0 Inspector를 막지 않는다. 먼저 이름과 Cell detail을 해
 
 First Playable의 기본 HUD는 다음만 상시 유지하는 것을 목표로 한다.
 
-G9-A source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`는 direct user review의 다섯 revision을 반영한 canonical 무인자 launch surface다. 좌측에는 preset/tool/play-state/speed/control hints, 우측에는 canonical Matter name과 현재 selection을 표시한다. Palette는 `CORE`, `GENERATED`, `ADVANCED` heading으로 phase/reaction product와 Boundary 편집을 기본 재료에서 구분하지만 모든 Matter는 계속 처음부터 usable하다. Heat/Cool은 renderer/picking과 같은 physical-pixel transform에서 brush outline, applying fill, 180 ms committed pulse를 표시하며 simulation truth나 readback을 추가하지 않는다. Source SHA, benchmark identity, receipt, full counters와 predicate table은 Sandbox HUD에 표시하지 않는다. Inspector는 normal pending에서 silent를 유지하되 새 Cell을 기다리는 최대 150 ms 동안 이전 Cell/Material identity만 명시적으로 보여줄 수 있고 이전 field 값은 표시하지 않는다. Candidate는 **USER RE-REVIEW PENDING**이다.
+G9-A source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`는 direct re-review 뒤의 Inspector continuity v2를 반영한 canonical 무인자 launch surface다. 좌측에는 preset/tool/play-state/speed/control hints, 우측에는 canonical Matter name과 현재 selection을 표시한다. Palette와 Heat/Cool feedback 계약은 유지된다. Source SHA, benchmark identity, receipt, full counters와 predicate table은 Sandbox HUD에 표시하지 않는다. Inspector detailed panel은 Ready/Held/Sampling에서 고정되며 held sample은 원본 identity/freshness를 보존한다. Candidate는 **USER RE-REVIEW PENDING**이다.
 
 - 현재 선택한 Material/도구
 - brush size

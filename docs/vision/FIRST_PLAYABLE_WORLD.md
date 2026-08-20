@@ -215,11 +215,11 @@ First Playable World는 Benchmark Gallery를 그대로 편집 가능하게 만�
 
 ### G9-A implementation candidate
 
-Source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06` is the revised Sandbox product surface inside the canonical Windows EXE. The canonical no-argument BAT/EXE launch opens this surface, while the frozen Gallery remains explicit. It starts with a mostly empty, fully editable Starter Lab or an immediate Boundary/EMPTY Blank World. All nine current Matter remain visible and usable. Core choices are Stone/Sand/Water/Wood/Oil, Generated choices are Ice/Steam/Smoke, and Boundary Block is Advanced. Draw fills only EMPTY Cells; Ice and Steam placement starts at -30°C and 80°C. Heat/Cool uses the same camera transform to show its brush and application pulse without creating simulation truth. The Inspector may retain only the previous Cell/Material identity for 150 ms while a new sample is pending and never presents old Temperature, Pressure, Activity or flags as current.
+Source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4` is the continuity v2 Sandbox product surface inside the canonical Windows EXE. The canonical no-argument BAT/EXE launch opens this surface, while the frozen Gallery remains explicit. Existing EMPTY-only Draw, stable Ice/Steam placement, grouped palette and Heat/Cool feedback remain. Inspector now separates requested hover from the presented sample: during a bounded hold it keeps the original Cell, Material, simulation tick and freshness under a visible `Previous sample` label, never moves that identity to the new cursor, and shows compact cursor copy only after a fresh current-Cell sample arrives. The detailed panel keeps one geometry across Ready, Held and Sampling.
 
 Starter Lab intentionally avoids five benchmark panels: a Stone foundation supports one open left basin with Water and Sand, a central Wood bridge, and one open right cup with Oil and Ice, while more than 75% of the world remains empty for player-built experiments. It has no authored heat, pressure, flags, scripted outcome or automatic progression.
 
-The first candidate was directly reviewed and required these five revisions. The revised candidate passed automated integrity and one bounded launch check, but has not passed user re-review. G9-B/C/D/E remain **NOT STARTED**.
+The previous revision was directly re-reviewed and still required Inspector continuity work. Continuity v2 passed focused automated integrity and one bounded launch check, but has not passed user re-review. Thermal Transport & Ignition Causality is planned/design-required/not-started before G9-B. G9-B/C/D/E remain **NOT STARTED**.
 
 ---
 

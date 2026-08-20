@@ -266,6 +266,9 @@ does not rewrite this historical review.
 
 ## D-017 · Accept TE-2 with known follow-ups and authorize TE-3D design review — 2026-08-20 (source: direct user acceptance and design authorization)
 
+→ superseded in TE-3 architecture-disposition scope by D-018 (2026-08-21).
+The TE-2 acceptance and its two known follow-ups remain active.
+
 Decision: Preserve G9-A overall as **USER ACCEPTED WITH KNOWN FOLLOW-UP** and
 record TE-2 as **USER ACCEPTED WITH KNOWN FOLLOW-UP**. The accepted direct
 observations are that F, N and the candidate-only I diagnostics operate
@@ -316,3 +319,68 @@ Invalidated by: A later explicit user disposition, authenticated evidence that
 the named TE-2 source/result is incorrect, or a later user acceptance/revision
 of the proposed TE-3 architecture. A future runtime source is a new claim and
 does not rewrite this acceptance.
+
+## D-018 · Accept Hybrid A+C with locked TE-3D amendments — 2026-08-21 (source: direct user architecture disposition)
+
+Decision: Accept the Hybrid A+C core for future atomic implementation: one
+Ice/Water/Steam Cell equals one Water-equivalent quantity; every family phase
+transition is 1:1; `phase_energy_current/next` are the only added persistent
+phase state; there is no phase-quantity buffer, expansion fragment or same-cell
+mixed Matter; phase normalization repartitions local H only after TE-2 Q and
+never reapplies latent energy to a neighbour. Lock `Lf=80`, `Lv=480`,
+`CONDENSATION_SURFACE_MAX_C=80`, `CONDENSATION_MIN_DELTA_C=10`,
+`FREE_AIR_NUCLEATION_MAX_C=70`, the 32 MiB state increment at 2048² and atomic
+activation with a separately approved same-source TE-5 pressure-volume
+replacement. Explicitly accept that Steam with no positive-conductance
+energy-removal face may remain metastable indefinitely and sleep.
+
+The v1 ADR text is not accepted unchanged. Before ADR-0006 becomes future
+implementation authority, lock these amendments: a condensation surface must
+be a real positive-conductance TE-2 energy sink; buried partial boiling may
+retain/increase/reverse E but Water→Steam completion requires a current
+gas-facing surface or an explicit future TE-5 acceptance transaction; E=Lv
+without either context is vaporization-ready Water that stores excess H as
+Water superheat; free-air seed and active-partial veto radius is exactly two
+Cells with the predeclared TE3-F08 30-tick initiation bound; generic non-family
+`matter_yield>1` may not target Ice/Water/Steam without a later approved
+destination phase-energy ownership/writer design; and the coordinate key must
+reuse the existing internal arbitration finalizer with explicit provenance.
+
+Reason: The core quantity, enthalpy, coefficient, memory and atomic-activation
+choices are accepted, while the independent v1 review identified real but
+closeable ambiguities around false sinks, buried completion, temporal
+nucleation density, generic expansion targets and hash provenance. The locked
+amendments close those issues without adding runtime state or importing a TE-5
+pressure law.
+
+Scope: Docs/reference-only TE-3D v2 work on
+`feature/m0-g9-first-playable` from source
+`b05b44207ecba1442b67dd1e80b1025590c08d60`. It does not authorize Rust,
+WGSL, Cargo, phase runtime, TE-5 runtime, Air-pressure force, build, launch,
+TE-4, G9-B/C/D/E, optimization, PR, main merge or release work. Runtime
+activation remains atomic and separately authorized.
+
+Evidence: Direct user TE-3D v2 disposition; amended ADR/spec/validation and
+production inventory; a new fixed-seed radius-1/2/3 reference receipt; and a
+fresh-context independent design review. If the new radius-2 proof or review
+has an unresolved Critical/High finding, the docs task stops DESIGN BLOCKED
+without silently selecting radius 3.
+
+Invalidated by: A later explicit user supersession, a failed locked radius-2
+hard property, an unresolved Critical/High amended-design counterexample, or
+authenticated future implementation evidence that contradicts an invariant.
+Such a failure blocks implementation authority; it does not silently restore
+the rejected yield-2 quantity model or rewrite the preserved TE-2 acceptance.
+
+### D-018 closure receipt — 2026-08-21
+
+The amended fixed-seed proof passed its only run with script/result SHA-256
+`c3624e467638a62ef2b62f96c8b12954ceef70609feeac47da70eca69f84db23` /
+`f727101543f4eaa7582def01940e2567dd3b79bc6e585cfad4051160de1d90ea`.
+The fresh independent v2 review SHA-256 is
+`c6d63fd84d8057e6cbe201696df0a4914e1a396eaeaf2bc189a5ebcd24a9a31d`
+with unresolved Critical `0` / High `0`. D-018's closure conditions are met:
+TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS** and ADR-0006 is
+**ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. This receipt authorizes no
+runtime work; TE-3 is **NOT STARTED** and the TE-5 bridge is **DESIGN REQUIRED
+/ NOT STARTED**.

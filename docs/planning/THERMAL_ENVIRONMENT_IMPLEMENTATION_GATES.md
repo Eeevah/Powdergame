@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 user accepted with known follow-up; TE-3D phase-enthalpy design candidate awaiting user architecture review; runtime not started
-- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / ADR-0005 / proposed ADR-0006
+- **Status:** TE-2 user accepted with known follow-up; TE-3D architecture accepted with locked amendments; TE-3 runtime not started; TE-5 bridge design required/not started
+- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / D-018 / ADR-0005 / accepted ADR-0006
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -115,9 +115,9 @@ Water round-trip audit are registered in
 [`TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](TE3_WATER_STEAM_PHASE_ACCOUNTING.md).
 Closed-cycle quantity, expansion/contraction, latent reversal, surface boiling,
 cold-surface condensation, nucleation, and the mid-air phase traffic jam are
-design blockers. D-017 authorizes docs-only TE-3D research, a proposed Hybrid
-A+C architecture, independent adversarial review and one pure reference proof.
-It does not authorize runtime work or mark the architecture accepted.
+design blockers. D-018 accepts Hybrid A+C with locked amendments after one new
+pure reference proof and fresh independent v2 review. Those conditions passed;
+this records architecture acceptance only and does not authorize runtime work.
 
 ### TE-3D — docs-only phase-enthalpy design lock
 
@@ -130,23 +130,26 @@ It does not authorize runtime work or mark the architecture accepted.
 - [x] project 40 passes, 80 queries, 1,280 profiler bytes and exact tracked allocations;
 - [x] define deterministic future fixtures and pass one pure reference-math proof;
 - [x] complete an independent adversarial review with no unresolved Critical/High finding;
+- [x] require a real positive-conductance TE-2 energy-removal sink and reject K=0 Boundary;
+- [x] lock buried initiated Water, value-derived ready Water and explicit completion permission;
+- [x] lock radius-2 seed/veto plus the predeclared 30-tick initiation bound;
+- [x] restrict generic yield-greater-than-one phase targets and record internal mixer provenance;
 - [x] preserve TE-1/TE-2 evidence boundaries and copy zero external implementation formulas;
 - [x] keep pressure-volume force, ignition and all runtime work outside this gate.
 - [x] block production activation until a separately authorized TE-5 replacement preserves the frozen G5 expansion/confinement chain atomically.
 
-Candidate authorities:
+Accepted design authorities:
 
 - [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
 - [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
 - [`PHASE_THERMODYNAMICS_VALIDATION`](../development/PHASE_THERMODYNAMICS_VALIDATION.md)
 - [`TE3_PHASE_ENTHALPY_DESIGN`](../adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md)
 
-TE-3D stop: `PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING`.
-The user must accept or revise the architecture, coefficients, nucleation,
-memory cost, pressure boundary and atomic G5-continuity constraint before any
-implementation authorization. Even after design acceptance, a phase-only
-runtime must remain disabled/non-production until the separate TE-5 replacement
-is ready on the same source.
+TE-3D stop: `ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS`.
+ADR-0006 is `ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION`. This closure is not
+implementation authorization. A phase-only runtime must remain
+disabled/non-production until the separate TE-5 replacement is ready on the
+same source.
 
 After a separate implementation authorization, TE-3 phase code may reach only:
 
@@ -182,6 +185,11 @@ TE-0B  PASS_REFERENCE_MATH_ONLY
 TE-1   ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED
 TE-2   USER ACCEPTED WITH KNOWN FOLLOW-UP
 Air transport / unified passive thermal exchange   IMPLEMENTED
-TE-3D  PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING
-Air-pressure force / TE-3 runtime   NOT STARTED
+TE-3D  ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS
+ADR-0006  ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
+TE-3 runtime  NOT STARTED
+TE-5 pressure-volume bridge  DESIGN REQUIRED / NOT STARTED
+Air-pressure force  NOT STARTED
+TE-4  NOT STARTED
+G9-B/C/D/E  NOT STARTED
 ```

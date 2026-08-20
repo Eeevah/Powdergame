@@ -87,12 +87,13 @@ thermal exchange are implemented at
 source `fb7e568e21012b6067269f4e1b82c36c865023d0`. Candidate-only controls,
 bounded diagnostics and staging are revised at source `0977281...`; TE-2 user
 acceptance is **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Air-pressure force and
-TE-3 runtime are not started. Proposed [`ADR-0006`](decisions/ADR-0006-water-steam-phase-enthalpy.md)
+TE-3 runtime are not started. Accepted [`ADR-0006`](decisions/ADR-0006-water-steam-phase-enthalpy.md)
 and the [`phase-thermodynamics spec`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
-select a docs-only Hybrid A+C candidate: one Water-equivalent quantity per
-Matter Cell plus two reversible phase-energy halves, with no independent Steam
-fragment. Its status is **USER ARCHITECTURE REVIEW PENDING**, not accepted or
-implemented.
+define the accepted docs-only Hybrid A+C architecture: one Water-equivalent
+quantity per Matter Cell plus two reversible phase-energy halves, with no independent Steam
+fragment. Its status is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**, not
+implemented; the TE-5 pressure-volume bridge remains **DESIGN REQUIRED / NOT
+STARTED**.
 
 ---
 

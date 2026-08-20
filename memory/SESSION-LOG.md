@@ -249,3 +249,29 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   separately authorized same-source TE-5 pressure-volume replacement preserves
   the frozen G5 chain atomically. ADR-0006 remains Proposed; no D-018, runtime,
   build, launch, GPU test, pressure, ignition or later-Gate work occurred.
+
+## 2026-08-21 · TE-3D v2 locked-amendment architecture closure
+
+- D-018 accepts Hybrid A+C and constants 80/480/80/10/70 with one
+  Water-equivalent family Cell, 1:1 transitions, two phase-energy halves,
+  radius 2, 32 MiB at 2048², isolated-Steam metastability and atomic
+  same-source TE-5 activation.
+- Locked amendments define a real positive-conductance TE-2 energy-removal
+  sink, buried value-derived ready Water and explicit completion permission,
+  generic phase-target hygiene and exact internal mixer provenance. K=0
+  Boundary is not a condensation sink.
+- The separate v2 reference proof ran exactly once. Script/result SHA-256 are
+  `c3624e467638a62ef2b62f96c8b12954ceef70609feeac47da70eca69f84db23` /
+  `f727101543f4eaa7582def01940e2567dd3b79bc6e585cfad4051160de1d90ea`;
+  radius-2 maximum new initiations in a sampled 30-tick window were 209.
+- Fresh independent review SHA-256
+  `c6d63fd84d8057e6cbe201696df0a4914e1a396eaeaf2bc189a5ebcd24a9a31d`
+  closed with unresolved Critical `0` / High `0`. Three Medium and two Low
+  future runtime/device/TE-5/user/guard obligations remain open.
+- TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS** and ADR-0006 is
+  **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. TE-3 runtime is **NOT
+  STARTED**; the TE-5 bridge is **DESIGN REQUIRED / NOT STARTED**; TE-4 and
+  G9-B/C/D/E remain **NOT STARTED**.
+- No Rust/WGSL/Cargo, build, launch, Cargo/test/check/clippy, GPU, FULL,
+  candidate, G8/G8-C or Wiki change/run occurred. The v1 proof/review and all
+  TE-1/TE-2/G5 evidence remain source-bound and preserved.

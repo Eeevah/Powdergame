@@ -591,3 +591,281 @@ implementation may reach only verified-but-inactive status until a separately
 authorized TE-5 replacement is ready on the same source and the frozen G5 chain
 passes. This report does not authorize implementation, activation, gate
 closure, commit, push, merge, release or user acceptance.
+
+## 7. V2 amended-design independent review — 2026-08-21
+
+### 7.1 Preservation and authority
+
+Sections 1–6 above are the preserved v1 review. Their exact pre-v2 file
+SHA-256 was
+`1fbc4501f62b91042ff5658cc8a6b509042e0fba84a266f72e610ef686274d34`.
+This v2 section appends a fresh review of D-018 and supersedes only the
+report's current disposition; it does not rewrite the v1 findings, evidence or
+historical user-review state.
+
+The live `memory/CHECKPOINT.md` still described the earlier D-017/v1 state.
+Live Git and D-018 in the append-only decision ledger therefore won under the
+Ballast authority rule. The checkpoint was not edited because this review was
+authorized to write only this report.
+
+### 7.2 Exact v2 baseline and reviewed identities
+
+- Review snapshot: `2026-08-21T01:05:23.0651005+09:00`.
+- Branch: `feature/m0-g9-first-playable`.
+- HEAD and D-018 design baseline:
+  `b05b44207ecba1442b67dd1e80b1025590c08d60`.
+- Working tree before this addendum: six modified docs/memory inputs and no
+  Rust, WGSL, Cargo, app, scenario or benchmark source delta from the baseline.
+- Production anchors inspected read-only: TE-2
+  `fb7e568e21012b6067269f4e1b82c36c865023d0` and review-remediation
+  `097728128343cf89383920c968a010b3dcf8e8c0`.
+
+The mutable v2 authority snapshot was:
+
+| SHA-256 | Exact reviewed file |
+|---|---|
+| `7b04da62fcd88b22228c8f3729068efbf0a8f03948326f25b75135ab4e5b5739` | `docs/architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md` |
+| `a4139dbf9c9936318f8f3555c216743955809125e11abaccc2bcc97151703ab7` | `docs/specs/PHASE_THERMODYNAMICS_SPEC.md` |
+| `ab9434e51659c6b06fdc4d0b0e6545aa19bf4ab1c86fda15ecde191597303578` | `docs/development/PHASE_THERMODYNAMICS_VALIDATION.md` |
+| `d9bc276640415e15b088eefa58d08ae109b006d1876bd739c2b8063216485a54` | `docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md` |
+| `e362afb959e5c65f0ef706926691bcd4576533f80994cd6d9e0013a42b6468b4` | `docs/architecture/THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md` |
+| `98dd1f36a2acca3d3d6f944b9f596215b126829013d8c461e39728e2171400a6` | `memory/DECISIONS.md` containing D-018 |
+
+The existing external v2 reference artifacts were read and hashed but not
+executed:
+
+| SHA-256 | Exact reviewed artifact |
+|---|---|
+| `c3624e467638a62ef2b62f96c8b12954ceef70609feeac47da70eca69f84db23` | `te3_phase_enthalpy_v2_reference.py` |
+| `f727101543f4eaa7582def01940e2567dd3b79bc6e585cfad4051160de1d90ea` | `te3_phase_enthalpy_v2_reference_result.json` |
+
+The result parsed as JSON, contained no NaN/Infinity token, embedded the same
+script SHA, and reported `PASS_AMENDED_REFERENCE_MATH_ONLY`, 20 named checks,
+50,000 enthalpy trials, 4,096 generated regions, normative radius 2, 401 total
+reference initiations and a maximum 209 initiations in a rolling 30-tick
+window. Those are pure-reference facts only.
+
+### 7.3 V2 method and attack surface
+
+The review read the full amended ADR, specification, validation contract,
+planning entry, production inventory, D-018 and preserved v1 report. It also
+inspected the actual phase/material/thermal rules, TE-2 node/conductance/
+deadband and activity predicates, pass/profiler/scratch graph, world writers,
+DX12 limit request, and all three internal `edge_priority` shader definitions.
+The source comparison covered `engine/core`, `engine/gpu`, Windows Sandbox,
+scenario and benchmark staging, plus `Cargo.toml` and `Cargo.lock`; the diff
+from `b05b442...` was empty across that source set.
+
+The attacks were the D-018 locked boundaries: one-unit quantity and local H;
+buried progress, ready-Water completion and reversal; exact TE-2 sink and K=0;
+canonical versus partial Steam metastability; radius-2 5x5 strict minima and
+active-veto time/movement/release/thin/diagonal/seam/tie behavior; generic
+yield-greater-than-one target hygiene; internal hash provenance; eight-storage
+feasibility, pass/query/allocation arithmetic; same-source G5/TE-5 continuity;
+and evidence scope/integrity.
+
+### 7.4 V2 findings
+
+#### TE3D-V2-001 — One unit and local enthalpy survive a closed phase cycle
+
+- **Severity:** High
+- **Status:** CLOSED BY CURRENT V2 CONTRACT
+- **Attack:** Repeat Water to Steam to Water, cross capacity-changing
+  endpoints and attempt to mint a second Water-equivalent Cell or transfer
+  TE-2 Q twice.
+- **Evidence:** ADR quantity/local-H sections; spec sections 2–6 and
+  PH-INV-001/002/005/006; receipt endpoint, H, range and 100-cycle records.
+  The Steam sensible anchor includes Water's 0-to-100 rise, every family
+  transition is 1:1, and normalization writes self only after settled TE-2 Q.
+- **Disposition:** No design-level duplication or H discontinuity remains.
+  The current yield-2 runtime is unchanged and is not evidence for the future
+  implementation.
+
+#### TE3D-V2-002 — Burial cannot force completion or destroy reversal
+
+- **Severity:** High
+- **Status:** CLOSED BY CURRENT V2 CONTRACT
+- **Attack:** Initiate positive-E Water at a gas face, bury it, heat through
+  occupied Matter past `E=Lv`, cool it, then reopen a surface or inject a stale
+  TE-5 permission.
+- **Evidence:** ADR plateau/completion rules; spec sections 3.2 and 6.3–6.4;
+  F05B–F05E and the future completion-bit structural guards; receipt buried,
+  ready-Water, sensible-before-latent and gas/TE-5 pure-state checks.
+- **Disposition:** Buried progress remains Matter-owned and reversible.
+  Without current gas-facing or separately accepted TE-5 context, `E=Lv`
+  stays Water and excess H becomes Water sensible superheat. Missing/stale
+  TE-5 context is false.
+
+#### TE3D-V2-003 — A geometric cold face is not a sink, and no-work Steam is explicit
+
+- **Severity:** High
+- **Status:** CLOSED BY CURRENT V2 CONTRACT
+- **Attack:** Place 94-degree Steam beside a 20-degree Boundary with K=0;
+  separately give partial Steam a heating face and test reversal rather than
+  treating absence of cooling as absence of all work.
+- **Evidence:** Current `THERMAL_K_BOUNDARY=0`; TE-2 requires a valid node,
+  positive face conductance, enabled interface and `abs(delta)>0.01`; ADR and
+  spec require that exact energy-removal result for canonical surface/free-air
+  initiation, while partial Steam uses runnable work in either direction.
+  F03, F06B and F07B preserve the distinction.
+- **Disposition:** K=0 cannot initiate or mark phase activity. Canonical Steam
+  without an energy-removal face may keep its identity; partial Steam with no
+  runnable work may stall/sleep, but a real heating face reverses E. Ordinary
+  TE-2 thermal activity remains responsible while any temperature work exists.
+
+#### TE3D-V2-004 — Radius-2 seed and veto rules close the adjacent temporal cascade
+
+- **Severity:** High
+- **Status:** CLOSED AT DESIGN/PURE-REFERENCE LAYER
+- **Attack:** Try same-tick seeds within Chebyshev distance two; remove a seed
+  from the below-70 canonical set on tick 1; move, complete, reverse, stall or
+  release it through Void; use thin/diagonal regions, chunk seams and forced
+  32-bit hash ties; then exceed the predeclared 30-tick rate bound.
+- **Evidence:** Spec section 8 and F07/F08 use the same 5x5 radius for strict
+  minimum and thermally runnable partial veto. `(hash32,y,x)` is a total order
+  over world coordinates. The receipt discloses radius 1/2/3, tests generated
+  finite regions and named shapes, records movement/release abstractions, and
+  reports every normative radius-2 rolling window within the locked bound.
+- **Disposition:** The concrete radius mismatch and next-tick cascade are
+  closed. Radius 3 was not selected as fallback. Production movement, thermal
+  work, sleep and F08 appearance remain future evidence, recorded below as a
+  Medium residual rather than smuggled into this result.
+
+#### TE3D-V2-005 — Generic expansion cannot create phase Matter without phase energy
+
+- **Severity:** High
+- **Status:** CLOSED BY NORMATIVE RESTRICTION
+- **Attack:** Add a non-family yield-2 rule targeting Steam so the historical
+  spawn writes a destination Steam Cell while the destination invocation left
+  phase energy at zero.
+- **Evidence:** ADR pressure boundary; spec section 10.2 and PH-INV-003/025;
+  validation structural guards. A generic yield-greater-than-one descriptor
+  may target non-phase Matter only unless a later accepted destination
+  ownership/writer design exists.
+- **Disposition:** The current architecture has no unowned phase destination.
+  The JSON's synthetic target is declarative reference data, not proof that a
+  future Rust registry or WGSL writer enforces the restriction.
+
+#### TE3D-V2-006 — Coordinate hash provenance is now internally auditable
+
+- **Severity:** Medium
+- **Status:** CLOSED AT DESIGN LEVEL
+- **Attack:** Treat newly introduced magic constants or an externally sourced
+  mixer as established project provenance.
+- **Evidence:** Direct source inspection found identical `edge_priority`
+  arithmetic in `movement_claim.wgsl`, `expansion_claim.wgsl` and
+  `smoke_claim.wgsl`: `0x9E3779B9`, `0x85EBCA6B`, `0x7FEB352D`,
+  `0x846CA68B`. The v2 docs identify the newly authored mapping
+  `source=x`, `target_cell=y`, `tick=0x54453344` separately from reused
+  arithmetic.
+- **Disposition:** Internal reuse is verifiable. The negative claim that no
+  external formula was consulted remains a disclosed provenance assertion,
+  not something the JSON can prove.
+
+#### TE3D-V2-007 — The projected graph fits the static binding/pass/memory budget
+
+- **Severity:** High
+- **Status:** CLOSED FOR STATIC FEASIBILITY
+- **Attack:** Exceed the device's eight-storage ceiling, overlap live TE-2
+  float scratch with phase context, omit a settle/hygiene writer, undercount
+  passes/queries or hide a dense allocation.
+- **Evidence:** Current source requests default wgpu limits and has 34 passes,
+  68 queries and 544-byte resolve/readback buffers. The design adds six
+  timestamped dispatches, yielding 40/80 and two 640-byte profiler buffers.
+  Context and activity are 6 RO + 1 RW, thermodynamics is 4 RO + 4 RW, and the
+  separate Sandbox edit is 3 RO + 2 RW. Claim is consumed as TE-2 receiver
+  scale before context fully overwrites it; phase consumes context before
+  expansion claim overwrites it. Two f32 halves add 33,554,432 B at 2048^2,
+  producing 302,016,816 B without and 302,018,096 B with the projected
+  profiler.
+- **Disposition:** No static impossibility or hidden ninth storage binding was
+  found. These numbers remain arithmetic, not Naga/device/allocation or
+  performance evidence.
+
+#### TE3D-V2-008 — Yield-1 activation cannot silently regress the frozen G5 chain
+
+- **Severity:** High
+- **Status:** CLOSED BY ATOMIC ACTIVATION CONTRACT
+- **Attack:** Ship Water yield 1 and zero blocked-expansion pressure before a
+  replacement preserves Water heat to Steam expansion to confinement Pressure
+  to rupture to vent.
+- **Evidence:** ADR pressure/approval boundaries; spec sections 1–2 and
+  PH-INV-019; F10 and the future sequence/structural guards; D-018's explicit
+  same-source requirement. Historical G5/TE-2 receipts remain bound to their
+  original sources.
+- **Disposition:** Phase-only code may be disabled staging only. Production or
+  user-testable activation requires a separately authorized TE-5
+  pressure-volume design and its G5 causal fixture on the same source. This
+  review neither designs nor authorizes TE-5.
+
+#### TE3D-V2-009 — The reference receipt is authentic but deliberately narrow
+
+- **Severity:** High
+- **Status:** CLOSED FOR CLAIMED PURE-REFERENCE SCOPE
+- **Attack:** Rebind the v1 receipt, accept a mismatched script/result, or call
+  the v2 JSON WGSL, movement, activity, sleep, allocation, TE-5 or product
+  evidence.
+- **Evidence:** The live script/result hashes match the validation record and
+  the JSON's embedded script SHA/status. The amended validation text states
+  that completion/Void/stall share one active-veto-absence abstraction, K=0
+  models a predicate rather than `phase_activity` execution, and generic target
+  and provenance entries are declarations. It explicitly routes their distinct
+  runtime writers and guards to future structural/GPU fixtures.
+- **Disposition:** Evidence identity and scope are honest after amendment.
+  None of the unexecuted layers is marked complete by this review.
+
+### 7.5 Residual Medium/Low findings
+
+These lower-severity items remain real and must travel with any future
+implementation authorization. They do not reopen a D-018 architecture
+counterexample today.
+
+| ID | Severity | Status | Residual obligation |
+|---|---|---|---|
+| TE3D-V2-R01 | Medium | OPEN — FUTURE RUNTIME EVIDENCE | The 60-tick reference cloud uses abstract active sets and a fixed partial lifetime. It does not prove actual TE-2 direction/work, GAS movement, distinct completion/Void writers, sleep/wake, post-completion surface fronts or the 3000-tick F08 traffic-jam targets. F07/F08/F12/F13 retain those obligations. |
+| TE3D-V2-R02 | Medium | OPEN — FUTURE STRUCTURAL/DEVICE EVIDENCE | The 7/8/6/7 storage counts, 40-pass order, table usages, writer full-overwrites, 32 MiB increment and profiler grouping need Naga/layout/source-bound allocation evidence. No runtime buffer exists yet. |
+| TE3D-V2-R03 | Medium | OPEN — SEPARATE TE-5 GATE | The pressure-volume replacement and same-source G5 causal proof are intentionally undesigned and unexecuted. Until both are separately authorized and pass, TE-3 cannot become production/user-testable. |
+| TE3D-V2-R04 | Low | OPEN — FUTURE USER EVIDENCE | Radius-2 deterministic texture, isolated-Steam metastability and ready-Water superheat may be legible or visually undesirable. The pure reference pass cannot decide product appearance or user acceptance. |
+| TE3D-V2-R05 | Low | OPEN — FUTURE GUARD | The receipt's generic target and provenance fields pin declared values only. A future registry/compiler guard must reject forbidden phase targets, and source review must keep the internal mixer mapping auditable. |
+
+### 7.6 Severity, scope and execution counts
+
+| Severity | Total v2 findings | Closed | Open / future evidence | Unresolved blockers |
+|---|---:|---:|---:|---:|
+| Critical | 0 | 0 | 0 | 0 |
+| High | 8 | 8 | 0 | **0** |
+| Medium | 4 | 1 | 3 | 0 |
+| Low | 2 | 0 | 2 | 0 |
+| **All** | **14** | **9** | **5** | **0** |
+
+Review scope and cost counts:
+
+```text
+primary mutable authorities hashed:    6
+external v2 artifacts inspected:       2
+runtime/source files changed:           0
+Rust/WGSL/Cargo files edited:           0
+other docs/memory/Wiki files edited:    0
+reference-proof executions:             0
+Cargo/test/GPU/runtime executions:       0
+builds or bounded launch checks:         0
+TE-4 or G9-B/C/D/E work:                 0
+files written by this reviewer:          1 (this report)
+```
+
+### 7.7 V2 final disposition
+
+The current hashed D-018 design closes every Critical/High architecture
+counterexample raised by the required attack surface. The pure-reference
+receipt matches the documented math/abstract-radius claims within its newly
+explicit scope, and the documents do not promote it into runtime evidence.
+
+**INDEPENDENT V2 DESIGN REVIEW PASS — UNRESOLVED CRITICAL 0 / HIGH 0**
+
+This satisfies D-018's fresh independent-review condition for the exact
+snapshot above. It permits the owning documents to record **ARCHITECTURE
+ACCEPTED WITH LOCKED AMENDMENTS / ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**;
+it does not itself pre-mark another gate or authorize Rust, WGSL, Cargo,
+runtime, build, launch, TE-5, Air-pressure force, TE-4, G9-B/C/D/E, PR, main,
+release or evidence rebinding. The Medium/Low residuals remain mandatory future
+evidence and product-review work.

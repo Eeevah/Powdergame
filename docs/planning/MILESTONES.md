@@ -460,7 +460,7 @@ Required evidence:
 
 Current status: **NOT STARTED**.
 
-Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is **USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...`. TE-3D is a **PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING** and TE-3 runtime is **NOT STARTED**. G9-B emergence validation does not begin until the TE-3 architecture is accepted and the TE-3 phase path plus separately authorized TE-5 pressure-volume replacement are atomically activated with their named user evidence.
+Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is **USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...`. TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**, while TE-3 runtime is **NOT STARTED** and the TE-5 pressure-volume bridge is **DESIGN REQUIRED / NOT STARTED**. G9-B emergence validation does not begin until the TE-3 phase path plus separately authorized TE-5 pressure-volume replacement are atomically activated with their named user evidence.
 
 현재 M0 Matter와 공통 Rule만으로 사용자가 만든 sandbox setup에서 다음 chain이 가능해야 한다.
 

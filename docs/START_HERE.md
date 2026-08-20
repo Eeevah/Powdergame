@@ -119,7 +119,7 @@ Simulation Truth와 Presentation Effect를 분리한다. Cell은 계산 단위�
 4. `architecture/ARCHITECTURE.md`
 5. 관련 tests/evidence
 
-Thermal Environment 작업은 ADR-0005와 proposed ADR-0006,
+Thermal Environment 작업은 ADR-0005와 accepted ADR-0006,
 `specs/THERMAL_ENVIRONMENT_SPEC.md`, `specs/PHASE_THERMODYNAMICS_SPEC.md`,
 `architecture/THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md`,
 `development/THERMAL_ENVIRONMENT_VALIDATION.md`,
@@ -127,9 +127,11 @@ Thermal Environment 작업은 ADR-0005와 proposed ADR-0006,
 현재 TE-1 Environment state / occupancy hygiene는 구현됐고, Air transport와
 thermal exchange를 구현한 TE-2 production source는 `fb7e568...`다. Candidate
 controls/diagnostics/staging remediation source `0977281...`은 **USER ACCEPTED
-WITH KNOWN FOLLOW-UP**이다. TE-3D는 **PHASE-ENTHALPY DESIGN CANDIDATE / USER
-ARCHITECTURE REVIEW PENDING**에서 멈췄다. Air-pressure force와 TE-3 runtime은
-**NOT STARTED**다.
+WITH KNOWN FOLLOW-UP**이다. TE-3D는 **ARCHITECTURE ACCEPTED WITH LOCKED
+AMENDMENTS**에서 멈췄고 ADR-0006은 **ACCEPTED FOR FUTURE ATOMIC
+IMPLEMENTATION**이다. TE-3 runtime은 **NOT STARTED**, TE-5 pressure-volume
+bridge는 **DESIGN REQUIRED / NOT STARTED**다. Air-pressure force도 **NOT
+STARTED**다.
 
 ### 현재 Gate를 이어서 개발
 

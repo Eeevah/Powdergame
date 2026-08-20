@@ -1,10 +1,10 @@
 # Phase Thermodynamics Validation Contract
 
-- **Status:** Proposed TE-3D validation design — runtime validation NOT STARTED
+- **Status:** D-018 architecture evidence closed — runtime validation NOT STARTED
 - **Architecture:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
 - **Specification:** [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
-- **Reference result:** PASS_REFERENCE_MATH_ONLY
-- **User acceptance:** pending architecture review
+- **Reference result:** v1 preserved; v2 `PASS_AMENDED_REFERENCE_MATH_ONLY`
+- **User acceptance:** Hybrid A+C core and locked amendments accepted
 
 This contract separates pure reference evidence from future Rust/WGSL,
 production-pass, GPU, sleep, performance, visual and user evidence. Passing one
@@ -14,15 +14,17 @@ layer MUST NOT be relabelled as another.
 
 | Layer | What it may establish | Current state |
 |---|---|---|
-| docs/static audit | coherent state, writer, pass, binding and fixture design | candidate complete |
-| pure reference math | piecewise enthalpy formulas, f32 tolerance, coefficient sweep, deterministic seed properties | passed once |
+| docs/static audit | coherent state, writer, pass, binding and fixture design | fresh v2 review PASS; unresolved Critical 0 / High 0 |
+| pure reference math | piecewise enthalpy formulas, f32 tolerance, coefficient sweep, deterministic seed properties | v1 preserved; v2 passed its only run |
 | CPU semantic tests | future Core reference implementation matches this spec | not run / no implementation |
 | Naga/write-contract | future WGSL parses and respects write-self/binding rules | not run |
 | production GPU fixtures | actual buffers, order, movement, hygiene and sleep semantics | not run |
 | profiler/allocation | actual pass/query/bytes and cost | not run; arithmetic projection only |
 | product observation | visual timing, nucleation appearance and traffic-jam outcome | not run / user pending |
 
-## 2. One-time reference proof record
+## 2. Reference proof records
+
+### 2.1 Preserved v1 receipt
 
 The pure tool and result live outside the repository and production runtime.
 It was executed exactly once.
@@ -75,7 +77,107 @@ Not proved:
 - acceptable free-air nucleation appearance;
 - user architecture acceptance.
 
-## 3. Coefficient sweep and proposal
+The v1 script/result remain immutable historical evidence. They do not prove
+the D-018 real-sink, vaporization-ready or radius-2 amendments and MUST NOT be
+relabeled as the v2 receipt.
+
+### 2.2 Predeclared amended v2 proof contract and receipt
+
+Before the one v2 execution, lock these pass conditions:
+
+- K=0 Boundary never qualifies as a surface sink, changes E or creates phase
+  activity by itself;
+- buried positive-E Water retains, increases and reverses H correctly;
+- Water at E=Lv without a completion context remains vaporization-ready Water,
+  preserves excess sensible H and cannot bypass the completion gate;
+- reopening a gas surface and a contract-only accepted TE-5 placeholder each
+  complete 1:1 from the same H;
+- isolated canonical and partial supercooled Steam retain finite identity/E/H
+  without activity, then resume when a real cooling face returns;
+- radius 1, 2 and 3 static/temporal metrics are disclosed, while radius 2 alone
+  is normative;
+- radius-2 seeds and active partial veto are symmetric across global
+  coordinates, chunk seams, fixed hash ties, movement, completion and Void
+  release;
+- thin and diagonal regions retain a seed under the radius-2 connected-graph
+  definition;
+- every sampled 30-tick TE3-F08 window satisfies
+  `new initiations <= max(4, ceil(peak eligible canonical Steam / 8))`;
+- the synthetic generic yield-2 compatibility target is non-phase Matter.
+
+If normative radius 2 fails any condition, the result is `DESIGN_BLOCKED` and
+radius 3 MUST NOT be selected silently.
+
+The conditions above were written before execution. The new tool/result use new
+filenames outside the repository; the preserved v1 files were not overwritten.
+The v2 tool was then executed exactly once:
+
+```powershell
+& 'C:\Users\mdkap\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' 'C:\Users\mdkap\.codex\visualizations\2026\08\20\01a01f0c-f992-74f0-a89d-f2ff2792ada8\te3_phase_enthalpy_v2_reference.py' --output 'C:\Users\mdkap\.codex\visualizations\2026\08\20\01a01f0c-f992-74f0-a89d-f2ff2792ada8\te3_phase_enthalpy_v2_reference_result.json'
+```
+
+Identity and result:
+
+| Item | Value |
+|---|---|
+| status | `PASS_AMENDED_REFERENCE_MATH_ONLY` |
+| fixed seed | `0x54453344` |
+| script SHA-256 | `c3624e467638a62ef2b62f96c8b12954ceef70609feeac47da70eca69f84db23` |
+| result SHA-256 | `f727101543f4eaa7582def01940e2567dd3b79bc6e585cfad4051160de1d90ea` |
+| random enthalpy trials | `50,000` |
+| generated finite nucleation regions | `4,096` |
+| maximum absolute H error | `1.52587890625e-05` |
+| closed heat/cool cycles | `100`; final quantity `1`; Water, 20°C, E=0 |
+| generated-region radius-2 seed range | `1..12` |
+| chunk-seam comparisons | `4,096` |
+| temporal completion/veto release tick | `32` |
+
+The result JSON parsed successfully with PowerShell `ConvertFrom-Json` and
+contains no NaN/Infinity JSON value. The normative radius-2 60-tick reference
+abstraction recorded 401 total initiations, at most 209 in any tick or sampled
+30-tick window, and passed every predeclared window bound. Disclosure-only
+radius 1 recorded 1,098 total and a 578 maximum window; radius 3 recorded 222
+total and a 120 maximum window. All three disclosed models passed their own
+window bounds, so radius 2 remains the preselected rule rather than a fallback.
+
+The v2 receipt exercised pure-state/predicate abstractions for buried initiated
+Water, value-derived ready Water, sensible-before-latent cooling,
+gas/placeholder completion gates, K=0/no-work rejection, isolated Steam hold,
+moving radius-2 partial veto, active-veto release, thin/diagonal/seam/tie
+coverage and a declared non-phase synthetic yield-2 target. Completion, Void
+and stalled-no-work release share one reference abstraction—the owner is
+absent from the thermally runnable active-veto set—so this run does not prove
+their distinct runtime writers. The K=0 check models the required predicate,
+not `phase_activity` execution or wake/resume. The generic target and mixer
+provenance checks pin declared values but do not establish a registry or WGSL
+guard. The receipt still does not execute Rust, WGSL, GPU, sleep scheduling,
+TE-5 or a product scene; the named future structural/GPU fixtures retain all
+of those obligations.
+
+### 2.3 Fresh independent v2 review receipt
+
+The fresh-context reviewer inspected the amended primary authorities, current
+production source and the already-existing v2 artifacts without rerunning the
+proof. The review is preserved in
+[`TE3_PHASE_ENTHALPY_DESIGN.md`](../adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md)
+at SHA-256
+`c6d63fd84d8057e6cbe201696df0a4914e1a396eaeaf2bc189a5ebcd24a9a31d`.
+
+Disposition:
+
+```text
+INDEPENDENT V2 DESIGN REVIEW PASS
+UNRESOLVED CRITICAL 0 / HIGH 0
+```
+
+All eight v2 High attacks are closed at their named design/reference layer.
+Three Medium and two Low items remain explicitly open for future runtime,
+structural/device, TE-5, user and registry/provenance evidence. The review
+snapshot predates only the mechanical final-disposition/router/memory closure
+that records D-018 success; no normative phase rule was changed after its
+reviewed hashes.
+
+## 3. Coefficient sweep and locked values
 
 The sweep used the existing capacities/conductances and a deliberately small
 bounded target model. It did not fit values to a production run.
@@ -88,7 +190,7 @@ two such inputs MAY complete it.
 | Lf | Result | Disposition |
 |---:|---|---|
 | 40 | one pulse supplies 50 energy and completes | reject: too small |
-| **80** | one pulse partial; two pulses can complete | **propose** |
+| **80** | one pulse partial; two pulses can complete | **locked** |
 | 120 | two pulses supply only 100 | reject: target misses |
 | 160 | two pulses supply only 100 | reject: target misses |
 
@@ -103,11 +205,11 @@ Water Heat input supplies 62.5 energy and MUST NOT complete boiling.
 |---:|---:|---|
 | 240 | 34 | reject: earlier than 45 |
 | 360 | 44 | reject: one tick earlier than target |
-| **480** | **54** | **propose** |
+| **480** | **54** | **locked** |
 | 720 | 74 | reject: later than 65 |
 
-The 360/480 boundary is sensitive to the selected target window. It is a user
-architecture-review choice, not a claim that 480 is physically correct.
+The 360/480 boundary is sensitive to the selected target window. D-018 locks
+480 as a gameplay choice, not a claim that it is physically correct.
 
 ### 3.3 Surface sink
 
@@ -137,7 +239,7 @@ completion target is 900–1300 ticks.
 | Free-air max | Onset | Completion | Disposition |
 |---:|---:|---:|---|
 | 60°C | 93 | 1026 | reject: onset too late |
-| **70°C** | **63** | **1013** | **propose** |
+| **70°C** | **63** | **1013** | **locked** |
 | 80°C | 39 | 1006 | reject: onset too early |
 
 With the selected constants, the one-face 20°C cold-surface model begins at
@@ -211,6 +313,46 @@ Coverage: PH-INV-005, 007, 016, 018.
 
 Coverage: PH-INV-005, 010, 016.
 
+### TE3-F05B — Buried mid-progress reversal
+
+- Initiate gas-facing Water to `0<E<Lv`, then replace every gas-facing
+  neighbour with occupied non-GAS Matter.
+- Continue one bounded heating leg and assert E increases while Material stays
+  Water; apply the inverse cooling leg and assert E reverses before Water
+  cools below 100°C.
+- No burial event may erase E, create Steam, add Matter or generate pressure.
+
+Coverage: PH-INV-005, 007, 010, 014, 016, 022.
+
+### TE3-F05C — Buried vaporization-ready hold
+
+- Continue buried positive-E Water until total H exceeds
+  `C_water*100+Lv`.
+- Require Water/E=Lv and `T=(H-Lv)/C_water > 100°C` for at least 256 no-context
+  ticks; quantity and pressure remain exact.
+- Cool it: sensible Water superheat reaches 100°C first, then E falls below
+  Lv. H closes at every step.
+
+Coverage: PH-INV-001, 004, 005, 007, 014, 016, 022.
+
+### TE3-F05D — Completion after surface reopens
+
+- Starting from F05C, expose one orthogonal EMPTY or GAS Matter face.
+- Convert exactly 1:1 to Steam/E=Lv and compute Steam temperature from the same
+  H; no expansion proposal, second Steam or blocked pressure is permitted.
+
+Coverage: PH-INV-001, 002, 003, 005, 010, 014, 022.
+
+### TE3-F05E — Completion through future TE-5 transaction placeholder
+
+- Keep the F05C Cell buried and default the placeholder to rejected/false.
+- Only an explicit accepted placeholder may complete Water→Steam; absent,
+  stale or unrelated values must not bypass it.
+- The fixture asserts the input/output H and identity contract only. It MUST
+  NOT invent a pressure law, force, buffer or production pass.
+
+Coverage: PH-INV-005, 015, 019, 022.
+
 ### TE3-F06 — Cold-lid condensation
 
 - Steam 94°C/E=Lv at `(64,63)` sees non-GAS lid `(64,62)` at 80°C.
@@ -222,23 +364,36 @@ Coverage: PH-INV-005, 010, 016.
 
 Coverage: PH-INV-005, 011, 012, 016.
 
+### TE3-F06B — Zero-conductivity cold Boundary
+
+- Stage canonical Steam beside a 20°C Boundary whose compiled conductivity is
+  exactly zero; all other faces have no thermal work.
+- Require no surface condensation initiation, latent progress, phase activity
+  or stalled partial state from that Boundary.
+- Identity, E and H remain unchanged except when another named real thermal
+  face is added. Adding a positive-conductance cooling face must wake and use
+  the exact shared TE-2 work predicate.
+
+Coverage: PH-INV-005, 011, 017, 018, 021, 023.
+
 ### TE3-F07 — Free-air nucleation
 
 - Stage canonical Steam below 70°C in deterministic 1×1, 2×2, 8×8, 31×17
-  and chunk-seam-crossing regions.
-- CPU/GPU keys use `(hash32,y,x)` and the exact eight-neighbour eligible set.
-- Each finite connected region has at least one seed; no two seeds are
-  eight-neighbours; a solid W×H region has at most
-  `ceil(W/2)*ceil(H/2)` seeds.
+  and chunk-seam-crossing regions, plus one-Cell-thin and diagonal shapes.
+- CPU/GPU keys use `(hash32,y,x)` and the exact radius-2 5×5 Chebyshev set.
+- Connectivity means the graph induced by eligible Cells whose Chebyshev
+  distance is at most two. Each finite component has at least one seed; no two
+  same-tick seeds have Chebyshev distance at most two; a solid W×H region has
+  at most `ceil(W/3)*ceil(H/3)` seeds.
 - Force equal primary hashes and verify `(y,x)` tie-break leaves a seed.
 - Initiation changes E but not identity in one tick; a multi-Cell region MUST
   NOT become all Water in the initiation tick.
 - Advance at least two ticks after initiation. Every thermally runnable partial
-  Steam Cell vetoes all eight-neighbour new free-air seeds even though
+  Steam Cell vetoes every radius-2 new free-air seed even though
   normalization put it at the 100°C plateau; no next-tick eligibility cascade
   is permitted.
 - Move a partial seed through legal one-Cell GAS movement and assert that E and
-  its active eight-neighbour veto follow the Matter owner. Completion or Void
+  its active radius-2 veto follow the Matter owner. Completion or Void
   exit may release the veto; disappearance merely from the cold canonical set
   may not.
 - Remove every thermal-work face from a partial seed: E is retained, the Cell
@@ -246,8 +401,21 @@ Coverage: PH-INV-005, 011, 012, 016.
   energy-removal face. Restoring a face wakes and resumes owned progress.
 - CPU/GPU agree on the canonical initiation, thermal-work and active-veto sets.
 - Selected one-face envelope onset is 50–80 and completion 900–1300.
+- The docs-only v2 sweep discloses radius 1/2/3 metrics. Radius 2 is normative;
+  a failure blocks the design rather than selecting radius 3.
 
-Coverage: PH-INV-011, 012, 013, 016, 017, 020.
+Coverage: PH-INV-011, 012, 013, 016, 017, 020, 023, 024.
+
+### TE3-F07B — Thermally isolated supercooled Steam
+
+- Stage both canonical and partial Steam below their condensation thresholds
+  in Vacuum and, separately, behind only zero-conductivity faces.
+- With no positive-conductance work face, identity and E remain finite and
+  unchanged, phase activity is zero and equilibrium may sleep indefinitely.
+- Restoring one real cooling face wakes the halo and resumes sink or free-air
+  eligibility using the shared TE-2 predicate.
+
+Coverage: PH-INV-004, 005, 011, 016, 017, 018, 021, 023.
 
 ### TE3-F08 — No mid-air phase traffic jam
 
@@ -270,18 +438,19 @@ Required result:
   `max(8, floor(0.25 * peak_contact_edges_after_removal))`;
 - largest alternating component in the mid-air region is at most 16 Cells at
   tick 3000;
-- no two adjacent free-air initiations occur while either Cell owns thermally
-  runnable partial condensation; a stalled partial with no matching thermal
-  work may coexist with a neighbour that has its own valid removal face, and
-  the maximum new free-air initiations in any sampled 30-tick window is
-  recorded before user review;
+- no two same-tick free-air initiations have Chebyshev distance at most two,
+  and no new seed occurs within radius 2 of thermally runnable partial
+  condensation; a stalled partial with no matching thermal work may coexist
+  with a nearby Cell that has its own valid removal face;
+- in every sampled 30-tick window, new free-air initiations are at most
+  `max(4, ceil(peak eligible canonical Steam / 8))`;
 - the edge-count peak occurs before the final 600-tick window and then
   declines under the 30-tick sampling cadence.
 
 These values are pre-implementation product targets. A miss is evidence for
 review, not permission to tune after observing the result.
 
-Coverage: PH-INV-001, 002, 009, 012, 013, 018.
+Coverage: PH-INV-001, 002, 009, 012, 013, 018, 024.
 
 ### TE3-F09 — Open beaker causal chain
 
@@ -398,6 +567,9 @@ Before a runtime candidate can exist, targeted static/Naga tests MUST prove:
 - phase context has exactly seven storage bindings, reads real Air mass/energy,
   reuses the exact existing 128-byte TE-2 thermal-table uniform/predicate, and
   fully overwrites claim only after TE-2's claim lifetime is dead;
+- the context, normalization and activity predicates agree that a surface sink
+  has positive conductance and actual TE-2 energy-removal work; a K=0 Boundary
+  cannot set sink or phase-activity bits;
 - phase thermodynamics has exactly eight storage bindings, reads immutable
   claim/context plus the existing TE-2 thermal-table uniform, and has no direct
   Air, chunk-state or activity binding;
@@ -413,7 +585,19 @@ Before a runtime candidate can exist, targeted static/Naga tests MUST prove:
 - every Ice/Water/Steam proposal is `NO_PROPOSAL`, yield is 1 and blocked
   pressure is 0;
 - a synthetic non-family yield-2 descriptor still emits one valid proposal and
-  exercises the historical expansion consumer path;
+  exercises the historical expansion consumer path while targeting non-phase
+  Matter;
+- every generic non-family `matter_yield>1` descriptor targeting Ice, Water or
+  Steam is rejected unless a separately approved destination phase-energy
+  ownership/writer contract and fixture are present;
+- Water→Steam completion checks a current gas-facing bit; the future TE-5
+  accepted-transaction bit is false/unbound in the phase-only graph and cannot
+  be synthesized from burial, E=Lv, pressure metadata or stale scratch;
+- seed and active-partial-veto loops use the same compile-time Chebyshev radius
+  2 and global coordinates across chunk seams;
+- the coordinate key exactly matches the internal `edge_priority` arithmetic
+  and constants from the named production shaders; the new x/y/tag input
+  mapping is pinned without creating a runtime helper;
 - Sandbox phase editing is a separate five-storage dispatch and all accepted
   Draw/Erase paths update both halves without exceeding the field-pass ceiling;
 - pass names/order are exactly the approved projection or an explicitly
@@ -432,10 +616,16 @@ Before a runtime candidate can exist, targeted static/Naga tests MUST prove:
 - historical G5/TE-2 evidence identifiers remain attached to their original
   sources and are not rebound to the atomic activation source.
 
+The amendments add no phase-only buffer, pass, timestamp query or binding.
+The projection remains exactly two phase-energy buffers, zero new full-world
+scratch, 40 passes, 80 queries and the 7/8/6/7 storage ceilings above. A future
+TE-5 bridge may change the atomic graph only through its own separately
+approved design and evidence; this contract does not pre-authorize that delta.
+
 ## 6. Future validation sequence
 
-After explicit ADR-0006 user acceptance and a separate implementation
-authorization only:
+After a separate implementation authorization only (the ADR-0006
+reference/review gate is now closed):
 
 1. targeted Core normalization/quantity/property tests;
 2. Naga parse and structural writer/binding/pass-order tests;
@@ -467,10 +657,12 @@ Explicit counts for this task:
 
 ```text
 Cargo test:             0
+Cargo check:            0
+Cargo clippy:           0
 GPU test/run:           0
 workspace FULL:         0
 release build:          0
-bounded launch check:   0
+application launch:     0
 TE-3 candidate run:     0
 G8/G8-C run:            0
 ```

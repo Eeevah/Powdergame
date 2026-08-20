@@ -37,8 +37,8 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
 
 ## Explicitly requested design reviews
 
-- [`TE3_PHASE_ENTHALPY_DESIGN.md`](TE3_PHASE_ENTHALPY_DESIGN.md) — independent
-  fresh-context review of proposed ADR-0006; the non-date filename is the
-  user's explicit requested output name. Final disposition: **INDEPENDENT
-  DESIGN REVIEW PASS / USER ARCHITECTURE REVIEW PENDING** with no unresolved
-  Critical or High finding.
+- [`TE3_PHASE_ENTHALPY_DESIGN.md`](TE3_PHASE_ENTHALPY_DESIGN.md) — preserved v1
+  review plus fresh-context D-018 v2 review; the non-date filename is the
+  user's explicit requested output name. Current disposition: **INDEPENDENT V2
+  DESIGN REVIEW PASS — UNRESOLVED CRITICAL 0 / HIGH 0**. TE-3D is subsequently
+  recorded as **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**.

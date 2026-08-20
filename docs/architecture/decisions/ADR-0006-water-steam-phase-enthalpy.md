@@ -1,8 +1,9 @@
 # ADR-0006 — Water/Steam Phase Enthalpy
 
-- **Status:** Proposed — user architecture review pending
-- **Date:** 2026-08-20
+- **Status:** ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
+- **Date:** 2026-08-20; amended 2026-08-21
 - **Decision owner:** user at the TE-3D architecture-review boundary
+- **Decision:** D-018
 - **Design source:** docs-only work descended from TE-2 closure `fd97e8b...`
 - **Runtime status:** TE-3 NOT STARTED
 - **Supersedes at implementation only:** current Water `matter_yield = 2` and
@@ -49,16 +50,23 @@ The initial correctness architecture must:
 | B — primary Steam plus owner-linked fragment | Can be correct if ownership never breaks | Requires extra fragment lifecycle | Extra occupied volume is explicit | Rejected: movement, swap, contraction, orphan and scratch complexity |
 | C — separate phase quantity/progress | Can model arbitrary sub-cell quantity | Can represent progress | Could drive volume | Rejected as the initial quantity model: duplicates the chosen one-Cell unit and invites same-cell mixed Matter |
 | Existing yield-2 path | Incorrect closed-cycle quantity | None | Extra independent Steam | Rejected: creates unowned Water-equivalent Matter |
-| **Hybrid A+C** | **One foreground Cell = one unit** | **Dedicated phase enthalpy** | **GAS dispersion now; TE-5 pressure later** | **Proposed** |
+| **Hybrid A+C** | **One foreground Cell = one unit** | **Dedicated phase enthalpy** | **GAS dispersion now; TE-5 pressure later** | **Accepted with locked amendments** |
 
-## Proposed decision
+## Accepted core and locked amendments
 
-Adopt as the architecture candidate:
+Adopt for future atomic implementation:
 
 **HYBRID A+C — 1:1 WATER-EQUIVALENT QUANTITY WITH DEDICATED PHASE ENTHALPY**
 
-This ADR is not accepted yet. It becomes implementation authority only after a
-later explicit user disposition.
+D-018 accepts the quantity, enthalpy, constants, memory cost, no-sink
+metastability and atomic-activation core. The v1 text is not accepted
+unchanged. This ADR becomes implementation authority only after its real-sink,
+buried-completion, radius-2 nucleation, generic-target and hash-provenance
+amendments pass the named reference proof and fresh independent review. The
+one-shot amended reference proof passed, and the fresh v2 review closed with
+unresolved Critical `0` / High `0`. The amended architecture is therefore
+accepted as future atomic-implementation authority. This does not authorize
+runtime work.
 
 ### Quantity and occupancy
 
@@ -147,12 +155,27 @@ neighbour write and no second latent transfer.
   plateau.
 - Partial state continues or reverses from energy flow even if its initiating
   surface later disappears.
-- Identity changes only at `0`, `-Lf`, `Lv`, or `0` respectively.
+- Ice/Water and Steam/Water identity changes occur only at their canonical
+  endpoints. Water reaching `Lv` is additionally completion-gated as specified
+  below.
 - Energy beyond completion becomes sensible heat in the target Material.
-- Buried Water may remain superheated; later surface eligibility repartitions
-  all stored `H` rather than deleting it.
-- Steam without a sink/seed may remain supercooled; later eligibility
-  normalizes its full stored `H`.
+- Positive Water E is Matter-owned after initiation. Burial does not erase it;
+  subsequent heating may increase it and cooling reverses it.
+- Water→Steam completion requires either a current gas-facing surface or a
+  separately designed TE-5 confinement/pressure-volume transaction that
+  explicitly accepts the conversion. No other context may bypass this gate.
+- If buried Water reaches `E=Lv` without an accepted completion context, it
+  remains Water. `E` stays `Lv`, and excess H becomes Water sensible superheat
+  above 100°C. This value-derived **vaporization-ready Water** adds no state,
+  flag or Matter identity.
+- On cooling vaporization-ready Water, sensible superheat falls to 100°C
+  before E reverses below `Lv`. When a valid context later appears, conversion
+  to Steam computes target temperature from the same H.
+- Canonical Steam with no positive-conductance energy-removal face, or partial
+  Steam with no runnable thermal-work face in either direction, may remain
+  metastable indefinitely and sleep. Restoring a real cooling or heating-work
+  face wakes eligibility and normalizes the preserved H; no spontaneous
+  condensation is added.
 
 ### Surface and nucleation
 
@@ -160,53 +183,80 @@ Water may initiate boiling only when an orthogonal neighbour is EMPTY
 (Atmosphere or Vacuum) or registered GAS Matter.
 
 Steam may initiate surface condensation only when an orthogonal condensed
-phase-family or non-EMPTY/non-GAS Matter neighbour satisfies both:
+phase-family or non-EMPTY/non-GAS Matter neighbour satisfies all of:
 
 ```text
 sink_temperature <= 80°C
 sink_temperature <= steam_temperature - 10°C
+shared_TE2_face_conductance > 0
+shared_TE2_work_predicate permits energy to leave Steam through this face
 ```
+
+Boundary with zero conductivity is not a sink. Atmosphere and Vacuum remain
+non-surface routes. The context and activity passes use the exact shared TE-2
+conductance/interface/deadband predicate; no phase-only approximation is
+permitted.
 
 Free-air initiation requires canonical Steam below 70°C and the lexicographic
 key `(coordinate_hash32, y, x)` to be the strict minimum among eligible Steam
-in its eight-neighbour region. Eligibility also requires a TE-2 face that can
-actually remove energy. Any adjacent partially condensing Steam with matching
-thermal work vetoes a new free-air seed while runnable; otherwise the
-first seed would leave the cold set at the 100°C plateau and permit a next-tick
-temporal cascade. The 32-bit mixer and tie-break are specified in
+in its 5×5 Chebyshev neighbourhood. `NUCLEATION_RADIUS=2`. Eligibility also
+requires a TE-2 face that can actually remove energy. Any partially condensing
+Steam within the same radius with matching thermal work vetoes a new seed
+while runnable; otherwise the first seed would leave the cold set at the 100°C
+plateau and permit a next-tick temporal cascade. The 32-bit mixer and tie-break
+are specified in
 [`PHASE_THERMODYNAMICS_SPEC.md`](../../specs/PHASE_THERMODYNAMICS_SPEC.md).
-With no existing partial veto, this provides a seed in every finite eligible
-component, makes adjacent same-tick seeds impossible, handles hash ties, and
-crosses chunk seams in world coordinates. If a partial veto exists, the region
+Connectivity for this proof is the graph induced by eligible Cells at
+Chebyshev distance at most two; its global-minimum key is a seed. With no
+existing partial veto, this provides a seed in every finite such component,
+makes same-tick seeds impossible within distance two, handles hash ties, and
+crosses chunk seams in world coordinates. If a partial veto exists, its radius
 already contains owned condensation progress and need not create another seed.
 Once partial condensation starts, Matter-owned phase energy—not the moving
-coordinate seed—owns progress and blocks adjacent new free-air initiation
-while thermal work can advance or reverse it. Stalled progress retains E and
-may sleep but does not reserve its neighbours forever.
+coordinate seed—owns progress and blocks new free-air initiation within the
+same radius while thermal work can advance or reverse it. Stalled progress
+retains E and may sleep but does not reserve its neighbours forever.
 
-The local-minimum rule can produce more than one seed in a small non-adjacent
-shape. It does not make Water immediately: each seed first accumulates sustained
-latent-energy removal. Dense-cloud appearance remains a named user-review and
-runtime-fixture question.
+For TE3-F08, every sampled 30-tick window is precommitted to:
 
-## Proposed coefficients
+```text
+new free-air initiations
+<= max(4, ceil(peak eligible canonical Steam / 8))
+```
+
+The local-minimum rule does not make Water immediately: each seed first
+accumulates sustained latent-energy removal. Radius 1/2/3 are disclosed in the
+v2 reference sweep, but radius 2 is normative and may not silently fall back
+to radius 3.
+
+The coordinate mixer exactly reuses Powdergame's internal `edge_priority`
+pattern from `engine/gpu/src/movement_claim.wgsl`,
+`expansion_claim.wgsl` and `smoke_claim.wgsl`: input multipliers
+`0x9E3779B9`/`0x85EBCA6B` and finalizer multipliers
+`0x7FEB352D`/`0x846CA68B`. Mapping `x` to `source`, `y` to `target_cell` and
+the fixed TE-3 namespace tag `0x54453344` to `tick` is newly authored for this
+design; the arithmetic and constants are not. No runtime helper is created and
+external code/formulas copied remain zero.
+
+## Locked coefficients
 
 One fixed-seed pure reference sweep selected:
 
-| Constant | Proposed value | Bounded target/result |
+| Constant | Locked value | Bounded target/result |
 |---|---:|---|
 | `Lf` | `80` | one +25°C Heat pulse at the melt plateau does not complete; two can |
 | `Lv` | `480` | 300°C Stone/open Water first Steam target 45–65; result 54 ticks |
 | `CONDENSATION_SURFACE_MAX_C` | `80°C` | admits 80°C lid; rejects 82°C sink |
 | `CONDENSATION_MIN_DELTA_C` | `10°C` | rejects a 6°C delta; admits a 14°C delta |
 | `FREE_AIR_NUCLEATION_MAX_C` | `70°C` | onset target 50–80; result 63 ticks |
+| `NUCLEATION_RADIUS` | `2` | strict minimum and active veto in a 5×5 Chebyshev neighbourhood |
 | cold-surface completion | derived | target 450–650; result 501 ticks |
 | free-air completion | derived | target 900–1300; result 1013 ticks |
 
 Rejected grid values and exact reasons are recorded in
 [`PHASE_THERMODYNAMICS_VALIDATION.md`](../../development/PHASE_THERMODYNAMICS_VALIDATION.md).
-These are Proposed gameplay constants, not physical properties and not runtime
-values until user approval and implementation.
+These are user-accepted gameplay constants, not physical properties and not
+runtime values until separately authorized atomic implementation.
 
 ## Pressure boundary
 
@@ -234,9 +284,12 @@ overwrites claim with immutable phase-context markers and
 `phase_thermodynamics` consumes those markers while fully overwriting proposal:
 Ice/Water/Steam emit `NO_PROPOSAL`, yield 1 and pressure 0;
 a synthetic or future non-family descriptor retains the historical accounted
-`yield > 1` proposal. Thus the current chain is dormant for Water/Steam without
-silently deleting generic expansion semantics. A new quantity/fragment
-ownership model still requires a new design decision.
+`yield > 1` proposal only when its target is non-phase Matter. A generic
+non-family `matter_yield > 1` rule MUST NOT target Ice, Water or Steam unless a
+later separately approved ownership/writer design writes canonical phase
+energy for every destination. Thus the current chain is dormant for
+Water/Steam without silently deleting safe generic expansion semantics. A new
+quantity/fragment ownership model still requires a new design decision.
 
 ## GPU feasibility projection
 
@@ -294,9 +347,10 @@ Costs and residual risks:
 - the phase path cannot become a production/user-testable candidate by itself;
   separately authorized TE-5 pressure-volume work must activate it atomically
   while preserving the frozen G5 chain;
-- buried Water and ungated Steam may store superheat/supercooling by design;
-- deterministic local minima may leave visible spatial regularity or produce
-  multiple seeds in small shapes;
+- buried vaporization-ready Water may store superheat until a completion
+  context exists, and isolated Steam may remain metastable by design;
+- deterministic radius-2 local minima may still leave visible spatial
+  regularity even when the predeclared initiation-rate bound passes;
 - user review must judge reference timing and future visual appearance;
 - implementation still needs Naga/write-contract, pass-order, movement,
   sleep-on/off, fixture and performance evidence.
@@ -308,9 +362,10 @@ Current/Next ownership, movement claim, TE-1 identity hygiene pattern, TE-2
 thermal work predicate, activity halo, profiler inventory and canonical
 staging APIs.
 
-Genuinely new: two phase-energy buffers, enthalpy normalization, surface/sink
-metadata, deterministic nucleation key, a claim-backed phase-context pass and
-phase-specific activity proposal. The context pass adds no allocation.
+Genuinely new: two phase-energy buffers, enthalpy normalization,
+vaporization-ready Water semantics, real-sink metadata, deterministic radius-2
+nucleation key, a claim-backed phase-context pass and phase-specific activity
+proposal. The context pass adds no allocation.
 
 Rejected: extra independent Steam, owner fragments, a phase-quantity buffer,
 threshold-only conversion, random deletion/spreading, fake droplets, output
@@ -319,6 +374,11 @@ translated or vendored remain `0 files / 0 lines`.
 
 ## Approval boundary
 
-Successful design status is **PHASE-ENTHALPY DESIGN CANDIDATE / USER
-ARCHITECTURE REVIEW PENDING**. ADR-0006 remains **Proposed**. TE-3 runtime,
-Air-pressure force, TE-4 and G9-B/C/D/E remain **NOT STARTED**.
+D-018 accepts the architecture core with the locked amendments above. The
+amended radius-2 reference proof passed its only run and the fresh independent
+v2 review closed with no unresolved Critical/High finding. This ADR is
+therefore **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION** and TE-3D is
+**ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**. That status authorizes no
+runtime task by itself. TE-3 runtime is **NOT STARTED**; the TE-5
+pressure-volume bridge is **DESIGN REQUIRED / NOT STARTED**; Air-pressure
+force, TE-4 and G9-B/C/D/E remain **NOT STARTED**.

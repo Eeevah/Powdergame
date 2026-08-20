@@ -18,11 +18,11 @@ automated scenario evidence; do not add a Gate-specific executable or launcher.
 - G8-B: five official scenarios and Cell Inspector user accepted; **CLOSED / FROZEN**; automatic verdicts and immutable artifacts unchanged
 - G8-C: official A/B/C/D Matrix independently reconstructed with mismatch `0`; recommendation `PROCEED_TO_G9`
 - G9-A: Inspector continuity v2 at source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4` **USER ACCEPTED**; overall **USER ACCEPTED WITH KNOWN FOLLOW-UP**
-- Thermal Environment / Ignition Causality: production source `fb7e568...`, candidate remediation `0977281...`; **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3D is **PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING**; Air-pressure force and TE-3 runtime disabled; G9-B prerequisite
+- Thermal Environment / Ignition Causality: production source `fb7e568...`, candidate remediation `0977281...`; **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**; TE-3 runtime **NOT STARTED**; TE-5 bridge **DESIGN REQUIRED / NOT STARTED**; G9-B prerequisite
 - G9-B/C/D/E and optimization: **NOT STARTED**
 - Current work line: `feature/m0-g9-first-playable`; shared `main` promotion requires explicit user direction
 
-For TE-3 architecture review, read proposed
+For the accepted TE-3 architecture and its future-evidence boundary, read
 [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md),
 [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md),
 [`PHASE_THERMODYNAMICS_VALIDATION`](PHASE_THERMODYNAMICS_VALIDATION.md), and

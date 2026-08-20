@@ -1,7 +1,7 @@
 # Powdergame Thermal Environment Specification
 
-- **Status:** TE-2 user accepted with known follow-up; TE-3D phase-enthalpy design candidate awaits user architecture review / TE-3 runtime not started
-- **Architecture:** ADR-0005 / D-013 / D-014 / D-015 / D-016 / D-017; proposed ADR-0006 is a separate later-gate contract
+- **Status:** TE-2 user accepted with known follow-up; TE-3D architecture accepted with locked amendments / TE-3 runtime not started / TE-5 bridge design required and not started
+- **Architecture:** ADR-0005 / D-013 / D-014 / D-015 / D-016 / D-017 / D-018; accepted ADR-0006 is a separate later-gate contract
 - **Runtime boundary:** Air transport and unified passive thermal exchange are implemented at source `fb7e568e21012b6067269f4e1b82c36c865023d0`; Air-pressure force and TE-3+ remain disabled
 
 ## 1. State model

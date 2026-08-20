@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3D PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING**; **TE-3 RUNTIME NOT STARTED**
+Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3D ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**; **TE-3 RUNTIME NOT STARTED**; **TE-5 BRIDGE DESIGN REQUIRED / NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -153,6 +153,6 @@ The architecture selection, design contract and TE-1 state/occupancy
 foundation are complete. Current state:
 
 - Thermal Environment is **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...` and all prior evidence boundaries remain intact;
-- proposed ADR-0006 now specifies the docs-only Hybrid A+C candidate; it remains **USER ARCHITECTURE REVIEW PENDING**, TE-3 runtime is **NOT STARTED**, and the architecture is not accepted; any later phase implementation must remain inactive behind the current G5 Water path until a separately authorized TE-5 replacement can activate it atomically;
+- D-018 and accepted ADR-0006 now specify Hybrid A+C with locked amendments; TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**, TE-3 runtime is **NOT STARTED**, and the TE-5 pressure-volume bridge is **DESIGN REQUIRED / NOT STARTED**; any later phase implementation must remain inactive behind the current G5 Water path until a separately authorized TE-5 replacement can activate it atomically;
 - G9-B emergence validation remains blocked on this prerequisite;
 - G9-A Inspector continuity is **USER ACCEPTED** and G9-A overall is **USER ACCEPTED WITH KNOWN FOLLOW-UP**; this does not advance G9-B.

@@ -164,3 +164,24 @@ Future user decisions occur at the next evidence boundary:
 - authorize later G9-B/C/D progression after that candidate;
 - approve shared `main` promotion;
 - give the final G9/M0 product disposition after direct play.
+
+## D-018 TE-3D architecture disposition — closed 2026-08-21
+
+D-018 closes the Hybrid A+C representation, 1:1 yield, two phase-energy
+halves, latent constants, real-sink predicate, buried ready-Water semantics,
+radius-2 nucleation/veto and 30-tick bound, 32 MiB 2048² cost, isolated-Steam
+metastability, generic phase-target restriction, hash provenance and atomic
+same-source G5/TE-5 activation constraint. The amended proof and independent
+v2 review passed with unresolved Critical `0` / High `0`.
+
+This does not close Q-008 as a whole. Product edge mode, Vacuum combustion,
+the actual TE-5 pressure-volume law, separate runtime implementation authority,
+source-bound GPU/device/G5 evidence and future product/user observation remain
+open at their named gates. TE-3 runtime and the TE-5 bridge remain **NOT
+STARTED**.
+
+Current pending user-owned choices after D-018 are the TE-5 pressure-volume
+design and later atomic TE-3/TE-5 implementation authorization, the remaining
+Q-008 gate-owned items, later G9 progression, shared `main` promotion and the
+final G9/M0 product disposition. The superseded pending list above remains as
+append-only history rather than being rewritten.

@@ -1,13 +1,16 @@
 # Phase Thermodynamics Specification
 
-- **Status:** Proposed TE-3D design candidate — user architecture review pending
+- **Status:** ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
 - **ADR:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
+- **Decision:** D-018
 - **Runtime:** NOT STARTED
-- **Normative candidate:** Hybrid A+C — 1:1 Water-equivalent quantity with dedicated phase enthalpy
+- **Normative architecture:** Hybrid A+C — 1:1 Water-equivalent quantity with dedicated phase enthalpy
 
-This specification defines the proposed correctness contract. `MUST`, `MUST
-NOT`, `SHOULD` and `MAY` are normative only after ADR-0006 receives explicit
-user acceptance. No Rust or WGSL implementation is authorized by this file.
+This specification defines the user-accepted core plus locked amendments.
+The amended reference proof passed its only run and the fresh independent v2
+review closed with unresolved Critical `0` / High `0`; `MUST`, `MUST NOT`,
+`SHOULD` and `MAY` are therefore future atomic-implementation authority. No
+Rust or WGSL implementation is authorized by this file.
 
 ## 1. Scope and exclusions
 
@@ -82,6 +85,7 @@ Lv                             = 480.0
 CONDENSATION_SURFACE_MAX_C     = 80.0 C
 CONDENSATION_MIN_DELTA_C       = 10.0 C
 FREE_AIR_NUCLEATION_MAX_C      = 70.0 C
+NUCLEATION_RADIUS              = 2 Cells
 PHASE_H_ABS_TOL                = 1.0e-3
 PHASE_H_REL_TOL                = 2.0e-6
 ```
@@ -122,9 +126,13 @@ Partial progress keeps the source-side identity until the exact endpoint:
 ```text
 Ice E reaches 0       -> Water, E = 0
 Water E reaches -Lf   -> Ice,   E = -Lf
-Water E reaches Lv    -> Steam, E = Lv
+Water E reaches Lv    -> Steam, E = Lv only with accepted completion context
 Steam E reaches 0     -> Water, E = 0
 ```
+
+Water at `E=Lv` without a current gas-facing surface or a future accepted TE-5
+completion transaction remains Water. If `T>=100°C`, `(Water,E=Lv,T)` is the
+value-derived vaporization-ready state; it adds no buffer, flag or identity.
 
 Interior latent states are intentionally hysteretic: total `H` alone does not
 select Ice versus freezing Water or boiling Water versus condensing Steam.
@@ -195,7 +203,8 @@ normalize_phase_enthalpy(
     material,
     trial_temperature,
     phase_energy,
-    local_surface_context
+    local_surface_and_work_context,
+    completion_context
 ) -> {
     material_next,
     temperature_next,
@@ -222,7 +231,9 @@ No threshold is retuned:
 | Steam free-air condense | `T < 70°C` and deterministic seed |
 
 At exact equality, initiation does not occur. Existing partial progress ignores
-the initiation gate and follows energy in either direction.
+the initiation gate and follows actual energy work in either direction. It
+does not ignore the separate Water→Steam completion gate. A partial Steam Cell
+with no runnable thermal work retains its identity, E and H and may sleep.
 
 ### 6.2 Fusion plateau
 
@@ -244,14 +255,32 @@ Reheating partially freezing Water restores E toward `0` before Water warms
 above the plateau. Cooling partially melting Ice restores E toward `-Lf`
 before Ice cools below the plateau.
 
-### 6.3 Vaporization plateau
+### 6.3 Vaporization plateau and completion gate
 
-Gas-facing Water boiling:
+Gas-facing Water boiling initiation:
 
 1. Compute trial `H` after TE-2 transfer.
-2. Once initiated, use 100°C and increase Water phase energy toward `Lv`.
-3. At `Lv`, change identity 1:1 to Steam/E=`Lv`.
-4. Any higher `H` becomes Steam superheat.
+2. Initiation from canonical Water requires `T>100°C` and a gas-facing
+   neighbour.
+3. Once initiated, positive E is Matter-owned. Later burial does not erase or
+   pause accounting: heating may increase E and cooling reverses it.
+4. While `C_water*100 < H < C_water*100+Lv`, represent the state as Water at
+   100°C with `E=H-C_water*100`.
+5. Water→Steam completion is permitted only when either:
+   - a current gas-facing surface exists; or
+   - a separately designed TE-5 confinement/pressure-volume transaction has
+     explicitly accepted this conversion.
+6. If `H>=C_water*100+Lv` without either context, remain Water with `E=Lv` and
+   `T=(H-Lv)/C_water`. This is vaporization-ready Water; no clamp, deletion,
+   extra Matter or fake pressure occurs.
+7. When completion becomes permitted, convert 1:1 to Steam/E=`Lv` and compute
+   `T=100+(H-(C_water*100+Lv))/C_steam` from the same H.
+
+The TE-5 boolean above is a contract-only placeholder. The phase-only design
+binds no TE-5 state and changes no pass/binding count. A later separately
+approved TE-5 design must define the causal transaction and how its accepted
+result reaches the atomic source; absence of that design is false, never an
+implicit completion permission.
 
 Eligible Steam condensation is symmetric:
 
@@ -260,26 +289,33 @@ Eligible Steam condensation is symmetric:
 3. Any lower `H` cools Water below 100°C and may continue to freezing only at
    the existing strict freeze start.
 
-Cooling partially boiling Water reduces positive E before Water cools below
-100°C. Reheating partially condensing Steam restores E toward `Lv` before Steam
-superheats. Losing a surface or moving away from the nucleation coordinate MUST
-NOT discard or freeze already-owned progress.
+Cooling vaporization-ready Water first removes sensible superheat until 100°C,
+then reduces positive E before Water cools below the plateau. Reheating
+partially condensing Steam restores E toward `Lv` before Steam superheats when
+real thermal work exists. Losing a surface or moving away from the nucleation
+coordinate MUST NOT discard already-owned progress; a no-work partial Steam
+state may remain metastable and sleep without changing E.
 
 ### 6.4 Buried Water and ungated Steam
 
-Canonical Water above 100°C without a gas-facing neighbour remains Water and
-stores its full sensible `H`. When a gas-facing neighbour appears, the full
-state is normalized into plateau progress or Steam plus excess.
+Canonical Water above 100°C that never initiated remains Water/E=0 and stores
+its full sensible H. Positive-E buried Water follows §6.3 and may reach the
+vaporization-ready Water representation. Reopening a gas surface normalizes
+the same H and may complete 1:1.
 
-Canonical Steam below 95°C without an eligible sink, or below 70°C without
-seed eligibility, remains Steam and stores its full sensible `H`. When a sink
-or seed appears, the full state is normalized. Threshold-only identity change
-or energy deletion is forbidden.
+Canonical Steam with no positive-conductance energy-removal face, or partial
+Steam with no runnable thermal-work face in either direction, remains Steam
+indefinitely, retains finite E/H and may sleep. Examples include Steam in
+Vacuum and Steam enclosed only by zero-conductivity faces. No spontaneous
+magic condensation is permitted. Restoring a real cooling or heating-work face
+wakes eligibility; threshold-only identity change or energy deletion remains
+forbidden.
 
 ## 7. Surface predicates
 
-All neighbour tests are orthogonal unless the nucleation section says eight
-neighbours. World coordinates cross chunk seams normally.
+All neighbour tests are orthogonal unless the nucleation section defines its
+wider 5×5 Chebyshev neighbourhood. World coordinates cross chunk seams
+normally.
 
 ### 7.1 Gas-facing Water
 
@@ -305,6 +341,14 @@ neighbor_T <= CONDENSATION_SURFACE_MAX_C
 neighbor_T <= steam_T - CONDENSATION_MIN_DELTA_C
 ```
 
+The same face MUST also have strictly positive shared TE-2 conductance and the
+exact shared TE-2 node/interface/deadband work predicate MUST say energy can
+leave Steam through that face. Boundary with conductivity zero is therefore
+not an eligible sink even when cold. Atmosphere and Vacuum remain non-surface
+routes. `phase_context_propose`, normalization and `phase_activity_propose`
+MUST consume the same predicate result; no duplicate phase approximation is
+allowed.
+
 Atmosphere/Vacuum alone is not a surface sink. A hot Stone wall is not a sink.
 The table supplies movement class and phase traits; the shader MUST NOT grow a
 list of material-name branches.
@@ -320,13 +364,14 @@ that:
   remove energy from the Steam Cell.
 
 A partial condensing Steam Cell (`0 < E < Lv`) with matching thermal work is an
-**active owned-progress veto** for all eight neighbours, regardless of its
-plateau temperature. An initiation-eligible Cell becomes a new seed only when:
+**active owned-progress veto** for every Cell at Chebyshev distance at most
+`NUCLEATION_RADIUS=2`, regardless of its plateau temperature. An
+initiation-eligible Cell becomes a new seed only when:
 
-1. no eight-neighbour Steam Cell has thermally runnable partial condensation
+1. no Steam Cell within radius 2 has thermally runnable partial condensation
    progress; and
 2. its immutable coordinate key is strictly smaller than every other
-   initiation-eligible Steam neighbour key.
+   initiation-eligible canonical Steam key in its 5×5 Chebyshev neighbourhood.
 
 The active partial veto is required because normalization raises an initiating Cell
 to the 100°C plateau. Without the veto, that Cell would leave the cold
@@ -338,33 +383,53 @@ its neighbours; another Cell may seed only if it has its own energy-removal
 face. Completion to Water may then create a real surface front; loss through
 Void/destructive editing may allow a replacement seed.
 
-The proposed 32-bit mixer is:
+The 32-bit mixer exactly reuses the internal `edge_priority` arithmetic from
+`engine/gpu/src/movement_claim.wgsl`, `expansion_claim.wgsl` and
+`smoke_claim.wgsl`:
 
 ```text
-v = u32(x) * 0x9E3779B1
-    ^ u32(y) * 0x85EBCA77
-    ^ 0x54453344
-v ^= v >> 16
-v *= 0x7FEB352D
-v ^= v >> 15
-v *= 0x846CA68B
-v ^= v >> 16
+h = u32(x)
+    ^ (u32(y) * 0x9E3779B9)
+    ^ (0x54453344 * 0x85EBCA6B)
+h = (h ^ (h >> 16)) * 0x7FEB352D
+h = (h ^ (h >> 15)) * 0x846CA68B
+h = h ^ (h >> 16)
 
-key = (v, y, x)  // lexicographic total order
+key = (h, y, x)  // lexicographic total order
 ```
 
+The four constants and finalizer sequence are exact internal reuse. Only the
+coordinate-to-existing-input mapping (`source=x`, `target_cell=y`, fixed
+`tick=0x54453344`) is newly authored. The TE-3 tag is a namespace input, not a
+new mixer constant. No external code/formula was consulted or copied and no
+runtime helper is added by this docs task.
+
 The `(y,x)` suffix resolves every 32-bit hash tie. Therefore, for a frozen
-snapshot with no partial veto:
+snapshot with no partial veto, where a component is induced by eligible Cells
+whose Chebyshev distance is at most two:
 
 - every finite initiation-eligible connected component has at least its global-minimum
   seed;
-- two seeds cannot be eight-neighbours;
+- two same-tick seeds cannot have Chebyshev distance at most two;
 - a multi-Cell component cannot convert wholly from one initiation decision;
 - chunk partitioning cannot change the answer;
 - shifting/moving a cloud may change which canonical Cell is a seed;
 - once E drops below `Lv`, progress moves with Matter, no longer depends on the
-  coordinate key and vetoes adjacent new free-air initiation while thermally
-  runnable.
+  coordinate key and vetoes radius-2 new free-air initiation while thermally
+  runnable;
+- completion or Void release removes the active veto, while a stalled no-work
+  partial keeps E but does not reserve space.
+
+TE3-F08 additionally requires in every sampled 30-tick window:
+
+```text
+new_free_air_initiations
+<= max(4, ceil(peak_eligible_canonical_steam / 8))
+```
+
+Radius 1 and radius 3 are disclosure comparisons only. Radius 2 is normative;
+a radius-2 hard-property or 30-tick-bound failure blocks the design and MUST
+NOT silently select radius 3.
 
 The seed only initiates latent progress. It does not create fake presentation
 or immediate Water. A real Water identity appears only at E=0 after sustained
@@ -446,7 +511,10 @@ The exact phase-context storage order is Material Current, temperature Current,
 phase energy Current, Air mass Current, Air energy Current, chunk state and
 claim RW. It fully overwrites one `u32` marker per Cell after claim's TE-2
 receiver-scale lifetime is dead. Markers encode skip/runnable, gas-facing,
-surface-sink, canonical free-air energy-removal and active-partial-veto facts.
+real positive-conductance surface-sink, canonical free-air energy-removal and
+active radius-2 partial-veto facts. In the phase-only graph the completion bit
+is exactly gas-facing; a future TE-5 accepted-transaction source requires its
+own separately reviewed predecessor contract rather than an assumed bit.
 This pass is the only phase-context reader of Air, so Atmosphere and Vacuum are
 not guessed from `Material == EMPTY`. It binds the existing 128-byte TE-2
 conductivity/capacity uniform and uses the exact TE-2 node, conductance,
@@ -495,7 +563,8 @@ retain their storage view; this is one allocation, not a shadow table.
 `phase_thermodynamics` consumes that immutable snapshot and fully overwrites
 proposal for every Cell. Ice/Water/Steam write `NO_PROPOSAL`, have yield 1 and zero
 blocked-pressure metadata. A non-family descriptor retains the historical
-generic transition/proposal semantics, including an accounted `yield > 1`;
+generic transition/proposal semantics, including an accounted `yield > 1`,
+only when the target is non-phase Matter;
 this prevents the phase-energy change from silently disabling the generic
 expansion path. Expansion claim then fully overwrites claim after the phase
 consumer and before later claim readers.
@@ -503,8 +572,11 @@ consumer and before later claim readers.
 On the current registry the expansion chain is dormant because the only phase
 family has yield 1. It MUST create no Matter, pressure or Environment receiver
 claim for Ice/Water/Steam. A synthetic non-family yield-2 structural fixture
-must still emit and consume one valid proposal; larger or new ownership models
-remain a separate design decision.
+must target non-phase Matter and still emit/consume one valid proposal. A
+generic non-family `matter_yield>1` rule MUST NOT target Ice, Water or Steam
+unless a later separately approved ownership/writer design writes canonical
+phase energy for every destination. Larger or new ownership models remain a
+separate design decision.
 
 ## 11. Activity and sleep
 
@@ -514,10 +586,12 @@ nucleation and thermal-work predicates as normalization.
 
 It sets `ACTIVITY_THERMAL` when any remaining phase work can change state:
 
-- an initiation predicate is currently eligible;
+- an initiation predicate is currently eligible, including a real
+  positive-conductance sink rather than a geometric-only cold face;
 - partial latent state has an adjacent TE-2 thermal face whose shared
   deadband predicate permits energy flow;
-- a stored superheated/supercooled state has just become eligible.
+- a stored superheated/supercooled state has just become eligible;
+- vaporization-ready Water has gained a valid completion context.
 
 A partial plateau with no eligible energy flow is stalled state, not active
 progress, and MAY sleep. A neighbour edit/movement/thermal frontier wakes the
@@ -547,7 +621,7 @@ projections, not runtime measurements.
 
 - **PH-INV-001 — Unit quantity:** One phase-family foreground Cell equals one Water-equivalent quantity unit.
 - **PH-INV-002 — Closed-cycle count:** Closed Ice/Water/Steam transitions do not change Water-equivalent Cell count.
-- **PH-INV-003 — No unowned yield:** No Ice/Water/Steam descriptor requests unowned `matter_yield > 1`; a generic non-family proposal remains explicitly owned by the historical expansion transaction.
+- **PH-INV-003 — No unowned yield:** No Ice/Water/Steam descriptor requests unowned `matter_yield > 1`; a generic non-family proposal remains explicitly owned by the historical expansion transaction and targets non-phase Matter only.
 - **PH-INV-004 — Finite enthalpy state:** Temperature plus phase energy represents one finite local enthalpy state.
 - **PH-INV-005 — H preservation:** Phase normalization preserves local H within tolerance.
 - **PH-INV-006 — Q exactly once:** Latent heat is never applied twice to a neighbour.
@@ -556,7 +630,7 @@ projections, not runtime measurements.
 - **PH-INV-009 — Matter ownership:** Movement carries phase energy with Matter identity.
 - **PH-INV-010 — Surface boiling:** Boiling initiation is surface-gated.
 - **PH-INV-011 — Condensation gate:** Condensation initiation is sink- or nucleation-gated.
-- **PH-INV-012 — Bounded nucleation:** Free-air nucleation is deterministic, sparse and bounded across both space and successive ticks; thermally runnable partial progress vetoes adjacent new seeds without making stalled progress a permanent reservation.
+- **PH-INV-012 — Bounded nucleation:** Free-air nucleation is deterministic, sparse and bounded across both space and successive ticks; thermally runnable partial progress vetoes radius-2 new seeds without making stalled progress a permanent reservation.
 - **PH-INV-013 — No traffic jam:** No persistent mid-air Water/Steam checkerboard traffic jam.
 - **PH-INV-014 — No fake boil pressure:** No Water-boiling blocked-expansion pressure is generated in TE-3.
 - **PH-INV-015 — TE-5 boundary:** Air-pressure force remains unimplemented until TE-5.
@@ -565,6 +639,11 @@ projections, not runtime measurements.
 - **PH-INV-018 — Sleep:** Equilibrium phase bulk can sleep.
 - **PH-INV-019 — Atomic G5 continuity:** Production activation of Water yield 1 is atomic with a separately approved pressure-volume replacement; no released source loses the frozen expansion/confinement chain.
 - **PH-INV-020 — Context snapshot:** Phase eligibility uses one fully written claim-backed Matter/Air context snapshot; Atmosphere/Vacuum is never inferred from EMPTY and no context marker races a claim/proposal writer.
+- **PH-INV-021 — Real condensation sink:** Surface condensation initiation requires the exact positive-conductance TE-2 energy-removal face predicate; a cold K=0 Boundary is not a sink or phase-activity source.
+- **PH-INV-022 — Completion permission:** Water→Steam completion requires a current gas-facing surface or an explicit accepted future TE-5 transaction; vaporization-ready Water preserves H without fake pressure.
+- **PH-INV-023 — No-work metastability:** Canonical or partial Steam without runnable thermal work may retain finite identity/E/H indefinitely and sleep; restoring a real face wakes it.
+- **PH-INV-024 — Radius-2 nucleation:** Seed competition and active partial veto use the same Chebyshev radius 2, preserve the predeclared 30-tick bound and never silently substitute another radius.
+- **PH-INV-025 — Generic target hygiene:** A generic non-family yield greater than one cannot target Ice/Water/Steam without a separately approved destination phase-energy ownership/writer design.
 
 ## 14. Evidence boundary
 

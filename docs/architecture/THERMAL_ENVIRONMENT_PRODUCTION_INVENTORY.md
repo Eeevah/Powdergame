@@ -2,10 +2,15 @@
 
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
-- **Scope:** implemented TE-1/TE-2 production graph plus the proposed TE-3D writer, binding, memory and scratch delta
-- **Runtime status:** TE-2 implemented and user accepted with known follow-up; TE-3D design candidate only; Air-pressure force and TE-3 runtime not started
+- **Scope:** implemented TE-1/TE-2 production graph plus the D-018-accepted TE-3D writer, binding, memory and scratch projection
+- **Runtime status:** TE-2 implemented and user accepted with known follow-up; TE-3D architecture accepted with locked amendments; Air-pressure force and TE-3 runtime not started; TE-5 bridge design required/not started
 
-## 1. Current pass order
+Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
+Section 8 is the current implemented TE-2 34-pass delta and supersedes that
+baseline for current pass/order/profiler claims. Section 9 projects D-018 from
+the TE-2 graph; it does not treat the 30-pass TE-1 table as current.
+
+## 1. TE-1 30-pass baseline order
 
 | # | Pass | Current/read inputs | Next/scratch outputs | Settle boundary | Ownership/activity effect |
 |---:|---|---|---|---|---|
@@ -40,7 +45,10 @@
 | 28 | activity propose | settled fields and tables | cell activity | none | final frontier detection |
 | 29 | activity reduce | cell activity | chunk activity/changed/stable | tick end | feeds pass 0 next tick |
 
-Production and profiled ticks share this exact encoding. The profiler's residual is an envelope residual, not an isolated copy-time measure. New Environment passes require explicit names, queries and group reconstruction.
+At the TE-1 source, production and profiled ticks shared this exact encoding.
+The profiler's residual was an envelope residual, not an isolated copy-time
+measure. Section 8 records the later TE-2 names, queries and group
+reconstruction.
 
 ## 2. Binding inventory
 
@@ -242,10 +250,11 @@ queries. Every new pass remains at or below eight storage bindings, proposal
 and claim are fully overwritten before their f32 reads, and phase/expansion
 restore their ordinary u32 meanings after the TE-2 window.
 
-## 9. Proposed TE-3D phase-enthalpy delta
+## 9. D-018 accepted TE-3D phase-enthalpy projection
 
-This section is an arithmetic/static design projection against the 34-pass
-TE-2 graph. It is not an implemented inventory or a runtime measurement.
+This section records the D-018-accepted arithmetic/static design projection
+against the 34-pass TE-2 graph, including its locked amendments. It is not an
+implemented inventory or a runtime measurement.
 
 ### 9.1 State and ownership
 
@@ -266,6 +275,14 @@ zeros a vacated/erased Cell. Phase normalization writes a valid in-family value.
 Decay, combustion and rupture gain a phase-energy hygiene dispatch before their
 joint settle. Reset, preset, scenario, benchmark and Draw stage both halves
 byte-identically; Heat/Cool changes temperature only.
+
+Initiated boiling remains Water when buried. It may retain, increase or reverse
+phase energy, and reaches the derived ready state `Water, E=480` without a new
+buffer or flag. Any further added enthalpy is represented as Water sensible
+superheat. Cooling consumes that superheat before reducing phase energy.
+Identity completion to Steam requires either a gas-facing context or a future
+separately accepted TE-5 transaction. The TE-5 route is a contract placeholder
+only and adds no pass, binding or allocation to this projection.
 
 ### 9.2 Projected production order
 
@@ -299,6 +316,9 @@ overwrites claim. The Water/Steam path
 therefore cannot create an expansion receiver, a second Steam identity or
 blocked-expansion pressure without disabling the generic path. New Steam
 pressure-volume force remains TE-5-owned.
+A generic non-family `matter_yield > 1` descriptor may target only non-phase
+Matter in this architecture. Targeting Ice, Water or Steam requires a later
+owned destination-phase-energy writer design and separate acceptance.
 
 ### 9.3 Binding and table ceilings
 
@@ -327,6 +347,14 @@ Sandbox phase editing is a separate non-timestamped dispatch because extending
 the current seven-storage field-edit pass with two phase buffers would exceed
 the ceiling.
 
+The context marker distinguishes gas-facing completion, a real surface sink,
+canonical free-air work and an active radius-2 partial veto. A real surface
+sink requires identity/temperature eligibility, positive shared TE-2 face
+conductance and the exact shared TE-2 predicate that would remove energy from
+Steam on that face. A zero-conductivity Boundary is not a sink. Free-air seed
+selection and active-partial veto both use `NUCLEATION_RADIUS=2` and the strict
+minimum of `(coordinate_hash32, y, x)` in a 5×5 Chebyshev neighbourhood.
+
 ### 9.4 Pass, profiler and allocation projection
 
 The graph projects 40 timestamped passes and 80 queries. Two 640-byte profiler
@@ -342,12 +370,19 @@ or query-set storage, matching the TE-2 report. These figures must be replaced
 by exact runtime allocation/profiler evidence only after a separately
 authorized implementation exists.
 
+The locked sink, ready-Water, radius-2 and metastability amendments alter
+predicates and state interpretation only. They add no pass, persistent buffer,
+storage binding or profiler query beyond the projection above.
+
 ### 9.5 Sleep and activity boundary
 
 The old threshold-only phase candidate and phase activity marker are removed
-together. A separate phase-activity proposal uses the same initiation,
-surface/sink, nucleation and thermal-work predicates as normalization. Partial
-progress with no eligible energy-flow face may sleep; movement, edit or thermal
-frontiers wake the existing halo. Completed or stalled equilibrium bulk must
-settle to zero activity. Sleep-on/off equivalence remains a future fixture, not
-a claim established by this design inventory.
+together. A separate phase-activity proposal uses the same initiation, real
+surface-sink, radius-2 seed/veto and exact thermal-work predicates as
+normalization. Partial progress with no eligible energy-flow face may sleep;
+movement, edit or thermal frontiers wake the existing halo. Canonical or
+partially condensed supercooled Steam with no eligible sink/work may remain
+metastable indefinitely and sleep without losing its identity or phase energy.
+Completed or stalled equilibrium bulk must settle to zero activity.
+Sleep-on/off equivalence remains a future fixture, not a claim established by
+this design inventory.

@@ -14,8 +14,8 @@
 | G8-B Benchmark Scenario Suite | **CLOSED / FROZEN** — 다섯 official scenario와 Cell Inspector v0 사용자 승인 완료 |
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
-| G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; TE-3 phase design remains a separate prerequisite before G9-B |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** — candidate source `0977281...`; **TE-3D PHASE-ENTHALPY DESIGN CANDIDATE / INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW PENDING**; TE-3 runtime not started; G9-B prerequisite |
+| G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; atomic TE-3/TE-5 runtime evidence remains a separate prerequisite before G9-B |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** — candidate source `0977281...`; **TE-3D ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**; ADR-0006 accepted for future atomic implementation; TE-3 runtime not started; TE-5 bridge design required/not started; G9-B prerequisite |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -136,7 +136,7 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 
 The latest direct disposition accepts G9-A Inspector continuity and records G9-A overall **USER ACCEPTED WITH KNOWN FOLLOW-UP**. This does not close the separate Thermal Environment prerequisite or authorize G9-B.
 
-Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Candidate source `0977281...` remediates only controls, bounded diagnostics and scene staging. Direct re-review confirmed F/N/I, all four scene contracts and reset/controls; D-017 records TE-2 **USER ACCEPTED WITH KNOWN FOLLOW-UP** while preserving every prior automated/runtime/performance boundary. `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and `TE2_CANDIDATE_HUD_LABEL_POLISH` are non-blocking. The Water/Steam blocker now has a proposed Hybrid A+C solution in [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md), [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md) and [`PHASE_THERMODYNAMICS_VALIDATION`](../development/PHASE_THERMODYNAMICS_VALIDATION.md). It is a design candidate awaiting user architecture review. Air-pressure force and TE-3 runtime remain not started.
+Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Candidate source `0977281...` remediates only controls, bounded diagnostics and scene staging. Direct re-review confirmed F/N/I, all four scene contracts and reset/controls; D-017 records TE-2 **USER ACCEPTED WITH KNOWN FOLLOW-UP** while preserving every prior automated/runtime/performance boundary. `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and `TE2_CANDIDATE_HUD_LABEL_POLISH` are non-blocking. D-018 accepts the Water/Steam Hybrid A+C architecture with locked amendments in [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md), [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md) and [`PHASE_THERMODYNAMICS_VALIDATION`](../development/PHASE_THERMODYNAMICS_VALIDATION.md). The one-shot amended proof and fresh v2 review passed with unresolved Critical `0` / High `0`. TE-3 runtime remains **NOT STARTED** and the TE-5 pressure-volume bridge is **DESIGN REQUIRED / NOT STARTED**.
 
 ---
 
@@ -154,18 +154,18 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 기술 blocker
 
-**TE-3D PHASE-ENTHALPY DESIGN CANDIDATE / INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW PENDING.** The current `1 Water -> up to 2 Steam -> up to 2 Water` defect is addressed in the proposal by one Water-equivalent quantity per Cell plus two reversible phase-energy halves. The pure reference math passed once and the independent review reports zero unresolved Critical/High findings, but no implementation/GPU/product evidence exists. The review retains five Medium and two Low risks, including temporal nucleation-rate bounds, buried in-progress boiling semantics, no-work supercooled metastability and zero-conductivity sink meaning. D-017 authorizes this docs-only candidate; it does not approve implementation or request TE-2 coefficient retuning. To avoid regressing the frozen G5 expansion/confinement chain, any later phase implementation must stay inactive until a separately authorized TE-5 pressure-volume replacement can activate it atomically on the same source.
+**TE-3D ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS / ADR-0006 ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION.** D-018 closes the current `1 Water -> up to 2 Steam -> up to 2 Water` architecture defect with one Water-equivalent quantity per Cell plus two reversible phase-energy halves, real-sink and ready-Water semantics, radius-2 nucleation, generic-target hygiene and internal mixer provenance. The amended pure reference math passed exactly once and the fresh v2 review reports unresolved Critical `0` / High `0`. Three Medium and two Low future-evidence risks remain: production F07/F08 movement/sleep/appearance, structural/device/pass/allocation proof, the undesigned TE-5 bridge, future user evidence and registry/provenance guards. No implementation/GPU/product evidence exists. To avoid regressing the frozen G5 expansion/confinement chain, any later phase implementation must stay inactive until a separately authorized TE-5 pressure-volume replacement can activate it atomically on the same source.
 
 ## 다음 행동
 
-1. user reviews and accepts or revises Hybrid A+C, coefficients, condensation/nucleation, memory cost and the pressure boundary;
-2. retain ADR-0006 as **Proposed** until that explicit disposition is recorded;
-3. do not start Air-pressure force, TE-3 runtime, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
+1. obtain separate authorization to design the TE-5 pressure-volume bridge and its atomic TE-3/TE-5 implementation/evidence plan;
+2. keep TE-3 runtime **NOT STARTED** and the current G5 Water path active until that authorization and same-source replacement exist;
+3. do not start Air-pressure force, TE-4, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
 
 ## 아직 별도 결정인 것
 
 - product edge mode, Vacuum combustion and later ignition-dose choices remain gate-owned
-- user approval/revision of the proposed TE-3 Water/Steam phase-accounting representation and coefficients
+- TE-5 pressure-volume law, atomic implementation authorization and source-bound runtime/user evidence
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

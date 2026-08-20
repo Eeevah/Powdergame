@@ -81,9 +81,10 @@ use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
 
 use renderer::{PresentationPalette, Renderer, WorldViewSpec};
 use sandbox::{
-    sandbox_hud_action_at, sandbox_key_action, stage_preset, SandboxCell, SandboxHudAction,
-    SandboxHudData, SandboxKeyAction, SandboxPreset, SandboxRuntime, SandboxTool,
-    SANDBOX_CHUNK_SIZE, SANDBOX_TITLE, SANDBOX_TPS, SANDBOX_WORLD_HEIGHT, SANDBOX_WORLD_WIDTH,
+    sandbox_hud_action_at, sandbox_key_action, stage_preset, thermal_brush_feedback, SandboxCell,
+    SandboxHudAction, SandboxHudData, SandboxKeyAction, SandboxPreset, SandboxRuntime,
+    SandboxThermalFeedbackState, SandboxTool, SANDBOX_CHUNK_SIZE, SANDBOX_TITLE, SANDBOX_TPS,
+    SANDBOX_WORLD_HEIGHT, SANDBOX_WORLD_WIDTH,
 };
 
 /// Demo observation rates: independent of the render FPS. Movement/Density
@@ -932,6 +933,7 @@ impl App {
         match sandbox.edits.apply_pending(simulation) {
             Ok(0) => {}
             Ok(count) => {
+                sandbox.commit_thermal_application(Instant::now());
                 if let Some(inspector) = &mut self.cell_inspector {
                     inspector.begin_world_change();
                     inspector.mark_ready();
@@ -941,6 +943,7 @@ impl App {
             Err(error) => {
                 eprintln!("[powdergame][sandbox] edit batch failed before tick: {error}");
                 sandbox.edits.clear_pending();
+                sandbox.clear_thermal_feedback();
             }
         }
     }
@@ -953,7 +956,10 @@ impl App {
         let edit = sandbox.selected_edit(force_erase);
         let diameter = sandbox.brush_diameter();
         match sandbox.edits.queue_stroke(from, cell, diameter, edit) {
-            Ok(_) => sandbox.last_edit_cell = Some(cell),
+            Ok(_) => {
+                sandbox.last_edit_cell = Some(cell);
+                sandbox.note_queued_thermal_application(cell, diameter, edit);
+            }
             Err(error) => {
                 sandbox.cancel_pointer_gestures();
                 eprintln!("[powdergame][sandbox] edit command rejected: {error}");
@@ -1130,7 +1136,7 @@ impl App {
         let Some(inspector) = &mut self.cell_inspector else {
             return;
         };
-        inspector.set_hover(hovered);
+        inspector.set_hover_at(hovered, now);
         let Some(simulation) = &self.simulation else {
             inspector.mark_unavailable("Inspector unavailable: simulation missing");
             return;
@@ -2471,6 +2477,7 @@ impl ApplicationHandler for App {
                         width: viewport.width,
                         height: viewport.height,
                     });
+                let world_transform = self.renderer.as_ref().and_then(Renderer::world_transform);
                 let gallery_hud = if self.demo_mode == DemoMode::Gallery {
                     self.simulation.as_ref().and_then(|simulation| {
                         self.demo.as_ref().and_then(|demo| {
@@ -2504,6 +2511,42 @@ impl ApplicationHandler for App {
                             speed: demo.fast,
                             simulation_tick: simulation.tick_count,
                             pending_edits: sandbox.edits.pending_count(),
+                            thermal_feedback: world_transform.and_then(|transform| {
+                                let hovered = self.cursor_position.and_then(|cursor| {
+                                    transform.cell_at(cursor).map(|(x, y)| SandboxCell { x, y })
+                                });
+                                if sandbox.primary_down {
+                                    hovered.and_then(|cell| {
+                                        thermal_brush_feedback(
+                                            transform,
+                                            cell,
+                                            sandbox.brush_diameter(),
+                                            sandbox.tool,
+                                            SandboxThermalFeedbackState::Applying,
+                                        )
+                                    })
+                                } else if let Some((cell, diameter, tool)) =
+                                    sandbox.recent_thermal_application(inspector_now)
+                                {
+                                    thermal_brush_feedback(
+                                        transform,
+                                        cell,
+                                        diameter,
+                                        tool,
+                                        SandboxThermalFeedbackState::CommittedPulse,
+                                    )
+                                } else {
+                                    hovered.and_then(|cell| {
+                                        thermal_brush_feedback(
+                                            transform,
+                                            cell,
+                                            sandbox.brush_diameter(),
+                                            sandbox.tool,
+                                            SandboxThermalFeedbackState::Preview,
+                                        )
+                                    })
+                                }
+                            }),
                             inspector: inspector_hud.clone(),
                             inspector_cursor,
                             world_viewport,

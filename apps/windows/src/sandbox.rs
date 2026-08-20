@@ -5,7 +5,10 @@
 //! edits are coalesced once per redraw and committed by one bounded GPU
 //! dispatch before any production tick for that redraw.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::{Duration, Instant},
+};
 
 use bytemuck::{Pod, Zeroable};
 use powdergame_core::{
@@ -16,6 +19,7 @@ use powdergame_core::{
 use powdergame_gpu::{GpuError, Simulation};
 
 use crate::inspector::{InspectorHudData, ScreenRect};
+use crate::renderer::WorldTransform;
 
 pub(crate) const SANDBOX_WORLD_WIDTH: u32 = 256;
 pub(crate) const SANDBOX_WORLD_HEIGHT: u32 = 256;
@@ -24,6 +28,9 @@ pub(crate) const SANDBOX_TPS: u32 = 60;
 pub(crate) const SANDBOX_TITLE: &str = "Powdergame G9-A First Playable Sandbox";
 pub(crate) const HEAT_DELTA: f32 = 25.0;
 pub(crate) const COOL_DELTA: f32 = -25.0;
+pub(crate) const ICE_PLACEMENT_TEMPERATURE: f32 = -30.0;
+pub(crate) const STEAM_PLACEMENT_TEMPERATURE: f32 = 80.0;
+pub(crate) const THERMAL_APPLICATION_FEEDBACK_HOLD: Duration = Duration::from_millis(180);
 pub(crate) const MAX_PENDING_EDIT_CELLS: usize = 32_768;
 const EDIT_COMMAND_CAPACITY: usize = MAX_PENDING_EDIT_CELLS;
 const EDIT_COMMAND_BYTES: u64 = 16;
@@ -67,18 +74,89 @@ impl SandboxTool {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SandboxPaletteGroup {
+    Core,
+    Generated,
+    Advanced,
+}
+
+impl SandboxPaletteGroup {
+    pub(crate) const fn display_name(self) -> &'static str {
+        match self {
+            Self::Core => "CORE",
+            Self::Generated => "GENERATED",
+            Self::Advanced => "ADVANCED",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SandboxPaletteEntry {
+    pub material_id: u32,
+    pub group: SandboxPaletteGroup,
+}
+
+/// All M0 Matter remains immediately available. Phase/reaction products and
+/// the editable world boundary are visually separated from the core choices.
+pub(crate) const SANDBOX_PALETTE: [SandboxPaletteEntry; 9] = [
+    SandboxPaletteEntry {
+        material_id: MATERIAL_STONE,
+        group: SandboxPaletteGroup::Core,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_SAND,
+        group: SandboxPaletteGroup::Core,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_WATER,
+        group: SandboxPaletteGroup::Core,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_WOOD,
+        group: SandboxPaletteGroup::Core,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_OIL,
+        group: SandboxPaletteGroup::Core,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_ICE,
+        group: SandboxPaletteGroup::Generated,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_STEAM,
+        group: SandboxPaletteGroup::Generated,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_SMOKE,
+        group: SandboxPaletteGroup::Generated,
+    },
+    SandboxPaletteEntry {
+        material_id: MATERIAL_BOUNDARY_BLOCK,
+        group: SandboxPaletteGroup::Advanced,
+    },
+];
+
 /// Palette order is a product decision; names always come from the canonical registry.
 pub(crate) const SANDBOX_PALETTE_IDS: [u32; 9] = [
-    MATERIAL_BOUNDARY_BLOCK,
     MATERIAL_STONE,
     MATERIAL_SAND,
-    MATERIAL_ICE,
     MATERIAL_WATER,
-    MATERIAL_STEAM,
-    MATERIAL_SMOKE,
     MATERIAL_WOOD,
     MATERIAL_OIL,
+    MATERIAL_ICE,
+    MATERIAL_STEAM,
+    MATERIAL_SMOKE,
+    MATERIAL_BOUNDARY_BLOCK,
 ];
+
+pub(crate) const SANDBOX_PALETTE_GROUP_LABEL_Y: [f32; 3] = [140.0, 324.0, 446.0];
+pub(crate) const SANDBOX_PALETTE_ROW_Y: [f32; 9] = [
+    162.0, 193.0, 224.0, 255.0, 286.0, 346.0, 377.0, 408.0, 468.0,
+];
+pub(crate) const SANDBOX_PRESET_TITLE_Y: f32 = 507.0;
+pub(crate) const SANDBOX_PRESET_FIRST_ROW_Y: f32 = 534.0;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct SandboxCell {
@@ -115,23 +193,33 @@ struct GpuEditCommand {
     cell_index: u32,
     operation: u32,
     value_bits: u32,
-    _pad: u32,
+    placement_temperature_bits: u32,
 }
 
 impl GpuEditCommand {
     fn from_edit(cell_index: u32, edit: SandboxEditKind) -> Self {
-        let (operation, value_bits) = match edit {
-            SandboxEditKind::Draw(material_id) => (0, material_id),
-            SandboxEditKind::Erase => (1, 0),
-            SandboxEditKind::Heat(delta) => (2, delta.to_bits()),
-            SandboxEditKind::Cool(delta) => (3, delta.to_bits()),
+        let (operation, value_bits, placement_temperature_bits) = match edit {
+            SandboxEditKind::Draw(material_id) => {
+                (0, material_id, placement_temperature(material_id).to_bits())
+            }
+            SandboxEditKind::Erase => (1, 0, 0),
+            SandboxEditKind::Heat(delta) => (2, delta.to_bits(), 0),
+            SandboxEditKind::Cool(delta) => (3, delta.to_bits(), 0),
         };
         Self {
             cell_index,
             operation,
             value_bits,
-            _pad: 0,
+            placement_temperature_bits,
         }
+    }
+}
+
+pub(crate) const fn placement_temperature(material_id: u32) -> f32 {
+    match material_id {
+        MATERIAL_ICE => ICE_PLACEMENT_TEMPERATURE,
+        MATERIAL_STEAM => STEAM_PLACEMENT_TEMPERATURE,
+        _ => 0.0,
     }
 }
 
@@ -349,6 +437,8 @@ impl SandboxEditController {
                 storage_entry(1, true),
                 storage_entry(2, false),
                 storage_entry(3, false),
+                storage_entry(4, true),
+                storage_entry(5, true),
             ],
         });
         let field_pipeline_layout =
@@ -448,6 +538,14 @@ impl SandboxEditController {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: world.flags_next.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: world.material_current.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: world.material_next.as_entire_binding(),
                 },
             ],
         });
@@ -557,20 +655,22 @@ impl SandboxEditController {
                 });
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-g9a-sandbox-edit-flags-pass"),
+                timestamp_writes: None,
+            });
+            // Flags inspect the pre-edit Material identity so a rejected
+            // EMPTY-only Draw cannot erase state owned by an occupied cell.
+            pass.set_pipeline(&self.flag_pipeline);
+            pass.set_bind_group(0, &self.flag_bind_group, &[]);
+            pass.dispatch_workgroups((count as u32).div_ceil(EDIT_WORKGROUP_SIZE), 1, 1);
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g9a-sandbox-edit-pass"),
                 timestamp_writes: None,
             });
             pass.set_pipeline(&self.field_pipeline);
             pass.set_bind_group(0, &self.field_bind_group, &[]);
-            pass.dispatch_workgroups((count as u32).div_ceil(EDIT_WORKGROUP_SIZE), 1, 1);
-        }
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("powdergame-g9a-sandbox-edit-flags-pass"),
-                timestamp_writes: None,
-            });
-            pass.set_pipeline(&self.flag_pipeline);
-            pass.set_bind_group(0, &self.flag_bind_group, &[]);
             pass.dispatch_workgroups((count as u32).div_ceil(EDIT_WORKGROUP_SIZE), 1, 1);
         }
         queue.submit([encoder.finish()]);
@@ -615,9 +715,66 @@ pub(crate) struct SandboxHudData {
     pub speed: u32,
     pub simulation_tick: u64,
     pub pending_edits: usize,
+    pub thermal_feedback: Option<SandboxThermalFeedback>,
     pub inspector: Option<InspectorHudData>,
     pub inspector_cursor: Option<[f32; 2]>,
     pub world_viewport: Option<ScreenRect>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SandboxThermalFeedback {
+    pub tool: SandboxTool,
+    pub rect: ScreenRect,
+    pub state: SandboxThermalFeedbackState,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SandboxThermalFeedbackState {
+    Preview,
+    Applying,
+    CommittedPulse,
+}
+
+pub(crate) fn thermal_brush_feedback(
+    transform: WorldTransform,
+    center: SandboxCell,
+    diameter: u32,
+    tool: SandboxTool,
+    state: SandboxThermalFeedbackState,
+) -> Option<SandboxThermalFeedback> {
+    if !matches!(tool, SandboxTool::Heat | SandboxTool::Cool)
+        || !BRUSH_DIAMETERS.contains(&diameter)
+    {
+        return None;
+    }
+    let cells = brush_cells(center, diameter, SANDBOX_WORLD_WIDTH, SANDBOX_WORLD_HEIGHT);
+    let min_x = cells.iter().map(|cell| cell.x).min()? as f32;
+    let min_y = cells.iter().map(|cell| cell.y).min()? as f32;
+    let max_x = (cells.iter().map(|cell| cell.x).max()? + 1) as f32;
+    let max_y = (cells.iter().map(|cell| cell.y).max()? + 1) as f32;
+    let viewport = transform.viewport;
+    let x0 = (viewport.x + (min_x - transform.origin_x) * transform.scale).max(viewport.x);
+    let y0 = (viewport.y + (min_y - transform.origin_y) * transform.scale).max(viewport.y);
+    let x1 = (viewport.x + (max_x - transform.origin_x) * transform.scale).min(viewport.right());
+    let y1 = (viewport.y + (max_y - transform.origin_y) * transform.scale).min(viewport.bottom());
+    (x1 > x0 && y1 > y0).then_some(SandboxThermalFeedback {
+        tool,
+        rect: ScreenRect {
+            x: x0,
+            y: y0,
+            width: x1 - x0,
+            height: y1 - y0,
+        },
+        state,
+    })
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SandboxThermalApplication {
+    cell: SandboxCell,
+    diameter: u32,
+    tool: SandboxTool,
+    applied_at: Instant,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -683,7 +840,7 @@ pub(crate) fn sandbox_hud_action_at(
     let card_width = 292.0;
     let right = surface_width as f32 - card_width - 14.0;
     for (index, material_id) in SANDBOX_PALETTE_IDS.iter().copied().enumerate() {
-        let y = 136.0 + index as f32 * 31.0;
+        let y = SANDBOX_PALETTE_ROW_Y[index] - 4.0;
         if cursor[0] >= right + 9.0
             && cursor[0] < right + card_width - 9.0
             && cursor[1] >= y
@@ -692,7 +849,7 @@ pub(crate) fn sandbox_hud_action_at(
             return Some(SandboxHudAction::SelectMaterial(material_id));
         }
     }
-    let preset_y = 136.0 + SANDBOX_PALETTE_IDS.len() as f32 * 31.0 + 39.0;
+    let preset_y = SANDBOX_PRESET_FIRST_ROW_Y - 4.0;
     if cursor[0] >= right + 9.0 && cursor[0] < right + card_width - 9.0 {
         if cursor[1] >= preset_y && cursor[1] < preset_y + 26.0 {
             return Some(SandboxHudAction::LoadPreset(SandboxPreset::StarterLab));
@@ -717,6 +874,8 @@ pub(crate) struct SandboxRuntime {
     pub last_cursor: Option<[f64; 2]>,
     pub pending_preset: Option<SandboxPreset>,
     pub edits: SandboxEditController,
+    pending_thermal_application: Option<(SandboxCell, u32, SandboxTool)>,
+    last_thermal_application: Option<SandboxThermalApplication>,
 }
 
 impl SandboxRuntime {
@@ -734,6 +893,8 @@ impl SandboxRuntime {
             last_cursor: None,
             pending_preset: None,
             edits: SandboxEditController::new(simulation)?,
+            pending_thermal_application: None,
+            last_thermal_application: None,
         })
     }
 
@@ -766,9 +927,53 @@ impl SandboxRuntime {
         self.last_cursor = None;
     }
 
+    pub(crate) fn note_queued_thermal_application(
+        &mut self,
+        cell: SandboxCell,
+        diameter: u32,
+        edit: SandboxEditKind,
+    ) {
+        let tool = match edit {
+            SandboxEditKind::Heat(_) => SandboxTool::Heat,
+            SandboxEditKind::Cool(_) => SandboxTool::Cool,
+            SandboxEditKind::Draw(_) | SandboxEditKind::Erase => return,
+        };
+        self.pending_thermal_application = Some((cell, diameter, tool));
+    }
+
+    pub(crate) fn commit_thermal_application(&mut self, now: Instant) {
+        self.last_thermal_application =
+            self.pending_thermal_application
+                .take()
+                .map(|(cell, diameter, tool)| SandboxThermalApplication {
+                    cell,
+                    diameter,
+                    tool,
+                    applied_at: now,
+                });
+    }
+
+    pub(crate) fn clear_thermal_feedback(&mut self) {
+        self.pending_thermal_application = None;
+        self.last_thermal_application = None;
+    }
+
+    pub(crate) fn recent_thermal_application(
+        &self,
+        now: Instant,
+    ) -> Option<(SandboxCell, u32, SandboxTool)> {
+        self.last_thermal_application
+            .filter(|application| {
+                now.saturating_duration_since(application.applied_at)
+                    < THERMAL_APPLICATION_FEEDBACK_HOLD
+            })
+            .map(|application| (application.cell, application.diameter, application.tool))
+    }
+
     pub(crate) fn request_preset(&mut self, preset: SandboxPreset) {
         self.pending_preset = Some(preset);
         self.edits.clear_pending();
+        self.clear_thermal_feedback();
         self.cancel_pointer_gestures();
     }
 }
@@ -793,7 +998,7 @@ struct EditCommand {
     cell_index: u32,
     operation: u32,
     value_bits: u32,
-    _pad: u32,
+    placement_temperature_bits: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -820,10 +1025,12 @@ fn apply_fields(@builtin(global_invocation_id) gid: vec3<u32>) {
     let index = command.cell_index;
 
     if (command.operation == 0u) {
+        if (material_current[index] != EMPTY || material_next[index] != EMPTY) { return; }
+        let placement_temperature = bitcast<f32>(command.placement_temperature_bits);
         material_current[index] = command.value_bits;
         material_next[index] = command.value_bits;
-        temperature_current[index] = TEMPERATURE_REFERENCE;
-        temperature_next[index] = TEMPERATURE_REFERENCE;
+        temperature_current[index] = placement_temperature;
+        temperature_next[index] = placement_temperature;
         pressure_current[index] = PRESSURE_REFERENCE;
         pressure_next[index] = PRESSURE_REFERENCE;
         return;
@@ -860,13 +1067,17 @@ struct EditCommand {
     cell_index: u32,
     operation: u32,
     value_bits: u32,
-    _pad: u32,
+    placement_temperature_bits: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> commands: array<EditCommand>;
 @group(0) @binding(2) var<storage, read_write> flags_current: array<u32>;
 @group(0) @binding(3) var<storage, read_write> flags_next: array<u32>;
+@group(0) @binding(4) var<storage, read> material_current: array<u32>;
+@group(0) @binding(5) var<storage, read> material_next: array<u32>;
+
+const EMPTY: u32 = 0u;
 
 @compute @workgroup_size(64)
 fn apply_flags(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -874,7 +1085,12 @@ fn apply_flags(@builtin(global_invocation_id) gid: vec3<u32>) {
     let command = commands[gid.x];
     let cell_count = params.width * params.height;
     if (command.cell_index >= cell_count) { return; }
-    if (command.operation == 0u || command.operation == 1u) {
+    if (command.operation == 0u
+        && material_current[command.cell_index] == EMPTY
+        && material_next[command.cell_index] == EMPTY) {
+        flags_current[command.cell_index] = 0u;
+        flags_next[command.cell_index] = 0u;
+    } else if (command.operation == 1u) {
         flags_current[command.cell_index] = 0u;
         flags_next[command.cell_index] = 0u;
     }
@@ -884,6 +1100,7 @@ fn apply_flags(@builtin(global_invocation_id) gid: vec3<u32>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::renderer::{PresentationPalette, WorldCamera, WorldViewport};
     use powdergame_core::{
         registry_contains, MATERIAL_EMPTY, MATERIAL_REGISTRY, PRESSURE_MAX, TEMPERATURE_REFERENCE,
     };
@@ -969,6 +1186,24 @@ mod tests {
     fn palette_is_complete_valid_unique_and_uses_registry_names() {
         let unique = SANDBOX_PALETTE_IDS.into_iter().collect::<BTreeSet<_>>();
         assert_eq!(unique.len(), MATERIAL_REGISTRY.len());
+        assert_eq!(
+            SANDBOX_PALETTE.map(|entry| entry.material_id),
+            SANDBOX_PALETTE_IDS
+        );
+        assert_eq!(
+            SANDBOX_PALETTE.map(|entry| entry.group),
+            [
+                SandboxPaletteGroup::Core,
+                SandboxPaletteGroup::Core,
+                SandboxPaletteGroup::Core,
+                SandboxPaletteGroup::Core,
+                SandboxPaletteGroup::Core,
+                SandboxPaletteGroup::Generated,
+                SandboxPaletteGroup::Generated,
+                SandboxPaletteGroup::Generated,
+                SandboxPaletteGroup::Advanced,
+            ]
+        );
         for id in SANDBOX_PALETTE_IDS {
             assert!(registry_lookup(id).is_some());
         }
@@ -977,15 +1212,15 @@ mod tests {
     #[test]
     fn palette_and_preset_pointer_regions_are_stable() {
         assert_eq!(
-            sandbox_hud_action_at(1600, 900, [1305.0, 145.0]),
+            sandbox_hud_action_at(1600, 900, [1305.0, 168.0]),
+            Some(SandboxHudAction::SelectMaterial(MATERIAL_STONE))
+        );
+        assert_eq!(
+            sandbox_hud_action_at(1600, 900, [1305.0, 474.0]),
             Some(SandboxHudAction::SelectMaterial(MATERIAL_BOUNDARY_BLOCK))
         );
         assert_eq!(
-            sandbox_hud_action_at(1600, 900, [1305.0, 393.0]),
-            Some(SandboxHudAction::SelectMaterial(MATERIAL_OIL))
-        );
-        assert_eq!(
-            sandbox_hud_action_at(1600, 900, [1305.0, 458.0]),
+            sandbox_hud_action_at(1600, 900, [1305.0, 540.0]),
             Some(SandboxHudAction::LoadPreset(SandboxPreset::StarterLab))
         );
         assert_eq!(sandbox_hud_action_at(1600, 900, [800.0, 450.0]), None);
@@ -994,11 +1229,11 @@ mod tests {
     #[test]
     fn sandbox_key_bindings_are_conflict_free_and_exact() {
         for (key, action) in [
+            ("1", SandboxKeyAction::SelectMaterial(MATERIAL_STONE)),
             (
-                "1",
+                "9",
                 SandboxKeyAction::SelectMaterial(MATERIAL_BOUNDARY_BLOCK),
             ),
-            ("9", SandboxKeyAction::SelectMaterial(MATERIAL_OIL)),
             ("d", SandboxKeyAction::SelectTool(SandboxTool::Draw)),
             ("E", SandboxKeyAction::SelectTool(SandboxTool::Erase)),
             ("h", SandboxKeyAction::SelectTool(SandboxTool::Heat)),
@@ -1029,6 +1264,56 @@ mod tests {
     }
 
     #[test]
+    fn thermal_feedback_uses_the_same_camera_transform_and_never_changes_draw_tools() {
+        let viewport = WorldViewport::calculate(
+            1600,
+            900,
+            SANDBOX_WORLD_WIDTH,
+            SANDBOX_WORLD_HEIGHT,
+            PresentationPalette::Sandbox,
+        )
+        .unwrap();
+        let transform = WorldTransform::calculate(
+            viewport,
+            WorldCamera::fitted(SANDBOX_WORLD_WIDTH, SANDBOX_WORLD_HEIGHT),
+        );
+        let heat = thermal_brush_feedback(
+            transform,
+            SandboxCell { x: 128, y: 128 },
+            5,
+            SandboxTool::Heat,
+            SandboxThermalFeedbackState::Applying,
+        )
+        .unwrap();
+        assert_eq!(heat.tool, SandboxTool::Heat);
+        assert_eq!(heat.state, SandboxThermalFeedbackState::Applying);
+        assert!((heat.rect.width - transform.scale * 5.0).abs() < 0.001);
+        assert!((heat.rect.height - transform.scale * 5.0).abs() < 0.001);
+        assert!(heat.rect.x >= viewport.x && heat.rect.right() <= viewport.right());
+        assert!(heat.rect.y >= viewport.y && heat.rect.bottom() <= viewport.bottom());
+
+        let clipped = thermal_brush_feedback(
+            transform,
+            SandboxCell { x: 0, y: 0 },
+            9,
+            SandboxTool::Cool,
+            SandboxThermalFeedbackState::Preview,
+        )
+        .unwrap();
+        assert_eq!(clipped.rect.x, viewport.x);
+        assert_eq!(clipped.rect.y, viewport.y);
+        assert_eq!(clipped.state, SandboxThermalFeedbackState::Preview);
+        assert!(thermal_brush_feedback(
+            transform,
+            SandboxCell { x: 1, y: 1 },
+            3,
+            SandboxTool::Draw,
+            SandboxThermalFeedbackState::Applying,
+        )
+        .is_none());
+    }
+
+    #[test]
     fn long_drag_interpolation_has_no_center_gaps() {
         let centers =
             interpolated_centers(SandboxCell { x: 2, y: 3 }, SandboxCell { x: 30, y: 17 });
@@ -1045,6 +1330,12 @@ mod tests {
         assert_eq!(TEMPERATURE_REFERENCE, 0.0);
         assert_eq!(HEAT_DELTA, 25.0);
         assert_eq!(COOL_DELTA, -25.0);
+        assert_eq!(ICE_PLACEMENT_TEMPERATURE, -30.0);
+        assert_eq!(STEAM_PLACEMENT_TEMPERATURE, 80.0);
+        assert_eq!(
+            THERMAL_APPLICATION_FEEDBACK_HOLD,
+            Duration::from_millis(180)
+        );
         assert!((-250.0f32).is_finite() && 1_000.0f32.is_finite());
         assert!(PRESSURE_MAX.is_finite());
     }
@@ -1084,6 +1375,18 @@ mod tests {
         let mut runtime = SandboxRuntime::new(&simulation).unwrap();
         let cell = SandboxCell { x: 5, y: 5 };
         let index = u64::from(cell.y * config.width + cell.x);
+        let pulse_at = Instant::now();
+        runtime.note_queued_thermal_application(cell, 3, SandboxEditKind::Heat(HEAT_DELTA));
+        runtime.commit_thermal_application(pulse_at);
+        assert_eq!(
+            runtime.recent_thermal_application(pulse_at + Duration::from_millis(179)),
+            Some((cell, 3, SandboxTool::Heat))
+        );
+        assert_eq!(
+            runtime.recent_thermal_application(pulse_at + Duration::from_millis(180)),
+            None
+        );
+        runtime.clear_thermal_feedback();
 
         simulation
             .world
@@ -1106,6 +1409,56 @@ mod tests {
             .queue_stroke(cell, cell, 1, SandboxEditKind::Draw(MATERIAL_STONE))
             .unwrap();
         assert_eq!(runtime.edits.apply_pending(&simulation).unwrap(), 1);
+
+        for buffer in [
+            &simulation.world.material_current,
+            &simulation.world.material_next,
+        ] {
+            assert_eq!(
+                u32::from_ne_bytes(read_word(&simulation, buffer, index)),
+                MATERIAL_WOOD,
+                "Draw is EMPTY-only and cannot overwrite Matter"
+            );
+        }
+        for buffer in [
+            &simulation.world.temperature_current,
+            &simulation.world.temperature_next,
+        ] {
+            assert_eq!(
+                f32::from_ne_bytes(read_word(&simulation, buffer, index)),
+                400.0
+            );
+        }
+        for buffer in [
+            &simulation.world.pressure_current,
+            &simulation.world.pressure_next,
+        ] {
+            assert_eq!(
+                f32::from_ne_bytes(read_word(&simulation, buffer, index)),
+                77.0
+            );
+        }
+        for buffer in [
+            &simulation.world.flags_current,
+            &simulation.world.flags_next,
+        ] {
+            assert_eq!(
+                u32::from_ne_bytes(read_word(&simulation, buffer, index)),
+                u32::MAX,
+                "a rejected Draw cannot erase occupied-cell flags"
+            );
+        }
+
+        runtime
+            .edits
+            .queue_stroke(cell, cell, 1, SandboxEditKind::Erase)
+            .unwrap();
+        runtime.edits.apply_pending(&simulation).unwrap();
+        runtime
+            .edits
+            .queue_stroke(cell, cell, 1, SandboxEditKind::Draw(MATERIAL_STONE))
+            .unwrap();
+        runtime.edits.apply_pending(&simulation).unwrap();
 
         for buffer in [
             &simulation.world.material_current,
@@ -1141,6 +1494,42 @@ mod tests {
             vec![1, 1, 1, 1],
             "the touched chunk and its clipped 8-neighbor halo are runnable"
         );
+
+        for (material, expected_temperature) in [
+            (MATERIAL_ICE, ICE_PLACEMENT_TEMPERATURE),
+            (MATERIAL_STEAM, STEAM_PLACEMENT_TEMPERATURE),
+        ] {
+            runtime
+                .edits
+                .queue_stroke(cell, cell, 1, SandboxEditKind::Erase)
+                .unwrap();
+            runtime.edits.apply_pending(&simulation).unwrap();
+            runtime
+                .edits
+                .queue_stroke(cell, cell, 1, SandboxEditKind::Draw(material))
+                .unwrap();
+            runtime.edits.apply_pending(&simulation).unwrap();
+            for buffer in [
+                &simulation.world.temperature_current,
+                &simulation.world.temperature_next,
+            ] {
+                assert_eq!(
+                    f32::from_ne_bytes(read_word(&simulation, buffer, index)),
+                    expected_temperature,
+                    "direct phase-Matter placement must start in its stable band"
+                );
+            }
+        }
+        runtime
+            .edits
+            .queue_stroke(cell, cell, 1, SandboxEditKind::Erase)
+            .unwrap();
+        runtime.edits.apply_pending(&simulation).unwrap();
+        runtime
+            .edits
+            .queue_stroke(cell, cell, 1, SandboxEditKind::Draw(MATERIAL_STONE))
+            .unwrap();
+        runtime.edits.apply_pending(&simulation).unwrap();
 
         runtime
             .edits

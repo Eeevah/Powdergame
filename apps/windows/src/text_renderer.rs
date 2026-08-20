@@ -20,11 +20,16 @@ use crate::observatory::{
     ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
     ACTIVITY_PANEL_NAMES,
 };
-use crate::sandbox::{SandboxHudData, SANDBOX_PALETTE_IDS};
+use crate::sandbox::{
+    SandboxHudData, SandboxPaletteGroup, SandboxThermalFeedbackState, SandboxTool, SANDBOX_PALETTE,
+    SANDBOX_PALETTE_GROUP_LABEL_Y, SANDBOX_PALETTE_ROW_Y, SANDBOX_PRESET_FIRST_ROW_Y,
+    SANDBOX_PRESET_TITLE_Y,
+};
 
 const INSPECTOR_TITLE: &str = "CELL INSPECTOR [I]";
 const INSPECTOR_UNAVAILABLE: &str = "Inspector unavailable";
 const INSPECTOR_FAILURE_PANEL_HEIGHT: f32 = 64.0;
+const INSPECTOR_IDENTITY_GRACE_PANEL_HEIGHT: f32 = 94.0;
 
 fn ascii_only(text: &str) -> String {
     text.chars()
@@ -47,6 +52,14 @@ fn compact_inspector_text(data: &InspectorHudData) -> Option<String> {
             .as_ref()
             .map(compact_sample_label)
             .map(|text| ascii_only(&text)),
+        InspectorDisplayState::IdentityGrace => data.identity_grace.map(|identity| {
+            ascii_only(&format!(
+                "{} | Cell {}, {}",
+                material_display_name(identity.material_id),
+                identity.cell.x,
+                identity.cell.y
+            ))
+        }),
         InspectorDisplayState::Hidden
         | InspectorDisplayState::Pending
         | InspectorDisplayState::Failed => None,
@@ -60,6 +73,17 @@ fn inspector_detail_lines(data: &InspectorHudData) -> Vec<String> {
     let mut lines = Vec::with_capacity(12);
     match data.display_state {
         InspectorDisplayState::Hidden | InspectorDisplayState::Pending => {}
+        InspectorDisplayState::IdentityGrace => {
+            let Some(identity) = data.identity_grace else {
+                return lines;
+            };
+            lines.push(format!(
+                "{} ({})",
+                material_display_name(identity.material_id),
+                identity.material_id
+            ));
+            lines.push(format!("Cell: {}, {}", identity.cell.x, identity.cell.y));
+        }
         InspectorDisplayState::Failed => lines.push(INSPECTOR_UNAVAILABLE.to_string()),
         InspectorDisplayState::Ready => {
             let Some(sample) = data.sample.as_ref() else {
@@ -114,6 +138,8 @@ fn inspector_detail_panel_rect(
     let mut rect = detail_panel_rect(surface_width, surface_height, content_top)?;
     if state == InspectorDisplayState::Failed {
         rect.height = INSPECTOR_FAILURE_PANEL_HEIGHT;
+    } else if state == InspectorDisplayState::IdentityGrace {
+        rect.height = INSPECTOR_IDENTITY_GRACE_PANEL_HEIGHT;
     }
     Some(rect)
 }
@@ -3395,7 +3421,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                         fit_ascii_text(&self.batch, &self.atlas, 12, &line, panel.width - 20.0);
                     let line_color = if index == 0 {
                         match data.display_state {
-                            InspectorDisplayState::Ready => value,
+                            InspectorDisplayState::Ready | InspectorDisplayState::IdentityGrace => {
+                                value
+                            }
                             InspectorDisplayState::Failed => orange,
                             InspectorDisplayState::Hidden | InspectorDisplayState::Pending => label,
                         }
@@ -3898,12 +3926,33 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             "Click a row or press 1-9",
             label,
         );
-        py += 28.0;
-        for (index, material_id) in SANDBOX_PALETTE_IDS.iter().copied().enumerate() {
+        for (group, group_y) in [
+            (SandboxPaletteGroup::Core, SANDBOX_PALETTE_GROUP_LABEL_Y[0]),
+            (
+                SandboxPaletteGroup::Generated,
+                SANDBOX_PALETTE_GROUP_LABEL_Y[1],
+            ),
+            (
+                SandboxPaletteGroup::Advanced,
+                SANDBOX_PALETTE_GROUP_LABEL_Y[2],
+            ),
+        ] {
+            self.batch.draw_text(
+                &self.atlas,
+                right + 14.0,
+                group_y,
+                11,
+                group.display_name(),
+                label,
+            );
+        }
+        for (index, entry) in SANDBOX_PALETTE.iter().copied().enumerate() {
+            let material_id = entry.material_id;
             let name = powdergame_core::registry_lookup(material_id)
                 .map(|descriptor| descriptor.name)
                 .unwrap_or("Invalid Material");
             let is_selected = material_id == data.selected_material_id;
+            py = SANDBOX_PALETTE_ROW_Y[index];
             if is_selected {
                 self.batch.draw_rect(
                     right + 9.0,
@@ -3922,12 +3971,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 &format!("{}  {} ({})", index + 1, name, material_id),
                 if is_selected { selected } else { value },
             );
-            py += 31.0;
         }
-        py += 8.0;
+        py = SANDBOX_PRESET_TITLE_Y;
         self.batch
             .draw_text(&self.atlas, right + 14.0, py, 14, "PRESETS", header);
-        py += 27.0;
+        py = SANDBOX_PRESET_FIRST_ROW_Y;
         self.batch
             .draw_text(&self.atlas, right + 16.0, py, 13, "L  Starter Lab", value);
         py += 28.0;
@@ -3939,6 +3987,49 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             "B  New Blank World",
             value,
         );
+
+        if let Some(feedback) = data.thermal_feedback {
+            let action = match feedback.state {
+                SandboxThermalFeedbackState::Preview => "",
+                SandboxThermalFeedbackState::Applying => " APPLYING",
+                SandboxThermalFeedbackState::CommittedPulse => "",
+            };
+            let (outline, fill, text) = match feedback.tool {
+                SandboxTool::Heat => (
+                    [1.0, 0.45, 0.12, 0.95],
+                    [1.0, 0.24, 0.06, 0.18],
+                    format!("HEAT +25{action}"),
+                ),
+                SandboxTool::Cool => (
+                    [0.28, 0.72, 1.0, 0.95],
+                    [0.10, 0.42, 1.0, 0.18],
+                    format!("COOL -25{action}"),
+                ),
+                SandboxTool::Draw | SandboxTool::Erase => unreachable!("thermal feedback tool"),
+            };
+            let rect = feedback.rect;
+            if feedback.state != SandboxThermalFeedbackState::Preview {
+                self.batch
+                    .draw_rect(rect.x, rect.y, rect.width, rect.height, fill, white_uv);
+            }
+            self.batch.draw_outline(
+                rect.x,
+                rect.y,
+                rect.width,
+                rect.height,
+                if feedback.state != SandboxThermalFeedbackState::Preview {
+                    3.0
+                } else {
+                    2.0
+                },
+                outline,
+                white_uv,
+            );
+            let text_x = (rect.x + rect.width + 8.0).min(sw - 150.0).max(4.0);
+            let text_y = (rect.y - 18.0).max(4.0);
+            self.batch
+                .draw_text(&self.atlas, text_x, text_y, 11, &text, outline);
+        }
 
         if let Some(inspector) = data.inspector.as_ref() {
             self.draw_gallery_inspector(
@@ -4023,6 +4114,7 @@ mod tests {
             details_visible: true,
             hovered_cell: None,
             sample: None,
+            identity_grace: None,
             error_message: None,
             current_simulation_tick: 0,
             sample_age_ticks: None,
@@ -4046,6 +4138,21 @@ mod tests {
         assert_eq!(compact_inspector_text(&pending), None);
         assert!(inspector_detail_lines(&pending).is_empty());
 
+        let grace_identity = crate::inspector::InspectorIdentityGrace {
+            cell: crate::inspector::CellCoordinate { x: 4, y: 6 },
+            material_id: powdergame_core::MATERIAL_WATER,
+        };
+        let mut grace = inspector_hud(InspectorDisplayState::IdentityGrace);
+        grace.identity_grace = Some(grace_identity);
+        assert_eq!(
+            compact_inspector_text(&grace).as_deref(),
+            Some("Water | Cell 4, 6")
+        );
+        assert_eq!(
+            inspector_detail_lines(&grace),
+            vec!["Water (4)".to_string(), "Cell: 4, 6".to_string()]
+        );
+
         let mut failed = inspector_hud(InspectorDisplayState::Failed);
         failed.error_message = Some("map failed: 승패".to_string());
         failed.details_visible = false;
@@ -4066,6 +4173,7 @@ mod tests {
             details_visible: true,
             hovered_cell: Some(sample.cell),
             sample: Some(sample),
+            identity_grace: None,
             error_message: None,
             current_simulation_tick: 7420,
             sample_age_ticks: Some(8),
@@ -4132,8 +4240,16 @@ mod tests {
             InspectorDisplayState::Failed,
         )
         .unwrap();
+        let grace_panel = inspector_detail_panel_rect(
+            1920.0,
+            1080.0,
+            existing_rows_bottom,
+            InspectorDisplayState::IdentityGrace,
+        )
+        .unwrap();
         assert_eq!(ready_panel, detail);
         assert_eq!(failed_panel.height, INSPECTOR_FAILURE_PANEL_HEIGHT);
+        assert_eq!(grace_panel.height, INSPECTOR_IDENTITY_GRACE_PANEL_HEIGHT);
         assert!(failed_panel.height < ready_panel.height);
     }
 

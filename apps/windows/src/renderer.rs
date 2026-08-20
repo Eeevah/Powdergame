@@ -275,7 +275,7 @@ pub struct WorldTransform {
 }
 
 impl WorldTransform {
-    fn calculate(viewport: WorldViewport, camera: WorldCamera) -> Self {
+    pub(crate) fn calculate(viewport: WorldViewport, camera: WorldCamera) -> Self {
         let camera = camera.normalized(viewport.world_width, viewport.world_height);
         let visible_w = viewport.world_width as f32 / camera.zoom;
         let visible_h = viewport.world_height as f32 / camera.zoom;

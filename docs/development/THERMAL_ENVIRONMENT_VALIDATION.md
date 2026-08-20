@@ -1,6 +1,6 @@
 # Thermal Environment Validation Contract
 
-- **Status:** TE-2 production validation complete at source `fb7e568e21012b6067269f4e1b82c36c865023d0`; candidate remediation `0977281...` validated, user re-review pending; TE-3 design required / runtime not started
+- **Status:** TE-2 production validation complete at source `fb7e568e21012b6067269f4e1b82c36c865023d0`; candidate remediation `0977281...` validated and user accepted with known follow-up; TE-3D design authorized / runtime not started
 - **Architecture:** ADR-0005 / `THERMAL_ENVIRONMENT_SPEC.md`
 - **Principle:** automated evidence proves invariants and named causal claims, not fun or user acceptance
 

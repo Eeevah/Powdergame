@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 revised passive thermal Environment candidate; user re-review pending
-- **Architecture:** D-013 / D-014 / D-015 / D-016 / ADR-0005
+- **Status:** TE-2 user accepted with known follow-up; TE-3D design authorized, runtime not started
+- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / ADR-0005
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -94,14 +94,17 @@ Completed at source `fb7e568e21012b6067269f4e1b82c36c865023d0`:
 - [x] final-source FULL, locked release build, one bounded candidate launch and one performance measurement;
 - [x] no Air-pressure force, TE-3, G9-B/C/D/E or optimization.
 
-Direct review then classified TE-2 **USER REVIEWED / REVISION REQUIRED**
+The first direct review classified TE-2 **USER REVIEWED / REVISION REQUIRED**
 because the candidate did not expose its existing controls or measurements
 well enough to evaluate those claims. Candidate-only remediation source
 `097728128343cf89383920c968a010b3dcf8e8c0` fixes F/N/I, makes bounded samples
 persistent and honest, enlarges scene 1 staging, and exposes scene 2-4
-accounting without changing production physics or TE-2 coefficients. Current
-stop: **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW
-PENDING**.
+accounting without changing production physics or TE-2 coefficients. The user
+subsequently confirmed F/N/I, all four scene contracts and reset/controls, and
+recorded TE-2 **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Preserve
+`LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and
+`TE2_CANDIDATE_HUD_LABEL_POLISH` as non-blocking later work; no additional
+same-tick scene 3/4 comparison is required.
 
 ## TE-3 — Water/Steam thermal cycle
 
@@ -112,8 +115,9 @@ Water round-trip audit are registered in
 [`TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](TE3_WATER_STEAM_PHASE_ACCOUNTING.md).
 Closed-cycle quantity, expansion/contraction, latent reversal, surface boiling,
 cold-surface condensation, nucleation, and the mid-air phase traffic jam are
-design blockers. No representation is selected and no runtime work is
-authorized.
+design blockers. D-017 authorizes docs-only TE-3D research, a proposed Hybrid
+A+C architecture, independent adversarial review and one pure reference proof.
+It does not authorize runtime work or mark the architecture accepted.
 
 Stop: `WATER/STEAM CYCLE USER-TESTABLE CANDIDATE / TE-4 NOT STARTED`.
 
@@ -139,8 +143,8 @@ TE-0   COMPLETE
 TE-0A  COMPLETE / seven High findings resolved in the design / blocker 0
 TE-0B  PASS_REFERENCE_MATH_ONLY
 TE-1   ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED
-TE-2   REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING
+TE-2   USER ACCEPTED WITH KNOWN FOLLOW-UP
 Air transport / unified passive thermal exchange   IMPLEMENTED
-TE-3   DESIGN REQUIRED / NOT STARTED
+TE-3D  DESIGN PROGRAM AUTHORIZED / USER ARCHITECTURE REVIEW TO FOLLOW
 Air-pressure force / TE-3 runtime   NOT STARTED
 ```

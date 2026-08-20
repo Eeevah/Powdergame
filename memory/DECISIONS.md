@@ -263,3 +263,56 @@ Invalidated by: A later explicit G9-A or TE-2 user disposition, authenticated
 evidence that the recorded source/result is incorrect, or an explicit TE-3
 architecture decision at its named gate. A future source is a new claim and
 does not rewrite this historical review.
+
+## D-017 · Accept TE-2 with known follow-ups and authorize TE-3D design review — 2026-08-20 (source: direct user acceptance and design authorization)
+
+Decision: Preserve G9-A overall as **USER ACCEPTED WITH KNOWN FOLLOW-UP** and
+record TE-2 as **USER ACCEPTED WITH KNOWN FOLLOW-UP**. The accepted direct
+observations are that F, N and the candidate-only I diagnostics operate
+correctly; scene 1 communicates Direct contact > Atmosphere gap > Vacuum gap;
+scene 2 visibly and numerically shows sealed Atmosphere spreading into
+connected Vacuum; scene 3 shows sealed thermal redistribution with no external
+exchange; scene 4 explicitly shows fixed-reservoir Air mass, advected-energy
+and passive-heat exchange; and reset plus candidate controls are understandable
+and usable. The user authorizes moving to the next Gate. No additional
+same-tick scene 3/4 comparison is required.
+
+Keep two non-blocking follow-ups: `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` for a
+later bounded numerical budget after a tiny cumulative Air mass/energy drift
+was observed over tens of thousands of sealed-corridor ticks, and
+`TE2_CANDIDATE_HUD_LABEL_POLISH` to identify chamber/corridor totals as Air-only
+and improve long boundary/description truncation. Neither authorizes coefficient
+retuning, optimization or a TE-2 physics revision.
+
+Authorize the TE-3D architecture research, design, independent adversarial
+review and one pure reference-math proof around the named
+**HYBRID A+C — 1:1 WATER-EQUIVALENT QUANTITY WITH DEDICATED PHASE ENTHALPY**
+candidate. This is authorization to produce a **PHASE-ENTHALPY DESIGN
+CANDIDATE / USER ARCHITECTURE REVIEW PENDING**, not acceptance of ADR-0006 and
+not runtime authorization. ADR-0006 must remain `Proposed`; any unresolved
+Critical or High counterexample stops TE-3D as **DESIGN BLOCKED**.
+
+Reason: The revised candidate makes the already evidenced TE-2 physics directly
+observable and usable, so the user can accept it without changing its
+production source. The separate Water/Steam quantity-gain and mid-air traffic
+jam remain TE-3 design problems. A 1:1 foreground quantity plus dedicated
+Current/Next latent state is now the explicit candidate to attack before any
+implementation decision.
+
+Scope: TE-2 production physics
+`fb7e568e21012b6067269f4e1b82c36c865023d0`, review-remediation source
+`097728128343cf89383920c968a010b3dcf8e8c0`, and docs/memory-only TE-3D design
+work on `feature/m0-g9-first-playable`. Preserve all TE-2 automated verdicts,
+runtime identities, performance evidence and evidence boundaries. Rust, WGSL,
+Cargo, phase/latent runtime, threshold or Air-coefficient retuning,
+Air-pressure force, ignition, TE-4, G9-B/C/D/E, optimization, release/build/run,
+`main`, PR and tag work remain excluded.
+
+Evidence: Direct user observations and disposition; existing immutable TE-2
+production/remediation evidence at their recorded sources. This docs decision
+ran no Cargo, GPU, FULL, build, launch, TE-3 candidate or G8/G8-C validation.
+
+Invalidated by: A later explicit user disposition, authenticated evidence that
+the named TE-2 source/result is incorrect, or a later user acceptance/revision
+of the proposed TE-3 architecture. A future runtime source is a new claim and
+does not rewrite this acceptance.

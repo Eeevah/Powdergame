@@ -201,3 +201,19 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   TE-3 design blocker. No representation was selected and no phase runtime was
   changed. TE-2 is **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER
   RE-REVIEW PENDING**; TE-3 remains **DESIGN REQUIRED / NOT STARTED**.
+
+## 2026-08-20 · TE-2 direct user-acceptance closure
+
+- D-017 records G9-A and TE-2 **USER ACCEPTED WITH KNOWN FOLLOW-UP** after the
+  user confirmed F/N/I, Direct > Atmosphere > Vacuum, sealed Vacuum refill,
+  sealed no-external-exchange redistribution, fixed-reservoir accounting and
+  usable reset/controls.
+- All automated verdicts, production/remediation identities, performance
+  receipts and limitations remain unchanged; this docs-only closure ran no
+  Cargo, GPU, FULL, build, launch, TE-3 candidate or G8/G8-C validation.
+- `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and
+  `TE2_CANDIDATE_HUD_LABEL_POLISH` remain non-blocking later work. Another
+  same-tick scene 3/4 comparison is not required.
+- D-017 authorizes only docs/research/adversarial/reference work around the
+  proposed Hybrid A+C TE-3D candidate. ADR-0006 is not accepted, TE-3 runtime
+  is not started, and Air-pressure force, TE-4 and G9-B/C/D/E remain excluded.

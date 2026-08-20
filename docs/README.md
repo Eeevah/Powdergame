@@ -227,7 +227,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox는 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이고 Inspector continuity v2는 **USER ACCEPTED**다. Canonical BAT/EXE의 무인자 launch는 Sandbox이며 explicit `gallery`는 보존한다. [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md)는 production source `fb7e568...`, remediation source `0977281...`에서 **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING**인 G9-B prerequisite다. Air-pressure force와 TE-3 runtime은 시작하지 않았고, TE-3는 **DESIGN REQUIRED / NOT STARTED**다. Exact evidence는 [`TE-2 passive transport`](evidence/THERMAL_ENVIRONMENT_TE_2_PASSIVE_TRANSPORT_2026-08-20.md)와 [`direct-review remediation`](evidence/THERMAL_ENVIRONMENT_TE_2_DIRECT_REVIEW_REMEDIATION_2026-08-20.md)에 있다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. Canonical BAT/EXE의 무인자 launch는 Sandbox이며 explicit `gallery`는 보존한다. TE-2 production source는 `fb7e568...`, remediation source는 `0977281...`이고, 기존 자동/runtime/performance evidence 경계는 그대로다. Air-pressure force와 TE-3 runtime은 시작하지 않았으며 TE-3D docs-only 설계만 승인됐다. Exact evidence는 [`TE-2 passive transport`](evidence/THERMAL_ENVIRONMENT_TE_2_PASSIVE_TRANSPORT_2026-08-20.md)와 [`direct-review remediation`](evidence/THERMAL_ENVIRONMENT_TE_2_DIRECT_REVIEW_REMEDIATION_2026-08-20.md)에 있다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

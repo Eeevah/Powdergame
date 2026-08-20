@@ -126,10 +126,9 @@ Thermal Environment 작업은 ADR-0005,
 `planning/THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md` 순서로 읽는다.
 현재 TE-1 Environment state / occupancy hygiene는 구현됐고, Air transport와
 thermal exchange를 구현한 TE-2 production source는 `fb7e568...`다. Candidate
-controls/diagnostics/staging remediation source `0977281...`은 **REVISED PASSIVE
-THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING**이다. Air-pressure
-force와 TE-3 runtime은 **NOT STARTED**이고, TE-3는 **DESIGN REQUIRED / NOT
-STARTED**다.
+controls/diagnostics/staging remediation source `0977281...`은 **USER ACCEPTED
+WITH KNOWN FOLLOW-UP**이다. Air-pressure force와 TE-3 runtime은 **NOT
+STARTED**이고, TE-3D docs-only 설계만 승인됐다.
 
 ### 현재 Gate를 이어서 개발
 

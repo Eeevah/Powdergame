@@ -26,6 +26,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260820-1255-g9a-continuity-v2-thermal-planned.md`](checkpoints/20260820-1255-g9a-continuity-v2-thermal-planned.md) | Continuity v2 return point before D-013 and TE-0 design lock | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-1641-te1-foundation-implemented.md`](checkpoints/20260820-1641-te1-foundation-implemented.md) | TE-0 design-lock return point before TE-1 runtime implementation | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-2130-te2-passive-candidate-before-direct-remediation.md`](checkpoints/20260820-2130-te2-passive-candidate-before-direct-remediation.md) | Original TE-2 candidate return point before direct-review remediation | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260820-2239-te2-revised-candidate-rereview.md`](checkpoints/20260820-2239-te2-revised-candidate-rereview.md) | Revised TE-2 candidate return point before direct user acceptance | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

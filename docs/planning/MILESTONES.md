@@ -460,7 +460,7 @@ Required evidence:
 
 Current status: **NOT STARTED**.
 
-Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is a **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING** at candidate source `0977281...`; the production-physics source remains `fb7e568...`. TE-3 is **DESIGN REQUIRED / NOT STARTED** with its Water/Steam closed-cycle blocker registered. G9-B emergence validation does not begin until those gates and their user evidence are complete.
+Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is **USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...`. TE-3D docs-only design is authorized, but TE-3 runtime is **NOT STARTED** with its Water/Steam closed-cycle blocker registered. G9-B emergence validation does not begin until the TE-3 architecture and runtime gates receive their named user evidence.
 
 현재 M0 Matter와 공통 Rule만으로 사용자가 만든 sandbox setup에서 다음 chain이 가능해야 한다.
 

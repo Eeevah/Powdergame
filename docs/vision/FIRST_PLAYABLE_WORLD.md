@@ -1,6 +1,6 @@
 # First Playable World — 첫 5분 제품 계약
 
-Status: **G9-A REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**
+Status: **G9-A USER ACCEPTED WITH KNOWN FOLLOW-UP**
 
 이 문서는 첫 플레이어가 Powdergame을 켠 뒤 약 5분 동안 무엇을 하고, 무엇을 이해하고, 어떤 다음 질문을 떠올려야 하는지 정의한다.
 

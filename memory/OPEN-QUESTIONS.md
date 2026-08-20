@@ -91,28 +91,35 @@ The remaining choices are deliberately later-gate decisions:
   now measured and preserved the full-resolution every-tick correctness
   baseline; no optimization was inferred.
 
-Current disposition: no item blocks the TE-2 user-review candidate. Product
+Current disposition: TE-2 is **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Product
 edge mode, Vacuum combustion, latent phase/yield and optional GAS permeability
 remain open at their named later gates. The implemented sealed correctness edge
 and explicit fixture reservoir do not close the product edge choice.
 
-The direct review now registers a concrete TE-3 blocker: the available-space
+The direct review registered a concrete TE-3 blocker: the available-space
 round trip is `1 Water -> up to 2 Steam -> up to 2 Water`, so a closed cycle can
 gain Water-equivalent Cells. The future design must compare 1:1 Matter plus
 Environment/pressure expansion, a primary Steam Cell plus explicit bounded
 expansion-fragment/contraction state, and a dedicated bounded phase-quantity
-representation. No option is selected. See
-`docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md` and D-016.
+representation. D-017 now authorizes a docs-only Hybrid A+C proposal with 1:1
+Water-equivalent foreground quantity and dedicated phase enthalpy, but does not
+accept that architecture or authorize runtime. See
+`docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md`, D-016 and D-017.
+
+TE-2 direct re-review is closed **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Preserve
+`LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and
+`TE2_CANDIDATE_HUD_LABEL_POLISH` as non-blocking follow-ups. Do not reopen the
+TE-2 Air architecture, Celsius-like temperature or acceptance.
 
 ## Current pending user-owned choices
 
-G9-A continuity is user accepted. TE-2 re-review and the TE-3 design blocker
-remain prerequisites to G9-B; they do not reopen G9-A.
+G9-A and TE-2 are user accepted with known follow-up. TE-3 architecture review
+and later runtime evidence remain prerequisites to G9-B; they do not reopen
+G9-A or TE-2.
 
 Future user decisions occur at the next evidence boundary:
 
-- accept, revise or reject the revised TE-2 candidate after direct re-review;
-- select a TE-3 Water/Steam accounting representation only at its named design gate;
+- accept or revise the proposed Hybrid A+C TE-3 architecture at its named review gate;
 - close Q-008 items only at their named Thermal Environment gate;
 - authorize later G9-B/C/D progression after that candidate;
 - approve shared `main` promotion;

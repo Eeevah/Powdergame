@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; TE-3 phase design remains a separate prerequisite before G9-B |
-| Thermal Environment / Ignition Causality | **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING** — candidate source `0977281...`; **TE-3 DESIGN REQUIRED / NOT STARTED**; G9-B prerequisite |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** — candidate source `0977281...`; **TE-3D DESIGN AUTHORIZED / TE-3 RUNTIME NOT STARTED**; G9-B prerequisite |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -136,7 +136,7 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 
 The latest direct disposition accepts G9-A Inspector continuity and records G9-A overall **USER ACCEPTED WITH KNOWN FOLLOW-UP**. This does not close the separate Thermal Environment prerequisite or authorize G9-B.
 
-Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Automated correctness/performance evidence remains valid, but direct review classified the original candidate **USER REVIEWED / REVISION REQUIRED** because F/N/I and temperature/Air measurements were not usable. Candidate source `0977281...` remediates only controls, bounded diagnostics and scene staging; TE-2 is now **USER RE-REVIEW PENDING**, not accepted. The separate Water/Steam closed-cycle and mid-air checkerboard blocker is registered in [`TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](TE3_WATER_STEAM_PHASE_ACCOUNTING.md). Air-pressure force and TE-3 runtime remain not started.
+Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Candidate source `0977281...` remediates only controls, bounded diagnostics and scene staging. Direct re-review confirmed F/N/I, all four scene contracts and reset/controls; D-017 records TE-2 **USER ACCEPTED WITH KNOWN FOLLOW-UP** while preserving every prior automated/runtime/performance boundary. `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and `TE2_CANDIDATE_HUD_LABEL_POLISH` are non-blocking. The separate Water/Steam closed-cycle and mid-air checkerboard blocker is registered in [`TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](TE3_WATER_STEAM_PHASE_ACCOUNTING.md). TE-3D design is authorized, but Air-pressure force and TE-3 runtime remain not started.
 
 ---
 
@@ -154,19 +154,18 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 기술 blocker
 
-**TE-3 DESIGN REQUIRED / NOT STARTED.** The current `1 Water -> up to 2 Steam -> up to 2 Water` round trip can create net Water-equivalent Cells in a closed cycle. This blocks TE-3 runtime approval and G9-B entry; it does not request TE-2 coefficient retuning.
+**TE-3D DESIGN AUTHORIZED / TE-3 RUNTIME NOT STARTED.** The current `1 Water -> up to 2 Steam -> up to 2 Water` round trip can create net Water-equivalent Cells in a closed cycle. D-017 authorizes a docs-only proposed Hybrid A+C design, independent review and reference proof; it does not approve implementation or request TE-2 coefficient retuning.
 
 ## 다음 행동
 
-1. run `run_powdergame.bat thermal-environment` and re-review the revised four-scene TE-2 candidate at source `0977281...`;
-2. accept, revise or reject TE-2 without inferring TE-3 runtime approval;
-3. keep TE-3 at design-required/not-started until its closed-cycle accounting representation is explicitly selected;
-4. do not start Air-pressure force, TE-3 runtime, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
+1. produce the proposed Hybrid A+C TE-3D architecture, fixture contract, independent adversarial review and one pure reference proof;
+2. stop at **PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING**;
+3. do not start Air-pressure force, TE-3 runtime, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
 
 ## 아직 별도 결정인 것
 
-- TE-2 user re-review; product edge mode, Vacuum combustion, latent phase and later ignition-dose choices remain gate-owned
-- TE-3 Water/Steam phase-accounting representation and coefficients at the named design gate
+- product edge mode, Vacuum combustion and later ignition-dose choices remain gate-owned
+- user approval/revision of the proposed TE-3 Water/Steam phase-accounting representation and coefficients
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

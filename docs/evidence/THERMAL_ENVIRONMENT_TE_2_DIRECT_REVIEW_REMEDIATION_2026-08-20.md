@@ -1,11 +1,11 @@
 # TE-2 Direct-Review Remediation Candidate
 
-- **Status:** REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING
+- **Status:** USER ACCEPTED WITH KNOWN FOLLOW-UP
 - **Started from:** `869690b7a282eec203d10df3502bc3451db03779`
 - **Production-physics source:** `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **Remediation source:** `097728128343cf89383920c968a010b3dcf8e8c0`
 - **Branch:** `feature/m0-g9-first-playable`
-- **Direct disposition:** G9-A Inspector continuity USER ACCEPTED; G9-A USER ACCEPTED WITH KNOWN FOLLOW-UP; original TE-2 candidate USER REVIEWED / REVISION REQUIRED
+- **Direct disposition:** G9-A USER ACCEPTED WITH KNOWN FOLLOW-UP; TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP
 
 This record covers candidate controls, bounded diagnostics, presentation and
 scene staging only. It does not replace the production TE-2 correctness or
@@ -115,7 +115,7 @@ Canonical executable after that launch:
 - SHA-256: `283fa6c603eb47d3906a14302b183ee8509d9571039bf135e69d922d091d0f00`
 - size: `10,034,176` bytes
 
-## Manual TE-2 re-review checklist
+## Historical manual TE-2 re-review checklist
 
 1. Launch `run_powdergame.bat thermal-environment`; confirm scene 1 starts
    paused with a nonblank persistent summary and a `Fresh` tick-0 sample.
@@ -145,4 +145,35 @@ Canonical executable after that launch:
 9. Record only a TE-2 verdict: accept, revise or reject. Do not infer TE-3
    runtime approval or G9-B advancement.
 
-Until that review occurs, TE-2 is not user accepted.
+## Direct user-acceptance closure
+
+The user completed the direct review and recorded TE-2 **USER ACCEPTED WITH
+KNOWN FOLLOW-UP**. The accepted observations are:
+
+- F, paused N and candidate-only I operate correctly;
+- scene 1 directly communicates Direct contact > Atmosphere gap > Vacuum gap;
+- scene 2 visibly and numerically shows sealed Atmosphere spreading into its
+  connected Vacuum region;
+- scene 3 shows sealed thermal redistribution with no external exchange;
+- scene 4 shows explicit fixed-reservoir Air mass, advected-energy and
+  passive-heat exchange;
+- reset and the candidate controls are understandable and usable;
+- the user authorized moving to the next Gate.
+
+No additional same-tick scene 3/4 comparison is required. This disposition
+preserves every automated verdict, runtime/source identity, performance receipt
+and limitation above; it adds no new runtime evidence and does not rebind those
+receipts to this docs-only closure.
+
+Known non-blocking follow-ups:
+
+- `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET`: a direct long-running sealed-corridor
+  observation found a very small cumulative Air mass/energy drift over tens of
+  thousands of ticks. It is not a TE-2 blocker; coefficient retuning and
+  optimization are deferred to a later bounded numerical budget.
+- `TE2_CANDIDATE_HUD_LABEL_POLISH`: later clarify that chamber/corridor totals
+  are Air-only and improve long boundary-name/description truncation. This is
+  presentation polish, not a physics revision.
+
+Acceptance does not authorize Air-pressure force, TE-3 runtime, TE-4,
+G9-B/C/D/E, optimization or `main` promotion.

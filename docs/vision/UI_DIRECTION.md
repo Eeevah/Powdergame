@@ -282,7 +282,7 @@ Overlay는 v0 Inspector를 막지 않는다. 먼저 이름과 Cell detail을 해
 
 First Playable의 기본 HUD는 다음만 상시 유지하는 것을 목표로 한다.
 
-G9-A source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`는 direct re-review 뒤의 Inspector continuity v2를 반영한 canonical 무인자 launch surface다. 좌측에는 preset/tool/play-state/speed/control hints, 우측에는 canonical Matter name과 현재 selection을 표시한다. Palette와 Heat/Cool feedback 계약은 유지된다. Source SHA, benchmark identity, receipt, full counters와 predicate table은 Sandbox HUD에 표시하지 않는다. Inspector detailed panel은 Ready/Held/Sampling에서 고정되며 held sample은 원본 identity/freshness를 보존한다. Candidate는 **USER RE-REVIEW PENDING**이다.
+G9-A source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`는 direct re-review 뒤의 Inspector continuity v2를 반영한 canonical 무인자 launch surface다. 좌측에는 preset/tool/play-state/speed/control hints, 우측에는 canonical Matter name과 현재 selection을 표시한다. Palette와 Heat/Cool feedback 계약은 유지된다. Source SHA, benchmark identity, receipt, full counters와 predicate table은 Sandbox HUD에 표시하지 않는다. Inspector detailed panel은 Ready/Held/Sampling에서 고정되며 held sample은 원본 identity/freshness를 보존한다. G9-A는 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다.
 
 - 현재 선택한 Material/도구
 - brush size

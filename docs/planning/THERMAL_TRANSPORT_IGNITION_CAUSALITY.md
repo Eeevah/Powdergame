@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING**; **TE-3 DESIGN REQUIRED / NOT STARTED**
+Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3D DESIGN AUTHORIZED / TE-3 RUNTIME NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -33,14 +33,17 @@ current baseline until TE-4:
 TE-3 and later gates must not quietly change the remaining phase/ignition
 statements without their named authorization and fixtures.
 
-Direct TE-2 review classified the original candidate **USER REVIEWED /
+The first direct TE-2 review classified the original candidate **USER REVIEWED /
 REVISION REQUIRED** because F, N, I and the thermal/Air measurements were not
 usable enough to evaluate the four scenes. Source
 `097728128343cf89383920c968a010b3dcf8e8c0` remediates only candidate controls,
 bounded diagnostics and staging; production physics and coefficients remain
 the D-015 runtime. Direct Sandbox review separately registered the Water/Steam
 checkerboard clumping and closed-cycle quantity defect as TE-3 design input,
-not a TE-2 retuning request.
+not a TE-2 retuning request. The subsequent direct re-review confirmed F/N/I,
+all four scene contracts and reset/controls, and recorded TE-2 **USER ACCEPTED
+WITH KNOWN FOLLOW-UP**. The tiny long-horizon sealed Air drift budget and HUD
+label/truncation polish remain non-blocking later work.
 
 ## 3. Historical architecture options — superseded by D-013 / ADR-0005
 
@@ -149,7 +152,7 @@ The initial project explicitly excludes:
 The architecture selection, design contract and TE-1 state/occupancy
 foundation are complete. Current state:
 
-- Thermal Environment is **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING** at candidate source `0977281...`; the production-physics source remains `fb7e568...`;
-- TE-3 is **DESIGN REQUIRED / NOT STARTED**; its phase-accounting blocker is registered, but no representation or runtime change is selected;
+- Thermal Environment is **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...` and all prior evidence boundaries remain intact;
+- TE-3D docs-only design is authorized around the proposed Hybrid A+C candidate; TE-3 runtime is **NOT STARTED** and the architecture is not accepted;
 - G9-B emergence validation remains blocked on this prerequisite;
 - G9-A Inspector continuity is **USER ACCEPTED** and G9-A overall is **USER ACCEPTED WITH KNOWN FOLLOW-UP**; this does not advance G9-B.

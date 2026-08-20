@@ -17,8 +17,8 @@ automated scenario evidence; do not add a Gate-specific executable or launcher.
 - G8-A: verified official capture; separate historical visual requirement formally superseded without relabeling the old capture
 - G8-B: five official scenarios and Cell Inspector user accepted; **CLOSED / FROZEN**; automatic verdicts and immutable artifacts unchanged
 - G8-C: official A/B/C/D Matrix independently reconstructed with mismatch `0`; recommendation `PROCEED_TO_G9`
-- G9-A: source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`, **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** after a second revision-required user review
-- Thermal Environment / Ignition Causality: **TE-2 PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING**; Air transport/unified passive thermal implemented, Air-pressure force and TE-3+ disabled; G9-B prerequisite
+- G9-A: Inspector continuity v2 at source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4` **USER ACCEPTED**; overall **USER ACCEPTED WITH KNOWN FOLLOW-UP**
+- Thermal Environment / Ignition Causality: production source `fb7e568...`, candidate remediation `0977281...`; **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING**; Air-pressure force and TE-3 runtime disabled, TE-3 **DESIGN REQUIRED / NOT STARTED**; G9-B prerequisite
 - G9-B/C/D/E and optimization: **NOT STARTED**
 - Current work line: `feature/m0-g9-first-playable`; shared `main` promotion requires explicit user direction
 

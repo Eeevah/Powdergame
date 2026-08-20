@@ -86,8 +86,10 @@ Canonical details live in
 implemented at source `1a722d...`; Air flow, thermal exchange,
 phase/ignition retune and Air-pressure coupling remain later-gate work and
 TE-2 passive Air transport and unified thermal exchange are implemented at
-source `fb7e568e21012b6067269f4e1b82c36c865023d0`; user review is pending.
-Air-pressure force and TE-3+ are not started.
+source `fb7e568e21012b6067269f4e1b82c36c865023d0`. Candidate-only controls,
+bounded diagnostics and staging are revised at source `0977281...`; TE-2 user
+re-review is pending. Air-pressure force and TE-3 runtime are not started;
+TE-3 is design-required/not-started.
 
 ---
 

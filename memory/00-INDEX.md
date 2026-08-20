@@ -25,6 +25,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260820-1006-g9a-revised-candidate-rereview.md`](checkpoints/20260820-1006-g9a-revised-candidate-rereview.md) | Five-revision G9-A return point before continuity v2 | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-1255-g9a-continuity-v2-thermal-planned.md`](checkpoints/20260820-1255-g9a-continuity-v2-thermal-planned.md) | Continuity v2 return point before D-013 and TE-0 design lock | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-1641-te1-foundation-implemented.md`](checkpoints/20260820-1641-te1-foundation-implemented.md) | TE-0 design-lock return point before TE-1 runtime implementation | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260820-2130-te2-passive-candidate-before-direct-remediation.md`](checkpoints/20260820-2130-te2-passive-candidate-before-direct-remediation.md) | Original TE-2 candidate return point before direct-review remediation | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 
@@ -42,6 +43,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/HANDOFF.md`](../docs/HANDOFF.md) | Preserved historical/domain handoff reference | Only when older recovery history or domain context is needed; not a competing session checkpoint |
 | [`docs/evidence/`](../docs/evidence/) | Immutable run/source/artifact evidence and user dispositions | When relying on a specific measurement or acceptance claim |
 | [`docs/architecture/`](../docs/architecture/) and [`docs/specs/`](../docs/specs/) | Architecture and implementation contracts | Before code/engine changes |
+| [`docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](../docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md) | Registered TE-3 closed-cycle and mid-air phase-accounting blocker | Before any Water/Steam phase design or runtime proposal |
 
 ## Authority and evidence boundaries
 

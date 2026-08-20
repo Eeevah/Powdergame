@@ -14,8 +14,8 @@
 | G8-B Benchmark Scenario Suite | **CLOSED / FROZEN** — 다섯 official scenario와 Cell Inspector v0 사용자 승인 완료 |
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
-| G9-A First Playable Sandbox | **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** — continuity v2 source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; latest review was revision-required |
-| Thermal Environment / Ignition Causality | **TE-2 PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING** — Air transport and unified passive thermal exchange implemented; Air-pressure force and TE-3+ not started; G9-B prerequisite |
+| G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; TE-3 phase design remains a separate prerequisite before G9-B |
+| Thermal Environment / Ignition Causality | **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING** — candidate source `0977281...`; **TE-3 DESIGN REQUIRED / NOT STARTED**; G9-B prerequisite |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -29,6 +29,7 @@
 - G9-A continuity v2 tested source: `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`
 - TE-1 runtime source: `1a722d239a16bade5772688fa822465d5cef4602`
 - TE-2 runtime source: `fb7e568e21012b6067269f4e1b82c36c865023d0`
+- TE-2 review-remediation candidate source: `097728128343cf89383920c968a010b3dcf8e8c0`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -128,14 +129,14 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 - tools: nine canonical M0 Matter, Draw, Erase, four brush sizes, Heat, Cool, Pause/Play, Single Step, x1/x4/x16, Reset, Pan, Zoom and existing Cell Inspector;
 - edit boundary: bounded/coalesced command batch before simulation ticks, exact Current/Next hygiene, affected chunk plus clipped neighbor halo wake, no CPU world truth or pointer-driven full-world readback;
 - camera: one finite physical-pixel transform shared by rendering, picking and Inspector hover;
-- direct review status: Draw/Ice/Steam/palette/Heat-Cool revisions were observed in the build, but the user still saw rapid Inspector on/off flicker; no broader USER ACCEPTED verdict is inferred;
+- direct review status: Draw/Ice/Steam/palette/Heat-Cool revisions were observed; continuity v2 was subsequently directly reviewed and **USER ACCEPTED**; G9-A overall is **USER ACCEPTED WITH KNOWN FOLLOW-UP**;
 - continuity v2: requested hover and presented sample are separate; rapid second/third hover changes retain one bounded previous sample with its original Cell/Material/tick/freshness; compact tooltip requires a fresh current-Cell sample; Ready/Held/Sampling use one fixed detailed panel geometry; reset/preset/epoch/failure clears the held sample immediately;
 - validation: source `a00e39b...` Inspector `11/11` and Inspector UI `3/3`, affected check/clippy, strict policy audit and exactly one explicit Sandbox 3-frame release bounded launch check all pass;
 - FULL: `0` because validation-plan classified it recommended, not required, and no engine/Core/fixture/Cargo graph/shared Simulation layout changed.
 
-This is not user acceptance. The revised candidate was **USER RE-REVIEWED / REVISION REQUIRED**; continuity v2 requires direct user re-review.
+The latest direct disposition accepts G9-A Inspector continuity and records G9-A overall **USER ACCEPTED WITH KNOWN FOLLOW-UP**. This does not close the separate Thermal Environment prerequisite or authorize G9-B.
 
-Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Automated validation, final-source FULL, one release bounded launch and one performance measurement passed; direct product review remains pending. Air-pressure force, TE-3 and G9-B/C/D/E are not started.
+Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Automated correctness/performance evidence remains valid, but direct review classified the original candidate **USER REVIEWED / REVISION REQUIRED** because F/N/I and temperature/Air measurements were not usable. Candidate source `0977281...` remediates only controls, bounded diagnostics and scene staging; TE-2 is now **USER RE-REVIEW PENDING**, not accepted. The separate Water/Steam closed-cycle and mid-air checkerboard blocker is registered in [`TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](TE3_WATER_STEAM_PHASE_ACCOUNTING.md). Air-pressure force and TE-3 runtime remain not started.
 
 ---
 
@@ -153,19 +154,19 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 기술 blocker
 
-**없음.**
+**TE-3 DESIGN REQUIRED / NOT STARTED.** The current `1 Water -> up to 2 Steam -> up to 2 Water` round trip can create net Water-equivalent Cells in a closed cycle. This blocks TE-3 runtime approval and G9-B entry; it does not request TE-2 coefficient retuning.
 
 ## 다음 행동
 
-1. run `run_powdergame.bat thermal-environment` and review the TE-2 four-scene candidate;
-2. separately re-review G9-A Inspector continuity v2 in Sandbox;
-3. accept, revise or reject each candidate without inferring a broader verdict;
-4. do not start TE-3 or G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization before those decisions.
+1. run `run_powdergame.bat thermal-environment` and re-review the revised four-scene TE-2 candidate at source `0977281...`;
+2. accept, revise or reject TE-2 without inferring TE-3 runtime approval;
+3. keep TE-3 at design-required/not-started until its closed-cycle accounting representation is explicitly selected;
+4. do not start Air-pressure force, TE-3 runtime, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
 
 ## 아직 별도 결정인 것
 
-- G9-A continuity v2 user re-review
-- TE-2 user review; product edge mode, Vacuum combustion, latent phase and later ignition-dose choices remain gate-owned
+- TE-2 user re-review; product edge mode, Vacuum combustion, latent phase and later ignition-dose choices remain gate-owned
+- TE-3 Water/Steam phase-accounting representation and coefficients at the named design gate
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

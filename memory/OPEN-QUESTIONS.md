@@ -96,13 +96,23 @@ edge mode, Vacuum combustion, latent phase/yield and optional GAS permeability
 remain open at their named later gates. The implemented sealed correctness edge
 and explicit fixture reservoir do not close the product edge choice.
 
+The direct review now registers a concrete TE-3 blocker: the available-space
+round trip is `1 Water -> up to 2 Steam -> up to 2 Water`, so a closed cycle can
+gain Water-equivalent Cells. The future design must compare 1:1 Matter plus
+Environment/pressure expansion, a primary Steam Cell plus explicit bounded
+expansion-fragment/contraction state, and a dedicated bounded phase-quantity
+representation. No option is selected. See
+`docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md` and D-016.
+
 ## Current pending user-owned choices
 
-No product-scope question blocks G9-A continuity re-review or TE-1 entry.
+G9-A continuity is user accepted. TE-2 re-review and the TE-3 design blocker
+remain prerequisites to G9-B; they do not reopen G9-A.
 
 Future user decisions occur at the next evidence boundary:
 
-- accept, revise or reject the G9-A user-testable editor/sandbox candidate;
+- accept, revise or reject the revised TE-2 candidate after direct re-review;
+- select a TE-3 Water/Steam accounting representation only at its named design gate;
 - close Q-008 items only at their named Thermal Environment gate;
 - authorize later G9-B/C/D progression after that candidate;
 - approve shared `main` promotion;

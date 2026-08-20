@@ -125,3 +125,25 @@ Vacuum combustion support, phase latent/yield representation, GAS permeability
 unless TE-F33 proves a blocker, and any future cadence/packing optimization.
 Air-pressure force, TE-3, TE-4, G9-B/C/D/E, Oxygen, Ash, new Matter, CFD and
 optimization are not started.
+
+## Direct-review addendum
+
+The user directly reviewed the candidate and classified TE-2 **USER REVIEWED /
+REVISION REQUIRED**. F did not operate in this mode, N left the displayed
+sample at tick 0 after a tick-1 step, I had no candidate panel, no usable
+temperature/Air-state measurement was visible, and scene 1 still appeared
+unchanged after roughly 3000 ticks. The candidate therefore did not let the
+user evaluate the implemented Direct / Atmosphere / Vacuum behavior.
+
+This disposition does not invalidate or rewrite the automated correctness,
+runtime identity, performance, sealed-edge/reservoir fixture, or source-free
+invariant evidence above. Candidate-only source
+`097728128343cf89383920c968a010b3dcf8e8c0` remediates controls,
+observability, diagnostic honesty and scene staging without changing Engine,
+Core, production compute WGSL, TE-2 coefficients, phase, movement or ignition
+rules. Current state is **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER
+RE-REVIEW PENDING**; it is not user acceptance.
+
+The remediation controls, semantic checkpoints, validation receipts, canonical
+EXE identity and exact manual re-review checklist are recorded separately in
+[`THERMAL_ENVIRONMENT_TE_2_DIRECT_REVIEW_REMEDIATION_2026-08-20.md`](THERMAL_ENVIRONMENT_TE_2_DIRECT_REVIEW_REMEDIATION_2026-08-20.md).

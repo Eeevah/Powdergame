@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING**
+Status: **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING**; **TE-3 DESIGN REQUIRED / NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -33,6 +33,15 @@ current baseline until TE-4:
 TE-3 and later gates must not quietly change the remaining phase/ignition
 statements without their named authorization and fixtures.
 
+Direct TE-2 review classified the original candidate **USER REVIEWED /
+REVISION REQUIRED** because F, N, I and the thermal/Air measurements were not
+usable enough to evaluate the four scenes. Source
+`097728128343cf89383920c968a010b3dcf8e8c0` remediates only candidate controls,
+bounded diagnostics and staging; production physics and coefficients remain
+the D-015 runtime. Direct Sandbox review separately registered the Water/Steam
+checkerboard clumping and closed-cycle quantity defect as TE-3 design input,
+not a TE-2 retuning request.
+
 ## 3. Historical architecture options — superseded by D-013 / ADR-0005
 
 The following Option A/Option B comparison records the state at D-012. It remains as design history and is not the current selection. D-013 and ADR-0005 select separate `air_mass_current/next` plus `air_energy_current/next`; Air temperature and background pressure are derived. Neither option below is the adopted architecture.
@@ -59,6 +68,7 @@ Neither historical option is selected. The canonical design is linked below.
 - [`Reuse Survey`](../research/2026-08-20-thermal-environment-reuse-survey.md)
 - [`Validation Contract`](../development/THERMAL_ENVIRONMENT_VALIDATION.md)
 - [`Implementation Gates`](THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md)
+- [`TE-3 Water / Steam Phase Accounting`](TE3_WATER_STEAM_PHASE_ACCOUNTING.md)
 - [`Independent Adversarial Review`](../adversarial-reviews/THERMAL_ENVIRONMENT_TE_0.md)
 
 TE-0 is complete and remains docs-only. Independent review found seven High
@@ -139,6 +149,7 @@ The initial project explicitly excludes:
 The architecture selection, design contract and TE-1 state/occupancy
 foundation are complete. Current state:
 
-- Thermal Environment is **TE-2 PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING** at source `fb7e568...`;
+- Thermal Environment is **TE-2 REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING** at candidate source `0977281...`; the production-physics source remains `fb7e568...`;
+- TE-3 is **DESIGN REQUIRED / NOT STARTED**; its phase-accounting blocker is registered, but no representation or runtime change is selected;
 - G9-B emergence validation remains blocked on this prerequisite;
-- G9-A continuity work may proceed independently within its existing readback/presentation boundary.
+- G9-A Inspector continuity is **USER ACCEPTED** and G9-A overall is **USER ACCEPTED WITH KNOWN FOLLOW-UP**; this does not advance G9-B.

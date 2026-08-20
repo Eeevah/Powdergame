@@ -221,3 +221,45 @@ CPU/GPU small-delta convergence; one-shot 256²/2048² profiler measurement.
 Invalidated by: A later explicit user decision changing TE-2 semantics, a
 reproducible invariant failure at the named source, or a runtime source change
 to the transport/deadband/activity contract. It does not authorize TE-3.
+
+## D-016 · Accept G9-A continuity, require observable TE-2 review controls, and register the TE-3 phase blocker — 2026-08-20 (source: direct user review handover)
+
+Decision: Record G9-A Inspector continuity v2 as **USER ACCEPTED** and G9-A
+overall as **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Record TE-2 as **USER
+REVIEWED / REVISION REQUIRED** because F did not operate, N showed no fresh
+tick-1 result, I was unavailable, temperature/Air measurements were not usable,
+and scene 1 still looked unchanged after roughly 3000 ticks. Preserve D-015's
+automated correctness, runtime-source, performance, sealed-edge/reservoir and
+source-free evidence. Authorize only candidate controls, bounded diagnostics,
+honest forced sampling and presentation/staging remediation; completion returns
+TE-2 to **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW
+PENDING**, not acceptance.
+
+Separately register the observed Water/Steam mid-air checkerboard clumping and
+the audited `1 Water -> up to 2 Steam -> up to 2 Water` closed-cycle quantity
+gain as a required TE-3 design blocker. TE-3 must compare the named accounting
+representations without selecting or implementing one in this task. It remains
+**DESIGN REQUIRED / NOT STARTED**.
+
+Reason: The TE-2 production rules could not be evaluated through the original
+candidate surface even though their automated evidence remained valid. In
+Sandbox, Air transport/cooling and Steam-to-Water causality were visible, but
+the unpaired phase expansion/contraction accounting produced unnatural
+blue/white mid-air clumps and can increase Water-equivalent Cell count through
+a closed cycle.
+
+Scope: Candidate remediation source
+`097728128343cf89383920c968a010b3dcf8e8c0` on
+`feature/m0-g9-first-playable`; TE-3 planning registration only. D-012 through
+D-015 remain unchanged. Engine/Core, production compute WGSL, TE-2 coefficients,
+phase/movement/ignition rules, Air-pressure force, TE-3 runtime, TE-4,
+G9-B/C/D/E, optimization, main promotion and PR creation are excluded.
+
+Evidence: Direct user disposition and observations; TE-2 runtime source
+`fb7e568e21012b6067269f4e1b82c36c865023d0`; candidate remediation tests and
+the canonical TE-3 planning record.
+
+Invalidated by: A later explicit G9-A or TE-2 user disposition, authenticated
+evidence that the recorded source/result is incorrect, or an explicit TE-3
+architecture decision at its named gate. A future source is a new claim and
+does not rewrite this historical review.

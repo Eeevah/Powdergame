@@ -165,3 +165,39 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   `2.599712/2.304832 ms`; equilibrium terminal activity `0` Cells/chunks.
 - Completion: **PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING**.
   Air-pressure force, TE-3 and G9-B/C/D/E remain not started.
+
+## 2026-08-20 · TE-2 direct-review remediation and TE-3 blocker registration
+
+- Live Git preflight found clean local/remote source
+  `869690b7a282eec203d10df3502bc3451db03779`; it superseded the older expected
+  handover SHA without a merge.
+- Direct disposition recorded Inspector continuity v2 **USER ACCEPTED**, G9-A
+  **USER ACCEPTED WITH KNOWN FOLLOW-UP**, and original TE-2 **USER REVIEWED /
+  REVISION REQUIRED**. D-016 preserves D-015 evidence and authorizes only
+  candidate controls, bounded diagnostics and staging.
+- Candidate source `097728128343cf89383920c968a010b3dcf8e8c0` enables F
+  x1/x4/x16, ordered paused N with immediate generation-safe sampling,
+  candidate-only `TE-2 DIAGNOSTICS [I]`, persistent actual-value summaries and
+  legible four-scene staging. Engine/Core, production compute WGSL, TE-2
+  coefficients and phase/movement/ignition runtime are unchanged.
+- Scene-1 production checkpoints at ticks `0/1/8/60/300` show target
+  temperatures `20/28.4/69.755394/129.528992/146.758209 °C` Direct,
+  `20/20/20.128620/24.413996/46.056732 °C` Atmosphere and constant `20 °C`
+  Vacuum. Scene 2 bounded accounting, scene 3 sealed-zero exchange and scene 4
+  explicit reservoir exchange are visible and tested.
+- The initial focused candidate run exposed three over-bound accounting reads
+  (`7/10` passed); batching to the existing 64-Cell limit fixed them and the
+  rerun passed `10/10`. Windows `164/164` passed with one ignored test; fmt,
+  affected check/clippy, strict audit and diff check passed. FULL, G8/G8-C and
+  TE-3 runtime counts were `0`.
+- One actual 60-frame TE-2 bounded launch passed on RTX 5090/DX12. The canonical
+  BAT's mandatory build recompiled after the earlier explicit release build, so
+  the honest release-build invocation count is `2`, not the requested `1`.
+  Final EXE SHA-256 is
+  `283fa6c603eb47d3906a14302b183ee8509d9571039bf135e69d922d091d0f00`, size
+  `10,034,176` bytes.
+- Current phase audit registers `1 Water -> up to 2 Steam -> up to 2 Water`,
+  preserved temperature and absent latent/progress accounting as a required
+  TE-3 design blocker. No representation was selected and no phase runtime was
+  changed. TE-2 is **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER
+  RE-REVIEW PENDING**; TE-3 remains **DESIGN REQUIRED / NOT STARTED**.

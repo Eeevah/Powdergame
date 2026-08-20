@@ -441,7 +441,7 @@ G9는 고정 fixture를 구경하는 마지막 승인 절차가 아니다.
 
 ### G9-A — Sandbox Interaction
 
-Current status: **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** at continuity v2 source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`. The user re-reviewed the previous revision and still required Inspector continuity remediation; no USER ACCEPTED verdict exists. Continuity v2 holds one honestly labelled previous sample across rapid hover movement, then keeps a fixed Sampling panel until a fresh current-Cell sample atomically replaces it. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. Automated checks and the bounded launch check establish implementation integrity only.
+Current status: **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Inspector continuity v2 at source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4` is **USER ACCEPTED**. It holds one honestly labelled previous sample across rapid hover movement, then keeps a fixed Sampling panel until a fresh current-Cell sample atomically replaces it. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. The known follow-up is the separately gated Thermal Environment/phase program; this acceptance does not authorize G9-B.
 
 Required evidence:
 
@@ -460,7 +460,7 @@ Required evidence:
 
 Current status: **NOT STARTED**.
 
-Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is a **PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING** at source `fb7e568...`; TE-3 and later Environment/thermal/ignition gates are **NOT STARTED**. G9-B emergence validation does not begin until those gates and their user evidence are complete.
+Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is a **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING** at candidate source `0977281...`; the production-physics source remains `fb7e568...`. TE-3 is **DESIGN REQUIRED / NOT STARTED** with its Water/Steam closed-cycle blocker registered. G9-B emergence validation does not begin until those gates and their user evidence are complete.
 
 현재 M0 Matter와 공통 Rule만으로 사용자가 만든 sandbox setup에서 다음 chain이 가능해야 한다.
 

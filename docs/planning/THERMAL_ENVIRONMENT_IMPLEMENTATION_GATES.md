@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 passive thermal Environment candidate; user review pending
-- **Architecture:** D-013 / D-014 / D-015 / ADR-0005
+- **Status:** TE-2 revised passive thermal Environment candidate; user re-review pending
+- **Architecture:** D-013 / D-014 / D-015 / D-016 / ADR-0005
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -94,9 +94,26 @@ Completed at source `fb7e568e21012b6067269f4e1b82c36c865023d0`:
 - [x] final-source FULL, locked release build, one bounded candidate launch and one performance measurement;
 - [x] no Air-pressure force, TE-3, G9-B/C/D/E or optimization.
 
+Direct review then classified TE-2 **USER REVIEWED / REVISION REQUIRED**
+because the candidate did not expose its existing controls or measurements
+well enough to evaluate those claims. Candidate-only remediation source
+`097728128343cf89383920c968a010b3dcf8e8c0` fixes F/N/I, makes bounded samples
+persistent and honest, enlarges scene 1 staging, and exposes scene 2-4
+accounting without changing production physics or TE-2 coefficients. Current
+stop: **REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW
+PENDING**.
+
 ## TE-3 — Water/Steam thermal cycle
 
 Close phase progress representation, latent coefficients, yield, reversal accounting, surface boiling, Steam cooling, free/surface condensation and hysteresis. Do not change ignition, Oxygen or final FX.
+
+The direct Sandbox observation and current 1 Water -> up to 2 Steam -> up to 2
+Water round-trip audit are registered in
+[`TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](TE3_WATER_STEAM_PHASE_ACCOUNTING.md).
+Closed-cycle quantity, expansion/contraction, latent reversal, surface boiling,
+cold-surface condensation, nucleation, and the mid-air phase traffic jam are
+design blockers. No representation is selected and no runtime work is
+authorized.
 
 Stop: `WATER/STEAM CYCLE USER-TESTABLE CANDIDATE / TE-4 NOT STARTED`.
 
@@ -122,7 +139,8 @@ TE-0   COMPLETE
 TE-0A  COMPLETE / seven High findings resolved in the design / blocker 0
 TE-0B  PASS_REFERENCE_MATH_ONLY
 TE-1   ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED
-TE-2   PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING
+TE-2   REVISED PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER RE-REVIEW PENDING
 Air transport / unified passive thermal exchange   IMPLEMENTED
-Air-pressure force / TE-3+   NOT STARTED
+TE-3   DESIGN REQUIRED / NOT STARTED
+Air-pressure force / TE-3 runtime   NOT STARTED
 ```

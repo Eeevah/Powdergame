@@ -19,7 +19,7 @@ inferred from community naming:
 
 | Source | Immutable identity | License | Use here |
 |---|---|---|---|
-| [The Powder Toy](https://github.com/The-Powder-Toy/The-Powder-Toy/commit/2e479ad1d5e0e80dc6f8d6176040af0f82643791803537ea5) | `2e479ad1d5e0e80dc6f8d6176040af0f82643791803537ea5` | GPL-3.0 | fixture/UX reference only; copying, translation and close porting forbidden |
+| [The Powder Toy](https://github.com/The-Powder-Toy/The-Powder-Toy/commit/2e47966b84b0d2f1750af0f82643791803537ea5) | `2e47966b84b0d2f1750af0f82643791803537ea5` | GPL-3.0 | fixture/UX reference only; copying, translation and close porting forbidden |
 | [sandspiel](https://github.com/MaxBittker/sandspiel/commit/dc77827b36adc5c04ea063515de4173ce28dbf2c) | `dc77827b36adc5c04ea063515de4173ce28dbf2c` | MIT | bounded fixture/product reference only |
 | Cinder named in the supplied report | exact repository/revision unavailable | no license statement available | `REFERENCE_FIXTURE` only; no code or formula reuse |
 

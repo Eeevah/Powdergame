@@ -70,13 +70,37 @@ Disposition:
 - official Matrix, independent verification and package each ran exactly once;
 - recommendation `PROCEED_TO_G9`.
 
+## Q-008 · Thermal Environment later-gate choices — open 2026-08-20
+
+Owner: user at the named evidence boundary.
+
+D-013 and ADR-0005 close the Environment ontology: Air is a separate
+mass/energy Field, Atmosphere and Vacuum are distinct from foreground EMPTY and
+Void, and the correctness baseline uses full-resolution state. Do not reopen
+those choices as implementation questions.
+
+The remaining choices are deliberately later-gate decisions:
+
+- product default world-edge reservoir mode before TE-5 integration; TE-2
+  correctness uses sealed edges and an explicit fixture-only ghost reservoir;
+- whether combustion is supported in Vacuum before TE-4/TE-5 closure;
+- phase latent coefficients, yield and reversal representation before TE-3;
+- GAS Matter Environment permeability only if TE-F33 demonstrates a product
+  blocker in the no-same-cell-mixture baseline;
+- TE-2 Air-flow resolution/update cadence only after the full-resolution
+  correctness baseline is measured.
+
+Current disposition: no item blocks TE-1 state/occupancy implementation, but
+none may be silently selected by TE-1.
+
 ## Current pending user-owned choices
 
-No product-scope question blocks G9-A implementation.
+No product-scope question blocks G9-A continuity re-review or TE-1 entry.
 
 Future user decisions occur at the next evidence boundary:
 
 - accept, revise or reject the G9-A user-testable editor/sandbox candidate;
+- close Q-008 items only at their named Thermal Environment gate;
 - authorize later G9-B/C/D progression after that candidate;
 - approve shared `main` promotion;
 - give the final G9/M0 product disposition after direct play.

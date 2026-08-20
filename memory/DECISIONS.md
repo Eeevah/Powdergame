@@ -164,3 +164,15 @@ Scope: Inspector continuity only in the G9-A Windows presentation/readback consu
 Evidence: Direct user re-review on 2026-08-20; reported runtime source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`; reported docs closure `ae49e7c60c29a7c0478215e36fab5010c11d9b3c`.
 
 Invalidated by: A later explicit user disposition after continuity v2 re-review, or an approved thermal architecture decision.
+
+## D-013 · Separate foreground Matter from atmospheric and vacuum Environment — 2026-08-20 (source: direct user TE-0R / TE-0 design-lock authorization)
+
+Decision: Authorize the Thermal Environment foundation design program while leaving production implementation not started. Preserve `EMPTY` as no foreground Matter, but distinguish Atmospheric Empty, Vacuum and out-of-domain Void through a separate Environment Field. Air is not a Material ID, Registry entry, palette Matter, density-displacement Matter, or same-cell mixture. The canonical future state is `air_mass_current/next` plus `air_energy_current/next`; Air temperature and background pressure are derived. Occupied Matter Cells keep Air state canonical zero. Adopt Celsius-like gameplay anchors of about 20 for room temperature, 0 for Water/Ice and 100 for Water/Steam, while requiring one atomic later migration of all current thermal constants and UI labels. Use reuse-first research and import no external code blindly. TE-0 must close design, independent review and reference math before TE-1 runtime work.
+
+Reason: Direct review showed that the no-hidden-Air runtime cannot transport heat through ordinary open space and that threshold-only ignition is not sufficiently legible. A separate mass/energy Environment distinguishes Atmosphere from Vacuum, transports energy with Air amount, preserves One Cell = Max One Matter, and creates a common-rule foundation for later open-space cooling, condensation, sealed heating and Vacuum experiments without inventing an Air Matter or CFD solver.
+
+Scope: Thermal Environment TE-0R/TE-0/TE-0A/TE-0B on `feature/m0-g9-first-playable`. This closes the architecture choice that D-012 intentionally left open and supersedes the Option A/Option B selection state in `docs/planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`; it does not rewrite D-012. G9-A remains **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**. G9-B/C/D/E, production Thermal Environment, Vacuum tooling, Oxygen, Ash, CFD, optimization, main promotion and M0 closure remain not started or unauthorized.
+
+Evidence: User-provided TE-0 design-lock prompt; `docs/architecture/decisions/ADR-0005-atmosphere-vacuum-environment.md`; verified design package SHA-256 `3f5abcc282881a190a0881499b61f8d00cf782f305354f6b533740ac0d0b9c84`; live production inventory at source `f5c7ac8e76867f769cdf19d7f420432d8fef4509`.
+
+Invalidated by: A later explicit user decision selecting a different Environment ontology or abandoning the Thermal Environment program. Later coefficient, edge, combustion-support, phase and permeability decisions refine this architecture only through their own sequential decision entries.

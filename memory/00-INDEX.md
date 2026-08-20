@@ -23,6 +23,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260819-1357-g8-closed-g9a-next.md`](checkpoints/20260819-1357-g8-closed-g9a-next.md) | Last pre-implementation G9-A return point | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-0931-g9a-first-candidate-reviewed.md`](checkpoints/20260820-0931-g9a-first-candidate-reviewed.md) | First G9-A candidate return point before direct-review remediation | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-1006-g9a-revised-candidate-rereview.md`](checkpoints/20260820-1006-g9a-revised-candidate-rereview.md) | Five-revision G9-A return point before continuity v2 | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260820-1255-g9a-continuity-v2-thermal-planned.md`](checkpoints/20260820-1255-g9a-continuity-v2-thermal-planned.md) | Continuity v2 return point before D-013 and TE-0 design lock | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

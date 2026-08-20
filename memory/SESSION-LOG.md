@@ -105,3 +105,26 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4` separates requested hover from one presented sample, preserves the original Cell/Material/tick/freshness through second/third rapid hovers, keeps one Ready/Held/Sampling panel geometry, hides compact stale identity and atomically replaces with a fresh current-Cell sample. Reset/preset/epoch/failure invalidation remains immediate; readback stays 24 bytes at most 10 Hz.
 - Focused validation passed: Inspector `11/11`, Inspector UI `3/3`, affected check/clippy, strict audit and exactly one 3-frame release Sandbox bounded launch check. EXE SHA-256 `5062f0cb0ac9f23828765ce6c2fe2c2137caaa2f055c1c4fcfd9fb0cf7f177d5`; FULL `0`.
 - No engine/Core/WGSL/shared Simulation/fixture change and no G8 rerun occurred. Thermal implementation and G9-B/C/D/E remain not started.
+
+## 2026-08-20 · Thermal Environment TE-0 design lock
+
+- D-013 selected a separate full-resolution Air mass/energy Environment Field,
+  exact Atmosphere/Vacuum/EMPTY/Void meanings and Celsius-like product anchors;
+  current runtime values and behavior remain unchanged.
+- TE-0R surveyed internal reuse and exact external prior art with copied
+  external code count `0`. The design package SHA-256 is
+  `3f5abcc282881a190a0881499b61f8d00cf782f305354f6b533740ac0d0b9c84`.
+- Production inventory pinned 17 existing passes, the eight-storage ceiling,
+  writer/scratch lifetimes, every known occupancy path and a correctness memory
+  baseline of `268,462,208` bytes at 2048² including one receiver scratch.
+- Independent TE-0A review initially found seven High defects. The canonical
+  design resolved all seven; final recheck was Critical `0`, High `0`, blocker
+  `0`.
+- The reference formula proof ran exactly once with seed `1413820466` and
+  40,000 randomized trials; maximum error was
+  `7.275957614183426e-12`, result `PASS_REFERENCE_MATH_ONLY`.
+- Docs source commit `2591dd5196752ca0caa4a69029dd04a9eee76744` records ADR-0005, spec, validation, gates,
+  inventory, research and adversarial review. TE-1 is READY / NOT STARTED.
+  G9-A remains USER RE-REVIEW PENDING; G9-B/C/D/E remain not started.
+- No Rust/WGSL/Cargo/runtime/fixture change, Cargo test, GPU/FULL/build, bounded
+  launch, candidate or capture ran.

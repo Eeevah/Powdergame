@@ -1,43 +1,76 @@
-# Checkpoint — continuity v2 awaits user re-review; thermal design is planned — 2026-08-20 10:06 KST
+# Checkpoint — Thermal Environment design locked; TE-1 ready and not started — 2026-08-20 13:10 KST
 
 ## Repository coordinate
 
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- HEAD: `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`
-- Working tree: expected docs and Ballast closure for the tested source; live Git wins if this note is stale
+- HEAD: `2591dd5196752ca0caa4a69029dd04a9eee76744` docs architecture commit; live Git wins if this checkpoint is stale
+- Working tree: expected Ballast closure files only until the memory commit; final target is clean and upstream-equal
 
 ## The story so far
 
-G8 remains closed/frozen and optimization remains deferred. The five-revision G9-A build was directly re-reviewed: Draw/Ice/Steam/palette/Heat-Cool changes were present, but rapid Cell movement still caused Inspector on/off flicker. D-012 records **USER RE-REVIEWED / REVISION REQUIRED** without claiming acceptance. Source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4` implements Inspector continuity v2 only.
+G8 is closed/frozen. G9-A continuity v2 remains **REVISED IMPLEMENTATION
+CANDIDATE / USER RE-REVIEW PENDING** at runtime source
+`a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; no user acceptance was inferred.
 
-Requested hover and presented sample are now separate. One previous sample retains its original Cell, Material, sample tick, diagnostic sequence and freshness across second/third rapid hovers for a single 150 ms deadline. It is labelled `Previous sample`; compact tooltip remains hidden until a fresh current-Cell sample atomically replaces the panel. After timeout, the same-size detailed shell shows Sampling. Reset, preset, world epoch and readback failure clear the held sample immediately. The collector remains one persistent 24-byte batch at most 10 Hz.
+D-013 closes the Thermal Environment ontology before code. Foreground EMPTY,
+Atmosphere, Vacuum and Void are distinct. Air is a full-resolution mass/energy
+Environment Field, not Matter. The correctness baseline has four Air
+Current/Next buffers plus one `u32` receiver-claim scratch. Occupancy changes
+use bounded reconcile/joint settle and the eight-storage ceiling. The
+Celsius-like product anchors migrate atomically in a later gate.
 
-Thermal Transport & Ignition Causality is registered as **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED** and a G9-B prerequisite. Current EMPTY/no-hidden-Air, four-neighbor direct-contact transport and immediate threshold ignition are unchanged. Option A existing-field ambient, Option B separate ambient field, and ignition exposure/dose remain open design choices.
+TE-0R reuse research, TE-0 canonical design, TE-0A independent review and
+TE-0B reference math are complete. Independent review first found seven High
+defects; the final recheck confirmed Critical 0 / High 0 / blocker 0 after the
+design locked transactional spawn displacement, whole-parcel headroom,
+exact-zero Vacuum, coefficient domains, bilateral sleep/wake cohorts, flag
+hygiene and a sealed TE-2 reference edge. Production runtime is unchanged.
 
 ## Valid evidence
 
-- Inspector continuity v2 validation — source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; valid while engine/Core, production WGSL, fixtures, Cargo graph and shared Simulation state remain unchanged: Inspector tests `11/11`, Inspector UI tests `3/3`, fmt, affected all-target check, denied-warning clippy, strict policy audit and diff-check PASS.
-- Canonical release bounded launch check — source `a00e39b...`; `target/release/powdergame-windows.exe`; SHA-256 `5062f0cb0ac9f23828765ce6c2fe2c2137caaa2f055c1c4fcfd9fb0cf7f177d5`; 9,875,456 bytes; `run_powdergame.bat sandbox --smoke-frames 3`; RTX 5090 / DX12; exit `0`. This proves startup/routing only, not user acceptance.
-- Prior source `b363c078...` full Windows suite evidence remains useful for unchanged Sandbox/editor/routing paths; continuity v2 changed only Inspector and text UI, which received the focused replacement checks above.
-- G8-C official Matrix `g8c-official-matrix-4653d7c2e09e-64df60ba0d79` remains valid under its sealed identity; no G8 candidate or Matrix was rerun.
+- TE-0 docs source `2591dd5196752ca0caa4a69029dd04a9eee76744` — valid while the ADR/spec/inventory/review files
+  remain unchanged; strict policy audit, Markdown/link/index/JSON/secret checks
+  and diff-check passed.
+- TE-0.2 reference proof — package SHA-256
+  `3f5abcc282881a190a0881499b61f8d00cf782f305354f6b533740ac0d0b9c84`,
+  seed `1413820466`, 40,000 randomized trials, maximum numerical error
+  `7.275957614183426e-12`, result `PASS_REFERENCE_MATH_ONLY`. It does not prove
+  WGSL, GPU ordering/races, bindings, sleep, performance, fun or acceptance.
+- G9-A continuity v2 runtime evidence remains attached to source
+  `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; this docs/memory work does not
+  invalidate or extend it.
 
 ## Decided
 
 - D-007 — G8 is closed/frozen.
-- D-010 — canonical no-argument BAT/EXE launch opens Sandbox; Gallery is explicit.
-- D-011 — first review required five bounded G9-A revisions.
-- D-012 — re-review still requires Inspector continuity v2; thermal causality is a planned G9-B prerequisite, not an implementation authorization.
+- D-010 — canonical no-argument launch opens Sandbox; Gallery stays explicit.
+- D-012 — G9-A re-review still requires continuity v2; no acceptance verdict.
+- D-013 — separate foreground Matter from atmospheric/vacuum Environment and
+  adopt Air mass/energy plus reuse-first design.
 
 ## Waiting on the user
 
-Re-review Inspector continuity v2 during rapid movement. Thermal architecture selection remains a separate future decision. G9-B/C/D/E remain blocked and not started.
+- Re-review G9-A continuity v2 and accept, revise or reject it.
+- Authorize TE-1 as a separate implementation task if desired.
+- Q-008 decisions remain later-gate owned and do not block TE-1.
 
 ## Next first action
 
-Double-click `C:\Users\mdkap\source\repos\Powdergame-g8b\run_powdergame.bat`, enable detailed Inspector with `I`, and sweep rapidly across Cells to verify stable Ready/Previous sample/Sampling transitions.
+On an explicit TE-1 task, verify the clean pushed docs source, then open
+`docs/planning/THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md` and execute only
+the TE-1 entry checklist; do not start TE-2.
 
 ## Tried
 
-- Identity-only grace derived only from `latest_sample` was lost on the second hover change and shrank the panel; continuity v2 replaces that coupling with a persistent presented sample and one fixed panel geometry.
-- Workspace FULL was not run because the change stayed in app-local Inspector/text presentation; engine/Core/WGSL/shared Simulation/fixture paths were untouched.
+- The package's proposed no-scratch spawn receiver was rejected because the
+  original ownership claim remains live. The locked design pays one explicit
+  `u32` scratch and uses a paired commit/block transaction.
+- Independent review initially rejected TE-1 with seven High findings. A first
+  revision left receiver-failure phase pressure ambiguous; the final revision
+  pinned a mandatory seven-storage pass, settle order and exactly-once fixture.
+- The local personal-infra Wiki checkout had user changes and could not
+  fast-forward safely. Remote `origin/main` object `b8c22c1...` was fetched and
+  read as authority; no Wiki file was modified.
+- No Rust, WGSL, Cargo, fixture, runtime, build, GPU, FULL, bounded launch,
+  candidate or capture command ran in TE-0.

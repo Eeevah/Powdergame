@@ -220,3 +220,7 @@ Automated validation may establish editor correctness, edit hygiene, input mappi
 It cannot establish whether the sandbox is fun, understandable or motivating. G9 advances to final product validation only through direct user play.
 
 Existing exact-source G8 evidence is not rerun because this product brief or other docs/memory files changed.
+
+## 13. First candidate user review disposition
+
+The first G9-A candidate was **USER REVIEWED / REVISION REQUIRED**. The authorized revision is limited to five interaction details: Draw fills EMPTY Cells only; Ice and Steam placement starts from stable phase-safe defaults; the always-available palette separates Generated and Advanced entries from Core choices; Inspector continuity may hold only the explicitly identified prior Cell/Material for 100–200 ms without reusing stale fields; and Heat/Cool receives presentation-only brush/application feedback. Source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06` implements that bounded revision and returns G9-A to **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**. It does not authorize G9-B/C/D/E or any non-goal above.

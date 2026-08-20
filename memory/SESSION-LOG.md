@@ -89,3 +89,11 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - User feedback established D-010: canonical BAT/EXE no-argument launch now opens Starter Lab Sandbox; explicit `gallery`/`normal` preserves G8-B.
 - Source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` passed default and explicit-route tests, affected check/clippy, strict launcher audit and a no-mode 3-frame release bounded launch check. The rebuilt canonical EXE SHA-256 is `9e809342074c313c79a1080a89b9aa6e84e0e39238b4c8d9aa1368ad8bc72f3c`.
 - Candidate remains **USER ACCEPTANCE PENDING**; no later G9 slice or optimization started.
+
+## 2026-08-20 · G9-A direct-review remediation candidate
+
+- Direct review classified the first candidate **USER REVIEWED / REVISION REQUIRED** and established D-011 with exactly five authorized changes.
+- Source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06` makes Draw EMPTY-only, gives direct Ice/Steam placement -30°C/80°C defaults, groups all nine visible Matter as Core/Generated/Advanced, adds a 150 ms identity-only Inspector grace, and adds camera-aligned presentation-only Heat/Cool feedback.
+- GPU authority, Current/Next ordering, touched/halo wake, Inspector 24-byte/10-Hz sampling, Gallery/worker/G8-C routing and all G8 evidence remain unchanged.
+- Validation passed: fmt; Windows suite `150 passed / 0 failed / 1 ignored`; affected check/clippy; strict audit; and one canonical release Sandbox 3-frame bounded launch check on RTX 5090/DX12. The EXE SHA-256 is `26512598746c21858a81c85a2e4f8f2635e2e1deed6c1ebff661bc2810a126d1`. FULL ran `0` times.
+- Status is **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**. G9-B/C/D/E, Ash, Discovery, Save/Load, Rewind, optimization, main promotion, PR creation and M0 closure remain not started.

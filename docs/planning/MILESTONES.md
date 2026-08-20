@@ -441,7 +441,7 @@ G9는 고정 fixture를 구경하는 마지막 승인 절차가 아니다.
 
 ### G9-A — Sandbox Interaction
 
-Current status: **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** at source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. Automated checks and the bounded launch check establish implementation integrity only; the evidence below remains open until direct user play accepts the experience.
+Current status: **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** at source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`. The first candidate was **USER REVIEWED / REVISION REQUIRED**. The revision is limited to EMPTY-only Draw, stable Ice/Steam placement defaults, Core/Generated/Advanced palette grouping, a 150 ms identity-only Inspector grace, and presentation-only Heat/Cool brush feedback. Canonical no-argument launch opens the Sandbox; explicit Gallery remains available. Automated checks and the bounded launch check establish implementation integrity only; G9-A remains open until direct user re-review accepts the experience.
 
 Required evidence:
 

@@ -14,7 +14,7 @@
 | G8-B Benchmark Scenario Suite | **CLOSED / FROZEN** — 다섯 official scenario와 Cell Inspector v0 사용자 승인 완료 |
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
-| G9-A First Playable Sandbox | **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING** — source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` |
+| G9-A First Playable Sandbox | **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** — source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06` |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -25,7 +25,7 @@
 - G8-B closure: `18391e6a9fc8f9bc7b2757f3504366f106c05435`
 - Legacy launcher retirement: `8ee1ae238c324c1db1d7e2882af071fec179a8f1`
 - Current implementation line: `feature/m0-g9-first-playable`
-- G9-A tested source: `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`
+- G9-A revised tested source: `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -125,10 +125,11 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 - tools: nine canonical M0 Matter, Draw, Erase, four brush sizes, Heat, Cool, Pause/Play, Single Step, x1/x4/x16, Reset, Pan, Zoom and existing Cell Inspector;
 - edit boundary: bounded/coalesced command batch before simulation ticks, exact Current/Next hygiene, affected chunk plus clipped neighbor halo wake, no CPU world truth or pointer-driven full-world readback;
 - camera: one finite physical-pixel transform shared by rendering, picking and Inspector hover;
-- validation: edit-core source `f9a7087...` Windows suite `149 passed / 0 failed / 1 ignored` and exact scenario reset `1/1`; launch remediation source `0d03daf...` default/explicit-route tests, affected check/clippy, strict policy audit and one no-mode 3-frame release Sandbox bounded launch check all pass;
+- direct review remediation: Draw is EMPTY-only; Ice/Steam placement defaults are -30°C/80°C; the palette groups Core/Generated/Advanced without hiding any Matter; Inspector grace retains only an explicitly identified prior Cell/Material for 150 ms; Heat/Cool shows camera-aligned preview/application feedback without adding world truth or readback;
+- validation: revised source `b363c07...` Windows suite `150 passed / 0 failed / 1 ignored`, affected check/clippy, strict policy audit and one explicit Sandbox 3-frame release bounded launch check all pass;
 - FULL: `0` because validation-plan classified it recommended, not required, and no engine/Core/fixture/Cargo graph/shared Simulation layout changed.
 
-This is not user acceptance. Direct 10–15 minute control/comprehension review is the next gate.
+This is not user acceptance. The first candidate was **USER REVIEWED / REVISION REQUIRED**; direct re-review of the five remediated interactions is the next gate.
 
 ---
 
@@ -150,13 +151,13 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 다음 행동
 
-1. run `run_powdergame.bat sandbox` and complete the G9-A manual acceptance checklist;
-2. accept, revise or reject the actual editor/sandbox experience;
+1. run `run_powdergame.bat sandbox` and re-review the five revised G9-A interactions;
+2. accept, revise or reject the revised editor/sandbox experience;
 3. do not start G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization before that decision.
 
 ## 아직 별도 결정인 것
 
-- G9-A candidate user acceptance
+- G9-A revised candidate user re-review
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

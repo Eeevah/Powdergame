@@ -1,6 +1,6 @@
 # UI Direction — 세계를 먼저 보고, 디테일은 필요할 때 연다
 
-Status: **PRODUCT DIRECTION / G9-A IMPLEMENTATION CANDIDATE / CELL INSPECTOR V0 CONTRACT**
+Status: **PRODUCT DIRECTION / G9-A REVISED IMPLEMENTATION CANDIDATE / CELL INSPECTOR V0 CONTRACT**
 
 Powdergame UI의 목적은 많은 숫자를 보여주는 것이 아니다.
 
@@ -280,7 +280,7 @@ Overlay는 v0 Inspector를 막지 않는다. 먼저 이름과 Cell detail을 해
 
 First Playable의 기본 HUD는 다음만 상시 유지하는 것을 목표로 한다.
 
-G9-A source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`는 이 계약의 첫 candidate이며 canonical 무인자 launch surface다. 좌측에는 preset/tool/play-state/speed/control hints, 우측에는 canonical Matter name과 현재 selection을 표시한다. Source SHA, benchmark identity, receipt, full counters와 predicate table은 Sandbox HUD에 표시하지 않는다. Hidden/pending Inspector는 계속 silent하며, camera와 picking은 renderer의 동일 physical-pixel transform을 공유한다. Candidate는 **USER ACCEPTANCE PENDING**이다.
+G9-A source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`는 direct user review의 다섯 revision을 반영한 canonical 무인자 launch surface다. 좌측에는 preset/tool/play-state/speed/control hints, 우측에는 canonical Matter name과 현재 selection을 표시한다. Palette는 `CORE`, `GENERATED`, `ADVANCED` heading으로 phase/reaction product와 Boundary 편집을 기본 재료에서 구분하지만 모든 Matter는 계속 처음부터 usable하다. Heat/Cool은 renderer/picking과 같은 physical-pixel transform에서 brush outline, applying fill, 180 ms committed pulse를 표시하며 simulation truth나 readback을 추가하지 않는다. Source SHA, benchmark identity, receipt, full counters와 predicate table은 Sandbox HUD에 표시하지 않는다. Inspector는 normal pending에서 silent를 유지하되 새 Cell을 기다리는 최대 150 ms 동안 이전 Cell/Material identity만 명시적으로 보여줄 수 있고 이전 field 값은 표시하지 않는다. Candidate는 **USER RE-REVIEW PENDING**이다.
 
 - 현재 선택한 Material/도구
 - brush size

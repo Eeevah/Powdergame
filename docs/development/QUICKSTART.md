@@ -17,7 +17,7 @@ automated scenario evidence; do not add a Gate-specific executable or launcher.
 - G8-A: verified official capture; separate historical visual requirement formally superseded without relabeling the old capture
 - G8-B: five official scenarios and Cell Inspector user accepted; **CLOSED / FROZEN**; automatic verdicts and immutable artifacts unchanged
 - G8-C: official A/B/C/D Matrix independently reconstructed with mismatch `0`; recommendation `PROCEED_TO_G9`
-- G9-A: source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`, **IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**
+- G9-A: source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06`, **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**
 - G9-B/C/D/E and optimization: **NOT STARTED**
 - Current work line: `feature/m0-g9-first-playable`; shared `main` promotion requires explicit user direction
 
@@ -36,7 +36,7 @@ The preserved correction was attached without reset/stash/rebase/pull to `fix/g8
 run_powdergame.bat sandbox
 ```
 
-The root BAT may also be double-clicked with no arguments; the canonical EXE itself defaults to the same Sandbox. Compatibility alias: `run_powdergame.bat play`. Explicit `run_powdergame.bat gallery` retains G8-B. Controls: left drag selected tool, right drag Erase, middle drag Pan, wheel Zoom, Shift+wheel brush size; `1`–`9` Matter, `D/E/H/C` tools, `SPACE` pause/play, `N` single step, `F` speed, `R` current preset reset, `L/B` Starter/Blank, `I` Inspector, `ESC` quit.
+The root BAT may also be double-clicked with no arguments; the canonical EXE itself defaults to the same Sandbox. Compatibility alias: `run_powdergame.bat play`. Explicit `run_powdergame.bat gallery` retains G8-B. Controls: left drag selected tool, right drag Erase, middle drag Pan, wheel Zoom, Shift+wheel brush size; `1` Stone, `2` Sand, `3` Water, `4` Wood, `5` Oil, `6` Ice, `7` Steam, `8` Smoke, `9` Boundary Block; `D/E/H/C` tools, `SPACE` pause/play, `N` single step, `F` speed, `R` current preset reset, `L/B` Starter/Blank, `I` Inspector, `ESC` quit. Draw affects EMPTY Cells only. Ice/Steam placement starts at -30°C/80°C; Heat/Cool changes non-EMPTY Matter by +25°C/-25°C and shows presentation-only brush feedback.
 
 ## Run the G8-B inspection Gallery
 

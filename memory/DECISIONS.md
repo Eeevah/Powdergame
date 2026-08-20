@@ -140,3 +140,15 @@ Scope: G9-A launch UX on `feature/m0-g9-first-playable`. This refines D-006 with
 Evidence: Direct user feedback “run bat 실행했는데 g8이랑 똑같잖아” and “실행파일을 만들어놓으라고 했잖아”; source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`; no-mode 3-frame release bounded launch check on the canonical EXE.
 
 Invalidated by: A later explicit user decision selecting a different canonical default after direct product review.
+
+## D-011 · Revise the first G9-A candidate after direct user review — 2026-08-20 (source: direct user review handover)
+
+Decision: Record G9-A as **USER REVIEWED / REVISION REQUIRED** and revise only five user-identified interaction details: Draw writes only to EMPTY cells; direct Ice and Steam placement uses stable phase-safe default temperatures; the always-available nine-Matter palette separates Generated and Advanced entries from the core choices; the Inspector may retain only explicitly identified prior Cell/Material identity for a bounded 100–200 ms grace period while fresh data is pending and must not reuse old field values as current; Heat/Cool gain presentation-only brush/application feedback derived from the existing tool command and camera transform.
+
+Reason: The canonical Sandbox executable was directly reviewed and the editor core worked, but these five details made placement, palette comprehension, Inspector continuity and thermal-tool feedback less clear than required for acceptance.
+
+Scope: G9-A remediation on `feature/m0-g9-first-playable`. Completion returns to **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**. G9-B/C/D/E, Ash, Discovery, Save/Load, Rewind, optimization, `main` promotion, PR creation and M0 closure remain not started or unauthorized.
+
+Evidence: Direct user handover on 2026-08-20; last validated runtime implementation source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9`.
+
+Invalidated by: A later explicit user re-review disposition or a superseding interaction contract.

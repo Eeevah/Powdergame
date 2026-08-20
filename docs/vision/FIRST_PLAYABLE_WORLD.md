@@ -1,6 +1,6 @@
 # First Playable World — 첫 5분 제품 계약
 
-Status: **G9-A IMPLEMENTATION CANDIDATE / USER ACCEPTANCE PENDING**
+Status: **G9-A REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**
 
 이 문서는 첫 플레이어가 Powdergame을 켠 뒤 약 5분 동안 무엇을 하고, 무엇을 이해하고, 어떤 다음 질문을 떠올려야 하는지 정의한다.
 
@@ -215,11 +215,11 @@ First Playable World는 Benchmark Gallery를 그대로 편집 가능하게 만�
 
 ### G9-A implementation candidate
 
-Source `0d03dafbb4bc6375adc10c8b819db6c0bc232db9` implements a distinct Sandbox product surface inside the canonical Windows EXE. The canonical no-argument BAT/EXE launch opens this surface, while the frozen Gallery remains explicit. It starts with a mostly empty, fully editable Starter Lab or an immediate Boundary/EMPTY Blank World. All nine current Matter are visible; Draw/Erase/Heat/Cool, bounded brush sizes, simulation controls, Pan/Zoom and Cell Inspector operate against the same production GPU world.
+Source `b363c078fdc1d7e8b54fa6be328b7a0c5b908f06` is the revised Sandbox product surface inside the canonical Windows EXE. The canonical no-argument BAT/EXE launch opens this surface, while the frozen Gallery remains explicit. It starts with a mostly empty, fully editable Starter Lab or an immediate Boundary/EMPTY Blank World. All nine current Matter remain visible and usable. Core choices are Stone/Sand/Water/Wood/Oil, Generated choices are Ice/Steam/Smoke, and Boundary Block is Advanced. Draw fills only EMPTY Cells; Ice and Steam placement starts at -30°C and 80°C. Heat/Cool uses the same camera transform to show its brush and application pulse without creating simulation truth. The Inspector may retain only the previous Cell/Material identity for 150 ms while a new sample is pending and never presents old Temperature, Pressure, Activity or flags as current.
 
 Starter Lab intentionally avoids five benchmark panels: a Stone foundation supports one open left basin with Water and Sand, a central Wood bridge, and one open right cup with Oil and Ice, while more than 75% of the world remains empty for player-built experiments. It has no authored heat, pressure, flags, scripted outcome or automatic progression.
 
-The candidate passed automated integrity and one bounded launch check. It has not passed the user questions below. G9-B/C/D/E remain **NOT STARTED**.
+The first candidate was directly reviewed and required these five revisions. The revised candidate passed automated integrity and one bounded launch check, but has not passed user re-review. G9-B/C/D/E remain **NOT STARTED**.
 
 ---
 

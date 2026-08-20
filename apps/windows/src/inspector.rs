@@ -20,7 +20,7 @@ use powdergame_gpu::Simulation;
 const FIELD_BYTES: u64 = 4;
 pub(crate) const INSPECTOR_READBACK_BYTES: u64 = FIELD_BYTES * 6;
 pub(crate) const INSPECTOR_SAMPLE_INTERVAL: Duration = Duration::from_millis(100);
-pub(crate) const INSPECTOR_IDENTITY_GRACE: Duration = Duration::from_millis(150);
+pub(crate) const INSPECTOR_SAMPLE_HOLD: Duration = Duration::from_millis(150);
 
 const MATERIAL_OFFSET: u64 = 0;
 const TEMPERATURE_OFFSET: u64 = 4;
@@ -181,6 +181,7 @@ pub(crate) struct CellInspectorSample {
     pub simulation_tick: u64,
     pub diagnostic_sequence: u64,
     pub request_generation: u64,
+    pub selection_generation: u64,
     pub world_epoch: u64,
     completed_at: Instant,
 }
@@ -200,6 +201,7 @@ impl CellInspectorSample {
             simulation_tick: 7412,
             diagnostic_sequence: 928,
             request_generation: 4,
+            selection_generation: 3,
             world_epoch: 2,
             completed_at: Instant::now(),
         }
@@ -209,16 +211,10 @@ impl CellInspectorSample {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum InspectorDisplayState {
     Hidden,
-    Pending,
-    IdentityGrace,
+    Sampling,
+    Held,
     Ready,
     Failed,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct InspectorIdentityGrace {
-    pub cell: CellCoordinate,
-    pub material_id: u32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -227,7 +223,6 @@ pub(crate) struct InspectorHudData {
     pub details_visible: bool,
     pub hovered_cell: Option<CellCoordinate>,
     pub sample: Option<CellInspectorSample>,
-    pub identity_grace: Option<InspectorIdentityGrace>,
     pub error_message: Option<String>,
     pub current_simulation_tick: u64,
     pub sample_age_ticks: Option<u64>,
@@ -238,8 +233,8 @@ pub(crate) struct InspectorHudData {
 fn inspector_display_state(
     hovered_cell: Option<CellCoordinate>,
     world_ready: bool,
-    has_matching_sample: bool,
-    has_identity_grace: bool,
+    has_current_sample: bool,
+    has_held_sample: bool,
     has_readback_failure: bool,
 ) -> InspectorDisplayState {
     if hovered_cell.is_none() {
@@ -247,13 +242,13 @@ fn inspector_display_state(
     } else if has_readback_failure {
         InspectorDisplayState::Failed
     } else if !world_ready {
-        InspectorDisplayState::Pending
-    } else if has_matching_sample {
+        InspectorDisplayState::Sampling
+    } else if has_current_sample {
         InspectorDisplayState::Ready
-    } else if has_identity_grace {
-        InspectorDisplayState::IdentityGrace
+    } else if has_held_sample {
+        InspectorDisplayState::Held
     } else {
-        InspectorDisplayState::Pending
+        InspectorDisplayState::Sampling
     }
 }
 
@@ -516,8 +511,8 @@ pub(crate) struct CellInspectorCollector {
     staging: wgpu::Buffer,
     pending: Option<PendingReadback>,
     hovered_cell: Option<CellCoordinate>,
-    latest_sample: Option<CellInspectorSample>,
-    identity_grace: Option<(InspectorIdentityGrace, Instant)>,
+    presented_sample: Option<CellInspectorSample>,
+    hold_expires_at: Option<Instant>,
     details_visible: bool,
     world_ready: bool,
     failure_message: Option<String>,
@@ -543,8 +538,8 @@ impl CellInspectorCollector {
             staging,
             pending: None,
             hovered_cell: None,
-            latest_sample: None,
-            identity_grace: None,
+            presented_sample: None,
+            hold_expires_at: None,
             details_visible: false,
             world_ready: true,
             failure_message: None,
@@ -564,23 +559,33 @@ impl CellInspectorCollector {
         if self.hovered_cell == hovered_cell {
             return;
         }
-        self.identity_grace = if hovered_cell.is_some() && self.world_ready {
-            self.latest_sample.as_ref().and_then(|sample| {
-                (Some(sample.cell) == self.hovered_cell && sample.world_epoch == self.world_epoch)
-                    .then_some((
-                        InspectorIdentityGrace {
-                            cell: sample.cell,
-                            material_id: sample.material_id,
-                        },
-                        now + INSPECTOR_IDENTITY_GRACE,
-                    ))
-            })
-        } else {
-            None
-        };
+        let previous_hover = self.hovered_cell;
         self.hovered_cell = hovered_cell;
         self.selection_generation = self.selection_generation.wrapping_add(1);
-        self.latest_sample = None;
+
+        if hovered_cell.is_none() || !self.world_ready {
+            self.presented_sample = None;
+            self.hold_expires_at = None;
+            return;
+        }
+
+        let Some(sample) = self.presented_sample.as_ref() else {
+            self.hold_expires_at = None;
+            return;
+        };
+        if sample.world_epoch != self.world_epoch {
+            self.presented_sample = None;
+            self.hold_expires_at = None;
+        } else if Some(sample.cell) == hovered_cell
+            && sample.selection_generation == self.selection_generation
+        {
+            self.hold_expires_at = None;
+        } else if Some(sample.cell) == previous_hover {
+            // Start one bounded hold when leaving the Cell that produced the
+            // presented sample. Further rapid hover changes preserve this
+            // sample and deadline rather than alternating through Sampling.
+            self.hold_expires_at = Some(now + INSPECTOR_SAMPLE_HOLD);
+        }
     }
 
     pub(crate) fn toggle_details(&mut self) -> bool {
@@ -595,8 +600,8 @@ impl CellInspectorCollector {
     pub(crate) fn mark_ready(&mut self) {
         self.world_ready = true;
         self.failure_message = None;
-        self.latest_sample = None;
-        self.identity_grace = None;
+        self.presented_sample = None;
+        self.hold_expires_at = None;
         self.last_request_at = None;
     }
 
@@ -613,8 +618,8 @@ impl CellInspectorCollector {
         self.selection_generation = self.selection_generation.wrapping_add(1);
         self.world_ready = false;
         self.failure_message = None;
-        self.latest_sample = None;
-        self.identity_grace = None;
+        self.presented_sample = None;
+        self.hold_expires_at = None;
         self.last_request_at = None;
         self.cancel_pending();
     }
@@ -624,8 +629,8 @@ impl CellInspectorCollector {
         self.selection_generation = self.selection_generation.wrapping_add(1);
         self.world_ready = false;
         self.failure_message = Some(format!("Inspector unavailable: {error}"));
-        self.latest_sample = None;
-        self.identity_grace = None;
+        self.presented_sample = None;
+        self.hold_expires_at = None;
         self.last_request_at = None;
         self.cancel_pending();
     }
@@ -636,37 +641,43 @@ impl CellInspectorCollector {
     }
 
     pub(crate) fn hud_data(&self, current_simulation_tick: u64, now: Instant) -> InspectorHudData {
-        let matching_sample = self.latest_sample.as_ref().filter(|sample| {
-            Some(sample.cell) == self.hovered_cell && sample.world_epoch == self.world_epoch
+        let current_sample = self.presented_sample.as_ref().filter(|sample| {
+            Some(sample.cell) == self.hovered_cell
+                && sample.world_epoch == self.world_epoch
+                && sample.selection_generation == self.selection_generation
         });
+        let held_sample = self.presented_sample.as_ref().filter(|sample| {
+            self.hovered_cell.is_some()
+                && current_sample.is_none()
+                && sample.world_epoch == self.world_epoch
+                && self
+                    .hold_expires_at
+                    .is_some_and(|expires_at| now < expires_at)
+        });
+        let displayed_sample = current_sample.or(held_sample);
         let sample_tick_is_future =
-            matching_sample.is_some_and(|sample| sample.simulation_tick > current_simulation_tick);
-        let sample_age_ticks = matching_sample
+            displayed_sample.is_some_and(|sample| sample.simulation_tick > current_simulation_tick);
+        let sample_age_ticks = displayed_sample
             .and_then(|sample| current_simulation_tick.checked_sub(sample.simulation_tick));
-        let sample_age_millis = matching_sample.map(|sample| {
+        let sample_age_millis = displayed_sample.map(|sample| {
             u64::try_from(
                 now.saturating_duration_since(sample.completed_at)
                     .as_millis(),
             )
             .unwrap_or(u64::MAX)
         });
-        let identity_grace = self
-            .identity_grace
-            .filter(|(_, expires_at)| now < *expires_at)
-            .map(|(identity, _)| identity);
         let display_state = inspector_display_state(
             self.hovered_cell,
             self.world_ready,
-            matching_sample.is_some(),
-            identity_grace.is_some(),
+            current_sample.is_some(),
+            held_sample.is_some(),
             self.failure_message.is_some(),
         );
         InspectorHudData {
             display_state,
             details_visible: self.details_visible,
             hovered_cell: self.hovered_cell,
-            sample: matching_sample.cloned(),
-            identity_grace,
+            sample: displayed_sample.cloned(),
             error_message: self.failure_message.clone(),
             current_simulation_tick,
             sample_age_ticks,
@@ -692,9 +703,10 @@ impl CellInspectorCollector {
         if !self.world_ready || self.pending.is_some() {
             return Ok(());
         }
-        let needs_sample = self.latest_sample.as_ref().is_none_or(|sample| {
+        let needs_sample = self.presented_sample.as_ref().is_none_or(|sample| {
             sample.cell != cell
                 || sample.world_epoch != self.world_epoch
+                || sample.selection_generation != self.selection_generation
                 || sample.simulation_tick != current_simulation_tick
         });
         if !needs_sample {
@@ -859,8 +871,8 @@ impl CellInspectorCollector {
             return Ok(());
         }
         self.completed_sequence = identity.diagnostic_sequence;
-        self.identity_grace = None;
-        self.latest_sample = Some(CellInspectorSample {
+        self.hold_expires_at = None;
+        self.presented_sample = Some(CellInspectorSample {
             cell: identity.cell,
             chunk: identity.chunk,
             material_id,
@@ -872,6 +884,7 @@ impl CellInspectorCollector {
             simulation_tick: identity.simulation_tick,
             diagnostic_sequence: identity.diagnostic_sequence,
             request_generation: identity.request_generation,
+            selection_generation: identity.selection_generation,
             world_epoch: identity.world_epoch,
             completed_at: now,
         });
@@ -1023,7 +1036,6 @@ mod tests {
             details_visible: true,
             hovered_cell: Some(CellCoordinate { x: 1, y: 2 }),
             sample: Some(sample(MATERIAL_WATER, 0)),
-            identity_grace: None,
             error_message: None,
             current_simulation_tick: 7412,
             sample_age_ticks: Some(0),
@@ -1047,7 +1059,7 @@ mod tests {
     }
 
     #[test]
-    fn presentation_state_separates_silent_pending_from_readback_failure() {
+    fn presentation_state_separates_sampling_held_ready_and_failure() {
         let cell = Some(CellCoordinate { x: 7, y: 9 });
         assert_eq!(
             inspector_display_state(None, true, false, false, false),
@@ -1055,11 +1067,11 @@ mod tests {
         );
         assert_eq!(
             inspector_display_state(cell, true, false, false, false),
-            InspectorDisplayState::Pending
+            InspectorDisplayState::Sampling
         );
         assert_eq!(
             inspector_display_state(cell, false, false, true, false),
-            InspectorDisplayState::Pending
+            InspectorDisplayState::Sampling
         );
         assert_eq!(
             inspector_display_state(cell, true, true, false, false),
@@ -1075,7 +1087,7 @@ mod tests {
         );
         assert_eq!(
             inspector_display_state(cell, true, false, true, false),
-            InspectorDisplayState::IdentityGrace
+            InspectorDisplayState::Held
         );
     }
 
@@ -1083,7 +1095,7 @@ mod tests {
     fn readback_contract_is_one_mapped_batch_of_six_four_byte_fields() {
         assert_eq!(INSPECTOR_READBACK_BYTES, 24);
         assert_eq!(INSPECTOR_SAMPLE_INTERVAL, Duration::from_millis(100));
-        assert_eq!(INSPECTOR_IDENTITY_GRACE, Duration::from_millis(150));
+        assert_eq!(INSPECTOR_SAMPLE_HOLD, Duration::from_millis(150));
         let config = WorldConfig::new(128, 128, 64).expect("world config");
         let cell = CellCoordinate { x: 70, y: 90 };
         let (chunk, plan) = readback_copy_plan(&config, cell).expect("copy plan");
@@ -1187,7 +1199,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_collector_reads_one_identity_discards_stale_and_reuses_after_reset() {
+    fn gpu_collector_holds_one_presented_sample_across_rapid_hovers_and_reuses_after_reset() {
         #[derive(Clone, Copy)]
         struct ProbeValues {
             material: u32,
@@ -1248,6 +1260,7 @@ mod tests {
         let first = CellCoordinate { x: 70, y: 90 };
         let second = CellCoordinate { x: 12, y: 34 };
         let third = CellCoordinate { x: 96, y: 17 };
+        let fourth = CellCoordinate { x: 31, y: 77 };
         let wood_flags = with_fuel_progress(FLAG_COMBUSTING | FLAG_FLAME_EVENT, 438);
         write_probe(
             &simulation,
@@ -1285,6 +1298,18 @@ mod tests {
                 chunk_state: CHUNK_STATE_RUNNABLE,
             },
         );
+        write_probe(
+            &simulation,
+            fourth,
+            ProbeValues {
+                material: MATERIAL_STONE,
+                temperature: 33.0,
+                pressure: 4.0,
+                flags: 0,
+                activity: ACTIVITY_THERMAL,
+                chunk_state: CHUNK_STATE_RUNNABLE,
+            },
+        );
 
         let started = Instant::now();
         let mut collector = CellInspectorCollector::new(&simulation);
@@ -1295,7 +1320,7 @@ mod tests {
         let initial_pending = collector.hud_data(0, started);
         assert_eq!(
             initial_pending.display_state,
-            InspectorDisplayState::Pending
+            InspectorDisplayState::Sampling
         );
         assert!(initial_pending.details_visible);
         assert!(initial_pending.sample.is_none());
@@ -1318,7 +1343,10 @@ mod tests {
         collector
             .update(&simulation, 0, started + Duration::from_millis(1))
             .expect("map success");
-        let sample = collector.latest_sample.as_ref().expect("published sample");
+        let sample = collector
+            .presented_sample
+            .as_ref()
+            .expect("published sample");
         assert_eq!(sample.cell, first);
         assert_eq!(sample.chunk, CellCoordinate { x: 1, y: 1 });
         assert_eq!(sample.material_id, MATERIAL_WOOD);
@@ -1347,28 +1375,38 @@ mod tests {
         // A request may finish after hover changes, but its old identity must
         // never be published for the new Cell.
         collector.set_hover_at(Some(second), started + Duration::from_millis(102));
-        let grace = collector.hud_data(8, started + Duration::from_millis(103));
-        assert_eq!(grace.display_state, InspectorDisplayState::IdentityGrace);
-        assert!(grace.sample.is_none(), "grace never reuses old field data");
-        assert_eq!(
-            grace.identity_grace,
-            Some(InspectorIdentityGrace {
-                cell: first,
-                material_id: MATERIAL_WOOD,
-            })
-        );
+        let held = collector.hud_data(8, started + Duration::from_millis(103));
+        assert_eq!(held.display_state, InspectorDisplayState::Held);
+        let held_sample = held.sample.as_ref().expect("held presented sample");
+        assert_eq!(held.hovered_cell, Some(second));
+        assert_eq!(held_sample.cell, first);
+        assert_eq!(held_sample.material_id, MATERIAL_WOOD);
+        assert_eq!(held_sample.simulation_tick, 0);
+        assert_eq!(held_sample.diagnostic_sequence, 1);
+        assert_eq!(held.sample_age_ticks, Some(8));
         assert_eq!(
             collector
                 .hud_data(8, started + Duration::from_millis(252))
                 .display_state,
-            InspectorDisplayState::Pending,
-            "the identity-only grace expires at 150 ms"
+            InspectorDisplayState::Sampling,
+            "the presented-sample hold expires at 150 ms"
         );
         assert!(collector.pending.is_some());
         collector.set_hover_at(Some(third), started + Duration::from_millis(104));
+        let third_held = collector.hud_data(8, started + Duration::from_millis(105));
+        assert_eq!(third_held.display_state, InspectorDisplayState::Held);
+        assert_eq!(third_held.hovered_cell, Some(third));
         assert_eq!(
-            collector.hud_data(8, started).display_state,
-            InspectorDisplayState::Pending
+            third_held.sample.as_ref().map(|sample| sample.cell),
+            Some(first)
+        );
+        collector.set_hover_at(Some(fourth), started + Duration::from_millis(106));
+        let fourth_held = collector.hud_data(8, started + Duration::from_millis(107));
+        assert_eq!(fourth_held.display_state, InspectorDisplayState::Held);
+        assert_eq!(fourth_held.hovered_cell, Some(fourth));
+        assert_eq!(
+            fourth_held.sample.as_ref().map(|sample| sample.cell),
+            Some(first)
         );
         simulation
             .context
@@ -1379,11 +1417,13 @@ mod tests {
             .update(&simulation, 8, started + Duration::from_millis(102))
             .expect("stale completion is discarded");
         assert!(collector.pending.is_none());
-        assert!(collector.latest_sample.is_none());
-        assert!(collector.identity_grace.is_none());
+        assert!(collector.presented_sample.is_some());
+        assert!(collector.hold_expires_at.is_some());
         assert_eq!(
-            collector.hud_data(8, started).display_state,
-            InspectorDisplayState::Pending
+            collector
+                .hud_data(8, started + Duration::from_millis(108))
+                .display_state,
+            InspectorDisplayState::Held
         );
         collector
             .update(&simulation, 8, started + Duration::from_millis(202))
@@ -1396,9 +1436,12 @@ mod tests {
         collector
             .update(&simulation, 8, started + Duration::from_millis(203))
             .expect("fresh completion");
-        let sample = collector.latest_sample.as_ref().expect("new Cell sample");
-        assert_eq!(sample.cell, third);
-        assert_eq!(sample.material_id, MATERIAL_SAND);
+        let sample = collector
+            .presented_sample
+            .as_ref()
+            .expect("new Cell sample");
+        assert_eq!(sample.cell, fourth);
+        assert_eq!(sample.material_id, MATERIAL_STONE);
         assert_eq!(sample.simulation_tick, 8);
         assert_eq!(sample.diagnostic_sequence, 2);
         assert_eq!(
@@ -1417,11 +1460,11 @@ mod tests {
         collector.begin_world_change();
         collector.begin_world_change();
         assert!(collector.pending.is_none());
-        assert!(collector.latest_sample.is_none());
-        assert!(collector.identity_grace.is_none());
+        assert!(collector.presented_sample.is_none());
+        assert!(collector.hold_expires_at.is_none());
         assert_eq!(
             collector.hud_data(0, started).display_state,
-            InspectorDisplayState::Pending
+            InspectorDisplayState::Sampling
         );
         let reset_pending = collector.hud_data(0, started);
         assert!(reset_pending.details_visible);
@@ -1429,7 +1472,7 @@ mod tests {
         collector.mark_ready();
         assert_eq!(
             collector.hud_data(0, started).display_state,
-            InspectorDisplayState::Pending
+            InspectorDisplayState::Sampling
         );
         assert!(collector.hud_data(0, started).details_visible);
         collector
@@ -1444,7 +1487,10 @@ mod tests {
         collector
             .update(&simulation, 0, started + Duration::from_millis(304))
             .expect("post-reset completion");
-        let sample = collector.latest_sample.as_ref().expect("post-reset sample");
+        let sample = collector
+            .presented_sample
+            .as_ref()
+            .expect("post-reset sample");
         assert_eq!(sample.cell, first);
         assert_eq!(sample.simulation_tick, 0);
         assert_eq!(sample.world_epoch, collector.world_epoch);
@@ -1460,17 +1506,16 @@ mod tests {
         assert_eq!(failed.display_state, InspectorDisplayState::Failed);
         assert!(failed.details_visible);
         assert!(failed.sample.is_none());
-        assert!(failed.identity_grace.is_none());
         assert!(failed
             .error_message
             .as_deref()
             .is_some_and(|message| message.contains("Inspector map failed: injected")));
 
         collector.mark_unavailable("Inspector unavailable: staging failed");
-        assert!(collector.latest_sample.is_none());
+        assert!(collector.presented_sample.is_none());
         assert_eq!(
             collector.hud_data(0, started).display_state,
-            InspectorDisplayState::Pending
+            InspectorDisplayState::Sampling
         );
         assert!(collector.hud_data(0, started).error_message.is_none());
         collector.shutdown();

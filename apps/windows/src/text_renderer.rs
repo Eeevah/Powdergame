@@ -28,8 +28,8 @@ use crate::sandbox::{
 
 const INSPECTOR_TITLE: &str = "CELL INSPECTOR [I]";
 const INSPECTOR_UNAVAILABLE: &str = "Inspector unavailable";
-const INSPECTOR_FAILURE_PANEL_HEIGHT: f32 = 64.0;
-const INSPECTOR_IDENTITY_GRACE_PANEL_HEIGHT: f32 = 94.0;
+const INSPECTOR_SAMPLING: &str = "Sampling current Cell...";
+const INSPECTOR_PREVIOUS_SAMPLE: &str = "Previous sample - waiting";
 
 fn ascii_only(text: &str) -> String {
     text.chars()
@@ -52,18 +52,59 @@ fn compact_inspector_text(data: &InspectorHudData) -> Option<String> {
             .as_ref()
             .map(compact_sample_label)
             .map(|text| ascii_only(&text)),
-        InspectorDisplayState::IdentityGrace => data.identity_grace.map(|identity| {
-            ascii_only(&format!(
-                "{} | Cell {}, {}",
-                material_display_name(identity.material_id),
-                identity.cell.x,
-                identity.cell.y
-            ))
-        }),
         InspectorDisplayState::Hidden
-        | InspectorDisplayState::Pending
+        | InspectorDisplayState::Sampling
+        | InspectorDisplayState::Held
         | InspectorDisplayState::Failed => None,
     }
+}
+
+fn append_sample_detail_lines(lines: &mut Vec<String>, data: &InspectorHudData, held: bool) {
+    let Some(sample) = data.sample.as_ref() else {
+        return;
+    };
+    if held {
+        lines.push(INSPECTOR_PREVIOUS_SAMPLE.to_string());
+    }
+    let material_name = material_display_name(sample.material_id);
+    lines.push(compact_sample_label(sample));
+    lines.push(format!("Cell: {}, {}", sample.cell.x, sample.cell.y));
+    lines.push(format!(
+        "Material: {} ({})",
+        material_name, sample.material_id
+    ));
+    lines.push(format!(
+        "Temperature: {}",
+        field_display(sample.temperature)
+    ));
+    lines.push(format!("Pressure: {}", field_display(sample.pressure)));
+    lines.push(format!(
+        "Activity: {}",
+        activity_display(sample.cell_activity)
+    ));
+    lines.push(format!(
+        "Chunk: {}, {} | {}",
+        sample.chunk.x,
+        sample.chunk.y,
+        chunk_state_display(sample.chunk_state)
+    ));
+    lines.push(format!(
+        "Flags: {}",
+        flags_display(sample.material_id, sample.flags).unwrap_or_else(|| "None".to_string())
+    ));
+    if let Some(identity) = phase_identity_display(sample.material_id) {
+        lines.push(format!("Phase: {identity}"));
+    }
+    lines.push(format!(
+        "Sample: sim {} | diagnostic {}",
+        sample.simulation_tick, sample.diagnostic_sequence
+    ));
+    let freshness_label = if held {
+        "Last sample freshness"
+    } else {
+        "Freshness"
+    };
+    lines.push(format!("{freshness_label}: {}", freshness_display(data)));
 }
 
 fn inspector_detail_lines(data: &InspectorHudData) -> Vec<String> {
@@ -72,59 +113,11 @@ fn inspector_detail_lines(data: &InspectorHudData) -> Vec<String> {
     }
     let mut lines = Vec::with_capacity(12);
     match data.display_state {
-        InspectorDisplayState::Hidden | InspectorDisplayState::Pending => {}
-        InspectorDisplayState::IdentityGrace => {
-            let Some(identity) = data.identity_grace else {
-                return lines;
-            };
-            lines.push(format!(
-                "{} ({})",
-                material_display_name(identity.material_id),
-                identity.material_id
-            ));
-            lines.push(format!("Cell: {}, {}", identity.cell.x, identity.cell.y));
-        }
+        InspectorDisplayState::Hidden => {}
+        InspectorDisplayState::Sampling => lines.push(INSPECTOR_SAMPLING.to_string()),
+        InspectorDisplayState::Held => append_sample_detail_lines(&mut lines, data, true),
         InspectorDisplayState::Failed => lines.push(INSPECTOR_UNAVAILABLE.to_string()),
-        InspectorDisplayState::Ready => {
-            let Some(sample) = data.sample.as_ref() else {
-                return lines;
-            };
-            let material_name = material_display_name(sample.material_id);
-            lines.push(compact_sample_label(sample));
-            lines.push(format!("Cell: {}, {}", sample.cell.x, sample.cell.y));
-            lines.push(format!(
-                "Material: {} ({})",
-                material_name, sample.material_id
-            ));
-            lines.push(format!(
-                "Temperature: {}",
-                field_display(sample.temperature)
-            ));
-            lines.push(format!("Pressure: {}", field_display(sample.pressure)));
-            lines.push(format!(
-                "Activity: {}",
-                activity_display(sample.cell_activity)
-            ));
-            lines.push(format!(
-                "Chunk: {}, {} | {}",
-                sample.chunk.x,
-                sample.chunk.y,
-                chunk_state_display(sample.chunk_state)
-            ));
-            lines.push(format!(
-                "Flags: {}",
-                flags_display(sample.material_id, sample.flags)
-                    .unwrap_or_else(|| "None".to_string())
-            ));
-            if let Some(identity) = phase_identity_display(sample.material_id) {
-                lines.push(format!("Phase: {identity}"));
-            }
-            lines.push(format!(
-                "Sample: sim {} | diagnostic {}",
-                sample.simulation_tick, sample.diagnostic_sequence
-            ));
-            lines.push(format!("Freshness: {}", freshness_display(data)));
-        }
+        InspectorDisplayState::Ready => append_sample_detail_lines(&mut lines, data, false),
     }
     lines.into_iter().map(|line| ascii_only(&line)).collect()
 }
@@ -133,15 +126,9 @@ fn inspector_detail_panel_rect(
     surface_width: f32,
     surface_height: f32,
     content_top: f32,
-    state: InspectorDisplayState,
+    _state: InspectorDisplayState,
 ) -> Option<ScreenRect> {
-    let mut rect = detail_panel_rect(surface_width, surface_height, content_top)?;
-    if state == InspectorDisplayState::Failed {
-        rect.height = INSPECTOR_FAILURE_PANEL_HEIGHT;
-    } else if state == InspectorDisplayState::IdentityGrace {
-        rect.height = INSPECTOR_IDENTITY_GRACE_PANEL_HEIGHT;
-    }
-    Some(rect)
+    detail_panel_rect(surface_width, surface_height, content_top)
 }
 
 /// Single vertex for the text / UI quad batcher.
@@ -3421,11 +3408,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                         fit_ascii_text(&self.batch, &self.atlas, 12, &line, panel.width - 20.0);
                     let line_color = if index == 0 {
                         match data.display_state {
-                            InspectorDisplayState::Ready | InspectorDisplayState::IdentityGrace => {
-                                value
-                            }
+                            InspectorDisplayState::Ready | InspectorDisplayState::Held => value,
                             InspectorDisplayState::Failed => orange,
-                            InspectorDisplayState::Hidden | InspectorDisplayState::Pending => label,
+                            InspectorDisplayState::Hidden | InspectorDisplayState::Sampling => {
+                                label
+                            }
                         }
                     } else {
                         value
@@ -4114,7 +4101,6 @@ mod tests {
             details_visible: true,
             hovered_cell: None,
             sample: None,
-            identity_grace: None,
             error_message: None,
             current_simulation_tick: 0,
             sample_age_ticks: None,
@@ -4124,8 +4110,14 @@ mod tests {
     }
 
     #[test]
-    fn gallery_inspector_pending_is_silent_and_failed_is_detail_only() {
-        for text in [INSPECTOR_TITLE, INSPECTOR_UNAVAILABLE, GALLERY_CONTROLS] {
+    fn gallery_inspector_sampling_held_and_failed_have_honest_stable_copy() {
+        for text in [
+            INSPECTOR_TITLE,
+            INSPECTOR_UNAVAILABLE,
+            INSPECTOR_SAMPLING,
+            INSPECTOR_PREVIOUS_SAMPLE,
+            GALLERY_CONTROLS,
+        ] {
             assert!(text.is_ascii(), "non-ASCII Inspector copy: {text}");
         }
 
@@ -4133,25 +4125,34 @@ mod tests {
         assert_eq!(compact_inspector_text(&hidden), None);
         assert!(inspector_detail_lines(&hidden).is_empty());
 
-        let mut pending = inspector_hud(InspectorDisplayState::Pending);
-        pending.hovered_cell = Some(crate::inspector::CellCoordinate { x: 7, y: 9 });
-        assert_eq!(compact_inspector_text(&pending), None);
-        assert!(inspector_detail_lines(&pending).is_empty());
+        let mut sampling = inspector_hud(InspectorDisplayState::Sampling);
+        sampling.hovered_cell = Some(crate::inspector::CellCoordinate { x: 7, y: 9 });
+        assert_eq!(compact_inspector_text(&sampling), None);
+        assert_eq!(
+            inspector_detail_lines(&sampling),
+            vec![INSPECTOR_SAMPLING.to_string()]
+        );
 
-        let grace_identity = crate::inspector::InspectorIdentityGrace {
-            cell: crate::inspector::CellCoordinate { x: 4, y: 6 },
-            material_id: powdergame_core::MATERIAL_WATER,
-        };
-        let mut grace = inspector_hud(InspectorDisplayState::IdentityGrace);
-        grace.identity_grace = Some(grace_identity);
+        let held_sample =
+            crate::inspector::CellInspectorSample::fixture(powdergame_core::MATERIAL_WATER, 0);
+        let mut held = inspector_hud(InspectorDisplayState::Held);
+        held.hovered_cell = Some(crate::inspector::CellCoordinate { x: 9, y: 11 });
+        held.sample = Some(held_sample);
+        held.current_simulation_tick = 7420;
+        held.sample_age_ticks = Some(8);
+        held.sample_age_millis = Some(140);
+        assert_eq!(compact_inspector_text(&held), None);
+        let held_lines = inspector_detail_lines(&held);
         assert_eq!(
-            compact_inspector_text(&grace).as_deref(),
-            Some("Water | Cell 4, 6")
+            held_lines.first().map(String::as_str),
+            Some(INSPECTOR_PREVIOUS_SAMPLE)
         );
-        assert_eq!(
-            inspector_detail_lines(&grace),
-            vec!["Water (4)".to_string(), "Cell: 4, 6".to_string()]
-        );
+        assert!(held_lines.contains(&"Cell: 143, 207".to_string()));
+        assert!(held_lines.contains(&"Sample: sim 7412 | diagnostic 928".to_string()));
+        assert!(held_lines.contains(
+            &"Last sample freshness: Latest diagnostic | 8 ticks old | 140 ms".to_string()
+        ));
+        assert!(!held_lines.iter().any(|line| line.contains("9, 11")));
 
         let mut failed = inspector_hud(InspectorDisplayState::Failed);
         failed.error_message = Some("map failed: 승패".to_string());
@@ -4173,7 +4174,6 @@ mod tests {
             details_visible: true,
             hovered_cell: Some(sample.cell),
             sample: Some(sample),
-            identity_grace: None,
             error_message: None,
             current_simulation_tick: 7420,
             sample_age_ticks: Some(8),
@@ -4240,17 +4240,24 @@ mod tests {
             InspectorDisplayState::Failed,
         )
         .unwrap();
-        let grace_panel = inspector_detail_panel_rect(
+        let held_panel = inspector_detail_panel_rect(
             1920.0,
             1080.0,
             existing_rows_bottom,
-            InspectorDisplayState::IdentityGrace,
+            InspectorDisplayState::Held,
+        )
+        .unwrap();
+        let sampling_panel = inspector_detail_panel_rect(
+            1920.0,
+            1080.0,
+            existing_rows_bottom,
+            InspectorDisplayState::Sampling,
         )
         .unwrap();
         assert_eq!(ready_panel, detail);
-        assert_eq!(failed_panel.height, INSPECTOR_FAILURE_PANEL_HEIGHT);
-        assert_eq!(grace_panel.height, INSPECTOR_IDENTITY_GRACE_PANEL_HEIGHT);
-        assert!(failed_panel.height < ready_panel.height);
+        assert_eq!(held_panel, ready_panel);
+        assert_eq!(sampling_panel, ready_panel);
+        assert_eq!(failed_panel, ready_panel);
     }
 
     #[test]

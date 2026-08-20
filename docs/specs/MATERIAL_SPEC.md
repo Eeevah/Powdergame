@@ -362,6 +362,8 @@ Oil
 
 Fire/Combustion은 phenomenon/state.
 
+Air도 Matter가 아니다. ADR-0005의 future Atmosphere/Vacuum Air는 `air_mass`/`air_energy` Environment Field이며 Material Registry, palette, Density displacement 또는 same-cell mixture에 추가되지 않는다. Steam과 Smoke는 이 결정과 무관하게 explicit GAS Matter로 남는다.
+
 이 세트의 목적은 콘텐츠량이 아니라 다음 세계 문법을 증명하는 것이다.
 
 - Static

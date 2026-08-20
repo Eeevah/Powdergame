@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED**
+Status: **TE-0R / TE-0 / TE-0A / TE-0B COMPLETE / TE-1 READY / IMPLEMENTATION NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -11,7 +11,10 @@ Direct G9-A re-review produced two linked observations:
 - heat does not travel through EMPTY space;
 - hot Stone can bring adjacent Oil or Wood to its ignition threshold so quickly that ignition appears immediate.
 
-These observations are not, by themselves, a production defect verdict. They expose a product-causality question: how should heat cross open space, and how much thermal exposure should combustible Matter require before ignition becomes legible and useful? Exact architecture remains open.
+These observations are not, by themselves, a production defect verdict. They
+expose a product-causality question. D-013 and ADR-0005 now close the Environment
+architecture; the later ignition exposure representation and coefficients
+remain gate-owned work rather than an open Air ontology choice.
 
 ## 2. Current production baseline
 
@@ -26,7 +29,9 @@ The current baseline remains authoritative until a later design is explicitly ap
 
 The project must not quietly change any of those statements while it remains **NOT STARTED**.
 
-## 3. Architecture options requiring a decision
+## 3. Historical architecture options — superseded by D-013 / ADR-0005
+
+The following Option A/Option B comparison records the state at D-012. It remains as design history and is not the current selection. D-013 and ADR-0005 select separate `air_mass_current/next` plus `air_energy_current/next`; Air temperature and background pressure are derived. Neither option below is the adopted architecture.
 
 ### Option A — implicit ambient carried by the existing temperature field
 
@@ -40,7 +45,23 @@ Keep Matter temperature strictly attached to non-EMPTY Matter and add a distinct
 
 This keeps the EMPTY/Matter contract conceptually clean but adds world state, bandwidth and pass cost. It therefore requires measurement before selection.
 
-Neither option is selected by this planning document.
+Neither historical option is selected. The canonical design is linked below.
+
+## 3.1 Canonical design program
+
+- [`ADR-0005`](../architecture/decisions/ADR-0005-atmosphere-vacuum-environment.md)
+- [`THERMAL_ENVIRONMENT_SPEC`](../specs/THERMAL_ENVIRONMENT_SPEC.md)
+- [`Production Inventory`](../architecture/THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md)
+- [`Reuse Survey`](../research/2026-08-20-thermal-environment-reuse-survey.md)
+- [`Validation Contract`](../development/THERMAL_ENVIRONMENT_VALIDATION.md)
+- [`Implementation Gates`](THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md)
+- [`Independent Adversarial Review`](../adversarial-reviews/THERMAL_ENVIRONMENT_TE_0.md)
+
+TE-0 is complete and remains docs-only. Independent review found seven High
+design defects; all seven are resolved in the canonical contracts and the
+review records Critical/High blocker zero. The reference formula proof passed
+within its declared limited domain. This does not alter the current
+direct-contact runtime, and TE-1 code is not started by adopting the design.
 
 ## 4. Ignition exposure or dose requirement
 
@@ -110,8 +131,10 @@ The initial project explicitly excludes:
 
 ## 8. Stop and approval boundary
 
-The next thermal task is architecture selection and contract design, not code. Implementation may start only after the user chooses or approves an option, exposure grammar, semantic fixtures and validation budget. Until then:
+The architecture selection and design contract are complete. TE-1 may start
+only as a separate implementation task from the exact clean/pushed design
+source and must satisfy its entry checklist. Current state:
 
-- Thermal Transport & Ignition Causality remains **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED**;
+- Thermal Environment is **DESIGN LOCK COMPLETE / TE-1 READY / NOT STARTED**;
 - G9-B emergence validation remains blocked on this prerequisite;
 - G9-A continuity work may proceed independently within its existing readback/presentation boundary.

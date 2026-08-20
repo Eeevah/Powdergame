@@ -68,6 +68,24 @@ Baseline GPU 구현은 개발·benchmark·debug 비교 기준으로 남길 수 �
 
 Production path는 RTX 5090에서 실제로 검증된 가장 좋은 구현을 사용한다.
 
+### Thermal Environment design boundary
+
+Current production still uses Matter-only direct-contact thermal transport.
+D-013 and ADR-0005 lock the future Environment architecture without changing
+that runtime: foreground `EMPTY` is distinct from Atmosphere, Vacuum and Void;
+Air is a full-resolution mass/energy Field rather than Matter; occupied Cells
+carry canonical zero Air. Four Current/Next Air buffers plus one receiver-claim
+scratch form the correctness baseline. Every occupancy change receives a
+separate bounded reconcile and joint settle, and no existing eight-storage
+pass gains Air bindings.
+
+Canonical details live in
+[`ADR-0005`](decisions/ADR-0005-atmosphere-vacuum-environment.md),
+[`THERMAL_ENVIRONMENT_SPEC`](../specs/THERMAL_ENVIRONMENT_SPEC.md) and the
+[`production inventory`](THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md). TE-1 is
+READY / NOT STARTED; Air flow, thermal exchange, phase/ignition retune and
+Air-pressure coupling belong to later gates.
+
 ---
 
 ## 3. Repository Direction

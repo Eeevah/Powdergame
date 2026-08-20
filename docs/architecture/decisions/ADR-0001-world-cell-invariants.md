@@ -3,6 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-08-15
 
+> **Narrow supersession:** ADR-0005 preserves One Cell = Max One Matter and `EMPTY` as no foreground Matter, but supersedes the earlier conclusion that ordinary EMPTY space can never carry a non-Matter Environment Field. Air remains outside the Material Registry and cannot coexist under occupied Matter in the initial Environment slice.
+
 ## Context
 
 Powdergame could model each Cell as a rich mixture containing multiple Matter amounts, mass, composition and many future states. That direction resembles some simulation games but conflicts with the core identity the user wants from DAN-BALL Powder Game: direct spatial interaction where one pixel/cell is one thing.
@@ -59,7 +61,7 @@ Rejected because it makes each Cell more expensive and weakens the Powder Game i
 
 ### Air fills every empty Cell
 
-Rejected because every movement would implicitly become Matter↔Air exchange and EMPTY would no longer be truly empty.
+Rejected here as a **foreground Matter** model because every movement would become a normal Matter↔Air ownership swap and EMPTY would no longer mean no foreground Matter. ADR-0005 later adopts a separate `air_mass`/`air_energy` Environment Field while preserving this rejection of Air as Matter.
 
 ### Vacuum as a normal registered Matter
 

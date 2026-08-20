@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** — continuity v2 source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; latest review was revision-required |
-| Thermal Transport & Ignition Causality | **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED** — G9-B prerequisite |
+| Thermal Environment / Ignition Causality | **TE-0R/TE-0/TE-0A/TE-0B COMPLETE / TE-1 READY / NOT STARTED** — design blocker 0; production runtime unchanged; G9-B prerequisite |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -133,7 +133,7 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 
 This is not user acceptance. The revised candidate was **USER RE-REVIEWED / REVISION REQUIRED**; continuity v2 requires direct user re-review.
 
-Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). Current EMPTY/no-hidden-Air, direct four-neighbor transport and immediate threshold ignition remain unchanged in production. Exact ambient architecture and ignition dose are open; implementation has not started.
+Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. TE-0R reuse survey, TE-0 design, TE-0A independent review and TE-0B reference proof are complete with Critical/High blocker zero. Current EMPTY/no-hidden-Air, direct four-neighbor transport and immediate threshold ignition remain unchanged in production; TE-1 implementation has not started.
 
 ---
 
@@ -162,7 +162,7 @@ They are not official performance evidence. Do not prune them without a separate
 ## 아직 별도 결정인 것
 
 - G9-A continuity v2 user re-review
-- Thermal Transport & Ignition Causality architecture selection and implementation authorization
+- Thermal Environment TE-1 implementation authorization from the clean design source; later ignition-dose coefficients remain gate-owned
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

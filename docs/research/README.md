@@ -40,6 +40,10 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 
 다섯 번째 후보 노트는 원문을 `raw/MATERIAL_CANDIDATES.md`로 보존하고, 현재 SPEC 기준 분석을 `2026-08-16-material-candidates-analysis.md`에 기록한다.
 
+## 2026-08-20 Thermal Environment reuse survey
+
+[`2026-08-20-thermal-environment-reuse-survey.md`](2026-08-20-thermal-environment-reuse-survey.md)는 TE-0R의 내부 재사용·외부 prior-art 조사다. 정확한 source/version/license와 채택 경계를 기록하며, 외부 코드는 복사·번역·vendoring하지 않았다. 채택된 구조의 권위는 ADR-0005와 `THERMAL_ENVIRONMENT_SPEC.md`에 있다.
+
 ## Derived outputs
 
 원자료를 현재 Powdergame 세계 문법에 맞게 압축한 결과는 `derived/`에 둔다. 이 문서들도 여전히 구현 계약이 아니다.

@@ -119,6 +119,13 @@ Simulation Truth와 Presentation Effect를 분리한다. Cell은 계산 단위�
 4. `architecture/ARCHITECTURE.md`
 5. 관련 tests/evidence
 
+Thermal Environment 작업은 ADR-0005,
+`specs/THERMAL_ENVIRONMENT_SPEC.md`,
+`architecture/THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md`,
+`development/THERMAL_ENVIRONMENT_VALIDATION.md`,
+`planning/THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md` 순서로 읽는다.
+현재 TE-1은 READY이지만 구현은 시작되지 않았다.
+
 ### 현재 Gate를 이어서 개발
 
 1. `development/QUICKSTART.md`

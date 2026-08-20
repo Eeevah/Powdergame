@@ -80,11 +80,12 @@ Temperature/Pressure는 Matter가 아니다.
 
 - 물성이 없다.
 - Density가 없다.
-- 열을 전달하는 숨은 Air로 동작하지 않는다.
-- 압력을 전달하는 숨은 매질로 동작하지 않는다.
-- 별도 Air/Oxygen/Gas가 필요하면 실제 Matter를 추가한다.
+- 현재 production runtime에서는 열 또는 압력을 전달하는 숨은 매질로 동작하지 않는다.
+- ADR-0005는 향후 ordinary EMPTY 공간의 Atmosphere와 Vacuum을 구분하는 별도 `air_mass`/`air_energy` Environment Field를 채택했다.
+- 그 Air는 Material ID, Density 대상, palette Matter 또는 occupied Cell 아래의 두 번째 Matter가 아니다.
+- Steam과 Smoke는 계속 explicit GAS Matter다.
 
-Dense Field 배열에 값이 존재하더라도 `material_id == EMPTY`인 Cell에서 그 값은 기본적으로 물리적 매질로 사용하지 않는다.
+TE-0은 runtime을 바꾸지 않는다. Environment가 TE-1 이후 구현되기 전까지 Dense Field 배열의 기존 값은 `material_id == EMPTY` Cell에서 물리적 Air로 사용하지 않는다. 이후 계약은 `THERMAL_ENVIRONMENT_SPEC.md`를 따른다.
 
 ---
 
@@ -363,7 +364,7 @@ f16은 독립적인 optimization experiment다.
 
 Temperature는 Matter의 thermal state를 표현한다.
 
-EMPTY를 통해 자동으로 열이 전달되지 않는다.
+현재 runtime에서는 EMPTY를 통해 자동으로 열이 전달되지 않는다. ADR-0005가 채택한 future Environment thermal path는 Matter temperature와 별도 Air mass/energy를 사용하며, 구현 전 계약은 `THERMAL_ENVIRONMENT_SPEC.md`에 있다.
 
 ### Cheap transfer philosophy
 
@@ -457,11 +458,11 @@ phase expansion blocked
 → opening allows venting
 ```
 
-### No hidden air
+### Environment pressure boundary
 
-EMPTY 자체가 pressure medium이 아니다.
+현재 runtime에서 EMPTY 자체는 pressure medium이 아니며, 기존 `pressure[]`는 Liquid/Gas와 phase-confinement/rupture를 위한 gameplay gauge overpressure다.
 
-Gas/Matter의 상태와 rule에서 pressure가 의미를 갖는다.
+ADR-0005는 future Environment Air의 absolute-like background pressure를 별도 derived state로 정의한다. 두 pressure를 occupancy와 무관하게 더하지 않는다. Atmosphere/Vacuum/structure face differential coupling은 TE-5 전까지 production semantics를 변경하지 않는다.
 
 ### Approximate behavior
 

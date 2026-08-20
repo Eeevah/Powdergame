@@ -137,17 +137,20 @@ docs/
 │  └─ STATUS.md
 ├─ architecture/
 │  ├─ ARCHITECTURE.md
+│  ├─ THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md
 │  └─ decisions/ADR-*.md
 ├─ specs/
 │  ├─ SIMULATION_SPEC.md
 │  ├─ MATERIAL_SPEC.md
 │  ├─ REACTION_SPEC.md
-│  └─ DETERMINISM_SPEC.md
+│  ├─ DETERMINISM_SPEC.md
+│  └─ THERMAL_ENVIRONMENT_SPEC.md
 ├─ development/
 │  ├─ QUICKSTART.md
 │  ├─ DEVELOPMENT.md
 │  ├─ TESTING.md
 │  ├─ VALIDATION_POLICY.md
+│  ├─ THERMAL_ENVIRONMENT_VALIDATION.md
 │  ├─ PERFORMANCE.md
 │  ├─ DEVELOPMENT_LEARNING_LOOP.md
 │  ├─ LESSONS_LEDGER.md
@@ -224,7 +227,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`는 **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**이다. Canonical BAT/EXE의 무인자 launch는 Sandbox이며 explicit `gallery`는 보존한다. [`Thermal Transport & Ignition Causality`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md)는 **PLANNED / DESIGN REQUIRED / IMPLEMENTATION NOT STARTED**이며 G9-B prerequisite다. G9-B/C/D/E는 시작하지 않았다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`는 **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING**이다. Canonical BAT/EXE의 무인자 launch는 Sandbox이며 explicit `gallery`는 보존한다. [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md)는 TE-0R/TE-0/TE-0A/TE-0B가 완료되고 **TE-1 READY / NOT STARTED**인 G9-B prerequisite다. G9-B/C/D/E는 시작하지 않았다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

@@ -1,0 +1,112 @@
+# Thermal Environment Implementation Gates
+
+- **Status:** TE-0 design program authorized; TE-1 ready but not started
+- **Architecture:** D-013 / ADR-0005
+- **Rule:** no task may silently include the physics of a later gate
+
+## TE-0R — Reuse and prior-art survey
+
+Deliver internal reuse inventory, exact external source/license/version decisions and copied-code count. External code is not imported. **Completion:** `REUSE SURVEY COMPLETE`.
+
+## TE-0 — Architecture lock
+
+Deliver ADR-0005, canonical spec, production pass/binding/state inventory, memory budget, occupancy-path inventory, validation contract, supersession links and implementation gates. Runtime source stays unchanged. **Completion:** `DESIGN LOCK COMPLETE`.
+
+## TE-0A — Independent adversarial review
+
+Attack ontology, occupancy hygiene, conservation, duplicate transport, pressure double count, wall sealing, sleep/wake, progress ownership, Inspector honesty, license ingress and gate leakage. Critical/High findings must be resolved in the design or TE-1 remains blocked. **Completion:** `ADVERSARIAL REVIEW COMPLETE / CRITICAL-HIGH BLOCKER 0`.
+
+## TE-0B — Reference-math proof
+
+Run the approved fixed-seed candidate proof once outside the repository. Record trials, error bounds and limitations. Do not copy it into production. **Completion:** `REFERENCE FORMULA PROOF PASS`.
+
+## TE-1 — Environment state and occupancy foundation
+
+Allowed scope:
+
+- four full-resolution Environment Current/Next buffers;
+- one full-resolution `u32` Environment receiver-claim scratch, and no second
+  new full-world scratch without a new measured decision;
+- initialization, reset, staging and exact allocation report;
+- Atmosphere/Vacuum semantic helpers;
+- separate Environment reconcile after every occupancy-changing stage;
+- deterministic local spawn receiver claim and blocked-spawn behavior;
+- bounded whole-parcel headroom and paired Matter/Environment commit;
+- mandatory seven-storage Environment-blocked phase-pressure consequence
+  between the existing expansion-pressure pass and pressure settle;
+- exact Matter flag ownership and identity hygiene before joint settle;
+- joint settle and exact hygiene;
+- bounded test-only readback.
+
+Explicitly disabled:
+
+- inter-cell Air flow;
+- Matter↔Air or Air↔Air thermal exchange;
+- phase/combustion retune;
+- Air-pressure/structure coupling;
+- Vacuum tool/product UI;
+- G9-B validation.
+
+Required entry checklist:
+
+- [ ] start from the exact clean/pushed TE-0 docs source;
+- [ ] preserve the eight-storage-buffer ceiling with separate passes;
+- [ ] declare every new writer and settle boundary;
+- [ ] use one canonical staging/reset Environment image API;
+- [ ] include movement, density swap, Void, phase self transition, phase spawn, Smoke spawn, rupture, decay, fuel consumption, Draw, Erase, preset/reset, direct test write, scenario and benchmark staging;
+- [ ] prove receiver arbitration and the no-receiver blocked outcome;
+- [ ] pin receiver scratch encoding/live range, same-stage Matter-target
+  exclusion, whole-parcel headroom and paired rollback;
+- [ ] pin exactly-once Environment-blocked expansion-pressure accounting and
+  its seven-storage layout/order before pressure settle;
+- [ ] pin coefficient domains and exact-zero Vacuum with no residual deletion;
+- [ ] pin Matter flags ownership and separate hygiene-pass bindings;
+- [ ] extend profiler identities and allocation report;
+- [ ] extend Naga parse/write-contract and reset tests;
+- [ ] leave the 24-byte/10-Hz Inspector contract unchanged;
+- [ ] run `validation-plan` and follow the Engine/Core/WGSL/shared-layout FULL requirement exactly once at final source;
+- [ ] do not start TE-2.
+
+Stop: `ENVIRONMENT STATE/OCCUPANCY HYGIENE IMPLEMENTED / AIR TRANSPORT NOT STARTED`.
+
+## TE-2 — Passive Air transport and unified thermal exchange
+
+Add pressure-derived mass flow, donor-energy advection, Air conduction exactly
+once, Matter↔Air surface exchange, bilateral face cohorts, activity/wake and
+source-free stability. The correctness runtime edge is sealed/no-flux; an
+explicit fixed standard-Atmosphere ghost reservoir is fixture-only and reports
+external exchange. Disable phase changes, combustion changes and new pressure
+coupling in semantic fixtures.
+
+Stop after user-observable Air-gap/Vacuum/open/sealed candidate: `PASSIVE THERMAL ENVIRONMENT CANDIDATE / TE-3 NOT STARTED`.
+
+## TE-3 — Water/Steam thermal cycle
+
+Close phase progress representation, latent coefficients, yield, reversal accounting, surface boiling, Steam cooling, free/surface condensation and hysteresis. Do not change ignition, Oxygen or final FX.
+
+Stop: `WATER/STEAM CYCLE USER-TESTABLE CANDIDATE / TE-4 NOT STARTED`.
+
+## TE-4 — Ignition kinetics
+
+Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
+
+Stop: `IGNITION CAUSALITY USER-TESTABLE CANDIDATE / TE-5 NOT STARTED`.
+
+## TE-5 — Pressure and Vacuum coupling
+
+After user decisions on edge reservoir and Vacuum combustion, integrate derived background pressure, Atmosphere refill/Vacuum vent, heated sealed Air, face differential and existing gauge overpressure without double counting. Revisit blocked spawn displacement only with a new accounted contract.
+
+## TE-6 — Product integration and G9-B readiness
+
+Integrate approved Environment semantics with Starter Lab/Blank World, editor hygiene and honest Inspector presentation. Measure 256² product and 2048² reference performance on the new correctness source. Do not begin G9-C, M0 closure, main promotion or speculative optimization.
+
+## Current stop
+
+```text
+TE-0R  COMPLETE
+TE-0   COMPLETE
+TE-0A  COMPLETE / seven High findings resolved in the design / blocker 0
+TE-0B  PASS_REFERENCE_MATH_ONLY
+TE-1   READY / NOT STARTED
+runtime unchanged
+```

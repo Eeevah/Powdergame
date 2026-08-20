@@ -149,3 +149,19 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   `8c3f0050eef67cfca04e970c071276ce8ae856a7a1a65e58ff63a0deecb34ea6`.
 - Air transport, Air thermal exchange, Air pressure coupling, TE-2 and
   G9-B/C/D/E were not started. G8/G8-C/candidate/official runs remained 0.
+
+## 2026-08-20 · Thermal Environment TE-2 passive transport candidate
+
+- D-015/source `fb7e568e21012b6067269f4e1b82c36c865023d0` implemented full-resolution
+  Air flow/advection, unified passive thermal exchange, activity/wake and the
+  atomic Celsius-like gameplay migration.
+- The user-supplied Chinese-community research added the 30-case CPU/GPU
+  `SMALL_DELTA_THERMAL_CONVERGENCE` contract. Deadband is a work gate, copied
+  external simulation code remains `0 files / 0 lines`.
+- Targeted suites, all-target check, warnings-denied clippy, strict audit and
+  exactly one final-source serial workspace FULL passed. One locked release
+  build and one 60-frame TE-2 bounded launch passed.
+- One-shot performance: 2048² equilibrium/frontier GPU tick P95
+  `2.599712/2.304832 ms`; equilibrium terminal activity `0` Cells/chunks.
+- Completion: **PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING**.
+  Air-pressure force, TE-3 and G9-B/C/D/E remain not started.

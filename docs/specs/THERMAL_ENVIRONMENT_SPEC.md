@@ -1,8 +1,8 @@
 # Powdergame Thermal Environment Specification
 
-- **Status:** TE-1 Environment state / occupancy hygiene implemented; TE-2 not started
-- **Architecture:** ADR-0005 / D-013 / D-014
-- **Runtime boundary:** Air transport, Air thermal exchange and Air pressure coupling remain disabled until their named later gates
+- **Status:** TE-2 passive thermal Environment candidate; user review pending
+- **Architecture:** ADR-0005 / D-013 / D-014 / D-015
+- **Runtime boundary:** Air transport and unified passive thermal exchange are implemented at source `fb7e568e21012b6067269f4e1b82c36c865023d0`; Air-pressure force and TE-3+ remain disabled
 
 ## 1. State model
 
@@ -142,6 +142,20 @@ Q_ij = edge_step_ij * G_ij * (T_j - T_i)
 
 `G_ij` is symmetric. Matter applies `sum(Q)/capacity`; Air applies `sum(Q)` to energy. Vacuum uses zero conductance. Source-free output is a convex combination of current participating temperatures and the energy-like internal sum cancels pairwise.
 
+The thermal deadband is an exact shared work gate:
+
+```text
+if abs(T_j - T_i) <= THERMAL_DEADBAND_C:
+    Q_ij = 0
+else:
+    effective_delta = T_j - T_i
+```
+
+`THERMAL_DEADBAND_C = 0.01 °C`. The deadband is never subtracted from the
+eligible delta. Physics and thermal activity use the identical predicate
+`abs(delta) > THERMAL_DEADBAND_C`; `lambda` and
+`THERMAL_MAX_MIX_FRACTION` remain the stability bounds.
+
 Explicit sources are Heat/Cool authoring, combustion chemical heat, boundary reservoirs, and later phase latent release. Each is reported separately.
 
 ## 5. Occupancy and Environment reconcile
@@ -201,7 +215,7 @@ TE-1:
     → identity hygiene → Environment reconcile → joint settle
   no Air flow, no Air thermal exchange, no pressure coupling
 
-TE-2:
+TE-2 (implemented):
   Air outflow scale → mass/advected-energy commit → settle
   thermal stability scale → unified thermal commit → settle
   activity/wake integration
@@ -247,7 +261,7 @@ Before TE-5, these are not coupled into new structure forces. At TE-5, standard 
 
 ## 8. Temperature migration inventory
 
-The following migrate atomically from the current arbitrary scalar to the Celsius-like gameplay scale:
+The following migrated atomically at TE-2 source `fb7e568...` from the former arbitrary scalar to the Celsius-like gameplay scale:
 
 - `TEMPERATURE_REFERENCE` and thermal safety limits;
 - Water/Ice/Steam thresholds and hysteresis;
@@ -260,7 +274,8 @@ The following migrate atomically from the current arbitrary scalar to the Celsiu
 - Inspector labels/copy and UI `°C` usage;
 - CPU reference rules, WGSL constants, descriptors, tests and evidence expectations.
 
-No runtime value changes in TE-0.
+The migration is one runtime commit with its production fixtures and tests;
+historical TE-0/TE-1 evidence retains its original vocabulary.
 
 ## 9. Later phase and ignition contracts
 
@@ -272,8 +287,8 @@ Vacuum combustion support is a user-owned decision for TE-4/TE-5 and must not be
 
 ## 10. Activity, Inspector and performance
 
-Equilibrium Atmosphere and Vacuum bulk must sleep. Before TE-2 transport, an
-Environment activity stage constructs a bilateral runnable face cohort: both
+Equilibrium Atmosphere and Vacuum bulk sleep. The TE-2 Environment activity
+stage constructs a bilateral runnable face cohort: both
 endpoint chunks and the required halo execute a face, or neither does. One
 canonical face owner computes flux and both endpoint self-writes consume the
 same Current snapshot, so a runnable donor cannot export into an unexecuted
@@ -288,23 +303,26 @@ and reports that exchange as an external source/sink. The product's default
 world-edge mode remains a user decision before TE-5 integration; TE-2's
 reference contract is not ambiguous.
 
-The current Cell Inspector remains a 24-byte, at-most-10-Hz Matter diagnostic during TE-1 unless a separately approved extension changes its payload. Test-only bounded readback may establish Environment correctness. A future product presentation may add Environment fields without relabelling the existing sample.
+The current Cell Inspector remains a 24-byte, at-most-10-Hz Matter diagnostic.
+The TE-2 candidate uses a separate bounded diagnostic sample every 8 ticks and
+does not extend the product Inspector payload.
 
-The correctness baseline adds 64 MiB of Environment state plus one proven
-16 MiB receiver-claim scratch at 2048² and reaches 268,462,208 tracked bytes
-without profiling. Performance measurement starts only on a correctness
-source. Full CFD, velocity fields, coarsening, packing, f16 and optimization
-are outside the initial program.
+The TE-2 correctness source reaches `268,462,384` tracked bytes without
+profiling and `268,463,472` with profiling at 2048². Its 2048² GPU tick P95 is
+`2.599712 ms` for equilibrium and `2.304832 ms` for a local frontier; the
+equilibrium terminal has zero active Cells/chunks. Full CFD, velocity fields,
+coarsening, packing, f16 and optimization remain outside the program.
 
 ## 11. Open decisions
 
-These remain explicitly open and do not block TE-1 state/occupancy work:
+These remain explicitly open after TE-2 and do not change its candidate status:
 
 - default world edge reservoir mode, required before TE-5 product integration;
 - Vacuum combustion support, required before TE-4/TE-5 closure;
 - phase latent coefficients, yield and progress representation, required before TE-3;
 - GAS Matter Environment permeability, opened only if TE-F33 demonstrates a product blocker;
-- TE-2 Air-flow resolution/update cadence after the full-resolution baseline is measured.
+- any post-baseline Air-flow cadence/coarsening/packing optimization; the
+  implemented correctness baseline is full-resolution and every tick.
 
 ## 12. Exclusions
 

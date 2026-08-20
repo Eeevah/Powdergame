@@ -47,3 +47,11 @@
 Direct reuse is limited to Powdergame's existing mechanisms and the official wgpu 26 API pattern already in use. `proptest 1.11.0` is only a future audited dev-dependency candidate. The Powder Toy and sandspiel contribute clean-room fixture and state-separation ideas, not code. CFD and particle crates are deliberately rejected or reference-only because they solve a larger and different problem.
 
 The survey does not authorize a Cargo dependency, a runtime implementation, or a solver choice. Any later dependency must record the exact release/commit, license, feature set, MSRV, maintenance/security status, rollback cost and evidence impact at the implementation source boundary.
+
+## 4. Later Chinese-community research intake
+
+The user-supplied Chinese-community milestone mapping is recorded separately in
+[`2026-08-20-chinese-community-reuse-survey.md`](2026-08-20-chinese-community-reuse-survey.md).
+It contributes one adopted TE-2 regression contract and provenance aliases for
+existing fixtures, with copied code fixed at `0 files / 0 lines`. It does not
+reopen this survey's architecture or license decisions.

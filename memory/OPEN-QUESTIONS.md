@@ -87,11 +87,14 @@ The remaining choices are deliberately later-gate decisions:
 - phase latent coefficients, yield and reversal representation before TE-3;
 - GAS Matter Environment permeability only if TE-F33 demonstrates a product
   blocker in the no-same-cell-mixture baseline;
-- TE-2 Air-flow resolution/update cadence only after the full-resolution
-  correctness baseline is measured.
+- any post-baseline Air-flow cadence/coarsening optimization. D-015/TE-2 has
+  now measured and preserved the full-resolution every-tick correctness
+  baseline; no optimization was inferred.
 
-Current disposition: no item blocks TE-1 state/occupancy implementation, but
-none may be silently selected by TE-1.
+Current disposition: no item blocks the TE-2 user-review candidate. Product
+edge mode, Vacuum combustion, latent phase/yield and optional GAS permeability
+remain open at their named later gates. The implemented sealed correctness edge
+and explicit fixture reservoir do not close the product edge choice.
 
 ## Current pending user-owned choices
 

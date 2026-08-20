@@ -188,3 +188,36 @@ Scope: Runtime/test source `1a722d239a16bade5772688fa822465d5cef4602` on `featur
 Evidence: `docs/evidence/THERMAL_ENVIRONMENT_TE_1_FOUNDATION_2026-08-20.md`; final-source serial workspace FULL PASS; release Sandbox bounded launch PASS; exact allocation/profiler/receiver transaction tests.
 
 Invalidated by: A later explicit user decision changing the Environment ontology or a reproducible invariant failure at the named runtime source. This decision does not authorize TE-2.
+
+## D-015 · Implement the TE-2 passive thermal Environment candidate — 2026-08-20 (source: direct user TE-2 authorization)
+
+Decision: Implement TE-2 only on the locked D-013/D-014/ADR-0005 foundation:
+full-resolution every-tick pressure-derived Air flow, donor-energy advection,
+unified Matter↔Matter/Air↔Air/Matter↔Air passive exchange, bilateral
+activity/wake, sealed correctness edges, an explicit fixed-reservoir fixture,
+and one atomic Celsius-like gameplay migration. The thermal deadband is a
+shared work/no-work gate: `abs(delta) <= 0.01 °C` performs no work; otherwise
+the full delta enters the existing stability-bounded formula. It is never
+subtracted from the eligible delta.
+
+Reason: TE-1 established lossless Environment ownership but intentionally left
+open space thermally inert. TE-2 supplies the minimum passive transport needed
+to distinguish Atmosphere from Vacuum while preserving GPU authority,
+source-free accounting, One Cell = Max One Matter and the eight-storage limit.
+The user-supplied Chinese-community research added the bounded
+`SMALL_DELTA_THERMAL_CONVERGENCE` regression before the final source freeze;
+no external simulation code was copied.
+
+Scope: Runtime/test source `fb7e568e21012b6067269f4e1b82c36c865023d0`
+on `feature/m0-g9-first-playable`; canonical TE-2 docs and evidence. Completion
+is **PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING**. Air-pressure
+force, TE-3/TE-4, G9-B/C/D/E, Oxygen, Ash, new Matter, CFD and optimization
+remain not started or unauthorized. D-013 and D-014 are not rewritten.
+
+Evidence: `docs/evidence/THERMAL_ENVIRONMENT_TE_2_PASSIVE_TRANSPORT_2026-08-20.md`;
+final-source serial workspace FULL; locked release bounded launch; 30-case
+CPU/GPU small-delta convergence; one-shot 256²/2048² profiler measurement.
+
+Invalidated by: A later explicit user decision changing TE-2 semantics, a
+reproducible invariant failure at the named source, or a runtime source change
+to the transport/deadband/activity contract. It does not authorize TE-3.

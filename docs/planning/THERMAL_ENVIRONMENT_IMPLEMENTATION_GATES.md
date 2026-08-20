@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-1 Environment state / occupancy hygiene implemented; TE-2 not started
-- **Architecture:** D-013 / D-014 / ADR-0005
+- **Status:** TE-2 passive thermal Environment candidate; user review pending
+- **Architecture:** D-013 / D-014 / D-015 / ADR-0005
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -80,6 +80,20 @@ coupling in semantic fixtures.
 
 Stop after user-observable Air-gap/Vacuum/open/sealed candidate: `PASSIVE THERMAL ENVIRONMENT CANDIDATE / TE-3 NOT STARTED`.
 
+Completed at source `fb7e568e21012b6067269f4e1b82c36c865023d0`:
+
+- [x] full-resolution, every-tick pressure-derived Air flow with bounded donor outflow;
+- [x] donor-specific-energy advection and separate unified passive conduction;
+- [x] Matter↔Matter, Air↔Air and Matter↔Air exchange from one Current snapshot;
+- [x] bilateral activity/wake and equilibrium bulk sleep;
+- [x] sealed production edge plus explicit accounted fixed-reservoir fixture;
+- [x] Celsius-like gameplay migration in the same runtime source;
+- [x] deadband as a shared work/no-work gate, not a subtractive flux;
+- [x] 30-case CPU/GPU `SMALL_DELTA_THERMAL_CONVERGENCE` regression;
+- [x] named transport, source-free, reset, pass/binding and profiler guards;
+- [x] final-source FULL, locked release build, one bounded candidate launch and one performance measurement;
+- [x] no Air-pressure force, TE-3, G9-B/C/D/E or optimization.
+
 ## TE-3 — Water/Steam thermal cycle
 
 Close phase progress representation, latent coefficients, yield, reversal accounting, surface boiling, Steam cooling, free/surface condensation and hysteresis. Do not change ignition, Oxygen or final FX.
@@ -108,6 +122,7 @@ TE-0   COMPLETE
 TE-0A  COMPLETE / seven High findings resolved in the design / blocker 0
 TE-0B  PASS_REFERENCE_MATH_ONLY
 TE-1   ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED
-Air transport / Air thermal exchange / Air pressure coupling   NOT STARTED
-TE-2   NOT STARTED
+TE-2   PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING
+Air transport / unified passive thermal exchange   IMPLEMENTED
+Air-pressure force / TE-3+   NOT STARTED
 ```

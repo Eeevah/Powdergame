@@ -140,3 +140,8 @@ VALIDATED
 ```
 
 핵심은 research를 정답으로 취급하지 않고 **좋은 원재료로 사용해 현재 Powdergame 세계 문법에 맞게 다시 만드는 것**이다.
+
+## 2026-08-20 Thermal Environment research
+
+- [`2026-08-20-thermal-environment-reuse-survey.md`](2026-08-20-thermal-environment-reuse-survey.md) — TE-0R internal/external prior-art, exact version/license and clean-room boundary.
+- [`2026-08-20-chinese-community-reuse-survey.md`](2026-08-20-chinese-community-reuse-survey.md) — user-provided Chinese-community research intake. It maps `SMALL_DELTA_THERMAL_CONVERGENCE` and provenance aliases without importing code; copied code is `0 files / 0 lines`, and unlicensed Cinder remains `REFERENCE_FIXTURE` only.

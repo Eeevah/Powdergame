@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** — continuity v2 source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; latest review was revision-required |
-| Thermal Environment / Ignition Causality | **TE-1 ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED / TE-2 NOT STARTED** — Air transport, Air thermal exchange and Air pressure coupling remain disabled; G9-B prerequisite |
+| Thermal Environment / Ignition Causality | **TE-2 PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING** — Air transport and unified passive thermal exchange implemented; Air-pressure force and TE-3+ not started; G9-B prerequisite |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -28,6 +28,7 @@
 - Current implementation line: `feature/m0-g9-first-playable`
 - G9-A continuity v2 tested source: `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`
 - TE-1 runtime source: `1a722d239a16bade5772688fa822465d5cef4602`
+- TE-2 runtime source: `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -134,7 +135,7 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 
 This is not user acceptance. The revised candidate was **USER RE-REVIEWED / REVISION REQUIRED**; continuity v2 requires direct user re-review.
 
-Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. TE-0R reuse survey, TE-0 design, TE-0A independent review and TE-0B reference proof are complete with Critical/High blocker zero. D-014/source `1a722d...` implements TE-1 state, canonical staging, occupancy hygiene, receiver-gated phase/Smoke spawn and exact blocked phase pressure. Air does not yet flow or exchange heat, and it does not couple pressure to Matter. TE-2 and later thermal/ignition gates are not started.
+Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Automated validation, final-source FULL, one release bounded launch and one performance measurement passed; direct product review remains pending. Air-pressure force, TE-3 and G9-B/C/D/E are not started.
 
 ---
 
@@ -156,15 +157,15 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 다음 행동
 
-1. run `run_powdergame.bat sandbox` and re-review Inspector continuity v2 on the new TE-1 descendant executable;
-2. accept, revise or reject the continuity v2 editor experience;
-3. authorize TE-2 separately only after the TE-1 evidence boundary is accepted;
-4. do not start G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization before those decisions.
+1. run `run_powdergame.bat thermal-environment` and review the TE-2 four-scene candidate;
+2. separately re-review G9-A Inspector continuity v2 in Sandbox;
+3. accept, revise or reject each candidate without inferring a broader verdict;
+4. do not start TE-3 or G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization before those decisions.
 
 ## 아직 별도 결정인 것
 
 - G9-A continuity v2 user re-review
-- Thermal Environment TE-2 authorization; Air flow/thermal coefficients and later ignition-dose coefficients remain gate-owned
+- TE-2 user review; product edge mode, Vacuum combustion, latent phase and later ignition-dose choices remain gate-owned
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

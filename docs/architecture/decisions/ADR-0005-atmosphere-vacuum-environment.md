@@ -1,9 +1,9 @@
 # ADR-0005 — Separate foreground Matter from atmospheric and vacuum Environment
 
-- **Status:** Accepted; TE-1 Environment state and occupancy foundation implemented
+- **Status:** Accepted; TE-2 passive transport implementation candidate
 - **Date:** 2026-08-20
 - **Decision:** D-013
-- **Implementation:** TE-1 source `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 not started
+- **Implementation:** TE-1 source `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 source `fb7e568e21012b6067269f4e1b82c36c865023d0`
 
 ## Context
 
@@ -74,7 +74,10 @@ about 0   = Water / Ice anchor
 about 100 = Water / Steam anchor
 ```
 
-This is not an SI solver. Heat capacity, cell mass, latent heat, ignition dose, and pressure coupling remain gameplay scalars. Current runtime values remain unchanged during TE-0. `TEMPERATURE_REFERENCE`, phase thresholds, placement temperatures, Heat/Cool deltas, combustion thresholds and heat, clamps, authored fixture temperatures, Inspector copy, and UI unit labels must migrate atomically in a later implementation gate. Partial migration is forbidden.
+This is not an SI solver. Heat capacity, cell mass, latent heat, ignition dose,
+and pressure coupling remain gameplay scalars. TE-2 completed the required
+atomic Celsius-like gameplay migration at source `fb7e568...`; it did not
+silently start latent phase accounting, ignition dose or pressure coupling.
 
 ### Volume Exchange
 
@@ -174,10 +177,10 @@ Rejected for the correctness baseline. Both combine architecture with optimizati
 The design can support open-space cooling, Vacuum insulation, Steam cooling/condensation, sealed heating, and later pressure differential using common local rules. It adds 64 MiB at 2048², new reconcile/settle passes, activity integration, staging/reset work, and new causal evidence requirements.
 
 TE-1 is **ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED** at source
-`1a722d239a16bade5772688fa822465d5cef4602`. It implements the four locked Air
-buffers, one receiver-claim scratch, canonical staging/reset, occupancy-linked
-Volume Exchange, receiver-gated phase/Smoke spawn, exactly-once blocked phase
-pressure, flag identity hygiene, bounded observation, profiler identity and
-allocation reporting. Inter-cell Air transport, Air thermal exchange and Air
-pressure coupling remain **NOT STARTED**; this implementation does not
-authorize TE-2.
+`1a722d239a16bade5772688fa822465d5cef4602`. TE-2 is **PASSIVE THERMAL
+ENVIRONMENT CANDIDATE / USER REVIEW PENDING** at source
+`fb7e568e21012b6067269f4e1b82c36c865023d0`. It adds full-resolution Air flow,
+donor-energy advection, unified passive thermal exchange and Environment
+activity/wake while preserving sealed correctness edges and the existing
+occupancy transaction. Air-pressure force, TE-3 and later gates remain
+**NOT STARTED**.

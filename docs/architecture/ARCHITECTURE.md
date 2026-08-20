@@ -85,7 +85,9 @@ Canonical details live in
 [`production inventory`](THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md). TE-1 is
 implemented at source `1a722d...`; Air flow, thermal exchange,
 phase/ignition retune and Air-pressure coupling remain later-gate work and
-TE-2 is not started.
+TE-2 passive Air transport and unified thermal exchange are implemented at
+source `fb7e568e21012b6067269f4e1b82c36c865023d0`; user review is pending.
+Air-pressure force and TE-3+ are not started.
 
 ---
 

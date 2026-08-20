@@ -393,9 +393,17 @@ Temperature는 Density처럼 단순 rank만으로 충분하지 않다.
 
 ### Thermal deadband
 
-아주 작은 차이를 영원히 계산하지 않도록 gameplay에 영향이 없는 수준의 `thermal_deadband`를 둘 수 있다.
+TE-2의 canonical deadband는 `0.01 °C`이며 전달량에서 빼는 값이 아니라
+work/no-work gate다.
 
-이 값은 benchmark와 visual/gameplay validation으로 정한다.
+```text
+abs(delta) <= 0.01 °C  → face flux 0
+abs(delta) >  0.01 °C  → effective_delta = delta
+```
+
+Physics와 thermal activity는 같은 strict predicate를 사용한다. Eligible
+flux의 안정성은 `lambda`와 `THERMAL_MAX_MIX_FRACTION`으로 제한하며,
+subtractive deadband나 output clamp로 작은 변화 실패를 숨기지 않는다.
 
 ---
 

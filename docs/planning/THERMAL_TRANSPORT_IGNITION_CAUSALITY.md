@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-1 ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED / TE-2 NOT STARTED**
+Status: **TE-2 PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -16,20 +16,22 @@ expose a product-causality question. D-013 and ADR-0005 now close the Environmen
 architecture; the later ignition exposure representation and coefficients
 remain gate-owned work rather than an open Air ontology choice.
 
-## 2. Current production baseline
+## 2. Historical TE-1 baseline and current TE-2 boundary
 
-The TE-1 baseline keeps these thermal/ignition rules authoritative until a
-later gate is explicitly approved:
+The following list records the TE-1 baseline that motivated TE-2. At source
+`fb7e568...`, Air flow and unified passive thermal exchange supersede only the
+open-space/direct-contact statements; threshold ignition still remains the
+current baseline until TE-4:
 
-- `EMPTY` is absence of foreground Matter. Its separate Environment may now be Atmosphere, low pressure, or Vacuum, but is not yet a thermal transport medium.
+- `EMPTY` is absence of foreground Matter. Its separate Environment may be Atmosphere, low pressure, or Vacuum. At TE-2, non-Vacuum Air is a passive thermal transport medium.
 - A Matter-temperature value stored at an EMPTY index is not physical Air temperature; EMPTY self Matter temperature resolves to the reference state.
-- Thermal transfer is direct contact through the four orthogonal neighbors only.
+- TE-1 thermal transfer was direct-contact only. TE-2 adds four-face Air flow and unified Matter/Air passive exchange without adding diagonal or line-of-sight transport.
 - Each participating Matter uses its conductivity and heat-capacity gameplay scalars; no diagonal, distance or line-of-sight transport is present.
 - Combustible Matter ignites as soon as its own current temperature reaches its Material ignition threshold. Oil and Wood share this generic threshold grammar and currently have no exposure-time or accumulated-dose requirement.
-- There is no Oxygen requirement. TE-1 has separate Air mass/energy state, but no Air flow or heat exchange.
+- There is no Oxygen requirement. TE-2 Air flow/heat exchange does not silently add combustion support or ignition dose.
 
-TE-2 and later gates must not quietly change any of those statements without
-their named authorization and fixtures.
+TE-3 and later gates must not quietly change the remaining phase/ignition
+statements without their named authorization and fixtures.
 
 ## 3. Historical architecture options — superseded by D-013 / ADR-0005
 
@@ -137,6 +139,6 @@ The initial project explicitly excludes:
 The architecture selection, design contract and TE-1 state/occupancy
 foundation are complete. Current state:
 
-- Thermal Environment is **TE-1 ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED / TE-2 NOT STARTED**;
+- Thermal Environment is **TE-2 PASSIVE THERMAL ENVIRONMENT CANDIDATE / USER REVIEW PENDING** at source `fb7e568...`;
 - G9-B emergence validation remains blocked on this prerequisite;
 - G9-A continuity work may proceed independently within its existing readback/presentation boundary.

@@ -1,6 +1,6 @@
 # Thermal Environment Validation Contract
 
-- **Status:** TE-1 validation complete at source `1a722d239a16bade5772688fa822465d5cef4602`; later-gate validation not started
+- **Status:** TE-2 validation complete at source `fb7e568e21012b6067269f4e1b82c36c865023d0`; user review pending; TE-3+ not started
 - **Architecture:** ADR-0005 / `THERMAL_ENVIRONMENT_SPEC.md`
 - **Principle:** automated evidence proves invariants and named causal claims, not fun or user acceptance
 
@@ -72,6 +72,7 @@ Property generators use deterministic seeds, bounded cases/shrinking and persist
 | TE-F36 | Spawn with receiver | target Air moves to the unique claimed receiver without loss |
 | TE-F37 | Spawn without receiver | phase remains blocked; Smoke request rejected; target Air unchanged |
 | TE-F38 | Expansion target wins but receiver fails | Matter/Air unchanged; existing blocked-expansion pressure source applied exactly once |
+| TE-F39 | Small-delta thermal convergence | 30 Matter/Air pair, baseline and delta combinations share the exact deadband work predicate, converge monotonically without overshoot, and sleep only after work ends |
 
 ## 4. Named acceptance chains
 
@@ -103,6 +104,9 @@ Ignition validation distinguishes a brief pulse, sustained preheat, source remov
 - profiler pass identity/query count/group reconstruction includes Environment work.
 - one canonical staging helper covers world creation/reset, scenarios, benchmark calibration, direct test hooks and Sandbox presets.
 - Inspector payload remains 24 bytes and cadence remains at most 10 Hz until separately approved.
+- `abs(delta) > 0.01 °C` is the identical physics/activity predicate; the
+  deadband is not subtracted from eligible work, and a genuine eligible f32
+  change cannot leave activity permanently on without stored progress.
 
 ## 6. Reference-proof status
 
@@ -146,3 +150,19 @@ exposed a pre-existing Heavy Mixed census block misplaced in the Fire/Heat
 fixture test; that test-only block was removed, scenario tests passed, the
 source SHA changed, and the invalidated attempt was rerun successfully at the
 final SHA. No G8/G8-C/candidate/official capture ran.
+
+## 10. TE-2 completed evidence
+
+Source `fb7e568e21012b6067269f4e1b82c36c865023d0` implements and validates
+TE-F01–F13 where applicable to passive transport, TE-F29–F31, TE-F35 and
+TE-F39. The 30-case small-delta matrix covers Matter↔Matter, Air↔Air and
+Matter↔Air at approximately 20 °C and 500 °C with deltas 1.0, 0.1, 0.02,
+0.011 and 0.009 °C on both CPU reference and production GPU.
+
+Final-source formatter, targeted suites, all-target check, warnings-denied
+clippy, strict audit, diff check and the exactly-once serial workspace FULL
+passed. One locked release build and one 60-frame candidate bounded launch
+passed. The one-shot performance artifact reports 2048² GPU tick P95
+`2.599712 ms` at equilibrium and `2.304832 ms` for a local frontier; the
+equilibrium terminal reaches zero active Cells/chunks. See
+[`THERMAL_ENVIRONMENT_TE_2_PASSIVE_TRANSPORT_2026-08-20.md`](../evidence/THERMAL_ENVIRONMENT_TE_2_PASSIVE_TRANSPORT_2026-08-20.md).

@@ -152,7 +152,7 @@ mod tests {
     use powdergame_gpu::{PassTiming, ProfiledTickReport, PASS_NAMES};
 
     fn report_with_movement(tick_index: u64, propose: f64, commit: f64) -> ProfiledTickReport {
-        let mut raw = [0u64; 34];
+        let mut raw = [0u64; PASS_COUNT * 2];
         let mut cursor = 1u64;
         let passes = std::array::from_fn(|index| {
             let duration_ms = match index {
@@ -195,7 +195,7 @@ mod tests {
 
         let incorrect_sum_of_pass_medians = stats.pass_stats[1].p50 + stats.pass_stats[3].p50;
         assert_eq!(incorrect_sum_of_pass_medians, 2.0);
-        assert_eq!(stats.grouped_stats[0].p50, 100.0);
+        assert_eq!(stats.grouped_stats[0].p50, 102.0);
         assert_ne!(stats.grouped_stats[0].p50, incorrect_sum_of_pass_medians);
     }
 

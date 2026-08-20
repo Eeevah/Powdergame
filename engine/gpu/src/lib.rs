@@ -23,4 +23,4 @@ pub use profiler::{
 pub use simulation::{
     ActivityCensusReport, ActivityCensusSnapshot, Simulation, TrackedMemoryReport,
 };
-pub use world::GpuWorld;
+pub use world::{EnvironmentCellSnapshot, GpuWorld};

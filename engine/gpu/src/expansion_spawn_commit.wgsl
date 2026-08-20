@@ -20,8 +20,29 @@ struct Params {
 @group(0) @binding(5) var<storage, read_write> temperature_next: array<f32>;
 @group(0) @binding(6) var<storage, read_write> flags_next: array<u32>;
 @group(0) @binding(7) var<storage, read> chunk_state: array<u32>;
+@group(0) @binding(8) var<storage, read> environment_receiver_claim: array<u32>;
 
 const EMPTY: u32 = 0u;
+
+fn in_domain(x: i32, y: i32) -> bool {
+    return x >= 0 && y >= 0 && x < i32(params.width) && y < i32(params.height);
+}
+
+fn has_environment_receiver(target_cell: u32) -> bool {
+    let x = i32(target_cell % params.width);
+    let y = i32(target_cell / params.width);
+    let offsets = array<vec2<i32>, 4>(vec2<i32>(0,-1), vec2<i32>(1,0), vec2<i32>(0,1), vec2<i32>(-1,0));
+    var i = 0u;
+    while (i < 4u) {
+        let p = vec2<i32>(x, y) + offsets[i];
+        if (in_domain(p.x, p.y)) {
+            let receiver = u32(p.y) * params.width + u32(p.x);
+            if (environment_receiver_claim[receiver] == target_cell + 1u) { return true; }
+        }
+        i += 1u;
+    }
+    return false;
+}
 
 @compute @workgroup_size(64, 1, 1)
 fn expansion_spawn_commit_main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -42,6 +63,9 @@ fn expansion_spawn_commit_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let source = winner - 1u;
+    if (!has_environment_receiver(c)) {
+        return;
+    }
     material_next[c] = material_next[source];
     temperature_next[c] = temperature_current[source];
     flags_next[c] = 0u;

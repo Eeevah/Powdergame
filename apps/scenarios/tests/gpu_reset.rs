@@ -1,12 +1,13 @@
 use powdergame_core::{
-    fuel_progress, is_valid_cell_material_value, WorldConfig, ACTIVITY_ALL_BITS, ACTIVITY_MATTER,
-    ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE,
-    CHUNK_STATE_SLEEPING, FLAG_FLAME_EVENT, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_OIL,
-    MATERIAL_SMOKE, MATERIAL_WATER, MATERIAL_WOOD, PRESSURE_REFERENCE, TEMPERATURE_REFERENCE,
-    WAKE_REASON_ALWAYS_ACTIVE, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE,
-    WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_SETTLING, WAKE_REASON_USER_EDIT,
+    fuel_progress, is_valid_cell_material_value, standard_air_state, vacuum_air_state, WorldConfig,
+    ACTIVITY_ALL_BITS, ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL,
+    CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING, FLAG_FLAME_EVENT, MATERIAL_BOUNDARY_BLOCK,
+    MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_SMOKE, MATERIAL_WATER, MATERIAL_WOOD,
+    PRESSURE_REFERENCE, TEMPERATURE_REFERENCE, WAKE_REASON_ALWAYS_ACTIVE,
+    WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE, WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_SETTLING,
+    WAKE_REASON_USER_EDIT,
 };
-use powdergame_gpu::Simulation;
+use powdergame_gpu::{EnvironmentCellSnapshot, Simulation};
 use powdergame_scenarios::{
     reset_and_stage_scenario, ScenarioFixture, ScenarioId, GALLERY_SCENARIOS,
     WATER_FLOW_OUTER_BASIN_MAX_X_EXCLUSIVE, WATER_FLOW_OUTER_BASIN_MAX_Y_EXCLUSIVE,
@@ -26,6 +27,7 @@ struct Snapshot {
     chunk_state: Vec<u32>,
     chunk_wake_reason: Vec<u32>,
     chunk_edit_wake: Vec<u32>,
+    environment: Vec<EnvironmentCellSnapshot>,
 }
 
 fn snapshot(simulation: &Simulation) -> Snapshot {
@@ -60,6 +62,9 @@ fn snapshot(simulation: &Simulation) -> Snapshot {
         chunk_edit_wake: world
             .read_chunk_edit_wake_all(device, queue)
             .expect("chunk edit wake"),
+        environment: world
+            .read_environment_cells(device, queue, &[(0, 0), (10, 10), (128, 128)])
+            .expect("bounded Environment snapshot"),
     }
 }
 
@@ -84,6 +89,24 @@ fn assert_tick_zero_matches_fixture(
         "{scenario} pressures"
     );
     assert_eq!(actual.flags, fixture.flags(), "{scenario} flags");
+    for cell in &actual.environment {
+        let index = cell.y as usize * fixture.config().width as usize + cell.x as usize;
+        let expected = if fixture.materials()[index] == MATERIAL_EMPTY {
+            standard_air_state()
+        } else {
+            vacuum_air_state()
+        };
+        assert_eq!(
+            cell.current, expected,
+            "{scenario} Air at ({}, {})",
+            cell.x, cell.y
+        );
+        assert_eq!(
+            cell.current, cell.next,
+            "{scenario} Air halves at ({}, {})",
+            cell.x, cell.y
+        );
+    }
     assert_eq!(
         actual.chunk_edit_wake,
         fixture.chunk_edit_wake(),

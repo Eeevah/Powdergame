@@ -420,7 +420,8 @@ fn median_profiled_trial_id(trials: &[ProfiledTrialResult]) -> Result<u32, Strin
 
 fn print_profiled_summary(trial: &ProfiledTrialResult) {
     println!(
-        "\n--- 17-Pass GPU Timing (median-envelope trial {}) ---",
+        "\n--- {}-Pass GPU Timing (median-envelope trial {}) ---",
+        powdergame_gpu::PASS_COUNT,
         trial.trial
     );
     println!(

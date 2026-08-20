@@ -158,15 +158,23 @@ pub struct Simulation {
     propose_pipeline: wgpu::ComputePipeline,
     claim_pipeline: wgpu::ComputePipeline,
     commit_pipeline: wgpu::ComputePipeline,
+    material_flag_hygiene_pipeline: wgpu::ComputePipeline,
+    movement_environment_reconcile_pipeline: wgpu::ComputePipeline,
     thermal_pipeline: wgpu::ComputePipeline,
     phase_pipeline: wgpu::ComputePipeline,
     expansion_claim_pipeline: wgpu::ComputePipeline,
+    expansion_environment_receiver_claim_pipeline: wgpu::ComputePipeline,
     expansion_spawn_commit_pipeline: wgpu::ComputePipeline,
     expansion_pressure_pipeline: wgpu::ComputePipeline,
+    environment_blocked_expansion_pressure_pipeline: wgpu::ComputePipeline,
+    expansion_environment_reconcile_pipeline: wgpu::ComputePipeline,
+    identity_environment_reconcile_pipeline: wgpu::ComputePipeline,
     decay_pipeline: wgpu::ComputePipeline,
     combustion_pipeline: wgpu::ComputePipeline,
     smoke_claim_pipeline: wgpu::ComputePipeline,
+    smoke_environment_receiver_claim_pipeline: wgpu::ComputePipeline,
     smoke_commit_pipeline: wgpu::ComputePipeline,
+    smoke_environment_reconcile_pipeline: wgpu::ComputePipeline,
     pressure_pipeline: wgpu::ComputePipeline,
     rupture_pipeline: wgpu::ComputePipeline,
     activity_propose_pipeline: wgpu::ComputePipeline,
@@ -175,11 +183,17 @@ pub struct Simulation {
     propose_bind_group: wgpu::BindGroup,
     claim_bind_group: wgpu::BindGroup,
     commit_bind_group: wgpu::BindGroup,
+    material_flag_hygiene_bind_group: wgpu::BindGroup,
+    movement_environment_reconcile_bind_group: wgpu::BindGroup,
     thermal_bind_group: wgpu::BindGroup,
     phase_bind_group: wgpu::BindGroup,
     expansion_claim_bind_group: wgpu::BindGroup,
+    environment_receiver_claim_bind_group: wgpu::BindGroup,
     expansion_spawn_commit_bind_group: wgpu::BindGroup,
     expansion_pressure_bind_group: wgpu::BindGroup,
+    environment_blocked_expansion_pressure_bind_group: wgpu::BindGroup,
+    environment_spawn_reconcile_bind_group: wgpu::BindGroup,
+    identity_environment_reconcile_bind_group: wgpu::BindGroup,
     decay_bind_group: wgpu::BindGroup,
     combustion_bind_group: wgpu::BindGroup,
 
@@ -240,6 +254,24 @@ impl Simulation {
                 label: Some("powdergame-g3-movement-commit"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("movement_commit.wgsl").into()),
             });
+        let shader_material_flag_hygiene =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te1-material-flag-hygiene"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("material_flag_hygiene.wgsl").into(),
+                    ),
+                });
+        let shader_movement_environment_reconcile =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te1-movement-environment-reconcile"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("environment_reconcile_movement.wgsl").into(),
+                    ),
+                });
         let shader_thermal = context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -259,6 +291,15 @@ impl Simulation {
                     label: Some("powdergame-g5b-expansion-claim"),
                     source: wgpu::ShaderSource::Wgsl(include_str!("expansion_claim.wgsl").into()),
                 });
+        let shader_environment_receiver_claim =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te1-environment-receiver-claim"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("environment_receiver_claim.wgsl").into(),
+                    ),
+                });
         let shader_expansion_spawn_commit =
             context
                 .device
@@ -275,6 +316,33 @@ impl Simulation {
                     label: Some("powdergame-g5b-expansion-pressure"),
                     source: wgpu::ShaderSource::Wgsl(
                         include_str!("expansion_pressure.wgsl").into(),
+                    ),
+                });
+        let shader_environment_blocked_expansion_pressure =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te1-environment-blocked-expansion-pressure"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("environment_blocked_expansion_pressure.wgsl").into(),
+                    ),
+                });
+        let shader_environment_spawn_reconcile =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te1-environment-spawn-reconcile"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("environment_reconcile_spawn.wgsl").into(),
+                    ),
+                });
+        let shader_identity_environment_reconcile =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te1-identity-environment-reconcile"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("environment_reconcile_identity.wgsl").into(),
                     ),
                 });
         let shader_decay = context
@@ -386,6 +454,33 @@ impl Simulation {
                         buffer_entry(8, &BindingKind::Read), // chunk_state
                     ],
                 });
+        let material_flag_hygiene_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te1-material-flag-hygiene-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::ReadWrite),
+                    ],
+                });
+        let movement_environment_reconcile_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te1-movement-environment-reconcile-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        buffer_entry(5, &BindingKind::Read),
+                        buffer_entry(6, &BindingKind::ReadWrite),
+                        buffer_entry(7, &BindingKind::ReadWrite),
+                    ],
+                });
         let thermal_layout =
             context
                 .device
@@ -431,6 +526,21 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::Read), // chunk_state
                     ],
                 });
+        let environment_receiver_claim_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te1-environment-receiver-claim-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        buffer_entry(5, &BindingKind::ReadWrite),
+                        buffer_entry(6, &BindingKind::Uniform),
+                    ],
+                });
         let expansion_spawn_commit_layout =
             context
                 .device
@@ -445,6 +555,7 @@ impl Simulation {
                         buffer_entry(5, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(6, &BindingKind::ReadWrite), // flags_next
                         buffer_entry(7, &BindingKind::Read), // chunk_state
+                        buffer_entry(8, &BindingKind::Read), // Environment receiver claim
                     ],
                 });
         let expansion_pressure_layout =
@@ -462,6 +573,53 @@ impl Simulation {
                         buffer_entry(6, &BindingKind::Read), // pressure_current
                         buffer_entry(7, &BindingKind::ReadWrite), // pressure_next
                         buffer_entry(8, &BindingKind::Read), // chunk_state
+                    ],
+                });
+        let environment_blocked_expansion_pressure_layout = context
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("powdergame-te1-environment-blocked-expansion-pressure-bgl"),
+                entries: &[
+                    buffer_entry(0, &BindingKind::Uniform),
+                    buffer_entry(1, &BindingKind::Read),
+                    buffer_entry(2, &BindingKind::Read),
+                    buffer_entry(3, &BindingKind::Read),
+                    buffer_entry(4, &BindingKind::Read),
+                    buffer_entry(5, &BindingKind::Read),
+                    buffer_entry(6, &BindingKind::Read),
+                    buffer_entry(7, &BindingKind::ReadWrite),
+                ],
+            });
+        let environment_spawn_reconcile_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te1-environment-spawn-reconcile-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        buffer_entry(5, &BindingKind::Read),
+                        buffer_entry(6, &BindingKind::Read),
+                        buffer_entry(7, &BindingKind::ReadWrite),
+                        buffer_entry(8, &BindingKind::ReadWrite),
+                    ],
+                });
+        let identity_environment_reconcile_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te1-identity-environment-reconcile-bgl"),
+                    entries: &[
+                        buffer_entry(0, &BindingKind::Uniform),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        buffer_entry(5, &BindingKind::ReadWrite),
+                        buffer_entry(6, &BindingKind::ReadWrite),
                     ],
                 });
         let decay_layout =
@@ -525,6 +683,7 @@ impl Simulation {
                         buffer_entry(3, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(4, &BindingKind::ReadWrite), // material_next
                         buffer_entry(5, &BindingKind::Read), // chunk_state
+                        buffer_entry(6, &BindingKind::Read), // Environment receiver claim
                     ],
                 });
 
@@ -653,6 +812,18 @@ impl Simulation {
             &shader_commit,
             "commit_main",
         );
+        let material_flag_hygiene_pipeline = make_pipeline(
+            "powdergame-te1-material-flag-hygiene",
+            &material_flag_hygiene_layout,
+            &shader_material_flag_hygiene,
+            "material_flag_hygiene_main",
+        );
+        let movement_environment_reconcile_pipeline = make_pipeline(
+            "powdergame-te1-movement-environment-reconcile",
+            &movement_environment_reconcile_layout,
+            &shader_movement_environment_reconcile,
+            "movement_environment_reconcile_main",
+        );
         let thermal_pipeline = make_pipeline(
             "powdergame-g4a-thermal",
             &thermal_layout,
@@ -671,6 +842,12 @@ impl Simulation {
             &shader_expansion_claim,
             "expansion_claim_main",
         );
+        let expansion_environment_receiver_claim_pipeline = make_pipeline(
+            "powdergame-te1-expansion-environment-receiver-claim",
+            &environment_receiver_claim_layout,
+            &shader_environment_receiver_claim,
+            "expansion_receiver_claim_main",
+        );
         let expansion_spawn_commit_pipeline = make_pipeline(
             "powdergame-g5b-expansion-spawn-commit",
             &expansion_spawn_commit_layout,
@@ -682,6 +859,24 @@ impl Simulation {
             &expansion_pressure_layout,
             &shader_expansion_pressure,
             "expansion_pressure_main",
+        );
+        let environment_blocked_expansion_pressure_pipeline = make_pipeline(
+            "powdergame-te1-environment-blocked-expansion-pressure",
+            &environment_blocked_expansion_pressure_layout,
+            &shader_environment_blocked_expansion_pressure,
+            "environment_blocked_expansion_pressure_main",
+        );
+        let expansion_environment_reconcile_pipeline = make_pipeline(
+            "powdergame-te1-expansion-environment-reconcile",
+            &environment_spawn_reconcile_layout,
+            &shader_environment_spawn_reconcile,
+            "expansion_environment_reconcile_main",
+        );
+        let identity_environment_reconcile_pipeline = make_pipeline(
+            "powdergame-te1-identity-environment-reconcile",
+            &identity_environment_reconcile_layout,
+            &shader_identity_environment_reconcile,
+            "identity_environment_reconcile_main",
         );
         let decay_pipeline = make_pipeline(
             "powdergame-g4d-decay",
@@ -701,11 +896,23 @@ impl Simulation {
             &shader_smoke_claim,
             "smoke_claim_main",
         );
+        let smoke_environment_receiver_claim_pipeline = make_pipeline(
+            "powdergame-te1-smoke-environment-receiver-claim",
+            &environment_receiver_claim_layout,
+            &shader_environment_receiver_claim,
+            "smoke_receiver_claim_main",
+        );
         let smoke_commit_pipeline = make_pipeline(
             "powdergame-g4c-smoke-commit",
             &smoke_commit_layout,
             &shader_smoke_commit,
             "smoke_commit_main",
+        );
+        let smoke_environment_reconcile_pipeline = make_pipeline(
+            "powdergame-te1-smoke-environment-reconcile",
+            &environment_spawn_reconcile_layout,
+            &shader_environment_spawn_reconcile,
+            "smoke_environment_reconcile_main",
         );
 
         let pressure_pipeline = make_pipeline(
@@ -1103,6 +1310,68 @@ impl Simulation {
                     },
                 ],
             });
+        let material_flag_hygiene_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te1-material-flag-hygiene-bg"),
+                    layout: &material_flag_hygiene_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.flags_next.as_entire_binding(),
+                        },
+                    ],
+                });
+        let movement_environment_reconcile_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te1-movement-environment-reconcile-bg"),
+                    layout: &movement_environment_reconcile_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.material_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.air_mass_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.air_energy_next.as_entire_binding(),
+                        },
+                    ],
+                });
         let thermal_bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1212,6 +1481,43 @@ impl Simulation {
                         },
                     ],
                 });
+        let environment_receiver_claim_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te1-environment-receiver-claim-bg"),
+                    layout: &environment_receiver_claim_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.environment_receiver_claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: arbitration_params.as_entire_binding(),
+                        },
+                    ],
+                });
         let expansion_spawn_commit_bind_group =
             context
                 .device
@@ -1250,6 +1556,10 @@ impl Simulation {
                         wgpu::BindGroupEntry {
                             binding: 7,
                             resource: world.chunk_state.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: world.environment_receiver_claim.as_entire_binding(),
                         },
                     ],
                 });
@@ -1295,6 +1605,129 @@ impl Simulation {
                         wgpu::BindGroupEntry {
                             binding: 8,
                             resource: world.chunk_state.as_entire_binding(),
+                        },
+                    ],
+                });
+        let environment_blocked_expansion_pressure_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te1-environment-blocked-expansion-pressure-bg"),
+                    layout: &environment_blocked_expansion_pressure_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.temperature_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: phase_table_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.environment_receiver_claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.pressure_next.as_entire_binding(),
+                        },
+                    ],
+                });
+        let environment_spawn_reconcile_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te1-environment-spawn-reconcile-bg"),
+                    layout: &environment_spawn_reconcile_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.material_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.environment_receiver_claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.air_mass_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: world.air_energy_next.as_entire_binding(),
+                        },
+                    ],
+                });
+        let identity_environment_reconcile_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te1-identity-environment-reconcile-bg"),
+                    layout: &identity_environment_reconcile_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.material_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.air_mass_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.air_energy_next.as_entire_binding(),
                         },
                     ],
                 });
@@ -1452,6 +1885,10 @@ impl Simulation {
                         wgpu::BindGroupEntry {
                             binding: 5,
                             resource: world.chunk_state.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.environment_receiver_claim.as_entire_binding(),
                         },
                     ],
                 });
@@ -1649,15 +2086,23 @@ impl Simulation {
             propose_pipeline,
             claim_pipeline,
             commit_pipeline,
+            material_flag_hygiene_pipeline,
+            movement_environment_reconcile_pipeline,
             thermal_pipeline,
             phase_pipeline,
             expansion_claim_pipeline,
+            expansion_environment_receiver_claim_pipeline,
             expansion_spawn_commit_pipeline,
             expansion_pressure_pipeline,
+            environment_blocked_expansion_pressure_pipeline,
+            expansion_environment_reconcile_pipeline,
+            identity_environment_reconcile_pipeline,
             decay_pipeline,
             combustion_pipeline,
             smoke_claim_pipeline,
+            smoke_environment_receiver_claim_pipeline,
             smoke_commit_pipeline,
+            smoke_environment_reconcile_pipeline,
             pressure_pipeline,
             rupture_pipeline,
             activity_propose_pipeline,
@@ -1666,11 +2111,17 @@ impl Simulation {
             propose_bind_group,
             claim_bind_group,
             commit_bind_group,
+            material_flag_hygiene_bind_group,
+            movement_environment_reconcile_bind_group,
             thermal_bind_group,
             phase_bind_group,
             expansion_claim_bind_group,
+            environment_receiver_claim_bind_group,
             expansion_spawn_commit_bind_group,
             expansion_pressure_bind_group,
+            environment_blocked_expansion_pressure_bind_group,
+            environment_spawn_reconcile_bind_group,
+            identity_environment_reconcile_bind_group,
             decay_bind_group,
             combustion_bind_group,
             smoke_claim_bind_group,
@@ -1751,7 +2202,7 @@ impl Simulation {
         self.tick_internal(None)
     }
 
-    /// Submits one tick on the GPU in timestamp-profiled mode and reads back the 17 pass timings.
+    /// Submits one tick on the GPU in timestamp-profiled mode and reads every production pass timing.
     pub fn tick_profiled(
         &mut self,
         profiler: &mut GpuProfiler,
@@ -1769,20 +2220,17 @@ impl Simulation {
     ///
     /// Pipeline order:
     /// ```text
-    /// 1. activity wake evaluation (1 thread per chunk)
-    /// 2. movement propose → 3. claim → 4. commit (material + temperature + flags)
-    /// → copy material/temperature/flags Next→Current
-    /// 5. thermal conduction (write-self) → copy temperature Next→Current
-    /// 6. phase transition + 7. expansion proposal → 8. expansion claim/commit
-    /// → 9. unresolved expansion pressure impulse → copy phase state Current
-    /// 10. decay (age increment + finite lifetime decay to EMPTY)
-    /// 11. combustion (self-write heat/flags + Smoke spawn request)
-    /// 12. smoke claim (destination winner exactly one)
-    /// 13. smoke commit (destination self-write Smoke + hot T)
-    /// → copy material/temperature/flags Next→Current
-    /// 14. scalar pressure 4-neighbor propagation → copy pressure Next→Current
-    /// 15. structural rupture (neighbor Pressure → self EMPTY) → opening
-    /// 16. activity propose + 17. reduce (chunk frontier measurement)
+    /// 0. activity wake
+    /// 1..5. movement propose/claim/commit, Matter flag hygiene, Environment reconcile
+    /// 6. thermal conduction
+    /// 7..14. phase, Matter claim, Environment receiver transaction, blocked-pressure
+    ///        consequence, flag hygiene, Environment reconcile
+    /// 15..17. decay, flag hygiene, Environment reconcile
+    /// 18..23. combustion/Smoke claim, Environment receiver transaction, flag hygiene,
+    ///         Environment reconcile
+    /// 24. pressure
+    /// 25..27. rupture, flag hygiene, Environment reconcile
+    /// 28..29. activity propose/reduce
     /// ```
     fn tick_internal(&mut self, profiler: Option<&mut GpuProfiler>) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
@@ -1862,6 +2310,30 @@ impl Simulation {
             });
             dispatch(&mut pass, &self.commit_pipeline, &self.commit_bind_group);
         }
+        // Pass 4: exact Matter flag ownership after movement.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-material-flag-hygiene-movement-pass"),
+                timestamp_writes: make_timestamp_writes(4),
+            });
+            dispatch(
+                &mut pass,
+                &self.material_flag_hygiene_pipeline,
+                &self.material_flag_hygiene_bind_group,
+            );
+        }
+        // Pass 5: movement Volume Exchange.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-movement-environment-reconcile-pass"),
+                timestamp_writes: make_timestamp_writes(5),
+            });
+            dispatch(
+                &mut pass,
+                &self.movement_environment_reconcile_pipeline,
+                &self.movement_environment_reconcile_bind_group,
+            );
+        }
 
         // Movement ownership is settled on Current before conduction.
         encoder.copy_buffer_to_buffer(
@@ -1885,12 +2357,26 @@ impl Simulation {
             0,
             self.world.layout.flags_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_mass_next,
+            0,
+            &self.world.air_mass_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_energy_next,
+            0,
+            &self.world.air_energy_current,
+            0,
+            self.world.layout.material_bytes,
+        );
 
-        // Pass 4: thermal
+        // Pass 6: thermal
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4a-thermal-pass"),
-                timestamp_writes: make_timestamp_writes(4),
+                timestamp_writes: make_timestamp_writes(6),
             });
             dispatch(&mut pass, &self.thermal_pipeline, &self.thermal_bind_group);
         }
@@ -1902,19 +2388,19 @@ impl Simulation {
             self.world.layout.temperature_bytes,
         );
 
-        // Pass 5: phase_transition
+        // Pass 7: phase_transition
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4b-g5b-phase-pass"),
-                timestamp_writes: make_timestamp_writes(5),
+                timestamp_writes: make_timestamp_writes(7),
             });
             dispatch(&mut pass, &self.phase_pipeline, &self.phase_bind_group);
         }
-        // Pass 6: expansion_claim
+        // Pass 8: expansion_claim
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-claim-pass"),
-                timestamp_writes: make_timestamp_writes(6),
+                timestamp_writes: make_timestamp_writes(8),
             });
             dispatch(
                 &mut pass,
@@ -1922,11 +2408,24 @@ impl Simulation {
                 &self.expansion_claim_bind_group,
             );
         }
-        // Pass 7: expansion_spawn_commit
+        // Pass 9: Environment receiver claim (scratch is fully rewritten).
+        encoder.clear_buffer(&self.world.environment_receiver_claim, 0, None);
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-expansion-environment-receiver-claim-pass"),
+                timestamp_writes: make_timestamp_writes(9),
+            });
+            dispatch(
+                &mut pass,
+                &self.expansion_environment_receiver_claim_pipeline,
+                &self.environment_receiver_claim_bind_group,
+            );
+        }
+        // Pass 10: expansion_spawn_commit (receiver gated)
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-spawn-commit-pass"),
-                timestamp_writes: make_timestamp_writes(7),
+                timestamp_writes: make_timestamp_writes(10),
             });
             dispatch(
                 &mut pass,
@@ -1934,16 +2433,52 @@ impl Simulation {
                 &self.expansion_spawn_commit_bind_group,
             );
         }
-        // Pass 8: expansion_pressure
+        // Pass 11: existing expansion_pressure
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-pressure-pass"),
-                timestamp_writes: make_timestamp_writes(8),
+                timestamp_writes: make_timestamp_writes(11),
             });
             dispatch(
                 &mut pass,
                 &self.expansion_pressure_pipeline,
                 &self.expansion_pressure_bind_group,
+            );
+        }
+        // Pass 12: original Matter winner whose Environment receiver failed.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-environment-blocked-expansion-pressure-pass"),
+                timestamp_writes: make_timestamp_writes(12),
+            });
+            dispatch(
+                &mut pass,
+                &self.environment_blocked_expansion_pressure_pipeline,
+                &self.environment_blocked_expansion_pressure_bind_group,
+            );
+        }
+        // Pass 13: phase/spawn identity flag hygiene.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-material-flag-hygiene-phase-pass"),
+                timestamp_writes: make_timestamp_writes(13),
+            });
+            dispatch(
+                &mut pass,
+                &self.material_flag_hygiene_pipeline,
+                &self.material_flag_hygiene_bind_group,
+            );
+        }
+        // Pass 14: paired phase Environment reconcile.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-expansion-environment-reconcile-pass"),
+                timestamp_writes: make_timestamp_writes(14),
+            });
+            dispatch(
+                &mut pass,
+                &self.expansion_environment_reconcile_pipeline,
+                &self.environment_spawn_reconcile_bind_group,
             );
         }
 
@@ -1976,14 +2511,50 @@ impl Simulation {
             0,
             self.world.layout.pressure_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_mass_next,
+            0,
+            &self.world.air_mass_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_energy_next,
+            0,
+            &self.world.air_energy_current,
+            0,
+            self.world.layout.material_bytes,
+        );
 
-        // Pass 9: decay
+        // Pass 15: decay
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4d-decay-pass"),
-                timestamp_writes: make_timestamp_writes(9),
+                timestamp_writes: make_timestamp_writes(15),
             });
             dispatch(&mut pass, &self.decay_pipeline, &self.decay_bind_group);
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-material-flag-hygiene-decay-pass"),
+                timestamp_writes: make_timestamp_writes(16),
+            });
+            dispatch(
+                &mut pass,
+                &self.material_flag_hygiene_pipeline,
+                &self.material_flag_hygiene_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-environment-reconcile-decay-pass"),
+                timestamp_writes: make_timestamp_writes(17),
+            });
+            dispatch(
+                &mut pass,
+                &self.identity_environment_reconcile_pipeline,
+                &self.identity_environment_reconcile_bind_group,
+            );
         }
         encoder.copy_buffer_to_buffer(
             &self.world.material_next,
@@ -2006,12 +2577,26 @@ impl Simulation {
             0,
             self.world.layout.flags_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_mass_next,
+            0,
+            &self.world.air_mass_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_energy_next,
+            0,
+            &self.world.air_energy_current,
+            0,
+            self.world.layout.material_bytes,
+        );
 
-        // Pass 10: combustion
+        // Pass 18: combustion
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-combustion-pass"),
-                timestamp_writes: make_timestamp_writes(10),
+                timestamp_writes: make_timestamp_writes(18),
             });
             dispatch(
                 &mut pass,
@@ -2019,11 +2604,11 @@ impl Simulation {
                 &self.combustion_bind_group,
             );
         }
-        // Pass 11: smoke_claim
+        // Pass 19: smoke_claim
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-smoke-claim-pass"),
-                timestamp_writes: make_timestamp_writes(11),
+                timestamp_writes: make_timestamp_writes(19),
             });
             dispatch(
                 &mut pass,
@@ -2031,16 +2616,51 @@ impl Simulation {
                 &self.smoke_claim_bind_group,
             );
         }
-        // Pass 12: smoke_commit
+        // Pass 20: Smoke Environment receiver claim.
+        encoder.clear_buffer(&self.world.environment_receiver_claim, 0, None);
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-smoke-environment-receiver-claim-pass"),
+                timestamp_writes: make_timestamp_writes(20),
+            });
+            dispatch(
+                &mut pass,
+                &self.smoke_environment_receiver_claim_pipeline,
+                &self.environment_receiver_claim_bind_group,
+            );
+        }
+        // Pass 21: smoke_commit (receiver gated)
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-smoke-commit-pass"),
-                timestamp_writes: make_timestamp_writes(12),
+                timestamp_writes: make_timestamp_writes(21),
             });
             dispatch(
                 &mut pass,
                 &self.smoke_commit_pipeline,
                 &self.smoke_commit_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-material-flag-hygiene-combustion-pass"),
+                timestamp_writes: make_timestamp_writes(22),
+            });
+            dispatch(
+                &mut pass,
+                &self.material_flag_hygiene_pipeline,
+                &self.material_flag_hygiene_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-environment-reconcile-smoke-pass"),
+                timestamp_writes: make_timestamp_writes(23),
+            });
+            dispatch(
+                &mut pass,
+                &self.smoke_environment_reconcile_pipeline,
+                &self.environment_spawn_reconcile_bind_group,
             );
         }
 
@@ -2066,12 +2686,26 @@ impl Simulation {
             0,
             self.world.layout.flags_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_mass_next,
+            0,
+            &self.world.air_mass_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_energy_next,
+            0,
+            &self.world.air_energy_current,
+            0,
+            self.world.layout.material_bytes,
+        );
 
-        // Pass 13: pressure
+        // Pass 24: pressure
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5a-pressure-pass"),
-                timestamp_writes: make_timestamp_writes(13),
+                timestamp_writes: make_timestamp_writes(24),
             });
             dispatch(
                 &mut pass,
@@ -2087,13 +2721,35 @@ impl Simulation {
             self.world.layout.pressure_bytes,
         );
 
-        // Pass 14: rupture
+        // Pass 25: rupture
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5c-rupture-pass"),
-                timestamp_writes: make_timestamp_writes(14),
+                timestamp_writes: make_timestamp_writes(25),
             });
             dispatch(&mut pass, &self.rupture_pipeline, &self.rupture_bind_group);
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-material-flag-hygiene-rupture-pass"),
+                timestamp_writes: make_timestamp_writes(26),
+            });
+            dispatch(
+                &mut pass,
+                &self.material_flag_hygiene_pipeline,
+                &self.material_flag_hygiene_bind_group,
+            );
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-environment-reconcile-rupture-pass"),
+                timestamp_writes: make_timestamp_writes(27),
+            });
+            dispatch(
+                &mut pass,
+                &self.identity_environment_reconcile_pipeline,
+                &self.identity_environment_reconcile_bind_group,
+            );
         }
         encoder.copy_buffer_to_buffer(
             &self.world.material_next,
@@ -2116,12 +2772,26 @@ impl Simulation {
             0,
             self.world.layout.flags_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_mass_next,
+            0,
+            &self.world.air_mass_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_energy_next,
+            0,
+            &self.world.air_energy_current,
+            0,
+            self.world.layout.material_bytes,
+        );
 
-        // Pass 15: activity_propose
+        // Pass 28: activity_propose
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7a-activity-propose-pass"),
-                timestamp_writes: make_timestamp_writes(15),
+                timestamp_writes: make_timestamp_writes(28),
             });
             dispatch(
                 &mut pass,
@@ -2129,11 +2799,11 @@ impl Simulation {
                 &self.activity_propose_bind_group,
             );
         }
-        // Pass 16: activity_reduce
+        // Pass 29: activity_reduce
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7a-activity-reduce-pass"),
-                timestamp_writes: make_timestamp_writes(16),
+                timestamp_writes: make_timestamp_writes(29),
             });
             pass.set_pipeline(&self.activity_reduce_pipeline);
             pass.set_bind_group(0, &self.activity_reduce_bind_group, &[]);
@@ -2228,7 +2898,9 @@ impl Simulation {
             + self.world.layout.temperature_bytes * 2
             + self.world.layout.pressure_bytes * 2
             + self.world.layout.flags_bytes * 2;
+        let environment_state_bytes = self.world.layout.material_bytes * 4;
         let movement_scratch_bytes = self.world.layout.material_bytes * 2;
+        let environment_receiver_claim_bytes = self.world.layout.material_bytes;
         let chunk_bytes = chunk_count(
             self.world.config.width,
             self.world.config.height,
@@ -2239,14 +2911,18 @@ impl Simulation {
         let uniforms_and_tables_bytes = TRACKED_UNIFORMS_AND_TABLES_SIZE;
         let profiler_bytes = profiler.map_or(0, |p| p.tracked_gpu_allocation_bytes());
         let total_tracked_gpu_bytes = world_dense_state_bytes
+            + environment_state_bytes
             + movement_scratch_bytes
+            + environment_receiver_claim_bytes
             + activity_scratch_bytes
             + uniforms_and_tables_bytes
             + profiler_bytes;
 
         TrackedMemoryReport {
             world_dense_state_bytes,
+            environment_state_bytes,
             movement_scratch_bytes,
+            environment_receiver_claim_bytes,
             activity_scratch_bytes,
             uniforms_and_tables_bytes,
             profiler_bytes,
@@ -2387,8 +3063,12 @@ fn count_activity_census(
 pub struct TrackedMemoryReport {
     /// 8 logical dense world state buffers: material, temperature, pressure, flags (current + next each).
     pub world_dense_state_bytes: u64,
+    /// TE-1 persistent Environment state: Air mass/energy (current + next each).
+    pub environment_state_bytes: u64,
     /// Movement arbitration scratch buffers: proposal + claim.
     pub movement_scratch_bytes: u64,
+    /// TE-1 reusable phase/Smoke Environment receiver arbitration scratch.
+    pub environment_receiver_claim_bytes: u64,
     /// G7 activity diagnostic buffers: cell_activity + 6 chunk buffers.
     pub activity_scratch_bytes: u64,
     /// All persistent uniforms, simulation tables, and debug markers.

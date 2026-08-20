@@ -1,6 +1,6 @@
 //! G8-A GPU timestamp profiling substrate.
 //!
-//! Provides observational timestamp profiling for all 17 simulation passes
+//! Provides observational timestamp profiling for every production simulation pass
 //! using `wgpu::Features::TIMESTAMP_QUERY` and per-compute-pass `timestamp_writes`.
 //!
 //! Architectural rules (see `docs/specs/SIMULATION_SPEC.md`):
@@ -12,28 +12,41 @@
 use crate::context::{GpuContext, GpuError};
 
 /// Total number of distinct compute passes in a single simulation tick.
-pub const PASS_COUNT: usize = 17;
+pub const PASS_COUNT: usize = 30;
 
 /// Total number of timestamp queries per tick (start + end per pass).
-pub const QUERY_COUNT: u32 = 34;
+pub const QUERY_COUNT: u32 = (PASS_COUNT as u32) * 2;
 
-/// Canonical names of all 17 simulation passes in exact execution order.
-pub const PASS_NAMES: [&str; 17] = [
+/// Canonical names of all production passes in exact execution order.
+pub const PASS_NAMES: [&str; PASS_COUNT] = [
     "activity_wake",
     "movement_propose",
     "movement_claim",
     "movement_commit",
+    "material_flag_hygiene_movement",
+    "environment_reconcile_movement",
     "thermal",
     "phase_transition",
     "expansion_claim",
+    "expansion_environment_receiver_claim",
     "expansion_spawn_commit",
     "expansion_pressure",
+    "environment_blocked_expansion_pressure",
+    "material_flag_hygiene_phase",
+    "environment_reconcile_expansion",
     "decay",
+    "material_flag_hygiene_decay",
+    "environment_reconcile_decay",
     "combustion",
     "smoke_claim",
+    "smoke_environment_receiver_claim",
     "smoke_commit",
+    "material_flag_hygiene_combustion",
+    "environment_reconcile_smoke",
     "pressure",
     "rupture",
+    "material_flag_hygiene_rupture",
+    "environment_reconcile_rupture",
     "activity_propose",
     "activity_reduce",
 ];
@@ -51,15 +64,15 @@ pub struct PassTiming {
 /// Secondary grouped subsystem roll-up (derived from raw pass timings without double counting).
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroupedSubsystemSummary {
-    /// `movement_propose` + `movement_commit`
+    /// Movement proposal/commit plus movement flag and Environment reconciliation.
     pub matter_movement_ms: f64,
-    /// `movement_claim` + `expansion_claim` + `smoke_claim`
+    /// Matter and Environment arbitration for movement, expansion, and Smoke.
     pub ownership_claim_ms: f64,
     /// `thermal`
     pub thermal_ms: f64,
-    /// `phase_transition` + `expansion_spawn_commit` + `expansion_pressure` + `decay` + `combustion` + `smoke_commit`
+    /// Phase/reaction/decay/combustion commits plus their hygiene and Environment reconciliation.
     pub reaction_phase_ms: f64,
-    /// `pressure` + `rupture`
+    /// Pressure, blocked-expansion pressure, rupture, and rupture hygiene/reconciliation.
     pub pressure_structure_ms: f64,
     /// `activity_wake` + `activity_propose` + `activity_reduce`
     pub active_sleep_ms: f64,
@@ -70,11 +83,11 @@ pub struct GroupedSubsystemSummary {
 pub struct ProfiledTickReport {
     pub tick_index: u64,
     pub timestamp_period: f32,
-    pub passes: [PassTiming; 17],
-    pub raw_timestamps: [u64; 34],
-    /// Sum of all 17 individual pass durations.
+    pub passes: [PassTiming; PASS_COUNT],
+    pub raw_timestamps: [u64; PASS_COUNT * 2],
+    /// Sum of all individual pass durations.
     pub gpu_pass_sum_ms: f64,
-    /// Total tick envelope duration: from start of activity_wake (query 0) to end of activity_reduce (query 33).
+    /// Total tick envelope duration: first pass start through final pass end.
     pub gpu_tick_envelope_ms: f64,
     /// Diagnostic residual (`envelope - pass_sum`). Note: this is a diagnostic residual, not strict additive copy cost.
     pub residual_ms: f64,
@@ -84,21 +97,28 @@ impl ProfiledTickReport {
     /// Computes the secondary non-overlapping subsystem group summaries.
     pub fn grouped_summary(&self) -> GroupedSubsystemSummary {
         GroupedSubsystemSummary {
-            matter_movement_ms: self.passes[1].duration_ms + self.passes[3].duration_ms,
+            matter_movement_ms: self.passes[1].duration_ms
+                + self.passes[3].duration_ms
+                + self.passes[4].duration_ms
+                + self.passes[5].duration_ms,
             ownership_claim_ms: self.passes[2].duration_ms
-                + self.passes[6].duration_ms
-                + self.passes[11].duration_ms,
-            thermal_ms: self.passes[4].duration_ms,
-            reaction_phase_ms: self.passes[5].duration_ms
-                + self.passes[7].duration_ms
                 + self.passes[8].duration_ms
                 + self.passes[9].duration_ms
-                + self.passes[10].duration_ms
-                + self.passes[12].duration_ms,
-            pressure_structure_ms: self.passes[13].duration_ms + self.passes[14].duration_ms,
+                + self.passes[19].duration_ms
+                + self.passes[20].duration_ms,
+            thermal_ms: self.passes[6].duration_ms,
+            reaction_phase_ms: [7usize, 10, 11, 13, 14, 15, 16, 17, 18, 21, 22, 23]
+                .into_iter()
+                .map(|index| self.passes[index].duration_ms)
+                .sum(),
+            pressure_structure_ms: self.passes[12].duration_ms
+                + self.passes[24].duration_ms
+                + self.passes[25].duration_ms
+                + self.passes[26].duration_ms
+                + self.passes[27].duration_ms,
             active_sleep_ms: self.passes[0].duration_ms
-                + self.passes[15].duration_ms
-                + self.passes[16].duration_ms,
+                + self.passes[28].duration_ms
+                + self.passes[29].duration_ms,
         }
     }
 }
@@ -169,8 +189,8 @@ impl GpuProfiler {
             .map_err(|e| GpuError::ReadbackFailed(e.to_string()))?;
 
         let mapped = slice.get_mapped_range();
-        let mut raw = [0u64; 34];
-        for i in 0..34 {
+        let mut raw = [0u64; PASS_COUNT * 2];
+        for i in 0..PASS_COUNT * 2 {
             raw[i] = u64::from_ne_bytes(mapped[i * 8..(i + 1) * 8].try_into().unwrap());
         }
         drop(mapped);
@@ -188,7 +208,7 @@ impl GpuProfiler {
 fn report_from_raw_timestamps(
     tick_index: u64,
     timestamp_period: f32,
-    raw: [u64; 34],
+    raw: [u64; PASS_COUNT * 2],
 ) -> Result<ProfiledTickReport, GpuError> {
     if !timestamp_period.is_finite() || timestamp_period <= 0.0 {
         return Err(GpuError::ReadbackFailed(format!(
@@ -229,16 +249,17 @@ fn report_from_raw_timestamps(
         pass_ticks[i] = raw_end - raw_start;
     }
 
-    let envelope_ticks = raw[33].checked_sub(raw[0]).ok_or_else(|| {
+    let final_query = PASS_COUNT * 2 - 1;
+    let envelope_ticks = raw[final_query].checked_sub(raw[0]).ok_or_else(|| {
         GpuError::ReadbackFailed(format!(
-            "invalid profiler envelope: start_query=0 raw_start={}, end_query=33 raw_end={}; expected end > start",
-            raw[0], raw[33]
+            "invalid profiler envelope: start_query=0 raw_start={}, end_query={} raw_end={}; expected end > start",
+            raw[0], final_query, raw[final_query]
         ))
     })?;
     if envelope_ticks == 0 {
         return Err(GpuError::ReadbackFailed(format!(
-            "invalid profiler envelope: start_query=0 raw_start={}, end_query=33 raw_end={}; expected end > start",
-            raw[0], raw[33]
+            "invalid profiler envelope: start_query=0 raw_start={}, end_query={} raw_end={}; expected end > start",
+            raw[0], final_query, raw[final_query]
         )));
     }
 
@@ -297,8 +318,8 @@ fn report_from_raw_timestamps(
 mod tests {
     use super::*;
 
-    fn valid_raw_timestamps() -> [u64; 34] {
-        let mut raw = [0u64; 34];
+    fn valid_raw_timestamps() -> [u64; PASS_COUNT * 2] {
+        let mut raw = [0u64; PASS_COUNT * 2];
         let mut cursor = 0u64;
         for i in 0..PASS_COUNT {
             raw[i * 2] = cursor;

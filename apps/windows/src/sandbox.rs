@@ -299,7 +299,7 @@ pub(crate) fn stage_preset(
     let image = preset_image(preset, simulation.world.config)
         .map_err(|error| GpuError::Other(format!("Sandbox preset build failed: {error}")))?;
     let mut bytes = Vec::with_capacity(image.materials.len() * 4);
-    for material in image.materials {
+    for material in &image.materials {
         bytes.extend_from_slice(&material.to_ne_bytes());
     }
     simulation
@@ -310,6 +310,11 @@ pub(crate) fn stage_preset(
         .context
         .queue
         .write_buffer(&simulation.world.material_next, 0, &bytes);
+    simulation.world.stage_environment_for_materials(
+        &simulation.context.queue,
+        &image.materials,
+        powdergame_core::EmptyEnvironmentSeed::StandardAtmosphere,
+    )?;
     Ok(())
 }
 
@@ -398,6 +403,8 @@ pub(crate) struct SandboxEditController {
     field_bind_group: wgpu::BindGroup,
     flag_pipeline: wgpu::ComputePipeline,
     flag_bind_group: wgpu::BindGroup,
+    environment_pipeline: wgpu::ComputePipeline,
+    environment_bind_group: wgpu::BindGroup,
     params_buffer: wgpu::Buffer,
     command_buffer: wgpu::Buffer,
     pending: BTreeMap<u32, SandboxEditKind>,
@@ -416,6 +423,10 @@ impl SandboxEditController {
         let flag_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("powdergame-g9a-sandbox-edit-flag-shader"),
             source: wgpu::ShaderSource::Wgsl(SANDBOX_EDIT_FLAG_SHADER.into()),
+        });
+        let environment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("powdergame-te1-sandbox-edit-environment-shader"),
+            source: wgpu::ShaderSource::Wgsl(SANDBOX_EDIT_ENVIRONMENT_SHADER.into()),
         });
         let field_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("powdergame-g9a-sandbox-edit-field-bgl"),
@@ -441,6 +452,20 @@ impl SandboxEditController {
                 storage_entry(5, true),
             ],
         });
+        let environment_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("powdergame-te1-sandbox-edit-environment-bgl"),
+                entries: &[
+                    uniform_entry(0, EDIT_PARAMS_BYTES),
+                    storage_entry(1, true),
+                    storage_entry(2, true),
+                    storage_entry(3, true),
+                    storage_entry(4, false),
+                    storage_entry(5, false),
+                    storage_entry(6, false),
+                    storage_entry(7, false),
+                ],
+            });
         let field_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("powdergame-g9a-sandbox-edit-field-pl"),
@@ -452,6 +477,12 @@ impl SandboxEditController {
             bind_group_layouts: &[&flag_layout],
             push_constant_ranges: &[],
         });
+        let environment_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("powdergame-te1-sandbox-edit-environment-pl"),
+                bind_group_layouts: &[&environment_layout],
+                push_constant_ranges: &[],
+            });
         let field_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("powdergame-g9a-sandbox-edit-field-pipeline"),
             layout: Some(&field_pipeline_layout),
@@ -468,6 +499,15 @@ impl SandboxEditController {
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             cache: None,
         });
+        let environment_pipeline =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("powdergame-te1-sandbox-edit-environment-pipeline"),
+                layout: Some(&environment_pipeline_layout),
+                module: &environment_shader,
+                entry_point: Some("apply_environment"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
         let params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("powdergame-g9a-sandbox-edit-params"),
             size: EDIT_PARAMS_BYTES,
@@ -549,11 +589,51 @@ impl SandboxEditController {
                 },
             ],
         });
+        let environment_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("powdergame-te1-sandbox-edit-environment-bg"),
+            layout: &environment_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: params_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: command_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: world.material_current.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: world.material_next.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: world.air_mass_current.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: world.air_mass_next.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: world.air_energy_current.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: world.air_energy_next.as_entire_binding(),
+                },
+            ],
+        });
         Ok(Self {
             field_pipeline,
             field_bind_group,
             flag_pipeline,
             flag_bind_group,
+            environment_pipeline,
+            environment_bind_group,
             params_buffer,
             command_buffer,
             pending: BTreeMap::new(),
@@ -653,6 +733,17 @@ impl SandboxEditController {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("powdergame-g9a-sandbox-edit-encoder"),
                 });
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te1-sandbox-edit-environment-pass"),
+                timestamp_writes: None,
+            });
+            // Environment observes pre-edit occupancy so a rejected EMPTY-only
+            // Draw cannot clear Air under an existing Matter cell.
+            pass.set_pipeline(&self.environment_pipeline);
+            pass.set_bind_group(0, &self.environment_bind_group, &[]);
+            pass.dispatch_workgroups((count as u32).div_ceil(EDIT_WORKGROUP_SIZE), 1, 1);
+        }
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g9a-sandbox-edit-flags-pass"),
@@ -1097,6 +1188,59 @@ fn apply_flags(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 "#;
 
+const SANDBOX_EDIT_ENVIRONMENT_SHADER: &str = r#"
+struct Params {
+    count: u32,
+    width: u32,
+    height: u32,
+    chunk_size: u32,
+};
+
+struct EditCommand {
+    cell_index: u32,
+    operation: u32,
+    value_bits: u32,
+    placement_temperature_bits: u32,
+};
+
+@group(0) @binding(0) var<uniform> params: Params;
+@group(0) @binding(1) var<storage, read> commands: array<EditCommand>;
+@group(0) @binding(2) var<storage, read> material_current: array<u32>;
+@group(0) @binding(3) var<storage, read> material_next: array<u32>;
+@group(0) @binding(4) var<storage, read_write> air_mass_current: array<f32>;
+@group(0) @binding(5) var<storage, read_write> air_mass_next: array<f32>;
+@group(0) @binding(6) var<storage, read_write> air_energy_current: array<f32>;
+@group(0) @binding(7) var<storage, read_write> air_energy_next: array<f32>;
+
+const EMPTY: u32 = 0u;
+const STANDARD_AIR_MASS: f32 = 1.0;
+const STANDARD_AIR_ENERGY: f32 = 293.15;
+
+@compute @workgroup_size(64)
+fn apply_environment(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= params.count) { return; }
+    let command = commands[gid.x];
+    let cell_count = params.width * params.height;
+    if (command.cell_index >= cell_count) { return; }
+    let index = command.cell_index;
+
+    if (command.operation == 0u) {
+        if (material_current[index] != EMPTY || material_next[index] != EMPTY) { return; }
+        air_mass_current[index] = 0.0;
+        air_mass_next[index] = 0.0;
+        air_energy_current[index] = 0.0;
+        air_energy_next[index] = 0.0;
+        return;
+    }
+    if (command.operation == 1u) {
+        air_mass_current[index] = STANDARD_AIR_MASS;
+        air_mass_next[index] = STANDARD_AIR_MASS;
+        air_energy_current[index] = STANDARD_AIR_ENERGY;
+        air_energy_next[index] = STANDARD_AIR_ENERGY;
+    }
+}
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1448,6 +1592,16 @@ mod tests {
                 "a rejected Draw cannot erase occupied-cell flags"
             );
         }
+        let rejected_air = simulation
+            .world
+            .read_environment_cells(
+                &simulation.context.device,
+                &simulation.context.queue,
+                &[(5, 5)],
+            )
+            .unwrap()[0];
+        assert_eq!(rejected_air.current.mass, 0.0);
+        assert_eq!(rejected_air.current, rejected_air.next);
 
         runtime
             .edits
@@ -1486,6 +1640,17 @@ mod tests {
         ] {
             assert_eq!(u32::from_ne_bytes(read_word(&simulation, buffer, index)), 0);
         }
+        let drawn_air = simulation
+            .world
+            .read_environment_cells(
+                &simulation.context.device,
+                &simulation.context.queue,
+                &[(5, 5)],
+            )
+            .unwrap()[0];
+        assert_eq!(drawn_air.current.mass, 0.0);
+        assert_eq!(drawn_air.current.energy, 0.0);
+        assert_eq!(drawn_air.current, drawn_air.next);
         assert_eq!(
             simulation
                 .world
@@ -1597,6 +1762,16 @@ mod tests {
             TEMPERATURE_REFERENCE,
             "EMPTY is never turned into a hidden thermal medium"
         );
+        let empty_air = simulation
+            .world
+            .read_environment_cells(
+                &simulation.context.device,
+                &simulation.context.queue,
+                &[(5, 5)],
+            )
+            .unwrap()[0];
+        assert_eq!(empty_air.current, powdergame_core::standard_air_state());
+        assert_eq!(empty_air.current, empty_air.next);
 
         runtime
             .edits
@@ -1667,6 +1842,29 @@ mod tests {
                 .unwrap()
                 .into_iter()
                 .all(|value| value == 0));
+            let observations = simulation
+                .world
+                .read_environment_cells(
+                    &simulation.context.device,
+                    &simulation.context.queue,
+                    &[(0, 0), (128, 96), (20, 235)],
+                )
+                .unwrap();
+            assert_eq!(observations[0].current.mass, 0.0);
+            assert_eq!(
+                observations[1].current,
+                powdergame_core::standard_air_state()
+            );
+            let expected_floor_air = if expected.materials
+                [(235 * SANDBOX_WORLD_WIDTH + 20) as usize]
+                == MATERIAL_EMPTY
+            {
+                powdergame_core::standard_air_state()
+            } else {
+                powdergame_core::vacuum_air_state()
+            };
+            assert_eq!(observations[2].current, expected_floor_air);
+            assert!(observations.iter().all(|cell| cell.current == cell.next));
             assert_eq!(simulation.tick_count, 0);
         }
     }

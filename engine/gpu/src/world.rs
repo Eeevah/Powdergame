@@ -35,12 +35,26 @@
 use wgpu::util::DeviceExt;
 
 use powdergame_core::{
-    chunk_count, initial_material_ids, is_valid_cell_material_value, Domain, WorldConfig,
-    WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, PRESSURE_ELEM_SIZE,
-    PRESSURE_REFERENCE, TEMPERATURE_ELEM_SIZE, TEMPERATURE_REFERENCE,
+    chunk_count, environment_image_from_materials, initial_material_ids,
+    is_valid_cell_material_value, standard_air_state, vacuum_air_state, Domain,
+    EmptyEnvironmentSeed, EnvironmentImage, WorldConfig, WorldLayout, FLAGS_ELEM_SIZE,
+    MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, PRESSURE_ELEM_SIZE, PRESSURE_REFERENCE,
+    TEMPERATURE_ELEM_SIZE, TEMPERATURE_REFERENCE,
 };
 
 use crate::context::GpuError;
+
+const MAX_ENVIRONMENT_TEST_READBACK_CELLS: usize = 64;
+
+/// One bounded TE-1 test observation. Product diagnostics do not expose Air
+/// until a later gate explicitly expands the Inspector contract.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EnvironmentCellSnapshot {
+    pub x: i64,
+    pub y: i64,
+    pub current: powdergame_core::AirState,
+    pub next: powdergame_core::AirState,
+}
 
 /// Storage usage shared by every world buffer.
 fn world_usage() -> wgpu::BufferUsages {
@@ -60,6 +74,11 @@ pub struct AllocationReport {
     pub pressure_next_bytes: u64,
     pub flags_current_bytes: u64,
     pub flags_next_bytes: u64,
+    pub air_mass_current_bytes: u64,
+    pub air_mass_next_bytes: u64,
+    pub air_energy_current_bytes: u64,
+    pub air_energy_next_bytes: u64,
+    pub environment_receiver_claim_bytes: u64,
     pub total_requested_world_bytes: u64,
     /// G7-A/B activity diagnostics and sleep state scratch (per-cell flags + 6 per-chunk u32 buffers).
     pub activity_scratch_bytes: u64,
@@ -79,7 +98,12 @@ impl AllocationReport {
             pressure_next_bytes: layout.pressure_bytes,
             flags_current_bytes: layout.flags_bytes,
             flags_next_bytes: layout.flags_bytes,
-            total_requested_world_bytes: layout.total_world_bytes,
+            air_mass_current_bytes: layout.material_bytes,
+            air_mass_next_bytes: layout.material_bytes,
+            air_energy_current_bytes: layout.material_bytes,
+            air_energy_next_bytes: layout.material_bytes,
+            environment_receiver_claim_bytes: layout.material_bytes,
+            total_requested_world_bytes: layout.total_world_bytes + 5 * layout.material_bytes,
             activity_scratch_bytes: layout.material_bytes
                 + 6 * (chunk_count(config.width, config.height, config.chunk_size) as u64) * 4,
         }
@@ -122,6 +146,27 @@ impl std::fmt::Display for AllocationReport {
         let _ = writeln!(out, "flags next bytes:        {}", self.flags_next_bytes);
         let _ = writeln!(
             out,
+            "Air mass current bytes:  {}",
+            self.air_mass_current_bytes
+        );
+        let _ = writeln!(out, "Air mass next bytes:     {}", self.air_mass_next_bytes);
+        let _ = writeln!(
+            out,
+            "Air energy cur bytes:    {}",
+            self.air_energy_current_bytes
+        );
+        let _ = writeln!(
+            out,
+            "Air energy next bytes:   {}",
+            self.air_energy_next_bytes
+        );
+        let _ = writeln!(
+            out,
+            "Environment claim bytes: {}",
+            self.environment_receiver_claim_bytes
+        );
+        let _ = writeln!(
+            out,
             "total world-state bytes: {}",
             self.total_requested_world_bytes
         );
@@ -149,6 +194,15 @@ pub struct GpuWorld {
     pub pressure_next: wgpu::Buffer,
     pub flags_current: wgpu::Buffer,
     pub flags_next: wgpu::Buffer,
+
+    /// TE-1 Environment Air state. These buffers remain full-resolution and
+    /// GPU-authoritative; Air is not a Matter ID.
+    pub air_mass_current: wgpu::Buffer,
+    pub air_mass_next: wgpu::Buffer,
+    pub air_energy_current: wgpu::Buffer,
+    pub air_energy_next: wgpu::Buffer,
+    /// TE-1 receiver claim scratch. Encoding: 0 = none, target index + 1 = claim.
+    pub environment_receiver_claim: wgpu::Buffer,
 
     /// Per-cell movement proposal (destination index, NO_MOVE or VOID_TARGET).
     /// G4-C reuses this buffer for smoke spawn proposals after movement
@@ -207,6 +261,12 @@ impl GpuWorld {
         let layout = config
             .layout()
             .map_err(|e| GpuError::Other(format!("invalid world config: {e}")))?;
+        if layout.cell_count >= u32::MAX as u64 {
+            return Err(GpuError::Other(format!(
+                "world cell count {} cannot use TE-1 receiver claim target+1 encoding",
+                layout.cell_count
+            )));
+        }
         let domain = Domain::from_config(&config);
 
         // Initial material state (staging): ring of BOUNDARY_BLOCK, EMPTY interior.
@@ -263,6 +323,40 @@ impl GpuWorld {
             device,
             "world/flags/next",
             layout.flags_bytes,
+            world_usage(),
+        )?;
+
+        let environment = environment_image_from_materials(
+            &initial_ids,
+            EmptyEnvironmentSeed::StandardAtmosphere,
+        )
+        .map_err(|error| GpuError::Other(format!("initial Environment build failed: {error}")))?;
+        let air_mass_bytes = f32_bytes(&environment.air_mass);
+        let air_energy_bytes = f32_bytes(&environment.air_energy);
+        let air_mass_current = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/environment/air-mass/current"),
+            contents: &air_mass_bytes,
+            usage: world_usage(),
+        });
+        let air_mass_next = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/environment/air-mass/next"),
+            contents: &air_mass_bytes,
+            usage: world_usage(),
+        });
+        let air_energy_current = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/environment/air-energy/current"),
+            contents: &air_energy_bytes,
+            usage: world_usage(),
+        });
+        let air_energy_next = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/environment/air-energy/next"),
+            contents: &air_energy_bytes,
+            usage: world_usage(),
+        });
+        let environment_receiver_claim = create_zeroed_buffer(
+            device,
+            "world/environment/receiver-claim",
+            layout.material_bytes,
             world_usage(),
         )?;
 
@@ -349,6 +443,11 @@ impl GpuWorld {
             pressure_next,
             flags_current,
             flags_next,
+            air_mass_current,
+            air_mass_next,
+            air_energy_current,
+            air_energy_next,
+            environment_receiver_claim,
             proposal,
             claim,
             cell_activity,
@@ -385,6 +484,12 @@ impl GpuWorld {
         queue.write_buffer(&self.pressure_next, 0, &zero_cells);
         queue.write_buffer(&self.flags_current, 0, &zero_cells);
         queue.write_buffer(&self.flags_next, 0, &zero_cells);
+        self.stage_environment_for_materials(
+            queue,
+            &initial_ids,
+            EmptyEnvironmentSeed::StandardAtmosphere,
+        )?;
+        queue.write_buffer(&self.environment_receiver_claim, 0, &zero_cells);
         queue.write_buffer(&self.proposal, 0, &zero_cells);
         queue.write_buffer(&self.claim, 0, &zero_cells);
         queue.write_buffer(&self.cell_activity, 0, &zero_cells);
@@ -419,6 +524,117 @@ impl GpuWorld {
             values.push(u32::from_ne_bytes(chunk.try_into().unwrap()));
         }
         Ok(values)
+    }
+
+    /// Canonically stages both Environment halves from a Material image.
+    pub fn stage_environment_for_materials(
+        &self,
+        queue: &wgpu::Queue,
+        materials: &[u32],
+        empty_seed: EmptyEnvironmentSeed,
+    ) -> Result<(), GpuError> {
+        if materials.len() as u64 != self.layout.cell_count {
+            return Err(GpuError::Other(format!(
+                "Environment staging Material length {} does not match cell count {}",
+                materials.len(),
+                self.layout.cell_count
+            )));
+        }
+        let image = environment_image_from_materials(materials, empty_seed)
+            .map_err(|error| GpuError::Other(format!("Environment staging failed: {error}")))?;
+        self.stage_environment_image(queue, &image)
+    }
+
+    fn stage_environment_image(
+        &self,
+        queue: &wgpu::Queue,
+        image: &EnvironmentImage,
+    ) -> Result<(), GpuError> {
+        if image.air_mass.len() as u64 != self.layout.cell_count
+            || image.air_energy.len() as u64 != self.layout.cell_count
+        {
+            return Err(GpuError::Other(
+                "Environment image length does not match world".into(),
+            ));
+        }
+        let mass = f32_bytes(&image.air_mass);
+        let energy = f32_bytes(&image.air_energy);
+        queue.write_buffer(&self.air_mass_current, 0, &mass);
+        queue.write_buffer(&self.air_mass_next, 0, &mass);
+        queue.write_buffer(&self.air_energy_current, 0, &energy);
+        queue.write_buffer(&self.air_energy_next, 0, &energy);
+        Ok(())
+    }
+
+    /// Bounded test-only Environment observation for selected Cells.
+    ///
+    /// This deliberately refuses full-world and pointer-driven use. TE-1 does
+    /// not expand the product Inspector payload or sampling cadence.
+    pub fn read_environment_cells(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        cells: &[(i64, i64)],
+    ) -> Result<Vec<EnvironmentCellSnapshot>, GpuError> {
+        if cells.len() > MAX_ENVIRONMENT_TEST_READBACK_CELLS {
+            return Err(GpuError::ReadbackFailed(format!(
+                "Environment test readback requested {} Cells; maximum is {}",
+                cells.len(),
+                MAX_ENVIRONMENT_TEST_READBACK_CELLS
+            )));
+        }
+        let mut observations = Vec::with_capacity(cells.len());
+        for &(x, y) in cells {
+            let index = self
+                .domain
+                .index(x, y)
+                .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+            let offset = index * 4;
+            let read = |buffer: &wgpu::Buffer| -> Result<f32, GpuError> {
+                let bytes = read_back_bytes(device, queue, buffer, offset, 4)?;
+                Ok(f32::from_ne_bytes(bytes[..4].try_into().unwrap()))
+            };
+            observations.push(EnvironmentCellSnapshot {
+                x,
+                y,
+                current: powdergame_core::AirState {
+                    mass: read(&self.air_mass_current)?,
+                    energy: read(&self.air_energy_current)?,
+                },
+                next: powdergame_core::AirState {
+                    mass: read(&self.air_mass_next)?,
+                    energy: read(&self.air_energy_next)?,
+                },
+            });
+        }
+        Ok(observations)
+    }
+
+    /// Test-only bounded Cell Environment staging. Production authoring uses
+    /// the occupancy-aware Material/Sandbox paths.
+    pub fn write_environment_cell_for_test(
+        &self,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+        state: powdergame_core::AirState,
+    ) -> Result<(), GpuError> {
+        powdergame_core::validate_air_state(state)
+            .map_err(|error| GpuError::Other(format!("invalid Air state: {error}")))?;
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let offset = index * 4;
+        queue.write_buffer(&self.air_mass_current, offset, &state.mass.to_ne_bytes());
+        queue.write_buffer(&self.air_mass_next, offset, &state.mass.to_ne_bytes());
+        queue.write_buffer(
+            &self.air_energy_current,
+            offset,
+            &state.energy.to_ne_bytes(),
+        );
+        queue.write_buffer(&self.air_energy_next, offset, &state.energy.to_ne_bytes());
+        Ok(())
     }
 
     /// Reads all per-cell activity flags (G7-A test helper).
@@ -629,6 +845,18 @@ impl GpuWorld {
             queue.write_buffer(&self.temperature_current, t_off, &zero);
             queue.write_buffer(&self.temperature_next, t_off, &zero);
         }
+        let air = if value == MATERIAL_EMPTY {
+            standard_air_state()
+        } else {
+            vacuum_air_state()
+        };
+        let air_offset = index * 4;
+        for buffer in [&self.air_mass_current, &self.air_mass_next] {
+            queue.write_buffer(buffer, air_offset, &air.mass.to_ne_bytes());
+        }
+        for buffer in [&self.air_energy_current, &self.air_energy_next] {
+            queue.write_buffer(buffer, air_offset, &air.energy.to_ne_bytes());
+        }
         self.mark_edit_wake_for_cell(queue, x, y);
         Ok(())
     }
@@ -828,6 +1056,14 @@ impl GpuWorld {
         self.mark_edit_wake_for_cell(queue, x, y);
         Ok(())
     }
+}
+
+fn f32_bytes(values: &[f32]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(std::mem::size_of_val(values));
+    for value in values {
+        bytes.extend_from_slice(&value.to_ne_bytes());
+    }
+    bytes
 }
 
 /// Copies `size` bytes out of `source` at `offset` and maps them back to CPU.

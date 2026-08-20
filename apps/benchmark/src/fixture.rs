@@ -281,16 +281,70 @@ pub fn stage_calibration_fixture(sim: &mut Simulation) -> Result<(), FixtureErro
     queue.write_buffer(&sim.world.temperature_next, 0, &temperature_bytes);
     queue.write_buffer(&sim.world.flags_current, 0, &flag_bytes);
     queue.write_buffer(&sim.world.flags_next, 0, &flag_bytes);
+    sim.world
+        .stage_environment_for_materials(
+            queue,
+            &fixture.materials,
+            powdergame_core::EmptyEnvironmentSeed::StandardAtmosphere,
+        )
+        .map_err(|error| FixtureError::InvalidWorld(error.to_string()))?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use powdergame_core::{MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY};
+    use powdergame_core::{
+        standard_air_state, vacuum_air_state, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY,
+    };
 
     fn cell(fixture: &CalibrationFixture, x: usize, y: usize) -> usize {
         fixture.index(x, y).unwrap()
+    }
+
+    #[test]
+    fn gpu_calibration_staging_uses_canonical_environment_for_both_halves() {
+        let config = WorldConfig::new(64, 64, 64).unwrap();
+        let fixture = build_calibration_fixture(&config).unwrap();
+        let empty_index = fixture
+            .materials
+            .iter()
+            .enumerate()
+            .find(|(index, material)| {
+                **material == MATERIAL_EMPTY
+                    && *index / config.width as usize > 0
+                    && *index % config.width as usize > 0
+            })
+            .map(|(index, _)| index)
+            .unwrap();
+        let occupied_index = fixture
+            .materials
+            .iter()
+            .position(|material| *material != MATERIAL_EMPTY)
+            .unwrap();
+        let mut simulation = pollster::block_on(Simulation::new(config)).unwrap();
+        stage_calibration_fixture(&mut simulation).unwrap();
+        let coordinates = [
+            (
+                (empty_index % config.width as usize) as i64,
+                (empty_index / config.width as usize) as i64,
+            ),
+            (
+                (occupied_index % config.width as usize) as i64,
+                (occupied_index / config.width as usize) as i64,
+            ),
+        ];
+        let environment = simulation
+            .world
+            .read_environment_cells(
+                &simulation.context.device,
+                &simulation.context.queue,
+                &coordinates,
+            )
+            .unwrap();
+        assert_eq!(environment[0].current, standard_air_state());
+        assert_eq!(environment[1].current, vacuum_air_state());
+        assert!(environment.iter().all(|cell| cell.current == cell.next));
     }
 
     #[test]

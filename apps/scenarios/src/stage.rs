@@ -1,3 +1,4 @@
+use powdergame_core::EmptyEnvironmentSeed;
 use powdergame_gpu::Simulation;
 
 use crate::{ScenarioError, ScenarioFixture, ScenarioId};
@@ -67,6 +68,14 @@ fn upload_fixture(simulation: &Simulation, fixture: &ScenarioFixture) -> Result<
         &simulation.world.flags_next,
         &fixture.flags,
     );
+    simulation
+        .world
+        .stage_environment_for_materials(
+            queue,
+            &fixture.materials,
+            EmptyEnvironmentSeed::StandardAtmosphere,
+        )
+        .map_err(|error| ScenarioError::Gpu(error.to_string()))?;
 
     let edit_wake_bytes = u32_bytes(&fixture.chunk_edit_wake);
     queue.write_buffer(&simulation.world.chunk_edit_wake, 0, &edit_wake_bytes);

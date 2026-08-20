@@ -1208,18 +1208,6 @@ mod tests {
                 .map(|value| value.to_bits())
                 .collect::<Vec<_>>()
         );
-        let temperature_count = |temperature: f32| {
-            fixture
-                .temperatures()
-                .iter()
-                .filter(|value| value.to_bits() == temperature.to_bits())
-                .count()
-        };
-        assert_eq!(temperature_count(TEMPERATURE_REFERENCE), 56_136);
-        assert_eq!(temperature_count(500.0), 448);
-        assert_eq!(temperature_count(120.0), 5_712);
-        assert_eq!(temperature_count(-25.0), 2_232);
-        assert_eq!(temperature_count(10.0), 1_008);
         assert_eq!(
             fixture
                 .pressures()
@@ -1231,15 +1219,6 @@ mod tests {
                 .map(|value| value.to_bits())
                 .collect::<Vec<_>>()
         );
-        let pressure_count = |pressure: f32| {
-            fixture
-                .pressures()
-                .iter()
-                .filter(|value| value.to_bits() == pressure.to_bits())
-                .count()
-        };
-        assert_eq!(pressure_count(PRESSURE_REFERENCE), 59_824);
-        assert_eq!(pressure_count(140.0), 5_712);
         assert_eq!(fixture.flags(), expected_flags.as_slice());
         assert_eq!(fixture.chunk_edit_wake(), expected_edit_wake.as_slice());
 

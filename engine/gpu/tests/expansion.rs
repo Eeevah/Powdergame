@@ -3,7 +3,8 @@
 //! Requires production Windows + RTX 5090 + DX12 through `Simulation::new`.
 
 use powdergame_core::{
-    WorldConfig, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
+    standard_air_state, AirState, WorldConfig, AIR_ENERGY_MAX, AIR_MASS_MAX, MATERIAL_EMPTY,
+    MATERIAL_ICE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, STANDARD_AIR_ENERGY,
     WATER_BOIL_BLOCKED_PRESSURE,
 };
 use powdergame_gpu::Simulation;
@@ -46,6 +47,12 @@ fn pressure(sim: &Simulation, x: i64, y: i64) -> f32 {
         .expect("pressure readback")
 }
 
+fn air(sim: &Simulation, cells: &[(i64, i64)]) -> Vec<powdergame_gpu::EnvironmentCellSnapshot> {
+    sim.world
+        .read_environment_cells(&sim.context.device, &sim.context.queue, cells)
+        .expect("bounded Environment readback")
+}
+
 fn clear_region(sim: &Simulation, x0: i64, y0: i64, x1: i64, y1: i64) {
     for y in y0..=y1 {
         for x in x0..=x1 {
@@ -85,6 +92,85 @@ fn boiling_with_space_spawns_second_steam_without_pressure() {
     assert!(
         (source_t - spawn_t).abs() < 1.0e-3,
         "source={source_t} spawn={spawn_t}"
+    );
+    let environment = air(&sim, &[(3, 3), (3, 2), (3, 1)]);
+    assert_eq!(
+        environment[0].current,
+        AirState {
+            mass: 0.0,
+            energy: 0.0
+        }
+    );
+    assert_eq!(
+        environment[1].current,
+        AirState {
+            mass: 0.0,
+            energy: 0.0
+        }
+    );
+    assert_eq!(
+        environment[2].current,
+        AirState {
+            mass: 2.0,
+            energy: STANDARD_AIR_ENERGY * 2.0,
+        },
+        "the target parcel moves whole into the deterministic receiver"
+    );
+    assert!(environment.iter().all(|cell| cell.current == cell.next));
+}
+
+#[test]
+fn environment_blocked_spawn_keeps_target_air_and_adds_pressure_exactly_once() {
+    let mut sim = eight_by_eight();
+    clear_region(&sim, 1, 1, 6, 6);
+    seal_eight(&sim, 3, 3);
+    set_mat(&sim, 3, 2, MATERIAL_EMPTY); // Matter target exists.
+    set_mat(&sim, 3, 1, MATERIAL_STONE); // No orthogonal receiver remains.
+    set_mat(&sim, 3, 3, MATERIAL_WATER);
+    set_t(&sim, 3, 3, 1000.0);
+    let before_target = air(&sim, &[(3, 2)])[0];
+    assert_eq!(before_target.current, standard_air_state());
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 3), MATERIAL_STEAM);
+    assert_eq!(cell(&sim, 3, 2), MATERIAL_EMPTY);
+    let after_target = air(&sim, &[(3, 2)])[0];
+    assert_eq!(after_target.current, standard_air_state());
+    assert_eq!(after_target.current, after_target.next);
+    assert!(
+        (pressure(&sim, 3, 3) - WATER_BOIL_BLOCKED_PRESSURE).abs() < 1.0e-3,
+        "Environment-blocked expansion must reuse the existing pressure consequence exactly once"
+    );
+}
+
+#[test]
+fn receiver_without_whole_parcel_headroom_blocks_without_clamping_or_deletion() {
+    let mut sim = eight_by_eight();
+    clear_region(&sim, 1, 1, 6, 6);
+    seal_eight(&sim, 3, 3);
+    set_mat(&sim, 3, 2, MATERIAL_EMPTY);
+    set_mat(&sim, 3, 1, MATERIAL_EMPTY);
+    set_mat(&sim, 3, 3, MATERIAL_WATER);
+    set_t(&sim, 3, 3, 1000.0);
+    let full = AirState {
+        mass: AIR_MASS_MAX,
+        energy: AIR_ENERGY_MAX,
+    };
+    sim.world
+        .write_environment_cell_for_test(&sim.context.queue, 3, 1, full)
+        .unwrap();
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 2), MATERIAL_EMPTY);
+    let environment = air(&sim, &[(3, 2), (3, 1)]);
+    assert_eq!(environment[0].current, standard_air_state());
+    assert_eq!(environment[1].current, full);
+    assert!(environment.iter().all(|cell| cell.current == cell.next));
+    assert!(
+        (pressure(&sim, 3, 3) - WATER_BOIL_BLOCKED_PRESSURE).abs() < 1.0e-3,
+        "headroom rejection uses the existing pressure consequence"
     );
 }
 

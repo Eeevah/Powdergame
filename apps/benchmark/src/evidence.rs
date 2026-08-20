@@ -26,7 +26,7 @@ pub const EVIDENCE_SCHEMA_VERSION: &str = G8A_EVIDENCE_SCHEMA_VERSION;
 #[cfg(test)]
 pub const FIXTURE_EVIDENCE_SCHEMA_VERSION: &str = G8B_EVIDENCE_SCHEMA_VERSION;
 
-const GROUP_DEFINITION: &str = "matter_movement=movement_propose+movement_commit;ownership_claim=movement_claim+expansion_claim+smoke_claim;thermal_conduction=thermal;reaction_phase=phase_transition+expansion_spawn_commit+expansion_pressure+decay+combustion+smoke_commit;pressure_structure=pressure+rupture;active_sleep_management=activity_wake+activity_propose+activity_reduce";
+const GROUP_DEFINITION: &str = "matter_movement=movement_propose+movement_commit+material_flag_hygiene_movement+environment_reconcile_movement;ownership_claim=movement_claim+expansion_claim+expansion_environment_receiver_claim+smoke_claim+smoke_environment_receiver_claim;thermal_conduction=thermal;reaction_phase=phase_transition+expansion_spawn_commit+expansion_pressure+material_flag_hygiene_phase+environment_reconcile_expansion+decay+material_flag_hygiene_decay+environment_reconcile_decay+combustion+smoke_commit+material_flag_hygiene_combustion+environment_reconcile_smoke;pressure_structure=environment_blocked_expansion_pressure+pressure+rupture+material_flag_hygiene_rupture+environment_reconcile_rupture;active_sleep_management=activity_wake+activity_propose+activity_reduce";
 
 #[derive(Debug, Clone)]
 pub struct GitProvenance {
@@ -520,7 +520,12 @@ fn write_summary<W: Write>(writer: &mut W, bundle: &EvidenceBundle<'_>) -> std::
 
     let memory_values = [
         ("world_dense_state", bundle.memory.world_dense_state_bytes),
+        ("environment_state", bundle.memory.environment_state_bytes),
         ("movement_scratch", bundle.memory.movement_scratch_bytes),
+        (
+            "environment_receiver_claim",
+            bundle.memory.environment_receiver_claim_bytes,
+        ),
         ("activity_scratch", bundle.memory.activity_scratch_bytes),
         (
             "uniforms_and_tables",
@@ -1611,11 +1616,13 @@ mod tests {
         };
         let memory = TrackedMemoryReport {
             world_dense_state_bytes: 1,
+            environment_state_bytes: 1,
             movement_scratch_bytes: 1,
+            environment_receiver_claim_bytes: 1,
             activity_scratch_bytes: 1,
             uniforms_and_tables_bytes: 1,
             profiler_bytes: 1,
-            total_tracked_gpu_bytes: 5,
+            total_tracked_gpu_bytes: 7,
         };
         let census = ActivityCensusSnapshot {
             report: ActivityCensusReport {
@@ -1696,7 +1703,7 @@ mod tests {
             .position(|column| *column == "group_definition")
             .unwrap();
         assert_eq!(raw_row[start_index], "1000");
-        assert_eq!(raw_row[final_index], "4300");
+        assert_eq!(raw_row[final_index], "6900");
         assert_eq!(raw_row[group_definition_index], GROUP_DEFINITION);
     }
 }

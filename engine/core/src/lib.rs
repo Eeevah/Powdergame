@@ -11,6 +11,7 @@ pub mod activity;
 pub mod combustion;
 pub mod decay;
 pub mod domain;
+pub mod environment;
 pub mod layout;
 pub mod material;
 pub mod movement;
@@ -43,6 +44,15 @@ pub use decay::{
 };
 
 pub use domain::{initial_material_ids, Domain};
+pub use environment::{
+    air_specific_energy, air_temperature_absolute_like, air_temperature_celsius_like,
+    classify_air_state, combine_whole_parcel, environment_image_from_materials,
+    parcel_has_full_headroom, standard_air_state, vacuum_air_state, validate_air_state, AirState,
+    EmptyEnvironmentSeed, EnvironmentClass, EnvironmentError, EnvironmentImage, AIR_ENERGY_MAX,
+    AIR_HEAT_CAPACITY, AIR_MASS_MAX, AIR_PRESENT_THRESHOLD, AIR_TEMPERATURE_ABS_MAX,
+    AIR_TEMPERATURE_ABS_MIN, AIR_ZERO_OFFSET, AMBIENT_TEMPERATURE_ABS, AMBIENT_TEMPERATURE_C,
+    STANDARD_AIR_ENERGY, STANDARD_AIR_MASS, VACUUM_THRESHOLD,
+};
 pub use layout::{
     WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, PRESSURE_ELEM_SIZE, TEMPERATURE_ELEM_SIZE,
 };

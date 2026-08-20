@@ -89,6 +89,16 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
             expected_readwrite_bindings: &["material_next", "temperature_next", "flags_next"],
         },
         PassContract {
+            name: "material_flag_hygiene.wgsl",
+            source: include_str!("../src/material_flag_hygiene.wgsl"),
+            expected_readwrite_bindings: &["flags_next"],
+        },
+        PassContract {
+            name: "environment_reconcile_movement.wgsl",
+            source: include_str!("../src/environment_reconcile_movement.wgsl"),
+            expected_readwrite_bindings: &["air_mass_next", "air_energy_next"],
+        },
+        PassContract {
             name: "thermal.wgsl",
             source: include_str!("../src/thermal.wgsl"),
             expected_readwrite_bindings: &["temperature_next"],
@@ -112,6 +122,26 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
             name: "expansion_pressure.wgsl",
             source: include_str!("../src/expansion_pressure.wgsl"),
             expected_readwrite_bindings: &["pressure_next"],
+        },
+        PassContract {
+            name: "environment_receiver_claim.wgsl",
+            source: include_str!("../src/environment_receiver_claim.wgsl"),
+            expected_readwrite_bindings: &["environment_receiver_claim"],
+        },
+        PassContract {
+            name: "environment_blocked_expansion_pressure.wgsl",
+            source: include_str!("../src/environment_blocked_expansion_pressure.wgsl"),
+            expected_readwrite_bindings: &["pressure_next"],
+        },
+        PassContract {
+            name: "environment_reconcile_spawn.wgsl",
+            source: include_str!("../src/environment_reconcile_spawn.wgsl"),
+            expected_readwrite_bindings: &["air_mass_next", "air_energy_next"],
+        },
+        PassContract {
+            name: "environment_reconcile_identity.wgsl",
+            source: include_str!("../src/environment_reconcile_identity.wgsl"),
+            expected_readwrite_bindings: &["air_mass_next", "air_energy_next"],
         },
         PassContract {
             name: "decay.wgsl",
@@ -169,10 +199,12 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
             .unwrap_or_else(|err| panic!("WGSL parse failed for {}: {}", contract.name, err));
 
         let mut actual_readwrite = Vec::new();
+        let mut storage_binding_count = 0usize;
         for (_handle, global) in module.global_variables.iter() {
             if let Some(name) = &global.name {
                 match global.space {
                     naga::AddressSpace::Storage { access } => {
+                        storage_binding_count += 1;
                         if access.contains(naga::StorageAccess::STORE) {
                             actual_readwrite.push(name.as_str());
                         }
@@ -187,6 +219,13 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
                 }
             }
         }
+
+        assert!(
+            storage_binding_count <= 8,
+            "{} declares {} storage bindings; production limit is 8",
+            contract.name,
+            storage_binding_count
+        );
 
         // Verify that every actual read_write binding is authorized in expected list.
         for actual in &actual_readwrite {
@@ -374,18 +413,21 @@ fn test_expansion_contention_many_boiling_sources_one_empty_target() {
         }
     }
 
-    // Shared EMPTY destination at (8, 8).
+    // Shared EMPTY destination at (8, 8), with (8,7) reserved as its Air
+    // receiver. The three sources are two rows below the receiver, so none
+    // can select the receiver as a competing Matter target.
     set(&sim, 8, 8, MATERIAL_EMPTY);
+    set(&sim, 8, 7, MATERIAL_EMPTY);
 
-    // 3 boiling Water sources at (8, 9), (7, 8), (9, 8) at T=75.0 (> 60.0 boil threshold).
+    // 3 boiling Water sources share (8,8) as their first available target.
     set(&sim, 8, 9, MATERIAL_WATER);
     set_t(&sim, 8, 9, 75.0);
 
-    set(&sim, 7, 8, MATERIAL_WATER);
-    set_t(&sim, 7, 8, 75.0);
+    set(&sim, 7, 9, MATERIAL_WATER);
+    set_t(&sim, 7, 9, 75.0);
 
-    set(&sim, 9, 8, MATERIAL_WATER);
-    set_t(&sim, 9, 8, 75.0);
+    set(&sim, 9, 9, MATERIAL_WATER);
+    set_t(&sim, 9, 9, 75.0);
 
     assert_eq!(count_material(&sim, MATERIAL_WATER), 3);
     assert_eq!(count_material(&sim, MATERIAL_STEAM), 0);
@@ -396,8 +438,8 @@ fn test_expansion_contention_many_boiling_sources_one_empty_target() {
     // In addition, exactly ONE source wins the extra expansion spawn at (8, 8).
     assert_eq!(cell(&sim, 8, 8), MATERIAL_STEAM);
     assert_eq!(cell(&sim, 8, 9), MATERIAL_STEAM);
-    assert_eq!(cell(&sim, 7, 8), MATERIAL_STEAM);
-    assert_eq!(cell(&sim, 9, 8), MATERIAL_STEAM);
+    assert_eq!(cell(&sim, 7, 9), MATERIAL_STEAM);
+    assert_eq!(cell(&sim, 9, 9), MATERIAL_STEAM);
 
     // Total Steam in world must be exactly 4 (3 sources + 1 spawn).
     assert_eq!(count_material(&sim, MATERIAL_STEAM), 4);
@@ -406,8 +448,8 @@ fn test_expansion_contention_many_boiling_sources_one_empty_target() {
     // The losing sources must have generated confinement pressure (blocked_pressure = 100.0).
     let pressures = [
         pressure(&sim, 8, 9),
-        pressure(&sim, 7, 8),
-        pressure(&sim, 9, 8),
+        pressure(&sim, 7, 9),
+        pressure(&sim, 9, 9),
     ];
     let sources_with_confinement_pressure =
         pressures.iter().filter(|&&p| p >= 100.0 || p > 0.0).count();
@@ -425,17 +467,17 @@ fn test_expansion_scratch_reuse_after_movement() {
     set(&sim, 4, 4, MATERIAL_SAND);
     set(&sim, 4, 5, MATERIAL_EMPTY);
 
-    // 2. Setup boiling Water enclosed in a stone capsule in bottom-right (2 sources, 1 target).
+    // 2. Setup one boiling Water source and a separate Air receiver in a
+    // stone capsule. The test isolates scratch reuse rather than contention.
     for x in 18..=22 {
         for y in 18..=22 {
             set(&sim, x, y, MATERIAL_STONE);
         }
     }
     set(&sim, 20, 20, MATERIAL_EMPTY);
+    set(&sim, 20, 19, MATERIAL_EMPTY); // Air receiver two rows above source.
     set(&sim, 20, 21, MATERIAL_WATER);
     set_t(&sim, 20, 21, 75.0);
-    set(&sim, 19, 20, MATERIAL_WATER);
-    set_t(&sim, 19, 20, 75.0);
 
     sim.tick().expect("tick 1");
 
@@ -445,7 +487,6 @@ fn test_expansion_scratch_reuse_after_movement() {
     // Verify expansion completed cleanly without stale movement scratch interference.
     assert_eq!(cell(&sim, 20, 20), MATERIAL_STEAM);
     assert_eq!(cell(&sim, 20, 21), MATERIAL_STEAM);
-    assert_eq!(cell(&sim, 19, 20), MATERIAL_STEAM);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -465,6 +506,7 @@ fn test_smoke_spawn_contention_multiple_burning_sources_one_empty_target() {
 
     // Shared EMPTY destination at (8, 7).
     set(&sim, 8, 7, MATERIAL_EMPTY);
+    set(&sim, 8, 6, MATERIAL_EMPTY); // Air receiver outside every source stencil.
 
     // 3 burning Wood sources at (8, 8), (7, 8), (9, 8) at T=150.0.
     for &x in &[7, 8, 9] {
@@ -507,6 +549,7 @@ fn test_smoke_scratch_reuse_after_movement_and_expansion() {
         }
     }
     set(&sim, 12, 12, MATERIAL_EMPTY);
+    set(&sim, 13, 12, MATERIAL_EMPTY); // expansion Air receiver
     set(&sim, 12, 13, MATERIAL_WATER);
     set_t(&sim, 12, 13, 75.0);
 
@@ -517,6 +560,7 @@ fn test_smoke_scratch_reuse_after_movement_and_expansion() {
         }
     }
     set(&sim, 24, 23, MATERIAL_EMPTY);
+    set(&sim, 24, 22, MATERIAL_EMPTY); // Smoke Air receiver
     set(&sim, 24, 24, MATERIAL_WOOD);
     set_t(&sim, 24, 24, 150.0);
     set_f(&sim, 24, 24, FLAG_COMBUSTING | FLAG_FLAME_EVENT);

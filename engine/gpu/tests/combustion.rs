@@ -18,9 +18,10 @@
 //! inherits combustion identity/state into the new Smoke.
 
 use powdergame_core::{
-    combustion_flag_mask, decay_age, fuel_progress, with_decay_age, with_fuel_progress,
-    WorldConfig, FLAG_COMBUSTING, FLAG_FLAME_EVENT, MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_SMOKE,
-    MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
+    combustion_flag_mask, decay_age, decay_flag_mask, fuel_progress, vacuum_air_state,
+    with_decay_age, with_fuel_progress, AirState, WorldConfig, FLAG_COMBUSTING, FLAG_FLAME_EVENT,
+    MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_REGISTRY, MATERIAL_SMOKE, MATERIAL_STEAM,
+    MATERIAL_STONE, MATERIAL_WOOD, STANDARD_AIR_ENERGY, TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::Simulation;
 
@@ -76,6 +77,12 @@ fn temp(sim: &Simulation, x: i64, y: i64) -> f32 {
     sim.world
         .read_temperature_cell(&sim.context.device, &sim.context.queue, x, y)
         .expect("temperature readback")
+}
+
+fn air(sim: &Simulation, cells: &[(i64, i64)]) -> Vec<powdergame_gpu::EnvironmentCellSnapshot> {
+    sim.world
+        .read_environment_cells(&sim.context.device, &sim.context.queue, cells)
+        .expect("bounded Environment readback")
 }
 
 fn count_material(sim: &Simulation, id: u32) -> usize {
@@ -294,9 +301,9 @@ fn flame_event_emitted_on_ignition() {
 }
 
 #[test]
-fn combustion_flag_bits_are_preserved() {
-    // Outside the combustion-owned bits (bool states 0..1 + fuel progress
-    // 8..23) so it cannot collide with the fuel-progress field.
+fn combustion_flag_ownership_clears_reserved_bits() {
+    // Bit 28 is reserved. TE-1 makes Matter flag ownership exact rather than
+    // preserving unknown state across an identity stage.
     let unrelated = 1u32 << 28;
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
@@ -307,7 +314,7 @@ fn combustion_flag_bits_are_preserved() {
     sim.tick().expect("tick");
 
     let f = flags(&sim, 3, 3);
-    assert_ne!(f & unrelated, 0, "unrelated future flag bits survive");
+    assert_eq!(f & unrelated, 0, "reserved bits are cleared");
     assert_ne!(f & FLAG_COMBUSTING, 0);
 }
 
@@ -321,7 +328,7 @@ fn burning_oil_carries_flags_when_moving() {
     set(&sim, 3, 4, MATERIAL_OIL);
     set_t(&sim, 3, 4, 80.0);
     set_flags(&sim, 3, 4, FLAG_COMBUSTING);
-    set(&sim, 2, 4, MATERIAL_STONE);
+    // (2,4) remains EMPTY as the Air receiver for Smoke at the vacated source.
     set(&sim, 4, 4, MATERIAL_STONE);
     set(&sim, 3, 3, MATERIAL_STONE);
     set(&sim, 2, 5, MATERIAL_STONE);
@@ -357,7 +364,7 @@ fn burning_matter_swap_carries_flags() {
     set_t(&sim, 3, 5, 0.0);
     // Seal every other stencil candidate.
     set(&sim, 3, 3, MATERIAL_STONE);
-    set(&sim, 2, 4, MATERIAL_STONE);
+    // (2,4) stays EMPTY as the orthogonal Air receiver for the Smoke target.
     set(&sim, 4, 4, MATERIAL_STONE);
     set(&sim, 2, 5, MATERIAL_STONE);
     set(&sim, 4, 5, MATERIAL_STONE);
@@ -460,6 +467,41 @@ fn burning_wood_spawns_smoke() {
         1,
         "one cell per request"
     );
+    let environment = air(&sim, &[(3, 2), (3, 1), (2, 2), (4, 2)]);
+    assert_eq!(
+        environment[0].current,
+        AirState {
+            mass: 0.0,
+            energy: 0.0
+        }
+    );
+    let mut receiver_masses: Vec<f32> = environment[1..]
+        .iter()
+        .map(|cell| cell.current.mass)
+        .collect();
+    receiver_masses.sort_by(f32::total_cmp);
+    assert_eq!(receiver_masses, vec![1.0, 1.0, 2.0]);
+    assert!(environment[1..].iter().all(|cell| {
+        cell.current.energy == STANDARD_AIR_ENERGY * cell.current.mass && cell.current == cell.next
+    }));
+}
+
+#[test]
+fn smoke_without_environment_receiver_is_rejected_without_touching_target_air() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 3, MATERIAL_WOOD);
+    set_t(&sim, 3, 3, 85.0);
+    set_flags(&sim, 3, 3, FLAG_COMBUSTING);
+    for (x, y) in [(3, 1), (2, 2), (4, 2), (2, 3), (4, 3), (3, 4)] {
+        set(&sim, x, y, MATERIAL_STONE);
+    }
+    let before = air(&sim, &[(3, 2)])[0];
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 2), MATERIAL_EMPTY);
+    let after = air(&sim, &[(3, 2)])[0];
+    assert_eq!(before, after, "rejected Smoke must not consume or move Air");
 }
 
 #[test]
@@ -604,7 +646,7 @@ fn spawned_smoke_does_not_inherit_combustion_flags() {
 }
 
 #[test]
-fn unrelated_flag_bit_survives_combustion() {
+fn reserved_flag_bit_is_cleared_by_combustion_hygiene() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 85.0);
@@ -616,7 +658,7 @@ fn unrelated_flag_bit_survives_combustion() {
     sim.tick().expect("tick");
 
     let f = flags(&sim, 3, 3);
-    assert_ne!(f & TEST_UNRELATED_FLAG, 0, "unrelated bit is preserved");
+    assert_eq!(f & TEST_UNRELATED_FLAG, 0, "reserved bit is cleared");
     assert_ne!(f & FLAG_COMBUSTING, 0, "combustion bits behave normally");
     assert_ne!(f & FLAG_FLAME_EVENT, 0);
 }
@@ -644,7 +686,7 @@ fn nonflammable_material_clears_stale_combustion_bits() {
         0,
         "nonflammable Matter cannot keep stale combustion bits"
     );
-    assert_ne!(f & TEST_UNRELATED_FLAG, 0, "unrelated bit survives");
+    assert_eq!(f & TEST_UNRELATED_FLAG, 0, "reserved bit is cleared");
     assert_eq!(
         temp(&sim, 3, 3),
         TEMPERATURE_REFERENCE,
@@ -823,6 +865,9 @@ fn exact_duration_boundary_is_not_off_by_one() {
         "reaching the burn duration consumes the fuel exactly on the boundary"
     );
     assert_eq!(flags(&exact, 3, 3), 0);
+    let consumed_air = air(&exact, &[(3, 3)])[0];
+    assert_eq!(consumed_air.current, vacuum_air_state());
+    assert_eq!(consumed_air.current, consumed_air.next);
 }
 
 #[test]
@@ -997,7 +1042,7 @@ fn nonflammable_stale_progress_is_removed() {
 }
 
 #[test]
-fn unrelated_flags_survive_progress_updates() {
+fn reserved_flags_are_cleared_during_progress_updates() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 85.0);
@@ -1013,7 +1058,7 @@ fn unrelated_flags_survive_progress_updates() {
 
     let f = flags(&sim, 3, 3);
     assert_eq!(fuel_progress(f), 11, "progress advances normally");
-    assert_ne!(f & TEST_UNRELATED_FLAG, 0, "unrelated bit survives updates");
+    assert_eq!(f & TEST_UNRELATED_FLAG, 0, "reserved bit is cleared");
     assert_ne!(f & FLAG_COMBUSTING, 0);
 }
 
@@ -1357,12 +1402,12 @@ fn smoke_spawn_starts_with_zero_age() {
 #[test]
 fn combustion_can_spawn_smoke_that_later_dissipates() {
     let mut sim = eight_by_eight();
-    // Fully seal 3x4 outer border around the 2 interior cells (3,3) and (3,2)
+    // Seal the sides and bottom. (3,1) remains EMPTY for the first tick as
+    // the mandatory orthogonal Air receiver for the Smoke target at (3,2).
     for y in 1..=4 {
         set(&sim, 2, y, MATERIAL_STONE);
         set(&sim, 4, y, MATERIAL_STONE);
     }
-    set(&sim, 3, 1, MATERIAL_STONE);
     set(&sim, 3, 4, MATERIAL_STONE);
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 95.0);
@@ -1370,6 +1415,10 @@ fn combustion_can_spawn_smoke_that_later_dissipates() {
 
     sim.tick().expect("tick 1: smoke spawns at (3,2)");
     assert_eq!(cell(&sim, 3, 2), MATERIAL_SMOKE);
+
+    // Close the receiver after the transaction so this fixture can isolate
+    // the spawned Smoke lifetime without allowing upward movement.
+    set(&sim, 3, 1, MATERIAL_STONE);
 
     // Put near expiration age on the spawned smoke
     set_flags(&sim, 3, 2, with_decay_age(flags(&sim, 3, 2), 898));
@@ -1518,7 +1567,7 @@ fn decayed_smoke_not_resurrected_by_subsequent_passes() {
 }
 
 #[test]
-fn unrelated_reserved_flag_bits_survive_decay() {
+fn reserved_flag_bits_are_cleared_by_decay_hygiene() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_SMOKE);
     // Combine decay age with TEST_UNRELATED_FLAG (bit 28)
@@ -1530,9 +1579,59 @@ fn unrelated_reserved_flag_bits_survive_decay() {
     assert_eq!(cell(&sim, 3, 3), MATERIAL_SMOKE);
     let f = flags(&sim, 3, 3);
     assert_eq!(decay_age(f), 101, "age incremented");
-    assert_ne!(
-        f & TEST_UNRELATED_FLAG,
-        0,
-        "reserved flag bit survives decay update"
-    );
+    assert_eq!(f & TEST_UNRELATED_FLAG, 0, "reserved flag bit is cleared");
+}
+
+#[test]
+fn every_registered_m0_material_obeys_exact_flag_ownership() {
+    let mut sim = make_sim(WorldConfig::new(32, 20, 4).unwrap());
+    let reserved = 1u32 << 28;
+    let centers = [
+        (3, 3),
+        (9, 3),
+        (15, 3),
+        (21, 3),
+        (27, 3),
+        (3, 11),
+        (9, 11),
+        (15, 11),
+        (21, 11),
+        (27, 11),
+    ];
+    assert_eq!(MATERIAL_REGISTRY.len() + 1, centers.len());
+
+    for (material, &(x, y)) in (0u32..=9).zip(&centers) {
+        seal_eight(&sim, x, y);
+        set(&sim, x, y, material);
+        let staged_flags = match material {
+            MATERIAL_OIL | MATERIAL_WOOD => with_fuel_progress(FLAG_COMBUSTING | reserved, 10),
+            MATERIAL_SMOKE => with_decay_age(reserved, 10),
+            _ => u32::MAX,
+        };
+        set_flags(&sim, x, y, staged_flags);
+        if material == MATERIAL_OIL {
+            set_t(&sim, x, y, 80.0);
+        } else if material == MATERIAL_WOOD {
+            set_t(&sim, x, y, 85.0);
+        } else if material == MATERIAL_STEAM {
+            set_t(&sim, x, y, 80.0);
+        }
+    }
+
+    sim.tick().expect("tick");
+
+    for &(x, y) in &centers {
+        let material = cell(&sim, x, y);
+        let actual = flags(&sim, x, y);
+        let allowed = match material {
+            MATERIAL_OIL | MATERIAL_WOOD => combustion_flag_mask(),
+            MATERIAL_SMOKE => decay_flag_mask(),
+            _ => 0,
+        };
+        assert_eq!(
+            actual & !allowed,
+            0,
+            "Material {material} retained flags outside ownership mask 0x{allowed:08x}"
+        );
+    }
 }

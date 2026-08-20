@@ -6,8 +6,8 @@
 //! emerges from ordinary Matter movement through that opening.
 
 use powdergame_core::{
-    WorldConfig, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_STEAM, MATERIAL_STONE,
-    MATERIAL_WATER, MATERIAL_WOOD, PRESSURE_REFERENCE, WATER_BOIL_BLOCKED_PRESSURE,
+    vacuum_air_state, WorldConfig, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_STEAM,
+    MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD, PRESSURE_REFERENCE, WATER_BOIL_BLOCKED_PRESSURE,
     WOOD_RUPTURE_THRESHOLD,
 };
 use powdergame_gpu::Simulation;
@@ -90,6 +90,12 @@ fn wood_ruptures_from_threshold_exceeding_neighbor_pressure() {
         MATERIAL_WATER,
         "pressure stress alone does not transmute the medium"
     );
+    let opened = sim
+        .world
+        .read_environment_cells(&sim.context.device, &sim.context.queue, &[(3, 2)])
+        .unwrap()[0];
+    assert_eq!(opened.current, vacuum_air_state());
+    assert_eq!(opened.current, opened.next);
 }
 
 #[test]

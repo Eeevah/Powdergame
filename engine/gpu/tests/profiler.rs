@@ -4,7 +4,7 @@
 //! - A. Ordinary Simulation::tick remains available and does not require TIMESTAMP_QUERY.
 //! - B. A profiled simulation tick executes the exact same production pass sequence.
 //! - C. Matching profiled vs unprofiled simulations from identical state (Material, Flags, Temperature, Pressure exact).
-//! - D. Timestamp results (17 ordered positive pass records and a valid envelope).
+//! - D. Timestamp results (all ordered positive production pass records and a valid envelope).
 //! - E. Activity census works out-of-band and does not perturb world state.
 //! - F. Tracked memory report accounts for all world, scratch, activity, uniform, and profiler allocations.
 
@@ -39,7 +39,7 @@ fn test_ordinary_simulation_tick_does_not_require_profiling_feature() {
 }
 
 #[test]
-fn test_profiled_simulation_tick_produces_17_valid_pass_timings() {
+fn test_profiled_simulation_tick_produces_all_valid_pass_timings() {
     let ctx = match block_on(GpuContext::with_profiling()) {
         Ok(c) => c,
         Err(e) => {
@@ -90,11 +90,11 @@ fn test_profiled_simulation_tick_produces_17_valid_pass_timings() {
         "each profiled tick must overwrite the reused query results"
     );
     assert!(
-        report.raw_timestamps[0] >= first.raw_timestamps[33],
+        report.raw_timestamps[0] >= first.raw_timestamps[PASS_COUNT * 2 - 1],
         "the second resolved query set must follow the first on the GPU timeline"
     );
     assert_eq!(report.passes.len(), PASS_COUNT);
-    assert_eq!(PASS_COUNT, 17);
+    assert_eq!(PASS_COUNT, 30);
 
     for (i, pass) in report.passes.iter().enumerate() {
         assert_eq!(pass.name, PASS_NAMES[i]);
@@ -271,6 +271,28 @@ fn test_profiled_vs_unprofiled_simulation_state_exact_equivalence() {
         press_unprof, press_prof,
         "Pressure must match exact between profiled and unprofiled"
     );
+
+    let selected_cells = [(1, 1), (20, 20), (40, 40), (64, 64), (100, 100)];
+    let environment_unprof = sim_unprof
+        .world
+        .read_environment_cells(
+            &sim_unprof.context.device,
+            &sim_unprof.context.queue,
+            &selected_cells,
+        )
+        .unwrap();
+    let environment_prof = sim_prof
+        .world
+        .read_environment_cells(
+            &sim_prof.context.device,
+            &sim_prof.context.queue,
+            &selected_cells,
+        )
+        .unwrap();
+    assert_eq!(
+        environment_unprof, environment_prof,
+        "Environment must match exact between profiled and unprofiled"
+    );
 }
 
 #[test]
@@ -338,32 +360,42 @@ fn test_tracked_gpu_allocation_report_structure() {
     };
     let sim = Simulation::with_context(ctx, config).expect("failed to create sim");
 
+    let unprofiled = sim.tracked_memory_report(None);
+    assert_eq!(unprofiled.total_tracked_gpu_bytes, 268_462_208);
     let mem = sim.tracked_memory_report(Some(&profiler));
 
     // 2048x2048 = 4,194,304 cells
     // 8 dense world arrays * 4 bytes/cell = 32 bytes/cell = 134,217,728 bytes (128 MB)
     assert_eq!(mem.world_dense_state_bytes, 4_194_304 * 4 * 8);
 
+    // TE-1 persistent Air: mass/energy Current+Next = 4 f32 arrays.
+    assert_eq!(mem.environment_state_bytes, 4_194_304 * 4 * 4);
+
     // 2 scratch arrays * 4 bytes/cell = 8 bytes/cell = 33,554,432 bytes (32 MB)
     assert_eq!(mem.movement_scratch_bytes, 4_194_304 * 4 * 2);
+
+    // TE-1 reuses exactly one full-resolution receiver-claim scratch.
+    assert_eq!(mem.environment_receiver_claim_bytes, 4_194_304 * 4);
 
     // Activity scratch: cell_activity (16 MB) + 6 chunk buffers (6 * 1024 * 4 = 24,576 bytes)
     assert_eq!(mem.activity_scratch_bytes, 4_194_304 * 4 + 1024 * 4 * 6);
 
-    // Profiler: 34 * 8 * 2 = 544 bytes
-    assert_eq!(mem.profiler_bytes, 544);
+    // Profiler: 60 timestamps * 8 bytes * resolve+readback = 960 bytes.
+    assert_eq!(mem.profiler_bytes, 960);
 
     // Exact persistent inventory: 4 uniforms + marker + 9 property/table
     // buffers. This assertion must fail if tracked_memory_report omits one of
     // the allocations made by Simulation::with_context.
     assert_eq!(mem.uniforms_and_tables_bytes, 2_176);
 
-    assert_eq!(mem.total_tracked_gpu_bytes, 184_576_672);
+    assert_eq!(mem.total_tracked_gpu_bytes, 268_463_168);
 
     assert_eq!(
         mem.total_tracked_gpu_bytes,
         mem.world_dense_state_bytes
+            + mem.environment_state_bytes
             + mem.movement_scratch_bytes
+            + mem.environment_receiver_claim_bytes
             + mem.activity_scratch_bytes
             + mem.uniforms_and_tables_bytes
             + mem.profiler_bytes

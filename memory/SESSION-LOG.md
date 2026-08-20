@@ -217,3 +217,35 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - D-017 authorizes only docs/research/adversarial/reference work around the
   proposed Hybrid A+C TE-3D candidate. ADR-0006 is not accepted, TE-3 runtime
   is not started, and Air-pressure force, TE-4 and G9-B/C/D/E remain excluded.
+
+## 2026-08-20 · TE-3D phase-enthalpy design candidate
+
+- Proposed ADR-0006 selects Hybrid A+C: one Water-equivalent phase-family Cell,
+  1:1 Ice/Water/Steam identity changes and exactly two Matter-owned f32
+  phase-energy Current/Next buffers. At 2048² the persistent increment is
+  33,554,432 B. The projected graph is 40 passes, 80 timestamp queries and
+  1,280 profiler bytes, with no new full-world scratch.
+- Proposed accounting uses `H = S_material(T) + E`, canonical
+  Ice/Water/Steam E `-80/0/480`, reversible plateau progress, gas-facing
+  boiling, 80°C/10°C surface condensation and deterministic free-air
+  nucleation below 70°C.
+- The one-shot external reference proof used seed `0x54453344`, 50,000
+  generated enthalpy trials and 4,096 finite nucleation regions. Maximum
+  absolute H error was `1.52587890625e-05`; 100 closed cycles returned one
+  Water unit at 20°C/E=0. Script/result SHA-256 are
+  `117439a84f1debdc4e4cca6007a4307903bc643cb1811f8c0d979dfecda05561` and
+  `6c1afe9f3734be51301562ee3363a94726a75c1f64c222c3dc824ed31d19e42e`.
+- The independent fresh-context review found four High issues and the design
+  resolved all four: temporal seed cascades, premature review evidence,
+  regression of the frozen G5 chain and missing Air visibility under the
+  eight-storage ceiling. Final review SHA-256 is
+  `1fbc4501f62b91042ff5658cc8a6b509042e0fba84a266f72e610ef686274d34`;
+  unresolved Critical/High count is zero.
+- Five Medium and two Low review risks remain visible: numeric temporal/lattice
+  initiation bounds, burial after boiling starts, isolated supercooled Steam,
+  zero-conductivity sink meaning, coefficient-window preregistration, future
+  generic yield-2 target ownership and hash-multiplier provenance.
+- The future yield-1 Water path must remain disabled/non-production until a
+  separately authorized same-source TE-5 pressure-volume replacement preserves
+  the frozen G5 chain atomically. ADR-0006 remains Proposed; no D-018, runtime,
+  build, launch, GPU test, pressure, ignition or later-Gate work occurred.

@@ -27,6 +27,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260820-1641-te1-foundation-implemented.md`](checkpoints/20260820-1641-te1-foundation-implemented.md) | TE-0 design-lock return point before TE-1 runtime implementation | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-2130-te2-passive-candidate-before-direct-remediation.md`](checkpoints/20260820-2130-te2-passive-candidate-before-direct-remediation.md) | Original TE-2 candidate return point before direct-review remediation | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-2239-te2-revised-candidate-rereview.md`](checkpoints/20260820-2239-te2-revised-candidate-rereview.md) | Revised TE-2 candidate return point before direct user acceptance | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260820-2328-te2-accepted-te3d-authorized.md`](checkpoints/20260820-2328-te2-accepted-te3d-authorized.md) | TE-2 accepted and TE-3D design-authorized return point before the design candidate | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 
@@ -44,7 +45,11 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/HANDOFF.md`](../docs/HANDOFF.md) | Preserved historical/domain handoff reference | Only when older recovery history or domain context is needed; not a competing session checkpoint |
 | [`docs/evidence/`](../docs/evidence/) | Immutable run/source/artifact evidence and user dispositions | When relying on a specific measurement or acceptance claim |
 | [`docs/architecture/`](../docs/architecture/) and [`docs/specs/`](../docs/specs/) | Architecture and implementation contracts | Before code/engine changes |
-| [`docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](../docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md) | Registered TE-3 closed-cycle and mid-air phase-accounting blocker | Before any Water/Steam phase design or runtime proposal |
+| [`docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](../docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md) | TE-3D user-review entry point and original closed-cycle/mid-air blocker | Before any Water/Steam phase design or runtime proposal |
+| [`docs/architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md`](../docs/architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md) | Proposed Hybrid A+C option decision and consequences | For the pending architecture disposition; not yet accepted |
+| [`docs/specs/PHASE_THERMODYNAMICS_SPEC.md`](../docs/specs/PHASE_THERMODYNAMICS_SPEC.md) | Proposed phase-energy math, ownership, pass and invariant contract | Before reviewing or implementing TE-3 |
+| [`docs/development/PHASE_THERMODYNAMICS_VALIDATION.md`](../docs/development/PHASE_THERMODYNAMICS_VALIDATION.md) | Evidence ladder, fixture contract and one-shot reference receipt | Before making any TE-3 validation claim |
+| [`docs/adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md`](../docs/adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md) | Independent design attack and finding dispositions | Before accepting or revising ADR-0006 |
 
 ## Authority and evidence boundaries
 

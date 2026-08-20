@@ -106,6 +106,44 @@ Water-equivalent foreground quantity and dedicated phase enthalpy, but does not
 accept that architecture or authorize runtime. See
 `docs/planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md`, D-016 and D-017.
 
+TE-3D candidate update — 2026-08-20:
+
+- proposed ADR-0006 selects Hybrid A+C: one Water-equivalent foreground Cell,
+  Water/Steam `yield = 1`, and two dedicated phase-energy halves;
+- user approval or revision of that representation remains open;
+- proposed `L_f = 80` and `L_v = 480` remain user-review choices;
+- proposed surface thresholds, deterministic free-air nucleation and their
+  visual result remain user-review choices;
+- the approximately 32 MiB phase-buffer cost at 2048² remains a user-review
+  choice;
+- the atomic activation constraint—no active Water yield-1 path until a
+  separately authorized TE-5 replacement preserves the frozen G5
+  boil/confinement/rupture/vent chain on the same source—remains a user-review
+  choice;
+- the static pass/binding inventory found no implementation-feasibility
+  blocker, but no runtime implementation or evidence exists;
+- the independent review passed with zero unresolved Critical/High findings,
+  while retaining the following lower-severity design risks for user review or
+  pre-implementation closure:
+  - no numeric product bound yet exists for temporal/lattice initiation rate;
+  - whether already-started boiling may complete after burial is not a settled
+    product rule;
+  - Steam with neither a sink nor runnable thermal work may remain metastably
+    supercooled;
+  - a cold zero-conductivity Boundary can satisfy the geometric sink predicate
+    even though it cannot perform thermal work;
+  - coefficient timing windows were selected inside the same reference design
+    rather than by an independent preregistration;
+  - a future generic non-family yield-2 rule needs an explicit target-family
+    phase-energy ownership restriction; and
+  - the fixed hash mixer constants need clearer provenance before runtime use;
+- product world-edge mode and Vacuum combustion remain open at their original
+  TE-5 and TE-4/TE-5 boundaries; this proposal does not close them.
+
+The candidate is **PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW
+PENDING**. Reference math and adversarial review cannot substitute for the
+user's architecture disposition.
+
 TE-2 direct re-review is closed **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Preserve
 `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and
 `TE2_CANDIDATE_HUD_LABEL_POLISH` as non-blocking follow-ups. Do not reopen the
@@ -119,7 +157,9 @@ G9-A or TE-2.
 
 Future user decisions occur at the next evidence boundary:
 
-- accept or revise the proposed Hybrid A+C TE-3 architecture at its named review gate;
+- accept or revise the proposed Hybrid A+C representation, latent coefficients,
+  condensation/nucleation appearance, memory cost and pressure boundary at its
+  named review gate;
 - close Q-008 items only at their named Thermal Environment gate;
 - authorize later G9-B/C/D progression after that candidate;
 - approve shared `main` promotion;

@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 user accepted with known follow-up; TE-3D design authorized, runtime not started
-- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / ADR-0005
+- **Status:** TE-2 user accepted with known follow-up; TE-3D phase-enthalpy design candidate awaiting user architecture review; runtime not started
+- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / ADR-0005 / proposed ADR-0006
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -119,7 +119,42 @@ design blockers. D-017 authorizes docs-only TE-3D research, a proposed Hybrid
 A+C architecture, independent adversarial review and one pure reference proof.
 It does not authorize runtime work or mark the architecture accepted.
 
-Stop: `WATER/STEAM CYCLE USER-TESTABLE CANDIDATE / TE-4 NOT STARTED`.
+### TE-3D — docs-only phase-enthalpy design lock
+
+- [x] retain exactly one Water-equivalent quantity per Water/Steam Matter Cell;
+- [x] compare one-Cell, owned-fragment, dedicated-state and existing yield-2 options;
+- [x] propose Hybrid A+C with `yield = 1` and two Current/Next phase-energy buffers;
+- [x] define sensible/latent enthalpy, partial progress, reversal and canonical ranges;
+- [x] define cold-surface condensation and bounded deterministic free-air nucleation;
+- [x] inventory all future writers, movement, reset, editor, sleep/activity and hygiene paths;
+- [x] project 40 passes, 80 queries, 1,280 profiler bytes and exact tracked allocations;
+- [x] define deterministic future fixtures and pass one pure reference-math proof;
+- [x] complete an independent adversarial review with no unresolved Critical/High finding;
+- [x] preserve TE-1/TE-2 evidence boundaries and copy zero external implementation formulas;
+- [x] keep pressure-volume force, ignition and all runtime work outside this gate.
+- [x] block production activation until a separately authorized TE-5 replacement preserves the frozen G5 expansion/confinement chain atomically.
+
+Candidate authorities:
+
+- [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
+- [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
+- [`PHASE_THERMODYNAMICS_VALIDATION`](../development/PHASE_THERMODYNAMICS_VALIDATION.md)
+- [`TE3_PHASE_ENTHALPY_DESIGN`](../adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md)
+
+TE-3D stop: `PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING`.
+The user must accept or revise the architecture, coefficients, nucleation,
+memory cost, pressure boundary and atomic G5-continuity constraint before any
+implementation authorization. Even after design acceptance, a phase-only
+runtime must remain disabled/non-production until the separate TE-5 replacement
+is ready on the same source.
+
+After a separate implementation authorization, TE-3 phase code may reach only:
+
+`PHASE-ENTHALPY IMPLEMENTATION VERIFIED BUT INACTIVE / CURRENT G5 WATER PATH ACTIVE / TE-4 NOT STARTED`.
+
+It is not a user-testable candidate. The existing Water yield-2/blocked-
+pressure production path stays active until TE-5 can perform the atomic
+replacement.
 
 ## TE-4 — Ignition kinetics
 
@@ -129,7 +164,9 @@ Stop: `IGNITION CAUSALITY USER-TESTABLE CANDIDATE / TE-5 NOT STARTED`.
 
 ## TE-5 — Pressure and Vacuum coupling
 
-After user decisions on edge reservoir and Vacuum combustion, integrate derived background pressure, Atmosphere refill/Vacuum vent, heated sealed Air, face differential and existing gauge overpressure without double counting. Revisit blocked spawn displacement only with a new accounted contract.
+After user decisions on edge reservoir and Vacuum combustion, integrate derived background pressure, Atmosphere refill/Vacuum vent, heated sealed Air, face differential and existing gauge overpressure without double counting. Revisit blocked spawn displacement only with a new accounted contract. On the same source, validate the replacement G5 boil/confinement/rupture/vent chain and atomically activate the verified TE-3 Water yield-1 path. Neither half may ship alone.
+
+Stop: `WATER/STEAM + PRESSURE USER-TESTABLE CANDIDATE / TE-6 NOT STARTED`.
 
 ## TE-6 — Product integration and G9-B readiness
 
@@ -145,6 +182,6 @@ TE-0B  PASS_REFERENCE_MATH_ONLY
 TE-1   ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED
 TE-2   USER ACCEPTED WITH KNOWN FOLLOW-UP
 Air transport / unified passive thermal exchange   IMPLEMENTED
-TE-3D  DESIGN PROGRAM AUTHORIZED / USER ARCHITECTURE REVIEW TO FOLLOW
+TE-3D  PHASE-ENTHALPY DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING
 Air-pressure force / TE-3 runtime   NOT STARTED
 ```

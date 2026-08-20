@@ -70,8 +70,7 @@ Production path는 RTX 5090에서 실제로 검증된 가장 좋은 구현을 �
 
 ### Thermal Environment design boundary
 
-TE-1 production now carries the locked Environment state while thermal
-transport remains Matter-only and direct-contact. D-013/D-014 and ADR-0005
+TE-1 production carries the locked Environment state. D-013/D-014 and ADR-0005
 distinguish foreground `EMPTY` from Atmosphere, Vacuum and Void;
 Air is a full-resolution mass/energy Field rather than Matter; occupied Cells
 carry canonical zero Air. Four Current/Next Air buffers plus one receiver-claim
@@ -83,13 +82,17 @@ Canonical details live in
 [`ADR-0005`](decisions/ADR-0005-atmosphere-vacuum-environment.md),
 [`THERMAL_ENVIRONMENT_SPEC`](../specs/THERMAL_ENVIRONMENT_SPEC.md) and the
 [`production inventory`](THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md). TE-1 is
-implemented at source `1a722d...`; Air flow, thermal exchange,
-phase/ignition retune and Air-pressure coupling remain later-gate work and
-TE-2 passive Air transport and unified thermal exchange are implemented at
+implemented at source `1a722d...`, and TE-2 passive Air transport and unified
+thermal exchange are implemented at
 source `fb7e568e21012b6067269f4e1b82c36c865023d0`. Candidate-only controls,
 bounded diagnostics and staging are revised at source `0977281...`; TE-2 user
 acceptance is **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Air-pressure force and
-TE-3 runtime are not started; TE-3D docs-only design is authorized.
+TE-3 runtime are not started. Proposed [`ADR-0006`](decisions/ADR-0006-water-steam-phase-enthalpy.md)
+and the [`phase-thermodynamics spec`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
+select a docs-only Hybrid A+C candidate: one Water-equivalent quantity per
+Matter Cell plus two reversible phase-energy halves, with no independent Steam
+fragment. Its status is **USER ARCHITECTURE REVIEW PENDING**, not accepted or
+implemented.
 
 ---
 

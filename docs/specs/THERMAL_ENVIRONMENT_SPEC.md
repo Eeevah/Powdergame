@@ -1,7 +1,7 @@
 # Powdergame Thermal Environment Specification
 
-- **Status:** TE-2 user accepted with known follow-up; TE-3D design authorized / TE-3 runtime not started
-- **Architecture:** ADR-0005 / D-013 / D-014 / D-015 / D-016
+- **Status:** TE-2 user accepted with known follow-up; TE-3D phase-enthalpy design candidate awaits user architecture review / TE-3 runtime not started
+- **Architecture:** ADR-0005 / D-013 / D-014 / D-015 / D-016 / D-017; proposed ADR-0006 is a separate later-gate contract
 - **Runtime boundary:** Air transport and unified passive thermal exchange are implemented at source `fb7e568e21012b6067269f4e1b82c36c865023d0`; Air-pressure force and TE-3+ remain disabled
 
 ## 1. State model
@@ -279,7 +279,16 @@ historical TE-0/TE-1 evidence retains its original vocabulary.
 
 ## 9. Later phase and ignition contracts
 
-TE-3 must account for sensible, phase-offset, and pending latent energy-like state before changing Water/Steam behavior or yield. Exact coefficients and representation remain open until named fixtures pass. The audited `1 Water -> up to 2 Steam -> up to 2 Water` closed-cycle blocker, required accounting names, user-observed mid-air checkerboard clumping, representation comparison and forbidden shortcuts are registered in [`TE3_WATER_STEAM_PHASE_ACCOUNTING.md`](../planning/TE3_WATER_STEAM_PHASE_ACCOUNTING.md). That registration authorizes no runtime change.
+TE-3 must account for sensible and latent energy before changing Water/Steam
+behavior or yield. The docs-only candidate selects Hybrid A+C: one
+Water-equivalent Matter Cell plus dedicated reversible phase enthalpy, with
+proposed `L_f = 80`, `L_v = 480`, surface-first condensation and deterministic
+bounded free-air nucleation. Exact normative details are isolated in proposed
+[`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md),
+[`PHASE_THERMODYNAMICS_SPEC`](PHASE_THERMODYNAMICS_SPEC.md) and its
+[`validation contract`](../development/PHASE_THERMODYNAMICS_VALIDATION.md).
+The architecture and coefficients remain user-review choices; no runtime
+change is authorized.
 
 TE-4 replaces one-tick threshold ignition with bounded exposure/dose. A brief threshold spike must decay without ignition; sustained surface exposure may ignite. Combustion heat is an explicit source, so burning Matter may exceed the original source temperature. Oxygen, Ash and final FX remain excluded.
 

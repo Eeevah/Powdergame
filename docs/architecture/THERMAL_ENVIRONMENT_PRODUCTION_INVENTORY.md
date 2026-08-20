@@ -1,8 +1,9 @@
 # Thermal Environment production inventory
 
-- **Audited source:** `1a722d239a16bade5772688fa822465d5cef4602`
-- **Scope:** implemented TE-1 production pass graph, writers, bindings, memory, scratch and occupancy paths
-- **Runtime status:** TE-1 implemented; Air transport/thermal exchange/pressure coupling not started
+- **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
+- **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
+- **Scope:** implemented TE-1/TE-2 production graph plus the proposed TE-3D writer, binding, memory and scratch delta
+- **Runtime status:** TE-2 implemented and user accepted with known follow-up; TE-3D design candidate only; Air-pressure force and TE-3 runtime not started
 
 ## 1. Current pass order
 
@@ -240,3 +241,113 @@ Environment activity is pass 32. The profiler therefore owns 68 timestamp
 queries. Every new pass remains at or below eight storage bindings, proposal
 and claim are fully overwritten before their f32 reads, and phase/expansion
 restore their ordinary u32 meanings after the TE-2 window.
+
+## 9. Proposed TE-3D phase-enthalpy delta
+
+This section is an arithmetic/static design projection against the 34-pass
+TE-2 graph. It is not an implemented inventory or a runtime measurement.
+
+### 9.1 State and ownership
+
+TE-3D proposes exactly two new dense buffers:
+
+| Buffer | Type | Bytes | Owner and settle rule |
+|---|---|---:|---|
+| `phase_energy_current` | full-world `f32` | `4 * Cell count` | read half; one Water-equivalent quantity's reversible phase enthalpy |
+| `phase_energy_next` | full-world `f32` | `4 * Cell count` | write half; settles jointly with the owning Matter identity |
+
+No `phase_quantity`, fragment, mixed-cell or new generic scratch buffer is
+proposed. `proposal`, `claim`, `environment_receiver_claim`, `cell_activity`
+and Environment Current/Next retain their existing allocations and ownership.
+
+Canonical external staging is Ice `-80`, Water `0`, Steam `480`, all other
+Matter/EMPTY `0`. Movement copies or swaps the value with its Matter owner and
+zeros a vacated/erased Cell. Phase normalization writes a valid in-family value.
+Decay, combustion and rupture gain a phase-energy hygiene dispatch before their
+joint settle. Reset, preset, scenario, benchmark and Draw stage both halves
+byte-identically; Heat/Cool changes temperature only.
+
+### 9.2 Projected production order
+
+```text
+0       activity_wake
+1..5    movement propose/claim/commit, flag hygiene, Environment reconcile
+6       phase_energy_reconcile_movement
+7..10   TE-2 Air scale/commit and thermal scale/commit
+11      phase_context_propose (fully writes claim as immutable u32 markers)
+12      phase_thermodynamics (replaces phase_transition and fully writes proposal)
+13..19  dormant expansion claim/receiver/spawn/pressure, flag hygiene,
+        Environment reconcile
+20..23  decay, flag hygiene, phase-energy hygiene, Environment reconcile
+24..30  combustion/Smoke transaction, flag hygiene, phase-energy hygiene,
+        Environment reconcile
+31      pressure
+32..35  rupture, flag hygiene, phase-energy hygiene, Environment reconcile
+36      base activity_propose without the threshold-only phase candidate
+37      phase_activity_propose
+38      environment_activity_propose
+39      activity_reduce
+```
+
+The historical generic expansion chain remains present for non-family
+`matter_yield > 1`. All Ice/Water/Steam descriptors have `yield = 1` and zero
+blocked-pressure metadata. `phase_context_propose` fully writes dead claim with
+immutable Air/surface/work markers, and `phase_thermodynamics` consumes them
+while fully writing proposal: phase-family Cells receive `NO_PROPOSAL`, while a
+generic descriptor retains its historical proposal. Expansion claim then
+overwrites claim. The Water/Steam path
+therefore cannot create an expansion receiver, a second Steam identity or
+blocked-expansion pressure without disabling the generic path. New Steam
+pressure-volume force remains TE-5-owned.
+
+### 9.3 Binding and table ceilings
+
+| Proposed pass | Storage RO | Storage RW | Total storage | Other binding |
+|---|---:|---:|---:|---|
+| phase-energy movement reconcile | 6 | 1 | 7 | params uniform |
+| phase context propose | 6 | 1 | 7 | params + phase descriptor + existing TE-2 thermal-table uniforms |
+| phase thermodynamics | 4 | 4 | **8** | params + phase descriptor + existing TE-2 thermal-table uniforms |
+| phase-energy identity hygiene | 5 | 1 | 6 | params uniform |
+| phase activity propose | 6 | 1 | 7 | params + phase descriptor + existing TE-2 thermal-table uniforms |
+| Sandbox phase edit (outside tick graph) | 3 | 2 | 5 | params uniform |
+
+The context pass storage order is Material Current, temperature Current, phase
+energy Current, Air mass/energy Current, chunk state and claim RW. It is the
+only phase-context Air reader and reuses the existing 128-byte TE-2
+conductivity/capacity uniform plus its exact work predicate. The
+phase-thermodynamics storage order is
+Material Current, temperature Current, phase energy Current, immutable
+claim/context, Material Next, temperature Next, phase energy Next and proposal.
+It has no Air, chunk-state or `cell_activity` binding. The existing
+512-byte phase table is re-encoded as a packed 32-byte × 16 descriptor and
+bound as a uniform here; capacity/conductivity comes directly from the existing
+128-byte TE-2 thermal-table uniform, so the proposal adds no persistent table
+allocation.
+Sandbox phase editing is a separate non-timestamped dispatch because extending
+the current seven-storage field-edit pass with two phase buffers would exceed
+the ceiling.
+
+### 9.4 Pass, profiler and allocation projection
+
+The graph projects 40 timestamped passes and 80 queries. Two 640-byte profiler
+buffers total 1,280 bytes, `+192` bytes from the current two 544-byte buffers.
+
+| World | TE-2 no profiler | Two phase buffers | TE-3D no profiler | TE-3D with profiler |
+|---:|---:|---:|---:|---:|
+| 256² | 4,197,040 B | 524,288 B | 4,721,328 B | 4,722,608 B |
+| 2048² | 268,462,384 B | 33,554,432 B | 302,016,816 B | 302,018,096 B |
+
+The tracked boundary excludes transient diagnostic staging and opaque driver
+or query-set storage, matching the TE-2 report. These figures must be replaced
+by exact runtime allocation/profiler evidence only after a separately
+authorized implementation exists.
+
+### 9.5 Sleep and activity boundary
+
+The old threshold-only phase candidate and phase activity marker are removed
+together. A separate phase-activity proposal uses the same initiation,
+surface/sink, nucleation and thermal-work predicates as normalization. Partial
+progress with no eligible energy-flow face may sleep; movement, edit or thermal
+frontiers wake the existing halo. Completed or stalled equilibrium bulk must
+settle to zero activity. Sleep-on/off equivalence remains a future fixture, not
+a claim established by this design inventory.

@@ -34,6 +34,7 @@ intake must be revisited before claiming a stronger provenance identity.
 | `AIR_GAP_HEAT_TRANSPORT` | Research alias only | `PROVENANCE_ALIAS` | Existing TE-F05 and TE-F07; no duplicate production test | Revisit if those fixture meanings change |
 | `SEALED_EDGE_NO_FLUX` | Research alias only | `PROVENANCE_ALIAS` | Existing TE-F09 and TE-F10; no duplicate production test | Revisit if the sealed correctness edge changes |
 | `SOURCE_FREE_ENERGY_STABILITY` | Research alias only | `PROVENANCE_ALIAS` | Existing TE-F01–F03 and numerical invariants | Revisit if passive accounting/tolerance changes |
+| `WATER_STEAM_REVERSAL_ACCOUNTING` | User-supplied research alias only; no external formula adopted | `ADOPTED_TEST_CONTRACT` | TE-3 future fixtures TE3-F02/F03/F04, with closed-cycle TE3-F01 and appearance TE3-F08 as supporting boundaries | Revisit if ADR-0006's phase coordinate, unit quantity or reversal semantics change |
 | Cinder | Exact repository/revision not identified; no license statement available in the supplied material | `REFERENCE_FIXTURE` only | Small-delta semantic fixture idea only; no implementation reuse | Exact upstream repository, immutable revision and compatible license must be established before any stronger use |
 | `NO_REGION_WIDE_INSTANT_COMBUSTION` | Research backlog alias | `REFERENCE_ONLY` | TE-4 backlog | Revisit only at the TE-4 ignition gate |
 | `FINITE_CORROSION_BUDGET` / `REACTION_ORIENTATION_INVARIANCE` | Research backlog aliases | `REFERENCE_ONLY` | M1 / G9-B backlog | Revisit only when that later scope is explicitly authorized |
@@ -47,7 +48,10 @@ This intake does not broaden those reuse permissions.
 
 ## Scope boundary
 
-No ADR-0006, ADR-0007 or ADR-0008 is created. `NO_REGION_WIDE_INSTANT_COMBUSTION`,
-corrosion, reaction orientation and semantic-event presentation are not part
-of the TE-2 runtime diff. No Oxygen, Ash, new Matter, final FX, CFD or
-optimization is authorized here.
+Proposed ADR-0006 now exists as an independently derived Powdergame design; this
+research intake neither authorizes it nor supplies its equations, constants or
+implementation. No external phase formula was copied. ADR-0007 and ADR-0008 do
+not exist. `NO_REGION_WIDE_INSTANT_COMBUSTION`, corrosion, reaction orientation
+and semantic-event presentation are not part of the TE-2 runtime diff or TE-3D
+design. No Oxygen, Ash, new Matter, final FX, CFD or optimization is authorized
+here.

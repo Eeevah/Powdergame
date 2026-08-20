@@ -34,3 +34,11 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
 - **B** — material reliability risk that blocks acceptance;
 - **C** — real but non-blocking defect or operational weakness;
 - **D** — clarity, maintainability, or documentation issue.
+
+## Explicitly requested design reviews
+
+- [`TE3_PHASE_ENTHALPY_DESIGN.md`](TE3_PHASE_ENTHALPY_DESIGN.md) — independent
+  fresh-context review of proposed ADR-0006; the non-date filename is the
+  user's explicit requested output name. Final disposition: **INDEPENDENT
+  DESIGN REVIEW PASS / USER ARCHITECTURE REVIEW PENDING** with no unresolved
+  Critical or High finding.

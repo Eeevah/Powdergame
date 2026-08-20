@@ -1,3 +1,15 @@
+# Don’t reinvent the wheel
+
+This is a **primary operating principle** for every Powdergame task.
+
+Before designing or implementing anything:
+
+1. Search for reuse in this order: existing Powdergame code, documents, tools, skills, fixtures, and evidence; established algorithms and standards; maintained Rust crates and libraries; relevant open-source simulation engines, powder sandboxes, GPU implementations, UI systems, and prior art.
+2. Prefer reuse, composition, adaptation, or a thin wrapper over a from-scratch implementation. Build a new subsystem from the ground up only when no suitable option exists or a concrete Powdergame constraint rules reuse out.
+3. Do not import blindly. Check license and provenance, maintenance health, security, API stability, Windows/wgpu/DX12 compatibility, GPU cost, determinism, architecture fit, evidence impact, and rollback cost. Pin a version or commit when reproducibility matters.
+4. Reuse the useful mechanism, not accidental baggage. External code must not override Powdergame’s source of truth, GPU-authoritative world, One Cell = Max One Matter, local-rule architecture, product intent, evidence boundaries, or current Gate scope.
+5. In implementation plans and final reports, state what was found, what was reused or adapted, what was rejected and why, and what truly had to be created.
+
 # Powdergame agent instructions
 
 <!-- BEGIN managed: ballast-project-memory -->

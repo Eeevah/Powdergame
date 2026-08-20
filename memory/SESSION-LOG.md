@@ -293,3 +293,34 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - TE-3 runtime, TE-5B runtime, full TE-5, Air force, rupture changes, TE-4 and
   G9-B/C/D/E remain **NOT STARTED**. No Rust, WGSL, Cargo, build, launch or
   runtime validation occurred in this authorization unit.
+
+## 2026-08-21 · TE-5B exclusive-token design blocked by finite-capacity counterexample
+
+- D-019's four options were compared and the named exclusive local volume-
+  relief token was specified against the existing GAS First-Match,
+  proposal/claim, Environment-receiver and gauge-pressure grammar. Static
+  packing remained 40 passes, 80 queries, eight or fewer storage bindings and
+  zero candidate memory delta; no source/runtime state was added.
+- The fixed-seed no-grid arbitration/accounting model ran exactly once at seed
+  `0x54453542` with 100,000 unique trials and two deterministic replays. It
+  returned `PASS_REFERENCE_MODEL_ONLY`; script/result SHA-256 are
+  `6fd9276933822db850bd4ec3f9648cf64c45b8905f6b37d17cc88d03cb23a340` /
+  `f53173af05199916b10d287a02c8193e9f86c40c853c019db8491cb86ff56e59`.
+- Fresh review resolved completion-order circularity and GAS First-Match/Void/
+  swap mismatch, but left one High open: under staggered heating, ordinary 1:1
+  Steam movement passes an EMPTY vacancy down a sealed Water column, so finite
+  headspace need never become blocked and F05/F11 cannot guarantee pressure.
+- Review SHA-256 is
+  `78d2e70c852d26734d42e45fce091f308f53cbb8069c42080e066b02c83d2ce5`;
+  unresolved counts are Critical `0`, High `1`, Medium `3`, Low `1`. Final
+  disposition is **TE-5B DESIGN BLOCKED** and ADR-0007 remains Proposed.
+- Strict policy audit, Markdown link/fence/index checks, reference JSON parse
+  and hash verification, secret scan, docs/memory scope check and
+  `git diff --check` passed. Runtime/source diff from `d7500e2...` is zero.
+- Session `20260820T164950636Z-te5b-phase-volume-bridge-design-d7500e21`
+  closed PASS in `2573.21774 s`, FULL `0`, candidate `0`, target delta `0` B.
+  Cargo/test/check/clippy, GPU, build, launch and all runtime candidates ran
+  zero times. External implementation copy count remained `0 files / 0 lines`.
+- The local Wiki remained user-dirty/behind and untouched; connected
+  `origin/main` object `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3` was the
+  read-only fallback.

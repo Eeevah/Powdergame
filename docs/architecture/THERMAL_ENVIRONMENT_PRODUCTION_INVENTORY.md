@@ -2,13 +2,15 @@
 
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
-- **Scope:** implemented TE-1/TE-2 production graph plus the D-018-accepted TE-3D writer, binding, memory and scratch projection
-- **Runtime status:** TE-2 implemented and user accepted with known follow-up; TE-3D architecture accepted with locked amendments; Air-pressure force and TE-3 runtime not started; TE-5 bridge design required/not started
+- **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
+- **Scope:** implemented TE-1/TE-2 production graph plus the D-018-accepted TE-3D and D-019-authorized TE-5B writer, binding, memory and scratch projections
+- **Runtime status:** TE-2 implemented and user accepted with known follow-up; TE-3D architecture accepted with locked amendments; TE-5B design candidate in progress; Air-pressure force, TE-3 and TE-5B runtime not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
 Section 8 is the current implemented TE-2 34-pass delta and supersedes that
 baseline for current pass/order/profiler claims. Section 9 projects D-018 from
-the TE-2 graph; it does not treat the 30-pass TE-1 table as current.
+the TE-2 graph; Section 10 adds the proposed TE-5B mode/lifetime delta. Neither
+projection treats the 30-pass TE-1 table as current or claims runtime evidence.
 
 ## 1. TE-1 30-pass baseline order
 
@@ -386,3 +388,121 @@ metastable indefinitely and sleep without losing its identity or phase energy.
 Completed or stalled equilibrium bulk must settle to zero activity.
 Sleep-on/off equivalence remains a future fixture, not a claim established by
 this design inventory.
+
+## 10. Proposed but design-blocked TE-5B phase-volume bridge delta
+
+This section records the D-019-authorized candidate from
+[`ADR-0007`](decisions/ADR-0007-phase-volume-pressure-bridge.md) and
+[`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](../specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md).
+It is a static packing/lifetime feasibility projection against Section 9, not
+implementation or device evidence. Independent review found the candidate
+semantically unable to consume finite headspace; the zero-allocation result
+below is therefore not an implementation recommendation.
+
+### 10.1 Reused allocations and encoding
+
+No new buffer is proposed. After `phase_context_propose`'s context lifetime,
+`phase_thermodynamics` fully overwrites existing proposal with a two-bit mode
+and a 30-bit `index + 1` payload. `expansion_claim` fully overwrites existing
+claim with the winner's mode and `source + 1`. The strict existing
+`cell_count < 1 << 30` bound prevents payload/mode overlap.
+
+```text
+00 = none
+01 = Matter expansion
+10 = volume relief
+11 = invalid/reserved
+```
+
+The mode-aware expansion lifetime ends before combustion fully overwrites
+proposal and Smoke arbitration fully overwrites claim. No mode bits enter a
+later scratch interpretation.
+
+The one 512-byte projected phase descriptor retains both uniform and storage
+views. The candidate assigns its existing family above-consequence pressure
+slot `100.0` for every source family identity that can normalize through
+vaporization in one invocation. This is a design requirement, not an established
+fact: the one-shot proof used identity strings and did not generate the
+descriptor or exercise extreme-Ice normalization. Future semantic/structural
+evidence would have to close that gap without a Water-name branch, new table or
+new binding.
+
+### 10.2 Projected pass order
+
+The Section 9 40-pass graph is unchanged. The detailed expansion window is:
+
+```text
+11  phase_context_propose: claim full write
+12  phase_thermodynamics: attempt classification + accepted proposal/provisional identity full write
+13  expansion_claim: shared-mode claim full write
+14  expansion Environment receiver claim: Matter mode only
+15  expansion spawn commit: Matter mode only
+16  expansion_pressure: generic direct failures + relief failures
+17  Environment-blocked expansion pressure: Matter mode only
+18  identity/phase-energy hygiene
+19  Environment reconcile
+    settle Material/temperature/phase energy/pressure/Environment
+31  existing gauge-pressure propagation
+    settle pressure before rupture
+```
+
+A relief winner leaves the EMPTY target and its Air mass/energy byte-identical.
+A blocked/losing relief request adds the descriptor's `100.0` once at its
+completion source in pass 16. Pass 17 rejects relief before receiver lookup,
+so it cannot duplicate that consequence.
+
+### 10.3 Binding ceiling
+
+| Projected mode-aware pass | Storage RO | Storage RW | Total | Added storage |
+|---|---:|---:|---:|---:|
+| phase thermodynamics | 4 | 4 | **8** | 0 |
+| expansion claim | 3 | 1 | 4 | 0 |
+| Environment receiver claim | 4 | 1 | 5 | 0 |
+| expansion spawn commit | 5 | 3 | **8** | 0 |
+| expansion pressure | 7 | 1 | **8** | 0 |
+| Environment-blocked pressure | 6 | 1 | 7 | 0 |
+
+Mode decoding and filtering use already-bound proposal/claim words. The claim
+writer rejects invalid proposal candidates and fully writes one constructed
+winner or zero. Receiver/spawn validate fields in claim but do not bind proposal
+again; the source/target relationship is a trust boundary at the claim writer,
+not independently revalidated by every consumer. Expansion pressure reuses its
+already-bound descriptor. Any future implementation that needs another storage
+binding, pass or scratch is a design blocker rather than implicit authority to
+enlarge this table.
+
+### 10.4 Cost and evidence boundary
+
+| Resource | Accepted TE-3D | TE-5B delta | Combined projection |
+|---|---:|---:|---:|
+| timestamped passes | 40 | 0 | 40 |
+| timestamp queries | 80 | 0 | 80 |
+| profiler storage | 1,280 B | 0 | 1,280 B |
+| persistent/full-world storage | Section 9 totals | 0 | unchanged |
+| 256² tracked with profiler | 4,722,608 B | 0 | 4,722,608 B |
+| 2048² tracked with profiler | 302,018,096 B | 0 | 302,018,096 B |
+
+The bridge reuses the current gauge-pressure propagation and rupture grammar
+without changing their meaning. Air pressure, structure differential,
+movement, sleep, exact device bindings, allocation and performance remain
+future evidence. TE-3 and TE-5B must activate atomically on one later
+authorized source; historical G5 evidence is not rebound.
+
+### 10.5 Semantic feasibility blocker
+
+The reused storage graph can encode same-tick exclusivity, but it has no owner
+for consumed cross-tick capacity. In a sealed one-Cell-wide column with one
+EMPTY Cell above stagger-heated Water, only the top Water is ready at `t0` and
+each lower Cell reaches the endpoint after the vacancy arrives above. A winning
+1:1 Steam completion later moves into the EMPTY Cell and vacates its source.
+That vacancy then becomes the next newly-ready Water's relief target and walks
+down the column without a lower simultaneous attempt seeing a Steam swap. The
+bridge can therefore settle every completion with zero pressure and never
+reach the required finite-headspace confinement event.
+
+Fixing this needs capacity/reservation state, a target/Environment mutation,
+additional occupied quantity, or another pressure law. Each changes the locked
+candidate or a rejected option. The projected `40` passes, `80` queries and zero
+TE-5B memory delta describe only the infeasible candidate; they do not prove a
+replacement can preserve those counts. ADR-0007 remains Proposed / DESIGN
+BLOCKED and all runtime remains not started.

@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 user accepted with known follow-up; TE-3D architecture accepted with locked amendments; TE-3 runtime not started; TE-5 bridge design required/not started
-- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / D-018 / ADR-0005 / accepted ADR-0006
+- **Status:** TE-2 user accepted with known follow-up; TE-3D architecture accepted with locked amendments; TE-5B design program authorized/in progress; TE-3 and TE-5B runtime not started
+- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / D-018 / D-019 / ADR-0005 / accepted ADR-0006 / proposed ADR-0007
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -159,6 +159,39 @@ It is not a user-testable candidate. The existing Water yield-2/blocked-
 pressure production path stays active until TE-5 can perform the atomic
 replacement.
 
+### TE-5B — docs-only phase-volume bridge design
+
+This narrow prerequisite supplies ADR-0006's explicit completion transaction;
+it is not the full TE-5 background-pressure/structure-force gate.
+
+- [x] compare unconditional pressure, non-exclusive EMPTY, new volume state and exclusive-token options;
+- [x] evaluate the exclusive local volume-relief token as the named primary candidate;
+- [x] classify an eligible endpoint attempt before settle and return targeted, blocked or edge-deferred acceptance;
+- [x] replay current GAS First-Match stops so Void defers and an earlier legal density swap cannot be skipped to a lateral EMPTY;
+- [x] define one shared Matter-expansion/relief claim domain under the 30-bit Cell-index bound;
+- [x] define winner zero-pressure and blocked/loser `100.0` exactly-once consequences;
+- [x] isolate relief from Environment receiver, spawn, displacement and Environment-blocked pressure;
+- [x] preserve the 40-pass/80-query projection with no new persistent/full-world state;
+- [x] define TE5B-F01 through F12, including the atomic G5 and open-control fixtures;
+- [x] pass the predeclared fixed-seed pure arbitration/accounting proof exactly once;
+- [ ] close the finite-capacity High: a non-mutating 1:1 token moves/reuses an EMPTY vacancy instead of consuming headspace;
+- [ ] obtain user revision of the blocked architecture.
+
+Candidate authorities:
+
+- [`ADR-0007`](../architecture/decisions/ADR-0007-phase-volume-pressure-bridge.md)
+- [`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](../specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md)
+- [`PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION`](../development/PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION.md)
+- [`TE5_PHASE_VOLUME_PRESSURE_BRIDGE`](TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md)
+
+The successful docs-only stop was not reached. Independent review found that a
+sealed one-Cell-wide, stagger-heated Water column can pass one EMPTY vacancy
+downward through ordinary 1:1 Steam movement, so finite headspace never has to
+become blocked and F05/F11 cannot be guaranteed. Current stop: `TE-5B DESIGN BLOCKED / ADR-0007
+PROPOSED / USER ARCHITECTURE REVISION REQUIRED`. A future replacement requires
+user disposition and separate authorization before any runtime task; verified
+TE-3 and the eventual bridge must still activate together with new G5 evidence.
+
 ## TE-4 — Ignition kinetics
 
 Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
@@ -188,7 +221,10 @@ Air transport / unified passive thermal exchange   IMPLEMENTED
 TE-3D  ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS
 ADR-0006  ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
 TE-3 runtime  NOT STARTED
-TE-5 pressure-volume bridge  DESIGN REQUIRED / NOT STARTED
+TE-5B phase-volume bridge design  DESIGN BLOCKED / FINITE-CAPACITY HIGH OPEN
+ADR-0007  PROPOSED / USER ARCHITECTURE REVISION REQUIRED
+TE-5B runtime  NOT STARTED
+Full TE-5  NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4  NOT STARTED
 G9-B/C/D/E  NOT STARTED

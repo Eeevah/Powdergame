@@ -248,6 +248,18 @@ Water heated
 - fixture combustion 등 다른 subsystem이 opening 원인을 대신하지 않음
 - causal telemetry로 named chain 검증
 
+D-019의 docs/reference-only TE-5B 후보는 이 역사적 Gate를 다시 쓰지
+않는다. 미래의 1:1 Water/Steam source는
+[`TE5_PHASE_VOLUME_PRESSURE_BRIDGE`](TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md)의
+F11에서 early relief → ordinary Steam movement → exhausted/contended relief
+→ pressure `100` → propagation → Wood rupture → opening → venting 순서를 새
+source-bound evidence로 증명해야 하며, 기존 G5 receipt를 소급 재결합하면
+안 된다. 독립 검토 결과 현재 ADR-0007 token은 1:1 이동이 source를 EMPTY로
+비워 vacancy를 아래 Water로 전달하므로 finite headspace 소진을 보장하지
+못한다. 따라서 이 cross-reference의 F11은 현 후보로 충족 불가능하고,
+ADR-0007은 Proposed / DESIGN BLOCKED, runtime은 시작되지 않았다. G5의
+역사적 Gate나 receipt는 이 실패를 숨기도록 다시 쓰지 않는다.
+
 ### User validation
 
 전용 `boiler_explosion()` 없이 작은 Rule chain으로 압력 사고가 납득되는지 확인한다.

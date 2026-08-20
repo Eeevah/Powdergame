@@ -4,6 +4,7 @@
 - **ADR:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
 - **Decision:** D-018
 - **Runtime:** NOT STARTED
+- **Proposed completion bridge:** [`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md), D-019 design only
 - **Normative architecture:** Hybrid A+C — 1:1 Water-equivalent quantity with dedicated phase enthalpy
 
 This specification defines the user-accepted core plus locked amendments.
@@ -281,6 +282,18 @@ binds no TE-5 state and changes no pass/binding count. A later separately
 approved TE-5 design must define the causal transaction and how its accepted
 result reaches the atomic source; absence of that design is false, never an
 implicit completion permission.
+
+D-019 supplies a proposed, not-yet-user-approved definition in
+[`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md):
+an eligible endpoint attempt—already initiated positive-E/ready Water, or a
+current gas-facing crossing—must obtain a valid targeted/blocked relief word
+before its provisional Steam Next state can settle. Claim and pressure outcome
+resolve before joint identity/phase/pressure settle. Buried canonical Water and
+non-gas-facing extreme Ice cannot initiate through this transaction; a
+Void-first attempt is explicitly deferred as ready Water. This overlay does
+not change H/E or grant runtime authority. Its finite-headspace capacity model
+is currently design-blocked, so the placeholder remains inactive and the
+current production Water path remains.
 
 Eligible Steam condensation is symmetric:
 
@@ -577,6 +590,34 @@ generic non-family `matter_yield>1` rule MUST NOT target Ice, Water or Steam
 unless a later separately approved ownership/writer design writes canonical
 phase energy for every destination. Larger or new ownership models remain a
 separate design decision.
+
+### 10.3 Proposed TE-5B mode overlay
+
+D-019's proposed bridge reuses the same Section 10 expansion window without an
+additional pass. In that future combined design, `phase_thermodynamics` still
+fully overwrites proposal. An eligible vaporization endpoint attempt first
+replays resulting-Steam GAS First-Match: an in-domain EMPTY outcome writes
+`REQUEST_VOLUME_RELIEF` with its target, an earlier legal density swap or no
+EMPTY writes blocked payload zero, and a Void-first outcome writes
+`REQUEST_NONE` while retaining ready Water. Accepted attempts write
+provisional Steam and settle only after their claim/consequence transaction.
+Other phase-family Cells write `REQUEST_NONE`.
+
+The shared two-bit/30-bit encoding, mixed-mode claim domain, mode-specific
+Environment filters and exactly-once pressure consequences are normative only
+in
+[`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md).
+They do not alter the accepted phase-energy ownership or its 40-pass projection:
+the TE-5B delta is zero passes, zero queries and zero persistent/full-world
+bytes. The descriptor's existing family consequence-pressure slot provides
+the data-driven `100.0` value when a finite extreme Ice source with a current
+gas-facing context normalizes through Water to Steam in one invocation; no
+Water-name branch is permitted. A packed existing trait word supplies the
+registry-derived Steam swap stop without another binding.
+
+This subsection is a dependency cross-reference, not acceptance of ADR-0007.
+If its proof or independent review leaves a Critical/High issue, the overlay is
+blocked while this D-018 phase architecture remains accepted but inactive.
 
 ## 11. Activity and sleep
 

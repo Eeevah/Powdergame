@@ -6,6 +6,7 @@
 - **Decision:** D-018
 - **Design source:** docs-only work descended from TE-2 closure `fd97e8b...`
 - **Runtime status:** TE-3 NOT STARTED
+- **Proposed atomic bridge:** [`ADR-0007`](ADR-0007-phase-volume-pressure-bridge.md), DESIGN BLOCKED / architecture revision required
 - **Supersedes at implementation only:** current Water `matter_yield = 2` and
   blocked-expansion-pressure behavior; no runtime source is changed here
 
@@ -278,6 +279,20 @@ Historical G5 and TE-2 evidence remains valid only for its recorded source. It
 MUST NOT be rebound to the future atomic source. User acceptance of ADR-0006
 accepts this sequencing constraint, not a temporary product regression.
 
+D-019 subsequently authorized the docs/reference-only design of that narrow
+replacement. Proposed
+[`ADR-0007`](ADR-0007-phase-volume-pressure-bridge.md) defines an exclusive
+EMPTY movement-opportunity token and an exactly-once existing-gauge-pressure
+consequence. It does not amend the phase quantity, enthalpy, completion gate or
+atomic-activation rule in this accepted ADR, and it is not implementation
+authority. Independent review found that its non-mutating token plus 1:1
+occupancy merely moves an EMPTY vacancy through a sealed Water column and
+cannot guarantee finite-headspace exhaustion. ADR-0007 is therefore design-
+blocked pending a revised capacity-ownership model. Until that model receives a
+later explicit user disposition and separate runtime authorization, the
+current production Water path remains active and TE-3/TE-5B runtime remains not
+started.
+
 The historical expansion pipelines remain available for generic non-family
 phase rules. After TE-2's float scratch lifetime, `phase_context_propose` fully
 overwrites claim with immutable phase-context markers and
@@ -379,6 +394,7 @@ amended radius-2 reference proof passed its only run and the fresh independent
 v2 review closed with no unresolved Critical/High finding. This ADR is
 therefore **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION** and TE-3D is
 **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**. That status authorizes no
-runtime task by itself. TE-3 runtime is **NOT STARTED**; the TE-5
-pressure-volume bridge is **DESIGN REQUIRED / NOT STARTED**; Air-pressure
-force, TE-4 and G9-B/C/D/E remain **NOT STARTED**.
+runtime task by itself. TE-3 runtime is **NOT STARTED**; the TE-5B
+pressure-volume bridge is **DESIGN BLOCKED / ADR-0007 PROPOSED / RUNTIME NOT
+STARTED**; Air-pressure force, full TE-5, TE-4 and G9-B/C/D/E remain **NOT
+STARTED**.

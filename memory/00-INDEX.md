@@ -30,6 +30,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260820-2328-te2-accepted-te3d-authorized.md`](checkpoints/20260820-2328-te2-accepted-te3d-authorized.md) | TE-2 accepted and TE-3D design-authorized return point before the design candidate | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260821-0111-te3d-v1-review-pending.md`](checkpoints/20260821-0111-te3d-v1-review-pending.md) | TE-3D v1 independent-review return point before D-018 locked-amendment closure | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260821-0153-te3d-accepted-te5b-next.md`](checkpoints/20260821-0153-te3d-accepted-te5b-next.md) | D-018 architecture-accepted return point before TE-5B design authorization | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260821-0219-te5b-authorized-before-design-blocker.md`](checkpoints/20260821-0219-te5b-authorized-before-design-blocker.md) | D-019 authorization return point before independent review exposed the finite-capacity blocker | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 
@@ -52,6 +53,11 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/specs/PHASE_THERMODYNAMICS_SPEC.md`](../docs/specs/PHASE_THERMODYNAMICS_SPEC.md) | Accepted phase-energy math, ownership, pass and invariant contract | Before reviewing or implementing TE-3 |
 | [`docs/development/PHASE_THERMODYNAMICS_VALIDATION.md`](../docs/development/PHASE_THERMODYNAMICS_VALIDATION.md) | Evidence ladder, fixture contract and one-shot reference receipt | Before making any TE-3 validation claim |
 | [`docs/adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md`](../docs/adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md) | Preserved v1 and fresh v2 independent design attacks/dispositions | Before future implementation or any reassessment of ADR-0006 |
+| [`docs/planning/TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md`](../docs/planning/TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md) | D-019 TE-5B option audit, reference receipt and finite-capacity DESIGN BLOCKED router | Before any revised phase-volume bridge decision or runtime proposal |
+| [`docs/architecture/decisions/ADR-0007-phase-volume-pressure-bridge.md`](../docs/architecture/decisions/ADR-0007-phase-volume-pressure-bridge.md) | Proposed exclusive token and unresolved vacancy-conservation counterexample | Before revising or replacing the atomic TE-3/TE-5B bridge |
+| [`docs/specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md`](../docs/specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md) | Evaluated mode/arbitration contract plus unsatisfied finite-capacity invariant | Before any TE-5B redesign or structural fixture |
+| [`docs/development/PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION.md`](../docs/development/PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION.md) | One-shot pure proof boundary and currently unsatisfiable F05/F11 fixtures | Before making any TE-5B validation claim |
+| [`docs/adversarial-reviews/TE5_PHASE_VOLUME_PRESSURE_BRIDGE_DESIGN.md`](../docs/adversarial-reviews/TE5_PHASE_VOLUME_PRESSURE_BRIDGE_DESIGN.md) | Fresh independent review; Critical 0 / High 1 and TE-5B DESIGN BLOCKED | Before revising the capacity model or interpreting the reference PASS |
 
 ## Authority and evidence boundaries
 

@@ -42,3 +42,8 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   user's explicit requested output name. Current disposition: **INDEPENDENT V2
   DESIGN REVIEW PASS — UNRESOLVED CRITICAL 0 / HIGH 0**. TE-3D is subsequently
   recorded as **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**.
+- [`TE5_PHASE_VOLUME_PRESSURE_BRIDGE_DESIGN.md`](TE5_PHASE_VOLUME_PRESSURE_BRIDGE_DESIGN.md)
+  — D-019 fresh-context review of the exclusive local volume-relief-token
+  candidate. Current disposition: **TE-5B DESIGN BLOCKED — UNRESOLVED CRITICAL
+  0 / HIGH 1**. The staggered-heating vacancy-walk counterexample prevents the
+  non-mutating 1:1 token from guaranteeing finite-headspace exhaustion.

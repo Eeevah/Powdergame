@@ -17,6 +17,8 @@ architecture. Its normative contract is split across:
   for fixtures and the one-shot reference-math receipt;
 - [`TE3_PHASE_ENTHALPY_DESIGN`](../adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md)
   for the independent adversarial disposition.
+- [`TE5_PHASE_VOLUME_PRESSURE_BRIDGE`](TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md)
+  for the separately authorized proposed atomic completion bridge.
 
 D-018 accepts Hybrid A+C, its constants, memory cost, no-sink metastability
 and atomic TE-5 activation constraint. The v1 ADR text is not accepted
@@ -204,9 +206,19 @@ disposition does not retroactively strengthen TE-1/TE-2 evidence or authorize
 TE-3/TE-5 runtime, TE-4, G9-B/C/D/E, build, launch, capture, merge or `main`
 promotion.
 
+D-019 later authorizes only the docs/reference TE-5B design program. Proposed
+[`ADR-0007`](../architecture/decisions/ADR-0007-phase-volume-pressure-bridge.md)
+uses one exclusive EMPTY-only GAS movement-opportunity claim and the existing
+gauge-pressure consequence without changing this page's accepted phase
+quantity or enthalpy decisions. Independent review found the proposal cannot
+consume finite headspace: 1:1 Steam movement vacates the source, so one EMPTY
+vacancy can walk down a sealed Water column and grant zero-pressure completion
+repeatedly. ADR-0007 is therefore design-blocked and does not authorize runtime.
+
 ## 8. Stop boundary
 
 TE-3D stops at **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS** and ADR-0006
 at **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. TE-3 runtime remains **NOT
-STARTED**; the TE-5 pressure-volume bridge is **DESIGN REQUIRED / NOT
-STARTED**; Air-pressure force, TE-4 and G9-B/C/D/E remain **NOT STARTED**.
+STARTED**; the TE-5B pressure-volume bridge is **ADR-0007 PROPOSED / DESIGN
+BLOCKED / RUNTIME NOT STARTED**; full TE-5 Air/background-pressure
+force, TE-4 and G9-B/C/D/E remain **NOT STARTED**.

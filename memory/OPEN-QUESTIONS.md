@@ -185,3 +185,52 @@ design and later atomic TE-3/TE-5 implementation authorization, the remaining
 Q-008 gate-owned items, later G9 progression, shared `main` promotion and the
 final G9/M0 product disposition. The superseded pending list above remains as
 append-only history rather than being rewritten.
+
+## Q-009 · TE-5B exclusive phase-volume bridge disposition — open 2026-08-21
+
+Owner: user at the ADR-0007 architecture-review boundary.
+
+D-019 authorizes a docs/reference candidate and one independent review; it
+does not accept the architecture or authorize runtime. The proposed model is
+one exclusive same-tick claim on an in-domain EMPTY Cell from the resulting
+Steam's up/up-diagonal/lateral GAS stencil. A winning claim leaves target
+Matter/Air unchanged and emits no confinement pressure. No target or a losing
+claim completes 1:1 to Steam and emits existing gauge-pressure consequence
+`100.0` exactly once.
+
+User disposition remains required for:
+
+- approve or revise the exclusive local volume-relief-token model;
+- approve or revise occupancy-only relief for both Atmospheric Empty and
+  Vacuum Empty without inspecting derived Air pressure;
+- approve or revise the exact `00 none / 01 Matter / 10 relief / 11 invalid`
+  encoding under the 30-bit Cell-index bound;
+- retain or revise inherited confinement scalar `100.0` in the new atomic G5
+  fixture;
+- confirm or revise whether early relief, ordinary Steam headspace filling and
+  later confinement preserve the intended finite-headspace product meaning.
+
+Even a positive disposition will not close full TE-5 background-pressure and
+structure-differential design, product edge mode, Vacuum combustion, separate
+atomic runtime authorization or source-bound pass/binding/GPU/performance/user
+evidence. ADR-0007 remains Proposed and TE-3/TE-5B runtime remains not started
+until a later decision says otherwise.
+
+### 2026-08-21 independent-review update — current candidate blocked
+
+The one-shot pure arbitration/accounting proof passed inside its declared
+no-grid model, but independent review found an unresolved High counterexample.
+In a sealed one-Cell-wide column, only the top Water is ready at `t0`; each
+lower Water reaches the endpoint only after ordinary 1:1 Steam movement brings
+the EMPTY vacancy above it. The stagger prevents a same-tick Steam-swap stop,
+and the vacancy walks down the column so every completion can win zero pressure
+without finite headspace ever becoming unavailable. Same-tick exclusivity does
+not consume cross-tick capacity.
+
+Q-009 therefore remains open with ADR-0007 **PROPOSED / DESIGN BLOCKED**. The
+next user-owned choice is no longer simple approval of this token. It is which
+architecture owns finite-capacity consumption and whether any locked no-new-
+state, target-non-mutation or 1:1 constraint may change. Occupancy-only Air
+eligibility, the two-bit encoding, pressure `100.0`, edge mode and the final
+F05/F11 product meaning remain downstream questions after that blocker is
+resolved. No alternate model or runtime work is authorized.

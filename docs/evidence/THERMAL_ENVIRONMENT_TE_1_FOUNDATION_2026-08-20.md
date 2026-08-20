@@ -53,7 +53,7 @@ and the existing required COPY source/destination usages; bounded observation
 maps a separate short-lived staging buffer only.
 
 The production tick is now 30 explicitly profiled passes. New work consists of
-four flag-hygiene placements, movement/phase/decay/Smoke/rupture Environment
+five flag-hygiene placements, movement/phase/decay/Smoke/rupture Environment
 reconciles, two uses of the receiver-claim pass, and one exactly-once
 Environment-blocked expansion-pressure pass. Every bind group remains at or
 below eight storage buffers. Profiling uses 60 raw timestamp queries; every

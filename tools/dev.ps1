@@ -549,6 +549,18 @@ function Invoke-DevelopmentAudit {
                 expected_args = "--sandbox --smoke-frames 3"
             })
         }
+        $requiredThermalEnvironmentSmokeProbeArgs = @("thermal-environment", "--smoke-frames", "3")
+        $declaredThermalEnvironmentSmokeProbeArgs = @($contract.thermal_environment_smoke_probe_args | ForEach-Object { [string]$_ })
+        if ($declaredThermalEnvironmentSmokeProbeArgs.Count -ne $requiredThermalEnvironmentSmokeProbeArgs.Count -or
+            ($declaredThermalEnvironmentSmokeProbeArgs -join "`0") -cne ($requiredThermalEnvironmentSmokeProbeArgs -join "`0")) {
+            $errors.Add("Canonical launcher TE-2 bounded launch probe must remain thermal-environment --smoke-frames 3")
+        } else {
+            $successCases.Add([pscustomobject]@{
+                name = "thermal-environment-bounded-launch"
+                args = $declaredThermalEnvironmentSmokeProbeArgs
+                expected_args = "--thermal-environment-candidate --smoke-frames 3"
+            })
+        }
 
         foreach ($case in $(if ($probeHookReady) { $successCases } else { @() })) {
             try {

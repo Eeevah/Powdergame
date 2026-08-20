@@ -50,6 +50,11 @@
       "--smoke-frames",
       "3"
     ],
+    "thermal_environment_smoke_probe_args": [
+      "thermal-environment",
+      "--smoke-frames",
+      "3"
+    ],
     "invalid_alias_probe": "definitely-not-a-mode",
     "invalid_alias_exit_code": 2,
     "probe_environment": "POWDERGAME_LAUNCHER_AUDIT_ONLY",

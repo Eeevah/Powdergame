@@ -162,7 +162,7 @@ struct DemoState {
     playing: bool,
     ticks: u64,
     last_tick: Option<Instant>,
-    step_pending: bool,
+    pending_steps: u32,
     reset_pending: bool,
     /// Observatory fast-forward multiplier (1 / 4 / 16) for the G6
     /// parallel-integrity and G7-A activity demos. N always steps exactly
@@ -190,7 +190,7 @@ impl DemoState {
             playing: start_playing,
             ticks: 0,
             last_tick: None,
-            step_pending: false,
+            pending_steps: 0,
             reset_pending: false,
             fast: 1,
             rate_ticks: 0,
@@ -203,7 +203,7 @@ impl DemoState {
     /// Those values are committed only after shared reset/staging succeeds.
     fn queue_pristine_reset(&mut self) {
         self.reset_pending = true;
-        self.step_pending = false;
+        self.pending_steps = 0;
         self.playing = false;
         self.last_tick = None;
         self.fast = 1;
@@ -224,7 +224,7 @@ impl DemoState {
         if self.playing || !self.gallery_ready_to_advance() {
             return false;
         }
-        self.step_pending = true;
+        self.pending_steps = self.pending_steps.saturating_add(1);
         true
     }
 
@@ -543,9 +543,8 @@ impl App {
             height: simulation.world.config.height,
             palette: match self.demo_mode {
                 DemoMode::Density => PresentationPalette::Lab,
-                DemoMode::Thermal | DemoMode::ThermalEnvironment | DemoMode::Pressure => {
-                    PresentationPalette::ThermalLab
-                }
+                DemoMode::Thermal | DemoMode::Pressure => PresentationPalette::ThermalLab,
+                DemoMode::ThermalEnvironment => PresentationPalette::ThermalEnvironment,
                 DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
                 DemoMode::Activity => PresentationPalette::Activity,
                 DemoMode::Gallery => PresentationPalette::Gallery,
@@ -742,6 +741,9 @@ impl App {
                 println!("[powdergame] demo: PAUSED");
                 demo.rate_started = None;
             }
+            if let Some(candidate) = &mut self.thermal_environment {
+                candidate.clear_step_applied();
+            }
             window.set_title(&demo.title());
             window.request_redraw();
         }
@@ -762,17 +764,12 @@ impl App {
     }
 
     fn request_fast_forward(&mut self, window: &Window) {
-        // G6/G7/G8 observatory demos: cycles 1x -> 4x -> 16x -> 1x.
+        // TE-2 and the G6/G7/G8 product/observatory surfaces cycle
+        // 1x -> 4x -> 16x -> 1x.
         // `Simulation::tick` semantics are unchanged — the multiplier just
         // runs more sequential ticks per update opportunity. N always steps
         // exactly one tick.
-        if !matches!(
-            self.demo_mode,
-            DemoMode::ParallelIntegrity
-                | DemoMode::Activity
-                | DemoMode::Gallery
-                | DemoMode::Sandbox
-        ) {
+        if !fast_forward_is_enabled(self.demo_mode) {
             return;
         }
         if let Some(demo) = &mut self.demo {
@@ -791,7 +788,7 @@ impl App {
             sandbox.request_preset(sandbox.preset);
             if let Some(demo) = &mut self.demo {
                 demo.playing = false;
-                demo.step_pending = false;
+                demo.pending_steps = 0;
                 demo.last_tick = None;
             }
             if let Some(inspector) = &mut self.cell_inspector {
@@ -867,9 +864,8 @@ impl App {
         ) else {
             return;
         };
-        demo.playing = false;
-        demo.step_pending = false;
-        demo.last_tick = None;
+        demo.queue_pristine_reset();
+        demo.reset_pending = false;
         match candidate.select_scene(simulation, scene) {
             Ok(()) => {
                 demo.commit_pristine_reset();
@@ -929,6 +925,20 @@ impl App {
         }
     }
 
+    fn toggle_thermal_environment_diagnostics(&mut self, window: &Window) {
+        if self.demo_mode != DemoMode::ThermalEnvironment {
+            return;
+        }
+        if let Some(candidate) = &mut self.thermal_environment {
+            let visible = candidate.toggle_details();
+            println!(
+                "[powdergame][te2] diagnostics details {}",
+                if visible { "EXPANDED" } else { "COLLAPSED" }
+            );
+            window.request_redraw();
+        }
+    }
+
     fn request_sandbox_preset(&mut self, preset: SandboxPreset, window: &Window) {
         if self.demo_mode != DemoMode::Sandbox {
             return;
@@ -939,7 +949,7 @@ impl App {
         sandbox.request_preset(preset);
         if let Some(demo) = &mut self.demo {
             demo.playing = false;
-            demo.step_pending = false;
+            demo.pending_steps = 0;
             demo.last_tick = None;
         }
         if let Some(inspector) = &mut self.cell_inspector {
@@ -2103,7 +2113,7 @@ fn step_demo(
 ) {
     if demo.reset_pending {
         demo.reset_pending = false;
-        demo.step_pending = false;
+        demo.pending_steps = 0;
         let gallery_scenario = demo.gallery.as_ref().and_then(GalleryState::reset_target);
         let reset_result = if let Some(candidate) = thermal_environment.as_mut() {
             candidate.reset(simulation)
@@ -2152,35 +2162,38 @@ fn step_demo(
             }
         }
     }
-    if demo.step_pending {
-        demo.step_pending = false;
-        if !demo.playing {
-            // N always advances EXACTLY ONE tick — unaffected by the
-            // fast-forward multiplier.
-            let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
-                candidate.tick(simulation)
-            } else {
-                simulation.tick()
-            };
-            match tick_result {
-                Ok(()) => {
-                    demo.ticks += 1;
-                    demo.rate_ticks += 1;
-                    if let Some(col) = collector {
-                        if let Err(error) =
-                            col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast)
-                        {
-                            eprintln!(
-                                "[powdergame] observatory synchronous readback error: {error}; demo paused and collector reset"
-                            );
-                            demo.playing = false;
-                            col.reset();
-                            return;
-                        }
+    while demo.pending_steps > 0 && !demo.playing {
+        demo.pending_steps -= 1;
+        // Every accepted N press advances exactly one production tick in
+        // arrival order. TE-2 additionally forces one bounded diagnostic
+        // sample from that committed tick.
+        let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
+            candidate.single_step(simulation)
+        } else {
+            simulation.tick()
+        };
+        match tick_result {
+            Ok(()) => {
+                demo.ticks = simulation.tick_count;
+                demo.rate_ticks += 1;
+                if let Some(col) = collector.as_mut() {
+                    if let Err(error) =
+                        col.latch_first_tick_if_g6(simulation, demo.ticks, demo.fast)
+                    {
+                        eprintln!(
+                            "[powdergame] observatory synchronous readback error: {error}; demo paused and collector reset"
+                        );
+                        demo.playing = false;
+                        demo.pending_steps = 0;
+                        col.reset();
+                        return;
                     }
-                    println!("[powdergame] demo: stepped to tick {}", demo.ticks);
                 }
-                Err(e) => eprintln!("[powdergame] demo step error: {e}"),
+                println!("[powdergame] demo: stepped to tick {}", demo.ticks);
+            }
+            Err(e) => {
+                demo.pending_steps = 0;
+                eprintln!("[powdergame] demo step error: {e}");
             }
         }
     }
@@ -2194,13 +2207,13 @@ fn step_demo(
             // per beat — identical ticks, just more of them per opportunity.
             for _ in 0..demo.fast {
                 let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
-                    candidate.tick(simulation)
+                    candidate.tick_playing(simulation)
                 } else {
                     simulation.tick()
                 };
                 match tick_result {
                     Ok(()) => {
-                        demo.ticks += 1;
+                        demo.ticks = simulation.tick_count;
                         demo.rate_ticks += 1;
                         if let Some(col) = collector {
                             if let Err(error) =
@@ -2379,6 +2392,31 @@ fn should_toggle_gallery_inspector(
         && character.is_some_and(|value| value.eq_ignore_ascii_case("i"))
 }
 
+fn should_toggle_thermal_environment_diagnostics(
+    mode: DemoMode,
+    experiment_worker: bool,
+    state: ElementState,
+    repeat: bool,
+    character: Option<&str>,
+) -> bool {
+    mode == DemoMode::ThermalEnvironment
+        && !experiment_worker
+        && state == ElementState::Pressed
+        && !repeat
+        && character.is_some_and(|value| value.eq_ignore_ascii_case("i"))
+}
+
+fn fast_forward_is_enabled(mode: DemoMode) -> bool {
+    matches!(
+        mode,
+        DemoMode::ThermalEnvironment
+            | DemoMode::ParallelIntegrity
+            | DemoMode::Activity
+            | DemoMode::Gallery
+            | DemoMode::Sandbox
+    )
+}
+
 fn cell_inspector_is_enabled(mode: DemoMode, experiment_worker: bool) -> bool {
     matches!(mode, DemoMode::Gallery | DemoMode::Sandbox) && !experiment_worker
 }
@@ -2426,6 +2464,16 @@ impl ApplicationHandler for App {
                     Key::Character(value) => Some(value.as_str()),
                     _ => None,
                 };
+                if should_toggle_thermal_environment_diagnostics(
+                    self.demo_mode,
+                    self.experiment.is_some(),
+                    event.state,
+                    event.repeat,
+                    character,
+                ) {
+                    self.toggle_thermal_environment_diagnostics(&window);
+                    return;
+                }
                 if should_toggle_gallery_inspector(
                     self.demo_mode,
                     self.experiment.is_some(),
@@ -2535,8 +2583,10 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 self.process_sandbox_world_boundary();
+                let mut committed_control_title = None;
                 if let Some(simulation) = &mut self.simulation {
                     if let Some(demo) = &mut self.demo {
+                        let refresh_title = demo.pending_steps > 0 || demo.reset_pending;
                         step_demo(
                             simulation,
                             demo,
@@ -2545,9 +2595,15 @@ impl ApplicationHandler for App {
                             &mut self.thermal_environment,
                             self.demo_mode,
                         );
+                        if refresh_title {
+                            committed_control_title = Some(demo.title());
+                        }
                     } else if let Err(e) = simulation.tick() {
                         eprintln!("[powdergame] tick error: {e}");
                     }
+                }
+                if let Some(title) = committed_control_title {
+                    window.set_title(&title);
                 }
                 let inspector_now = Instant::now();
                 self.refresh_cell_inspector(inspector_now);
@@ -2655,9 +2711,14 @@ impl ApplicationHandler for App {
                             self.demo.as_ref(),
                             self.simulation.as_ref(),
                         ) {
-                            (Some(candidate), Some(demo), Some(simulation)) => Some(
-                                candidate.hud_data(demo.playing, demo.fast, simulation.tick_count),
-                            ),
+                            (Some(candidate), Some(demo), Some(simulation)) => {
+                                Some(candidate.hud_data(
+                                    demo.playing,
+                                    demo.fast,
+                                    simulation.tick_count,
+                                    world_transform,
+                                ))
+                            }
                             _ => None,
                         }
                     } else {
@@ -3282,8 +3343,8 @@ fn main() {
 mod tests {
     use super::{
         cell_inspector_is_enabled, demo_mode_from_args, experiment_worker_from_args,
-        mode_for_launch, should_toggle_gallery_inspector, smoke_frames_from_args, DemoMode,
-        DemoState,
+        fast_forward_is_enabled, mode_for_launch, should_toggle_gallery_inspector,
+        should_toggle_thermal_environment_diagnostics, smoke_frames_from_args, DemoMode, DemoState,
     };
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
     use powdergame_gpu::{ActivityCensusReport, Simulation};
@@ -3449,6 +3510,121 @@ mod tests {
                 mode, worker, state, repeat, character,
             ));
         }
+    }
+
+    #[test]
+    fn thermal_environment_i_and_fast_forward_are_candidate_only_additions() {
+        for character in ["i", "I"] {
+            assert!(should_toggle_thermal_environment_diagnostics(
+                DemoMode::ThermalEnvironment,
+                false,
+                ElementState::Pressed,
+                false,
+                Some(character),
+            ));
+        }
+        for (mode, worker, state, repeat, character) in [
+            (
+                DemoMode::Gallery,
+                false,
+                ElementState::Pressed,
+                false,
+                Some("i"),
+            ),
+            (
+                DemoMode::Sandbox,
+                false,
+                ElementState::Pressed,
+                false,
+                Some("i"),
+            ),
+            (
+                DemoMode::ThermalEnvironment,
+                true,
+                ElementState::Pressed,
+                false,
+                Some("i"),
+            ),
+            (
+                DemoMode::ThermalEnvironment,
+                false,
+                ElementState::Released,
+                false,
+                Some("i"),
+            ),
+            (
+                DemoMode::ThermalEnvironment,
+                false,
+                ElementState::Pressed,
+                true,
+                Some("i"),
+            ),
+            (
+                DemoMode::ThermalEnvironment,
+                false,
+                ElementState::Pressed,
+                false,
+                Some("n"),
+            ),
+        ] {
+            assert!(!should_toggle_thermal_environment_diagnostics(
+                mode, worker, state, repeat, character,
+            ));
+        }
+
+        assert!(fast_forward_is_enabled(DemoMode::ThermalEnvironment));
+        for mode in [
+            DemoMode::ParallelIntegrity,
+            DemoMode::Activity,
+            DemoMode::Gallery,
+            DemoMode::Sandbox,
+        ] {
+            assert!(fast_forward_is_enabled(mode));
+        }
+        for mode in [
+            DemoMode::None,
+            DemoMode::Movement,
+            DemoMode::Density,
+            DemoMode::Thermal,
+            DemoMode::Pressure,
+        ] {
+            assert!(!fast_forward_is_enabled(mode));
+        }
+    }
+
+    #[test]
+    fn thermal_environment_control_state_pins_speed_title_step_queue_and_reset() {
+        let mut demo = DemoState::new(super::TE2_TITLE, super::TE2_TPS, false, None);
+        assert!(demo.title().contains("[PAUSED]"));
+        assert!(demo.title().contains("tick 0"));
+
+        for expected in 1..=3 {
+            assert!(demo.queue_single_step());
+            assert_eq!(demo.pending_steps, expected);
+        }
+        demo.cycle_fast();
+        assert_eq!(demo.fast, 4);
+        assert!(demo.title().contains("FAST x4"));
+        demo.cycle_fast();
+        assert_eq!(demo.fast, 16);
+        assert!(demo.title().contains("FAST x16"));
+        demo.cycle_fast();
+        assert_eq!(demo.fast, 1);
+
+        demo.playing = true;
+        assert!(!demo.queue_single_step(), "N remains ignored while playing");
+        assert_eq!(demo.pending_steps, 3);
+        demo.ticks = 3;
+        assert!(demo.title().contains("tick 3"));
+
+        demo.queue_pristine_reset();
+        assert!(!demo.playing);
+        assert_eq!(demo.fast, 1);
+        assert_eq!(demo.pending_steps, 0);
+        demo.commit_pristine_reset();
+        assert_eq!(demo.ticks, 0);
+        assert!(demo.title().contains("[PAUSED]"));
+        assert!(demo.title().contains("tick 0"));
     }
 
     #[test]
@@ -3989,12 +4165,14 @@ mod tests {
         );
         assert!(!demo.playing, "Gallery must start paused");
         assert!(demo.queue_single_step());
-        assert!(demo.step_pending);
+        assert!(demo.queue_single_step());
+        assert!(demo.queue_single_step());
+        assert_eq!(demo.pending_steps, 3, "rapid N presses remain ordered");
 
-        demo.step_pending = false;
+        demo.pending_steps = 0;
         demo.playing = true;
         assert!(!demo.queue_single_step(), "N is ignored while playing");
-        assert!(!demo.step_pending);
+        assert_eq!(demo.pending_steps, 0);
 
         demo.cycle_fast();
         assert_eq!(demo.fast, 4);

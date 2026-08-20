@@ -10,12 +10,25 @@ use powdergame_core::{
 };
 use powdergame_gpu::{GpuError, Simulation};
 
+use crate::renderer::WorldTransform;
+
 pub(crate) const TE2_TITLE: &str = "Powdergame TE-2 Passive Thermal Environment";
 pub(crate) const TE2_WORLD_WIDTH: u32 = 256;
 pub(crate) const TE2_WORLD_HEIGHT: u32 = 192;
 pub(crate) const TE2_CHUNK_SIZE: u32 = 64;
 pub(crate) const TE2_TPS: u32 = 60;
 pub(crate) const TE2_SAMPLE_INTERVAL_TICKS: u64 = 8;
+const TE2_ACCOUNTING_READBACK_BATCH_CELLS: usize = 64;
+
+const COMPARISON_FRAME_X0: i64 = 86;
+const COMPARISON_FRAME_X1: i64 = 120;
+const COMPARISON_SOURCE_X0: i64 = 87;
+const COMPARISON_SOURCE_X1: i64 = 102;
+const COMPARISON_GAP_X: i64 = 103;
+const COMPARISON_TARGET_X1: i64 = 119;
+const COMPARISON_HALF_HEIGHT: i64 = 4;
+const COMPARISON_SOURCE_TEMPERATURE_C: f32 = 300.0;
+const COMPARISON_TARGET_TEMPERATURE_C: f32 = 20.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ThermalEnvironmentScene {
@@ -73,9 +86,10 @@ impl ThermalEnvironmentScene {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ThermalEnvironmentSampleRow {
     pub label: &'static str,
+    pub cell: (u32, u32),
     pub material_temperature_c: Option<f32>,
     pub environment_class: &'static str,
     pub air_mass: f32,
@@ -83,11 +97,45 @@ pub(crate) struct ThermalEnvironmentSampleRow {
     pub derived_pressure: f32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ThermalEnvironmentAccounting {
+    pub label: &'static str,
+    pub air_mass: f64,
+    pub air_energy: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ThermalEnvironmentSample {
+    pub generation: u64,
     pub simulation_tick: u64,
     pub sequence: u64,
     pub rows: Vec<ThermalEnvironmentSampleRow>,
+    pub accounting: Option<ThermalEnvironmentAccounting>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum ThermalEnvironmentDiagnosticState {
+    Sampling {
+        generation: u64,
+        sequence: u64,
+        simulation_tick: u64,
+    },
+    Fresh(ThermalEnvironmentSample),
+    Failed {
+        generation: u64,
+        sequence: u64,
+        simulation_tick: u64,
+        message: String,
+    },
+}
+
+impl ThermalEnvironmentDiagnosticState {
+    pub(crate) fn fresh_sample(&self) -> Option<&ThermalEnvironmentSample> {
+        match self {
+            Self::Fresh(sample) => Some(sample),
+            Self::Sampling { .. } | Self::Failed { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -96,10 +144,20 @@ pub(crate) struct ThermalEnvironmentHudData {
     pub playing: bool,
     pub fast: u32,
     pub simulation_tick: u64,
-    pub sample: Option<ThermalEnvironmentSample>,
+    pub diagnostic: ThermalEnvironmentDiagnosticState,
+    pub details_visible: bool,
+    pub last_step_tick: Option<u64>,
+    pub world_transform: Option<WorldTransform>,
     pub cumulative_external_air_mass: f64,
     pub cumulative_external_advected_energy: f64,
     pub cumulative_external_passive_heat: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SampleRequest {
+    generation: u64,
+    sequence: u64,
+    simulation_tick: u64,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -111,18 +169,28 @@ struct ReservoirExchange {
 
 pub(crate) struct ThermalEnvironmentState {
     scene: ThermalEnvironmentScene,
-    sample: Option<ThermalEnvironmentSample>,
+    diagnostic: ThermalEnvironmentDiagnosticState,
+    generation: u64,
     next_sequence: u64,
     exchange: ReservoirExchange,
+    details_visible: bool,
+    last_step_tick: Option<u64>,
 }
 
 impl ThermalEnvironmentState {
     pub(crate) fn new(simulation: &mut Simulation) -> Result<Self, GpuError> {
         let mut state = Self {
             scene: ThermalEnvironmentScene::DirectAtmosphereVacuum,
-            sample: None,
+            diagnostic: ThermalEnvironmentDiagnosticState::Sampling {
+                generation: 0,
+                sequence: 0,
+                simulation_tick: simulation.tick_count,
+            },
+            generation: 0,
             next_sequence: 1,
             exchange: ReservoirExchange::default(),
+            details_visible: true,
+            last_step_tick: None,
         };
         state.reset(simulation)?;
         Ok(state)
@@ -138,85 +206,149 @@ impl ThermalEnvironmentState {
     }
 
     pub(crate) fn reset(&mut self, simulation: &mut Simulation) -> Result<(), GpuError> {
-        stage_scene(simulation, self.scene)?;
-        self.sample = None;
+        self.begin_generation(simulation.tick_count);
+        if let Err(error) = stage_scene(simulation, self.scene) {
+            self.record_failure(
+                simulation.tick_count,
+                format!("scene/reset staging failed: {error}"),
+            );
+            return Err(error);
+        }
         self.next_sequence = 1;
         self.exchange = ReservoirExchange::default();
-        self.sample_if_due(simulation, true)
+        self.last_step_tick = None;
+        self.sample_if_due(simulation, true);
+        Ok(())
     }
 
-    pub(crate) fn tick(&mut self, simulation: &mut Simulation) -> Result<(), GpuError> {
-        let exchange = if self.scene == ThermalEnvironmentScene::ReservoirCooling {
-            reservoir_exchange_for_next_tick(simulation)?
+    pub(crate) fn tick_playing(&mut self, simulation: &mut Simulation) -> Result<(), GpuError> {
+        self.last_step_tick = None;
+        let diagnostic_error = self.tick_production(simulation)?;
+        if let Some(message) = diagnostic_error {
+            self.record_failure(simulation.tick_count, message);
         } else {
-            ReservoirExchange::default()
+            self.sample_if_due(simulation, false);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn single_step(&mut self, simulation: &mut Simulation) -> Result<(), GpuError> {
+        let diagnostic_error = self.tick_production(simulation)?;
+        self.last_step_tick = Some(simulation.tick_count);
+        if let Some(message) = diagnostic_error {
+            self.record_failure(simulation.tick_count, message);
+        } else {
+            self.sample_if_due(simulation, true);
+        }
+        Ok(())
+    }
+
+    fn tick_production(&mut self, simulation: &mut Simulation) -> Result<Option<String>, GpuError> {
+        let exchange = if self.scene == ThermalEnvironmentScene::ReservoirCooling {
+            reservoir_exchange_for_next_tick(simulation)
+        } else {
+            Ok(ReservoirExchange::default())
         };
         simulation.tick()?;
-        self.exchange.mass += exchange.mass;
-        self.exchange.advected_energy += exchange.advected_energy;
-        self.exchange.passive_heat += exchange.passive_heat;
-        self.sample_if_due(simulation, false)
+        match exchange {
+            Ok(exchange) => {
+                self.exchange.mass += exchange.mass;
+                self.exchange.advected_energy += exchange.advected_energy;
+                self.exchange.passive_heat += exchange.passive_heat;
+                Ok(None)
+            }
+            Err(error) => Ok(Some(format!(
+                "external-exchange readback failed before committed tick {}: {error}",
+                simulation.tick_count
+            ))),
+        }
     }
 
-    pub(crate) fn sample_if_due(
+    fn begin_generation(&mut self, simulation_tick: u64) {
+        self.generation = self.generation.wrapping_add(1).max(1);
+        self.diagnostic = ThermalEnvironmentDiagnosticState::Sampling {
+            generation: self.generation,
+            sequence: 0,
+            simulation_tick,
+        };
+        self.last_step_tick = None;
+    }
+
+    fn begin_sample(&mut self, simulation_tick: u64) -> SampleRequest {
+        let request = SampleRequest {
+            generation: self.generation,
+            sequence: self.next_sequence,
+            simulation_tick,
+        };
+        self.next_sequence = self.next_sequence.saturating_add(1);
+        self.diagnostic = ThermalEnvironmentDiagnosticState::Sampling {
+            generation: request.generation,
+            sequence: request.sequence,
+            simulation_tick: request.simulation_tick,
+        };
+        request
+    }
+
+    fn record_failure(&mut self, simulation_tick: u64, message: String) {
+        let request = self.begin_sample(simulation_tick);
+        let _ = self.commit_sample_result(request, Err(message));
+    }
+
+    fn commit_sample_result(
         &mut self,
-        simulation: &Simulation,
-        force: bool,
-    ) -> Result<(), GpuError> {
+        request: SampleRequest,
+        result: Result<ThermalEnvironmentSample, String>,
+    ) -> bool {
+        if request.generation != self.generation
+            || !matches!(
+                self.diagnostic,
+                ThermalEnvironmentDiagnosticState::Sampling {
+                    generation,
+                    sequence,
+                    simulation_tick,
+                } if generation == request.generation
+                    && sequence == request.sequence
+                    && simulation_tick == request.simulation_tick
+            )
+        {
+            return false;
+        }
+        self.diagnostic = match result {
+            Ok(sample) => ThermalEnvironmentDiagnosticState::Fresh(sample),
+            Err(message) => ThermalEnvironmentDiagnosticState::Failed {
+                generation: request.generation,
+                sequence: request.sequence,
+                simulation_tick: request.simulation_tick,
+                message,
+            },
+        };
+        true
+    }
+
+    fn sample_if_due(&mut self, simulation: &Simulation, force: bool) {
         let tick = simulation.tick_count;
         if !force
             && (!tick.is_multiple_of(TE2_SAMPLE_INTERVAL_TICKS)
-                || self
-                    .sample
-                    .as_ref()
-                    .is_some_and(|sample| sample.simulation_tick == tick))
+                || self.diagnostic.fresh_sample().is_some_and(|sample| {
+                    sample.generation == self.generation && sample.simulation_tick == tick
+                }))
         {
-            return Ok(());
+            return;
         }
-        let cells = sample_cells(self.scene);
-        let environments = simulation.world.read_environment_cells(
-            &simulation.context.device,
-            &simulation.context.queue,
-            &cells.iter().map(|(_, cell)| *cell).collect::<Vec<_>>(),
-        )?;
-        let mut rows = Vec::with_capacity(cells.len());
-        for ((label, (x, y)), environment) in cells.into_iter().zip(environments) {
-            let material = simulation.world.read_material_cell(
-                &simulation.context.device,
-                &simulation.context.queue,
-                x,
-                y,
-            )?;
-            let material_temperature_c = if material == MATERIAL_EMPTY {
-                None
-            } else {
-                Some(simulation.world.read_temperature_cell(
-                    &simulation.context.device,
-                    &simulation.context.queue,
-                    x,
-                    y,
-                )?)
-            };
-            rows.push(ThermalEnvironmentSampleRow {
-                label,
-                material_temperature_c,
-                environment_class: if material == MATERIAL_EMPTY {
-                    class_name(classify_air_state(environment.current).ok())
-                } else {
-                    "Occupied / no Air"
-                },
-                air_mass: environment.current.mass,
-                air_temperature_c: air_temperature_celsius_like(environment.current),
-                derived_pressure: derived_air_pressure(environment.current),
-            });
-        }
-        self.sample = Some(ThermalEnvironmentSample {
-            simulation_tick: tick,
-            sequence: self.next_sequence,
-            rows,
+        let request = self.begin_sample(tick);
+        let result = collect_sample(simulation, self.scene, request).map_err(|error| {
+            format!("bounded diagnostic readback failed at committed tick {tick}: {error}")
         });
-        self.next_sequence += 1;
-        Ok(())
+        let _ = self.commit_sample_result(request, result);
+    }
+
+    pub(crate) fn toggle_details(&mut self) -> bool {
+        self.details_visible = !self.details_visible;
+        self.details_visible
+    }
+
+    pub(crate) fn clear_step_applied(&mut self) {
+        self.last_step_tick = None;
     }
 
     pub(crate) fn hud_data(
@@ -224,18 +356,106 @@ impl ThermalEnvironmentState {
         playing: bool,
         fast: u32,
         tick: u64,
+        world_transform: Option<WorldTransform>,
     ) -> ThermalEnvironmentHudData {
         ThermalEnvironmentHudData {
             scene: self.scene,
             playing,
             fast,
             simulation_tick: tick,
-            sample: self.sample.clone(),
+            diagnostic: self.diagnostic.clone(),
+            details_visible: self.details_visible,
+            last_step_tick: self.last_step_tick,
+            world_transform,
             cumulative_external_air_mass: self.exchange.mass,
             cumulative_external_advected_energy: self.exchange.advected_energy,
             cumulative_external_passive_heat: self.exchange.passive_heat,
         }
     }
+}
+
+fn collect_sample(
+    simulation: &Simulation,
+    scene: ThermalEnvironmentScene,
+    request: SampleRequest,
+) -> Result<ThermalEnvironmentSample, GpuError> {
+    let cells = sample_cells(scene);
+    let environments = simulation.world.read_environment_cells(
+        &simulation.context.device,
+        &simulation.context.queue,
+        &cells.iter().map(|(_, cell)| *cell).collect::<Vec<_>>(),
+    )?;
+    let mut rows = Vec::with_capacity(cells.len());
+    for ((label, (x, y)), environment) in cells.into_iter().zip(environments) {
+        let material = simulation.world.read_material_cell(
+            &simulation.context.device,
+            &simulation.context.queue,
+            x,
+            y,
+        )?;
+        let material_temperature_c = if material == MATERIAL_EMPTY {
+            None
+        } else {
+            Some(simulation.world.read_temperature_cell(
+                &simulation.context.device,
+                &simulation.context.queue,
+                x,
+                y,
+            )?)
+        };
+        rows.push(ThermalEnvironmentSampleRow {
+            label,
+            cell: (x as u32, y as u32),
+            material_temperature_c,
+            environment_class: if material == MATERIAL_EMPTY {
+                class_name(classify_air_state(environment.current).ok())
+            } else {
+                "Occupied / no Air"
+            },
+            air_mass: environment.current.mass,
+            air_temperature_c: air_temperature_celsius_like(environment.current),
+            derived_pressure: derived_air_pressure(environment.current),
+        });
+    }
+    let accounting = accounting_cells(scene)
+        .map(|(label, cells)| collect_accounting(simulation, label, &cells))
+        .transpose()?;
+    Ok(ThermalEnvironmentSample {
+        generation: request.generation,
+        simulation_tick: request.simulation_tick,
+        sequence: request.sequence,
+        rows,
+        accounting,
+    })
+}
+
+fn collect_accounting(
+    simulation: &Simulation,
+    label: &'static str,
+    cells: &[(i64, i64)],
+) -> Result<ThermalEnvironmentAccounting, GpuError> {
+    let mut air_mass = 0.0_f64;
+    let mut air_energy = 0.0_f64;
+    for batch in cells.chunks(TE2_ACCOUNTING_READBACK_BATCH_CELLS) {
+        let states = simulation.world.read_environment_cells(
+            &simulation.context.device,
+            &simulation.context.queue,
+            batch,
+        )?;
+        air_mass += states
+            .iter()
+            .map(|state| f64::from(state.current.mass))
+            .sum::<f64>();
+        air_energy += states
+            .iter()
+            .map(|state| f64::from(state.current.energy))
+            .sum::<f64>();
+    }
+    Ok(ThermalEnvironmentAccounting {
+        label,
+        air_mass,
+        air_energy,
+    })
 }
 
 fn class_name(class: Option<EnvironmentClass>) -> &'static str {
@@ -250,12 +470,14 @@ fn class_name(class: Option<EnvironmentClass>) -> &'static str {
 fn sample_cells(scene: ThermalEnvironmentScene) -> Vec<(&'static str, (i64, i64))> {
     match scene {
         ThermalEnvironmentScene::DirectAtmosphereVacuum => vec![
-            ("Direct source", (55, 48)),
-            ("Direct target", (56, 48)),
-            ("Atmosphere gap", (56, 96)),
-            ("Atmosphere target", (57, 96)),
-            ("Vacuum gap", (56, 144)),
-            ("Vacuum target", (57, 144)),
+            ("Direct source", (COMPARISON_SOURCE_X1, 40)),
+            ("Direct target", (COMPARISON_GAP_X, 40)),
+            ("Atmosphere source", (COMPARISON_SOURCE_X1, 96)),
+            ("Atmosphere gap", (COMPARISON_GAP_X, 96)),
+            ("Atmosphere target", (COMPARISON_GAP_X + 1, 96)),
+            ("Vacuum source", (COMPARISON_SOURCE_X1, 152)),
+            ("Vacuum gap", (COMPARISON_GAP_X, 152)),
+            ("Vacuum target", (COMPARISON_GAP_X + 1, 152)),
         ],
         ThermalEnvironmentScene::AtmosphereRefillsVacuum => vec![
             ("Atmosphere left", (72, 96)),
@@ -275,6 +497,24 @@ fn sample_cells(scene: ThermalEnvironmentScene) -> Vec<(&'static str, (i64, i64)
             ("Mid Air", (253, 96)),
             ("Reservoir edge Air", (255, 96)),
         ],
+    }
+}
+
+fn accounting_cells(scene: ThermalEnvironmentScene) -> Option<(&'static str, Vec<(i64, i64)>)> {
+    match scene {
+        ThermalEnvironmentScene::DirectAtmosphereVacuum => None,
+        ThermalEnvironmentScene::AtmosphereRefillsVacuum => Some((
+            "Sealed corridor total",
+            (48..=207).map(|x| (x, 96)).collect(),
+        )),
+        ThermalEnvironmentScene::SealedCooling => Some((
+            "Sealed chamber total",
+            (224..=255).map(|x| (x, 96)).collect(),
+        )),
+        ThermalEnvironmentScene::ReservoirCooling => Some((
+            "Reservoir chamber total",
+            (224..=255).map(|x| (x, 96)).collect(),
+        )),
     }
 }
 
@@ -314,16 +554,70 @@ fn wall_lane(sim: &Simulation, x0: i64, x1: i64, y: i64) -> Result<(), GpuError>
     Ok(())
 }
 
-fn stage_comparison(sim: &Simulation) -> Result<(), GpuError> {
-    for y in [48, 96, 144] {
-        wall_lane(sim, 55, 57, y)?;
-        write_material(sim, 55, y, MATERIAL_STONE)?;
-        write_temperature(sim, 55, y, 300.0)?;
-        write_material(sim, if y == 48 { 56 } else { 57 }, y, MATERIAL_STONE)?;
-        write_temperature(sim, if y == 48 { 56 } else { 57 }, y, 20.0)?;
+fn wall_box(sim: &Simulation, x0: i64, x1: i64, y: i64) -> Result<(), GpuError> {
+    let top = y - COMPARISON_HALF_HEIGHT - 1;
+    let bottom = y + COMPARISON_HALF_HEIGHT + 1;
+    for x in x0..=x1 {
+        write_material(sim, x, top, MATERIAL_BOUNDARY_BLOCK)?;
+        write_material(sim, x, bottom, MATERIAL_BOUNDARY_BLOCK)?;
     }
-    sim.world
-        .write_environment_cell_for_test(&sim.context.queue, 56, 144, vacuum_air_state())
+    for row in (top + 1)..bottom {
+        write_material(sim, x0, row, MATERIAL_BOUNDARY_BLOCK)?;
+        write_material(sim, x1, row, MATERIAL_BOUNDARY_BLOCK)?;
+    }
+    Ok(())
+}
+
+fn fill_stone_block(
+    sim: &Simulation,
+    x0: i64,
+    x1: i64,
+    center_y: i64,
+    temperature_c: f32,
+) -> Result<(), GpuError> {
+    for y in (center_y - COMPARISON_HALF_HEIGHT)..=(center_y + COMPARISON_HALF_HEIGHT) {
+        for x in x0..=x1 {
+            write_material(sim, x, y, MATERIAL_STONE)?;
+            write_temperature(sim, x, y, temperature_c)?;
+        }
+    }
+    Ok(())
+}
+
+fn stage_comparison(sim: &Simulation) -> Result<(), GpuError> {
+    for (lane, y) in [40, 96, 152].into_iter().enumerate() {
+        wall_box(sim, COMPARISON_FRAME_X0, COMPARISON_FRAME_X1, y)?;
+        fill_stone_block(
+            sim,
+            COMPARISON_SOURCE_X0,
+            COMPARISON_SOURCE_X1,
+            y,
+            COMPARISON_SOURCE_TEMPERATURE_C,
+        )?;
+        let target_x0 = if lane == 0 {
+            COMPARISON_GAP_X
+        } else {
+            COMPARISON_GAP_X + 1
+        };
+        fill_stone_block(
+            sim,
+            target_x0,
+            COMPARISON_TARGET_X1,
+            y,
+            COMPARISON_TARGET_TEMPERATURE_C,
+        )?;
+        if lane == 2 {
+            for gap_y in (y - COMPARISON_HALF_HEIGHT)..=(y + COMPARISON_HALF_HEIGHT) {
+                sim.world.write_environment_cell_for_test(
+                    &sim.context.queue,
+                    COMPARISON_GAP_X,
+                    gap_y,
+                    vacuum_air_state(),
+                )?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn stage_refill(sim: &Simulation) -> Result<(), GpuError> {
@@ -482,6 +776,22 @@ mod tests {
             .collect()
     }
 
+    fn fresh_sample(state: &ThermalEnvironmentState) -> &ThermalEnvironmentSample {
+        state
+            .diagnostic
+            .fresh_sample()
+            .unwrap_or_else(|| panic!("candidate diagnostic must be Fresh: {:?}", state.diagnostic))
+    }
+
+    fn material_temperature(sample: &ThermalEnvironmentSample, label: &str) -> f32 {
+        sample
+            .rows
+            .iter()
+            .find(|row| row.label == label)
+            .and_then(|row| row.material_temperature_c)
+            .unwrap_or_else(|| panic!("missing Matter temperature for {label}"))
+    }
+
     #[test]
     fn scene_identity_and_boundary_modes_are_exact() {
         for number in 1..=4 {
@@ -510,12 +820,24 @@ mod tests {
             ThermalEnvironmentScene::SealedCooling,
             ThermalEnvironmentScene::ReservoirCooling,
         ] {
-            assert!(sample_cells(scene).len() <= 6);
+            assert!(sample_cells(scene).len() <= 8);
+            assert!(
+                accounting_cells(scene)
+                    .map(|(_, cells)| cells.len() <= 160)
+                    .unwrap_or(true),
+                "candidate accounting remains a fixed bounded corridor"
+            );
         }
         assert_eq!(crate::inspector::INSPECTOR_READBACK_BYTES, 24);
         assert!(
             crate::inspector::INSPECTOR_SAMPLE_INTERVAL >= std::time::Duration::from_millis(100)
         );
+
+        let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
+        let mut state = ThermalEnvironmentState::new(&mut simulation).unwrap();
+        assert!(state.details_visible);
+        assert!(!state.toggle_details());
+        assert!(state.toggle_details());
     }
 
     #[test]
@@ -543,13 +865,162 @@ mod tests {
             state.select_scene(&mut simulation, scene).unwrap();
             assert_eq!(simulation.tick_count, 0);
             let initial_signature = scene_signature(&simulation, scene);
-            state.tick(&mut simulation).unwrap();
+            let initial_sample = fresh_sample(&state).clone();
+            let initial_generation = state.generation;
+            state.tick_playing(&mut simulation).unwrap();
             assert_eq!(simulation.tick_count, 1);
             state.reset(&mut simulation).unwrap();
             assert_eq!(simulation.tick_count, 0);
             assert_eq!(scene_signature(&simulation, scene), initial_signature);
-            assert_eq!(state.sample.as_ref().unwrap().simulation_tick, 0);
+            let reset_sample = fresh_sample(&state);
+            assert_eq!(reset_sample.simulation_tick, 0);
+            assert_eq!(reset_sample.rows, initial_sample.rows);
+            assert_eq!(reset_sample.accounting, initial_sample.accounting);
+            assert!(state.generation > initial_generation);
+            assert_eq!(state.exchange.mass, 0.0);
+            assert_eq!(state.exchange.advected_energy, 0.0);
+            assert_eq!(state.exchange.passive_heat, 0.0);
         }
+    }
+
+    #[test]
+    fn paused_single_step_forces_tick_one_sample_and_playing_keeps_eight_tick_cadence() {
+        let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
+        let mut state = ThermalEnvironmentState::new(&mut simulation).unwrap();
+        let tick_zero = fresh_sample(&state).clone();
+        assert_eq!(tick_zero.simulation_tick, 0);
+
+        state.single_step(&mut simulation).unwrap();
+        let tick_one = fresh_sample(&state);
+        assert_eq!(simulation.tick_count, 1);
+        assert_eq!(tick_one.simulation_tick, 1);
+        assert_eq!(tick_one.sequence, tick_zero.sequence + 1);
+        assert_eq!(state.last_step_tick, Some(1));
+        assert!(
+            material_temperature(tick_one, "Direct target")
+                > material_temperature(&tick_zero, "Direct target")
+        );
+
+        state.reset(&mut simulation).unwrap();
+        let reset_sequence = fresh_sample(&state).sequence;
+        for expected_tick in 1..TE2_SAMPLE_INTERVAL_TICKS {
+            state.tick_playing(&mut simulation).unwrap();
+            assert_eq!(simulation.tick_count, expected_tick);
+            assert_eq!(fresh_sample(&state).simulation_tick, 0);
+            assert_eq!(fresh_sample(&state).sequence, reset_sequence);
+        }
+        state.tick_playing(&mut simulation).unwrap();
+        assert_eq!(simulation.tick_count, TE2_SAMPLE_INTERVAL_TICKS);
+        assert_eq!(
+            fresh_sample(&state).simulation_tick,
+            TE2_SAMPLE_INTERVAL_TICKS
+        );
+        assert_eq!(fresh_sample(&state).sequence, reset_sequence + 1);
+    }
+
+    #[test]
+    fn rapid_single_steps_remain_ordered_and_each_commits_a_fresh_sample() {
+        let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
+        let mut state = ThermalEnvironmentState::new(&mut simulation).unwrap();
+        let mut last_sequence = fresh_sample(&state).sequence;
+        for expected_tick in 1..=3 {
+            state.single_step(&mut simulation).unwrap();
+            let sample = fresh_sample(&state);
+            assert_eq!(simulation.tick_count, expected_tick);
+            assert_eq!(sample.simulation_tick, expected_tick);
+            assert_eq!(sample.sequence, last_sequence + 1);
+            last_sequence = sample.sequence;
+        }
+    }
+
+    #[test]
+    fn failed_and_late_sample_results_never_reuse_old_rows() {
+        let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
+        let mut state = ThermalEnvironmentState::new(&mut simulation).unwrap();
+        assert!(fresh_sample(&state).rows.len() >= 4);
+
+        let older = state.begin_sample(simulation.tick_count);
+        let newer = state.begin_sample(simulation.tick_count);
+        assert!(!state.commit_sample_result(older, Err("late old sample".to_string())));
+        assert!(matches!(
+            state.diagnostic,
+            ThermalEnvironmentDiagnosticState::Sampling { sequence, .. }
+                if sequence == newer.sequence
+        ));
+        assert!(state.commit_sample_result(newer, Err("map failed".to_string())));
+        assert!(state.diagnostic.fresh_sample().is_none());
+        assert!(matches!(
+            &state.diagnostic,
+            ThermalEnvironmentDiagnosticState::Failed { message, .. }
+                if message == "map failed"
+        ));
+
+        let previous_generation = state.generation;
+        let late_from_reset = state.begin_sample(simulation.tick_count);
+        state.reset(&mut simulation).unwrap();
+        assert!(state.generation > previous_generation);
+        assert!(!state.commit_sample_result(late_from_reset, Err("late after reset".to_string())));
+        assert_eq!(fresh_sample(&state).simulation_tick, 0);
+
+        let reset_generation = state.generation;
+        state
+            .select_scene(
+                &mut simulation,
+                ThermalEnvironmentScene::AtmosphereRefillsVacuum,
+            )
+            .unwrap();
+        assert!(state.generation > reset_generation);
+        assert_eq!(fresh_sample(&state).simulation_tick, 0);
+    }
+
+    #[test]
+    fn scene_one_semantic_checkpoints_make_direct_then_air_then_vacuum_order_visible() {
+        let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
+        let mut state = ThermalEnvironmentState::new(&mut simulation).unwrap();
+
+        for checkpoint in [0_u64, 1, 8, 60, 300] {
+            while simulation.tick_count < checkpoint {
+                if simulation.tick_count == 0 {
+                    state.single_step(&mut simulation).unwrap();
+                } else {
+                    state.tick_playing(&mut simulation).unwrap();
+                }
+            }
+            if fresh_sample(&state).simulation_tick != checkpoint {
+                state.sample_if_due(&simulation, true);
+            }
+            let sample = fresh_sample(&state);
+            let direct = material_temperature(sample, "Direct target");
+            let atmosphere = material_temperature(sample, "Atmosphere target");
+            let vacuum_target = material_temperature(sample, "Vacuum target");
+            println!(
+                "[te2 checkpoint] tick {checkpoint}: direct {direct:.6} C | atmosphere {atmosphere:.6} C | vacuum {vacuum_target:.6} C"
+            );
+            assert!(
+                direct >= atmosphere,
+                "tick {checkpoint}: {direct} < {atmosphere}"
+            );
+            assert!(
+                atmosphere >= vacuum_target,
+                "tick {checkpoint}: {atmosphere} < {vacuum_target}"
+            );
+            if checkpoint >= 1 {
+                assert!(direct > COMPARISON_TARGET_TEMPERATURE_C);
+            }
+            if checkpoint >= 60 {
+                assert!(atmosphere > COMPARISON_TARGET_TEMPERATURE_C);
+                assert!(direct > atmosphere);
+                assert_eq!(vacuum_target, COMPARISON_TARGET_TEMPERATURE_C);
+            }
+        }
+        let sample = fresh_sample(&state);
+        let vacuum_gap = sample
+            .rows
+            .iter()
+            .find(|row| row.label == "Vacuum gap")
+            .unwrap();
+        assert_eq!(vacuum_gap.environment_class, "Vacuum");
+        assert_eq!(vacuum_gap.air_mass, 0.0);
     }
 
     #[test]
@@ -572,9 +1043,11 @@ mod tests {
             .unwrap();
         assert_eq!(before[0].current.mass, 0.0);
         assert_eq!(before[1].current.mass, 0.0);
+        let before_accounting = fresh_sample(&state).accounting.clone().unwrap();
         for _ in 0..64 {
-            state.tick(&mut simulation).unwrap();
+            state.tick_playing(&mut simulation).unwrap();
         }
+        state.sample_if_due(&simulation, true);
         let after = simulation
             .world
             .read_environment_cells(
@@ -586,6 +1059,11 @@ mod tests {
         assert!(after[0].current.mass > 0.0);
         assert!(after[1].current.mass > 0.0);
         assert!(after.iter().all(|cell| cell.current == cell.next));
+        let after_sample = fresh_sample(&state);
+        let after_accounting = after_sample.accounting.as_ref().unwrap();
+        assert!((after_accounting.air_mass - before_accounting.air_mass).abs() < 1.0e-3);
+        assert!((after_accounting.air_energy - before_accounting.air_energy).abs() < 1.0e-2);
+        assert!(after_sample.rows.iter().all(|row| row.air_mass >= 0.0));
     }
 
     #[test]
@@ -596,7 +1074,7 @@ mod tests {
             .select_scene(&mut simulation, ThermalEnvironmentScene::SealedCooling)
             .unwrap();
         for _ in 0..16 {
-            state.tick(&mut simulation).unwrap();
+            state.tick_playing(&mut simulation).unwrap();
         }
         assert_eq!(state.exchange.mass, 0.0);
         assert_eq!(state.exchange.advected_energy, 0.0);
@@ -606,7 +1084,7 @@ mod tests {
             .select_scene(&mut simulation, ThermalEnvironmentScene::ReservoirCooling)
             .unwrap();
         for _ in 0..512 {
-            state.tick(&mut simulation).unwrap();
+            state.tick_playing(&mut simulation).unwrap();
         }
         assert!(state.exchange.mass.is_finite());
         assert!(state.exchange.advected_energy.is_finite());

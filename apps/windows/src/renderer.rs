@@ -68,6 +68,9 @@ pub enum PresentationPalette {
     /// G9-A first-playable Sandbox: neutral product colors with the same
     /// camera transform used by rendering, picking, and the Inspector.
     Sandbox = 6,
+    /// TE-2 direct-review candidate: ThermalLab colors with wider persistent
+    /// diagnostic-card reservations on both sides of the world.
+    ThermalEnvironment = 7,
 }
 
 /// Physical-pixel rectangle occupied by the rendered world.
@@ -121,6 +124,11 @@ impl WorldViewport {
             }
             PresentationPalette::ThermalLab => (
                 (surface_width - 270.0 * 2.0).max(1.0),
+                (surface_height - 140.0).max(1.0),
+                65.0,
+            ),
+            PresentationPalette::ThermalEnvironment => (
+                (surface_width - 370.0 * 2.0).max(1.0),
                 (surface_height - 140.0).max(1.0),
                 65.0,
             ),
@@ -608,6 +616,7 @@ const PALETTE_INTEGRITY: u32 = 3u;
 const PALETTE_ACTIVITY: u32 = 4u;
 const PALETTE_GALLERY: u32 = 5u;
 const PALETTE_SANDBOX: u32 = 6u;
+const PALETTE_THERMAL_ENVIRONMENT: u32 = 7u;
 
 const ACT_MATTER: u32 = 1u << 0u;
 const ACT_THERMAL: u32 = 1u << 1u;
@@ -763,7 +772,8 @@ fn debug_color(id: u32, palette: u32) -> vec4<f32> {
         || palette == PALETTE_INTEGRITY
         || palette == PALETTE_ACTIVITY
         || palette == PALETTE_GALLERY
-        || palette == PALETTE_SANDBOX) {
+        || palette == PALETTE_SANDBOX
+        || palette == PALETTE_THERMAL_ENVIRONMENT) {
         if (id == EMPTY) { return vec4<f32>(0.05, 0.055, 0.07, 1.0); }
         if (id == BOUNDARY) { return vec4<f32>(0.22, 0.23, 0.25, 1.0); }
         if (id == STONE) { return vec4<f32>(0.46, 0.47, 0.50, 1.0); }
@@ -928,7 +938,8 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let ww = f32(params.width);
     let wh = f32(params.height);
     let lab = params.palette == PALETTE_LAB;
-    let thermal = params.palette == PALETTE_THERMAL;
+    let thermal = params.palette == PALETTE_THERMAL
+        || params.palette == PALETTE_THERMAL_ENVIRONMENT;
     let integrity = params.palette == PALETTE_INTEGRITY;
     let activity = params.palette == PALETTE_ACTIVITY;
     let gallery = params.palette == PALETTE_GALLERY;
@@ -1148,6 +1159,7 @@ impl Renderer {
                 matches!(
                     s.palette,
                     PresentationPalette::ThermalLab
+                        | PresentationPalette::ThermalEnvironment
                         | PresentationPalette::Integrity
                         | PresentationPalette::Activity
                         | PresentationPalette::Gallery
@@ -2027,7 +2039,7 @@ mod viewport_tests {
     }
 
     #[test]
-    fn viewport_preserves_existing_128_256_and_320x192_layouts() {
+    fn viewport_preserves_existing_layouts_and_reserves_te2_diagnostic_cards() {
         let forest =
             WorldViewport::calculate(1280, 720, 128, 128, PresentationPalette::Forest).unwrap();
         assert_eq!((forest.x, forest.y), (280.0, 0.0));
@@ -2051,6 +2063,12 @@ mod viewport_tests {
             (thermal.width, thermal.height, thermal.scale),
             (1060.0, 636.0, 3.3125)
         );
+
+        let te2 =
+            WorldViewport::calculate(1600, 900, 256, 192, PresentationPalette::ThermalEnvironment)
+                .unwrap();
+        assert_eq!((te2.x, te2.y), (370.0, 122.5));
+        assert_eq!((te2.width, te2.height, te2.scale), (860.0, 645.0, 3.359375));
     }
 
     #[test]

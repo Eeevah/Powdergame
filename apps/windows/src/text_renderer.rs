@@ -25,7 +25,10 @@ use crate::sandbox::{
     SANDBOX_PALETTE_GROUP_LABEL_Y, SANDBOX_PALETTE_ROW_Y, SANDBOX_PRESET_FIRST_ROW_Y,
     SANDBOX_PRESET_TITLE_Y,
 };
-use crate::thermal_environment::{ThermalEnvironmentHudData, ThermalEnvironmentScene};
+use crate::thermal_environment::{
+    ThermalEnvironmentDiagnosticState, ThermalEnvironmentHudData, ThermalEnvironmentSample,
+    ThermalEnvironmentSampleRow, ThermalEnvironmentScene,
+};
 
 const INSPECTOR_TITLE: &str = "CELL INSPECTOR [I]";
 const INSPECTOR_UNAVAILABLE: &str = "Inspector unavailable";
@@ -44,6 +47,84 @@ fn ascii_only(text: &str) -> String {
             },
         )
         .collect()
+}
+
+fn te2_fresh_sample(data: &ThermalEnvironmentHudData) -> Option<&ThermalEnvironmentSample> {
+    data.diagnostic.fresh_sample()
+}
+
+fn te2_row<'a>(
+    sample: &'a ThermalEnvironmentSample,
+    label: &str,
+) -> Option<&'a ThermalEnvironmentSampleRow> {
+    sample.rows.iter().find(|row| row.label == label)
+}
+
+fn te2_row_temperature(row: &ThermalEnvironmentSampleRow) -> Option<f32> {
+    row.material_temperature_c.or(row.air_temperature_c)
+}
+
+fn te2_target_warming(row: &ThermalEnvironmentSampleRow) -> Option<f32> {
+    row.material_temperature_c
+        .map(|temperature| temperature - 20.0)
+}
+
+fn te2_marker_rect(
+    transform: crate::renderer::WorldTransform,
+    cell: (u32, u32),
+) -> Option<ScreenRect> {
+    let x = transform.viewport.x + (cell.0 as f32 - transform.origin_x) * transform.scale;
+    let y = transform.viewport.y + (cell.1 as f32 - transform.origin_y) * transform.scale;
+    let rect = ScreenRect {
+        x: x - 2.0,
+        y: y - 2.0,
+        width: transform.scale + 4.0,
+        height: transform.scale + 4.0,
+    };
+    (rect.right() >= transform.viewport.x
+        && rect.x <= transform.viewport.right()
+        && rect.bottom() >= transform.viewport.y
+        && rect.y <= transform.viewport.bottom())
+    .then_some(rect)
+}
+
+fn te2_detail_panel_rect(surface_height: f32) -> ScreenRect {
+    let y = 350.0;
+    ScreenRect {
+        x: 18.0,
+        y,
+        width: 350.0,
+        height: (surface_height - y - 54.0).max(120.0),
+    }
+}
+
+fn te2_summary_panel_rect(surface_width: f32, surface_height: f32) -> ScreenRect {
+    ScreenRect {
+        x: surface_width - 366.0,
+        y: 70.0,
+        width: 348.0,
+        height: (surface_height - 124.0).max(240.0),
+    }
+}
+
+fn te2_status_text(data: &ThermalEnvironmentHudData) -> String {
+    match &data.diagnostic {
+        ThermalEnvironmentDiagnosticState::Sampling {
+            generation,
+            sequence,
+            simulation_tick,
+        } => format!("SAMPLING | G{generation} #{sequence} | TICK {simulation_tick}"),
+        ThermalEnvironmentDiagnosticState::Fresh(sample) => format!(
+            "FRESH | G{} #{} | SAMPLE TICK {}",
+            sample.generation, sample.sequence, sample.simulation_tick
+        ),
+        ThermalEnvironmentDiagnosticState::Failed {
+            generation,
+            sequence,
+            simulation_tick,
+            ..
+        } => format!("FAILED | G{generation} #{sequence} | TICK {simulation_tick}"),
+    }
 }
 
 fn compact_inspector_text(data: &InspectorHudData) -> Option<String> {
@@ -3818,8 +3899,37 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let label = [0.64, 0.72, 0.82, 1.0];
         let value = [0.96, 0.97, 0.99, 1.0];
         let accent = [1.0, 0.72, 0.30, 1.0];
+        let good = [0.38, 0.94, 0.62, 1.0];
+        let failed = [1.0, 0.38, 0.34, 1.0];
+        let vacuum = [0.72, 0.54, 1.0, 1.0];
         let card_bg = [0.045, 0.062, 0.09, 0.94];
         let card_border = [0.20, 0.34, 0.46, 1.0];
+
+        // Actual sampled cells are marked through the same camera transform
+        // used by the world shader. These outlines identify readback points;
+        // they do not animate or invent heat/Air motion.
+        if let (Some(transform), Some(sample)) = (data.world_transform, te2_fresh_sample(data)) {
+            for row in &sample.rows {
+                if let Some(rect) = te2_marker_rect(transform, row.cell) {
+                    let marker_color = if row.label.contains("Vacuum") {
+                        vacuum
+                    } else if row.label.contains("source") || row.label.contains("Hot Stone") {
+                        accent
+                    } else {
+                        header
+                    };
+                    self.batch.draw_outline(
+                        rect.x,
+                        rect.y,
+                        rect.width,
+                        rect.height,
+                        1.5,
+                        marker_color,
+                        white_uv,
+                    );
+                }
+            }
+        }
 
         self.batch.draw_text(
             &self.atlas,
@@ -3843,11 +3953,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             header,
         );
 
-        let card_w = 250.0;
+        // Persistent scene/control card.
+        let card_w = 350.0;
         self.batch
-            .draw_rect(18.0, 70.0, card_w, 250.0, card_bg, white_uv);
+            .draw_rect(18.0, 70.0, card_w, 240.0, card_bg, white_uv);
         self.batch
-            .draw_outline(18.0, 70.0, card_w, 250.0, 1.0, card_border, white_uv);
+            .draw_outline(18.0, 70.0, card_w, 240.0, 1.0, card_border, white_uv);
         self.batch.draw_text(
             &self.atlas,
             32.0,
@@ -3875,109 +3986,539 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             &format!("Boundary: {:?}", data.scene.boundary_mode()),
             accent,
         );
+        if data.scene == ThermalEnvironmentScene::DirectAtmosphereVacuum {
+            self.batch.draw_text(
+                &self.atlas,
+                32.0,
+                238.0,
+                12,
+                "TOP Direct | MID Atmosphere | BOTTOM Vacuum",
+                value,
+            );
+        } else if let Some(step_tick) = data.last_step_tick {
+            self.batch.draw_text(
+                &self.atlas,
+                32.0,
+                238.0,
+                12,
+                &format!("STEP APPLIED | COMMITTED TICK {step_tick}"),
+                good,
+            );
+        }
         self.batch.draw_text(
             &self.atlas,
             32.0,
-            246.0,
+            260.0,
             12,
             "1-4 Scene | SPACE Play/Pause",
             label,
         );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            281.0,
+            12,
+            "N Step | F x1/x4/x16 | R Reset",
+            label,
+        );
         self.batch
-            .draw_text(&self.atlas, 32.0, 267.0, 12, "N Step | F x1/x4/x16", label);
-        self.batch
-            .draw_text(&self.atlas, 32.0, 288.0, 12, "R Reset | ESC Quit", label);
+            .draw_text(&self.atlas, 32.0, 302.0, 12, "I Details | ESC Quit", label);
+        if let Some(step_tick) = data.last_step_tick {
+            self.batch.draw_rect(
+                18.0,
+                316.0,
+                card_w,
+                25.0,
+                [0.05, 0.20, 0.13, 0.96],
+                white_uv,
+            );
+            self.batch.draw_text(
+                &self.atlas,
+                32.0,
+                321.0,
+                12,
+                &format!("STEP APPLIED | TICK {step_tick} | SAMPLE FORCED"),
+                good,
+            );
+        }
 
-        if data.scene == ThermalEnvironmentScene::ReservoirCooling {
-            self.batch
-                .draw_rect(18.0, 338.0, card_w, 176.0, card_bg, white_uv);
-            self.batch
-                .draw_outline(18.0, 338.0, card_w, 176.0, 1.0, card_border, white_uv);
-            self.batch
-                .draw_text(&self.atlas, 32.0, 354.0, 14, "EXTERNAL RESERVOIR", accent);
-            for (row, (name, metric)) in [
-                ("Air mass", data.cumulative_external_air_mass),
-                ("Advected energy", data.cumulative_external_advected_energy),
-                ("Passive heat", data.cumulative_external_passive_heat),
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                self.batch.draw_text(
-                    &self.atlas,
-                    32.0,
-                    388.0 + row as f32 * 30.0,
-                    12,
-                    name,
-                    label,
-                );
-                self.batch.draw_text_right(
-                    &self.atlas,
-                    250.0,
-                    388.0 + row as f32 * 30.0,
-                    12,
-                    &format!("{metric:+.5}"),
-                    value,
-                );
+        // Candidate-only detail panel. Geometry is identical for Sampling,
+        // Fresh, Failed, expanded, and collapsed states.
+        let detail_rect = te2_detail_panel_rect(sh);
+        let detail_y = detail_rect.y;
+        let detail_h = detail_rect.height;
+        self.batch.draw_rect(
+            detail_rect.x,
+            detail_y,
+            detail_rect.width,
+            detail_h,
+            card_bg,
+            white_uv,
+        );
+        self.batch.draw_outline(
+            detail_rect.x,
+            detail_y,
+            detail_rect.width,
+            detail_h,
+            1.0,
+            card_border,
+            white_uv,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            detail_y + 16.0,
+            14,
+            "TE-2 DIAGNOSTICS [I]",
+            header,
+        );
+        if !data.details_visible {
+            self.batch.draw_text(
+                &self.atlas,
+                32.0,
+                detail_y + 50.0,
+                12,
+                "DETAIL ROWS COLLAPSED",
+                label,
+            );
+            self.batch.draw_text(
+                &self.atlas,
+                32.0,
+                detail_y + 72.0,
+                12,
+                "Persistent summary remains visible ->",
+                value,
+            );
+        } else {
+            match &data.diagnostic {
+                ThermalEnvironmentDiagnosticState::Fresh(sample) => {
+                    let mut y = detail_y + 46.0;
+                    for row in &sample.rows {
+                        self.batch
+                            .draw_text(&self.atlas, 32.0, y, 12, row.label, value);
+                        let temperature = te2_row_temperature(row).map_or_else(
+                            || "T n/a".to_string(),
+                            |temperature| format!("T {temperature:.4} C"),
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            32.0,
+                            y + 15.0,
+                            12,
+                            &format!("{} | {temperature}", row.environment_class),
+                            label,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            32.0,
+                            y + 29.0,
+                            12,
+                            &format!("mass {:.5} | P* {:.5}", row.air_mass, row.derived_pressure),
+                            accent,
+                        );
+                        y += 48.0;
+                    }
+                }
+                ThermalEnvironmentDiagnosticState::Sampling { .. } => {
+                    self.batch.draw_text(
+                        &self.atlas,
+                        32.0,
+                        detail_y + 52.0,
+                        12,
+                        "Sampling bounded GPU rows...",
+                        accent,
+                    );
+                    self.batch.draw_text(
+                        &self.atlas,
+                        32.0,
+                        detail_y + 76.0,
+                        12,
+                        "No prior values are shown as current.",
+                        label,
+                    );
+                }
+                ThermalEnvironmentDiagnosticState::Failed { message, .. } => {
+                    self.batch.draw_text(
+                        &self.atlas,
+                        32.0,
+                        detail_y + 52.0,
+                        12,
+                        "DIAGNOSTIC READBACK FAILED",
+                        failed,
+                    );
+                    let message = fit_ascii_text(
+                        &self.batch,
+                        &self.atlas,
+                        12,
+                        &ascii_only(message),
+                        card_w - 28.0,
+                    );
+                    self.batch
+                        .draw_text(&self.atlas, 32.0, detail_y + 78.0, 12, &message, label);
+                    self.batch.draw_text(
+                        &self.atlas,
+                        32.0,
+                        detail_y + 102.0,
+                        12,
+                        "Old rows were discarded.",
+                        value,
+                    );
+                }
             }
         }
 
-        let right_x = sw - 286.0;
-        self.batch
-            .draw_rect(right_x, 70.0, 268.0, 660.0, card_bg, white_uv);
-        self.batch
-            .draw_outline(right_x, 70.0, 268.0, 660.0, 1.0, card_border, white_uv);
-        if let Some(sample) = &data.sample {
-            self.batch.draw_text(
-                &self.atlas,
-                right_x + 14.0,
-                86.0,
-                15,
-                &format!(
-                    "GPU SAMPLE #{} | TICK {}",
-                    sample.sequence, sample.simulation_tick
-                ),
-                header,
-            );
-            let mut y = 122.0;
-            for row in &sample.rows {
-                self.batch
-                    .draw_text(&self.atlas, right_x + 14.0, y, 13, row.label, value);
-                y += 20.0;
-                let thermal = row.material_temperature_c.map_or_else(
-                    || {
-                        row.air_temperature_c
-                            .map_or("T n/a".to_string(), |t| format!("Air {t:.3} C"))
-                    },
-                    |t| format!("Matter {t:.3} C"),
-                );
-                self.batch.draw_text(
-                    &self.atlas,
-                    right_x + 14.0,
-                    y,
-                    11,
-                    &format!("{} | {}", row.environment_class, thermal),
-                    label,
-                );
-                y += 18.0;
-                self.batch.draw_text(
-                    &self.atlas,
-                    right_x + 14.0,
-                    y,
-                    11,
-                    &format!("mass {:.5} | P* {:.5}", row.air_mass, row.derived_pressure),
-                    accent,
-                );
-                y += 34.0;
+        // Persistent summary never collapses and always names its sample tick.
+        let summary_rect = te2_summary_panel_rect(sw, sh);
+        let right_x = summary_rect.x;
+        let summary_h = summary_rect.height;
+        self.batch.draw_rect(
+            right_x,
+            summary_rect.y,
+            summary_rect.width,
+            summary_h,
+            card_bg,
+            white_uv,
+        );
+        self.batch.draw_outline(
+            right_x,
+            summary_rect.y,
+            summary_rect.width,
+            summary_h,
+            1.0,
+            card_border,
+            white_uv,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            86.0,
+            14,
+            "PERSISTENT SUMMARY",
+            header,
+        );
+        let status_color = match &data.diagnostic {
+            ThermalEnvironmentDiagnosticState::Fresh(_) => good,
+            ThermalEnvironmentDiagnosticState::Sampling { .. } => accent,
+            ThermalEnvironmentDiagnosticState::Failed { .. } => failed,
+        };
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            112.0,
+            12,
+            &te2_status_text(data),
+            status_color,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            132.0,
+            12,
+            &format!(
+                "{} | x{} | SIM TICK {}",
+                if data.playing { "PLAY" } else { "PAUSED" },
+                data.fast,
+                data.simulation_tick
+            ),
+            value,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            right_x + 14.0,
+            150.0,
+            12,
+            &format!("Boundary: {:?}", data.scene.boundary_mode()),
+            label,
+        );
+
+        if let Some(sample) = te2_fresh_sample(data) {
+            let mut y = 178.0;
+            match data.scene {
+                ThermalEnvironmentScene::DirectAtmosphereVacuum => {
+                    for (lane_name, source_name, gap_name, target_name, lane_color) in [
+                        (
+                            "DIRECT CONTACT",
+                            "Direct source",
+                            None,
+                            "Direct target",
+                            accent,
+                        ),
+                        (
+                            "ATMOSPHERE GAP",
+                            "Atmosphere source",
+                            Some("Atmosphere gap"),
+                            "Atmosphere target",
+                            header,
+                        ),
+                        (
+                            "VACUUM GAP",
+                            "Vacuum source",
+                            Some("Vacuum gap"),
+                            "Vacuum target",
+                            vacuum,
+                        ),
+                    ] {
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y,
+                            12,
+                            lane_name,
+                            lane_color,
+                        );
+                        let source = te2_row(sample, source_name)
+                            .and_then(te2_row_temperature)
+                            .map_or("n/a".to_string(), |temperature| {
+                                format!("{temperature:.4} C")
+                            });
+                        let target = te2_row(sample, target_name)
+                            .and_then(te2_row_temperature)
+                            .map_or("n/a".to_string(), |temperature| {
+                                format!("{temperature:.4} C")
+                            });
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 18.0,
+                            12,
+                            &format!("Source {source} -> Target {target}"),
+                            value,
+                        );
+                        let warming = te2_row(sample, target_name)
+                            .and_then(te2_target_warming)
+                            .unwrap_or(0.0);
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 36.0,
+                            12,
+                            &format!("Target warming {warming:+.5} C | bar 0..5 C"),
+                            label,
+                        );
+                        self.batch.draw_rect(
+                            right_x + 14.0,
+                            y + 52.0,
+                            316.0,
+                            7.0,
+                            [0.10, 0.13, 0.18, 1.0],
+                            white_uv,
+                        );
+                        self.batch.draw_rect(
+                            right_x + 14.0,
+                            y + 52.0,
+                            316.0 * (warming.max(0.0) / 5.0).clamp(0.0, 1.0),
+                            7.0,
+                            lane_color,
+                            white_uv,
+                        );
+                        if let Some(gap_name) = gap_name {
+                            if let Some(gap) = te2_row(sample, gap_name) {
+                                let air_temperature = gap
+                                    .air_temperature_c
+                                    .map_or("n/a".to_string(), |temperature| {
+                                        format!("{temperature:.4} C")
+                                    });
+                                self.batch.draw_text(
+                                    &self.atlas,
+                                    right_x + 14.0,
+                                    y + 66.0,
+                                    12,
+                                    &format!(
+                                        "{} | m {:.5} | Air T {} | P* {:.5}",
+                                        gap.environment_class,
+                                        gap.air_mass,
+                                        air_temperature,
+                                        gap.derived_pressure
+                                    ),
+                                    lane_color,
+                                );
+                            }
+                            y += 96.0;
+                        } else {
+                            y += 76.0;
+                        }
+                    }
+                    self.batch.draw_text(
+                        &self.atlas,
+                        right_x + 14.0,
+                        y + 4.0,
+                        12,
+                        "Pinned review ticks: 0 | 1 | 8 | 60 | 300",
+                        label,
+                    );
+                }
+                ThermalEnvironmentScene::AtmosphereRefillsVacuum => {
+                    self.batch.draw_text(
+                        &self.atlas,
+                        right_x + 14.0,
+                        y,
+                        12,
+                        "AIR MASS SPREAD (actual samples)",
+                        header,
+                    );
+                    y += 24.0;
+                    for row in &sample.rows {
+                        let temperature = row
+                            .air_temperature_c
+                            .map_or("n/a".to_string(), |temperature| {
+                                format!("{temperature:.3} C")
+                            });
+                        self.batch
+                            .draw_text(&self.atlas, right_x + 14.0, y, 12, row.label, value);
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 16.0,
+                            12,
+                            &format!(
+                                "{} | m {:.5} | T {} | P* {:.5}",
+                                row.environment_class,
+                                row.air_mass,
+                                temperature,
+                                row.derived_pressure
+                            ),
+                            label,
+                        );
+                        self.batch.draw_rect(
+                            right_x + 14.0,
+                            y + 31.0,
+                            316.0,
+                            6.0,
+                            [0.10, 0.13, 0.18, 1.0],
+                            white_uv,
+                        );
+                        self.batch.draw_rect(
+                            right_x + 14.0,
+                            y + 31.0,
+                            316.0 * row.air_mass.clamp(0.0, 1.0),
+                            6.0,
+                            header,
+                            white_uv,
+                        );
+                        y += 50.0;
+                    }
+                    if let Some(accounting) = &sample.accounting {
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 8.0,
+                            12,
+                            accounting.label,
+                            accent,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 27.0,
+                            12,
+                            &format!(
+                                "Air mass {:.7} | energy {:.7}",
+                                accounting.air_mass, accounting.air_energy
+                            ),
+                            value,
+                        );
+                    }
+                }
+                ThermalEnvironmentScene::SealedCooling
+                | ThermalEnvironmentScene::ReservoirCooling => {
+                    for row in &sample.rows {
+                        let temperature = te2_row_temperature(row)
+                            .map_or("n/a".to_string(), |temperature| {
+                                format!("{temperature:.4} C")
+                            });
+                        self.batch
+                            .draw_text(&self.atlas, right_x + 14.0, y, 12, row.label, value);
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 16.0,
+                            12,
+                            &format!(
+                                "{} | T {} | m {:.5} | P* {:.5}",
+                                row.environment_class,
+                                temperature,
+                                row.air_mass,
+                                row.derived_pressure
+                            ),
+                            label,
+                        );
+                        y += 42.0;
+                    }
+                    if let Some(accounting) = &sample.accounting {
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 2.0,
+                            12,
+                            &format!(
+                                "{} | mass {:.6} | energy {:.6}",
+                                accounting.label, accounting.air_mass, accounting.air_energy
+                            ),
+                            accent,
+                        );
+                        y += 32.0;
+                    }
+                    if data.scene == ThermalEnvironmentScene::SealedCooling {
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 4.0,
+                            12,
+                            "EXTERNAL EXCHANGE: NONE (SEALED)",
+                            good,
+                        );
+                    } else {
+                        self.batch.draw_text(
+                            &self.atlas,
+                            right_x + 14.0,
+                            y + 4.0,
+                            12,
+                            "FIXED STANDARD ATMOSPHERE RESERVOIR",
+                            accent,
+                        );
+                        for (offset, (name, metric)) in [
+                            ("Air mass exchange", data.cumulative_external_air_mass),
+                            (
+                                "Advected-energy exchange",
+                                data.cumulative_external_advected_energy,
+                            ),
+                            (
+                                "Passive heat exchange",
+                                data.cumulative_external_passive_heat,
+                            ),
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            self.batch.draw_text(
+                                &self.atlas,
+                                right_x + 14.0,
+                                y + 26.0 + offset as f32 * 20.0,
+                                12,
+                                &format!("{name}: {metric:+.7}"),
+                                value,
+                            );
+                        }
+                    }
+                }
             }
         } else {
+            let message = match &data.diagnostic {
+                ThermalEnvironmentDiagnosticState::Sampling { .. } => {
+                    "SAMPLING - no values committed yet"
+                }
+                ThermalEnvironmentDiagnosticState::Failed { .. } => {
+                    "FAILED - old values discarded; reset/retry"
+                }
+                ThermalEnvironmentDiagnosticState::Fresh(_) => unreachable!(),
+            };
             self.batch.draw_text(
                 &self.atlas,
                 right_x + 14.0,
-                90.0,
-                13,
-                "Bounded GPU sample pending",
-                label,
+                188.0,
+                12,
+                message,
+                status_color,
             );
         }
         self.batch.draw_text(
@@ -4496,6 +5037,98 @@ mod tests {
         assert_eq!(held_panel, ready_panel);
         assert_eq!(sampling_panel, ready_panel);
         assert_eq!(failed_panel, ready_panel);
+    }
+
+    #[test]
+    fn te2_summary_is_persistent_honest_and_uses_fixed_panel_geometry() {
+        let sample = ThermalEnvironmentSample {
+            generation: 7,
+            simulation_tick: 1,
+            sequence: 2,
+            rows: vec![
+                ThermalEnvironmentSampleRow {
+                    label: "Direct source",
+                    cell: (102, 40),
+                    material_temperature_c: Some(298.0),
+                    environment_class: "Occupied / no Air",
+                    air_mass: 0.0,
+                    air_temperature_c: None,
+                    derived_pressure: 0.0,
+                },
+                ThermalEnvironmentSampleRow {
+                    label: "Direct target",
+                    cell: (103, 40),
+                    material_temperature_c: Some(22.5),
+                    environment_class: "Occupied / no Air",
+                    air_mass: 0.0,
+                    air_temperature_c: None,
+                    derived_pressure: 0.0,
+                },
+            ],
+            accounting: None,
+        };
+        let hud = ThermalEnvironmentHudData {
+            scene: ThermalEnvironmentScene::DirectAtmosphereVacuum,
+            playing: false,
+            fast: 4,
+            simulation_tick: 1,
+            diagnostic: ThermalEnvironmentDiagnosticState::Fresh(sample),
+            details_visible: false,
+            last_step_tick: Some(1),
+            world_transform: None,
+            cumulative_external_air_mass: 0.0,
+            cumulative_external_advected_energy: 0.0,
+            cumulative_external_passive_heat: 0.0,
+        };
+        assert_eq!(te2_status_text(&hud), "FRESH | G7 #2 | SAMPLE TICK 1");
+        let sample = te2_fresh_sample(&hud).unwrap();
+        assert_eq!(
+            te2_target_warming(te2_row(sample, "Direct target").unwrap()),
+            Some(2.5)
+        );
+
+        let detail = te2_detail_panel_rect(900.0);
+        let summary = te2_summary_panel_rect(1600.0, 900.0);
+        assert_eq!(detail, te2_detail_panel_rect(900.0));
+        assert_eq!(summary, te2_summary_panel_rect(1600.0, 900.0));
+        assert!(detail.x >= 0.0 && detail.bottom() <= 900.0);
+        assert!(summary.x >= 0.0 && summary.right() <= 1600.0);
+        assert!(detail.right() < summary.x);
+
+        let failed_hud = ThermalEnvironmentHudData {
+            diagnostic: ThermalEnvironmentDiagnosticState::Failed {
+                generation: 8,
+                sequence: 1,
+                simulation_tick: 0,
+                message: "map failed".to_string(),
+            },
+            details_visible: true,
+            last_step_tick: None,
+            ..hud
+        };
+        assert_eq!(te2_fresh_sample(&failed_hud), None);
+        assert_eq!(te2_status_text(&failed_hud), "FAILED | G8 #1 | TICK 0");
+    }
+
+    #[test]
+    fn te2_sample_markers_use_the_thermal_environment_world_transform() {
+        let viewport = crate::renderer::WorldViewport::calculate(
+            1600,
+            900,
+            256,
+            192,
+            crate::renderer::PresentationPalette::ThermalEnvironment,
+        )
+        .unwrap();
+        let transform = crate::renderer::WorldTransform::calculate(
+            viewport,
+            crate::renderer::WorldCamera::fitted(256, 192),
+        );
+        let marker = te2_marker_rect(transform, (103, 40)).unwrap();
+        assert!(marker.x >= viewport.x - 2.0);
+        assert!(marker.right() <= viewport.right() + 2.0);
+        assert!(marker.y >= viewport.y - 2.0);
+        assert!(marker.bottom() <= viewport.bottom() + 2.0);
     }
 
     #[test]

@@ -12,6 +12,8 @@ if "%FIRST_ARG:~0,2%"=="--" goto build
 
 if /i "%~1"=="sandbox" goto route_sandbox
 if /i "%~1"=="play" goto route_sandbox
+if /i "%~1"=="thermal-environment" goto route_thermal_environment
+if /i "%~1"=="te2" goto route_thermal_environment
 
 if not "%~2"=="" goto usage
 if /i "%~1"=="normal" goto route_gallery
@@ -21,8 +23,6 @@ if /i "%~1"=="g0" goto route_runtime
 if /i "%~1"=="movement" goto route_movement
 if /i "%~1"=="density" goto route_density
 if /i "%~1"=="thermal" goto route_thermal
-if /i "%~1"=="thermal-environment" goto route_thermal_environment
-if /i "%~1"=="te2" goto route_thermal_environment
 if /i "%~1"=="pressure" goto route_pressure
 if /i "%~1"=="parallel-integrity" goto route_parallel_integrity
 if /i "%~1"=="activity" goto route_activity

@@ -14,7 +14,7 @@ use bytemuck::{Pod, Zeroable};
 use powdergame_core::{
     initial_material_ids, is_valid_cell_material_value, registry_lookup, WorldConfig,
     MATERIAL_BOUNDARY_BLOCK, MATERIAL_ICE, MATERIAL_OIL, MATERIAL_SAND, MATERIAL_SMOKE,
-    MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
+    MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::{GpuError, Simulation};
 
@@ -28,8 +28,8 @@ pub(crate) const SANDBOX_TPS: u32 = 60;
 pub(crate) const SANDBOX_TITLE: &str = "Powdergame G9-A First Playable Sandbox";
 pub(crate) const HEAT_DELTA: f32 = 25.0;
 pub(crate) const COOL_DELTA: f32 = -25.0;
-pub(crate) const ICE_PLACEMENT_TEMPERATURE: f32 = -30.0;
-pub(crate) const STEAM_PLACEMENT_TEMPERATURE: f32 = 80.0;
+pub(crate) const ICE_PLACEMENT_TEMPERATURE: f32 = -10.0;
+pub(crate) const STEAM_PLACEMENT_TEMPERATURE: f32 = 120.0;
 pub(crate) const THERMAL_APPLICATION_FEEDBACK_HOLD: Duration = Duration::from_millis(180);
 pub(crate) const MAX_PENDING_EDIT_CELLS: usize = 32_768;
 const EDIT_COMMAND_CAPACITY: usize = MAX_PENDING_EDIT_CELLS;
@@ -219,7 +219,7 @@ pub(crate) const fn placement_temperature(material_id: u32) -> f32 {
     match material_id {
         MATERIAL_ICE => ICE_PLACEMENT_TEMPERATURE,
         MATERIAL_STEAM => STEAM_PLACEMENT_TEMPERATURE,
-        _ => 0.0,
+        _ => TEMPERATURE_REFERENCE,
     }
 }
 
@@ -1102,10 +1102,10 @@ struct EditCommand {
 @group(0) @binding(7) var<storage, read_write> pressure_next: array<f32>;
 
 const EMPTY: u32 = 0u;
-const TEMPERATURE_REFERENCE: f32 = 0.0;
+const TEMPERATURE_REFERENCE: f32 = 20.0;
 const PRESSURE_REFERENCE: f32 = 0.0;
 const TEMPERATURE_MIN: f32 = -250.0;
-const TEMPERATURE_MAX: f32 = 1000.0;
+const TEMPERATURE_MAX: f32 = 2000.0;
 
 @compute @workgroup_size(64)
 fn apply_fields(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -1246,7 +1246,8 @@ mod tests {
     use super::*;
     use crate::renderer::{PresentationPalette, WorldCamera, WorldViewport};
     use powdergame_core::{
-        registry_contains, MATERIAL_EMPTY, MATERIAL_REGISTRY, PRESSURE_MAX, TEMPERATURE_REFERENCE,
+        registry_contains, MATERIAL_EMPTY, MATERIAL_REGISTRY, PRESSURE_MAX, TEMPERATURE_MAX_C,
+        TEMPERATURE_MIN_C, TEMPERATURE_REFERENCE,
     };
 
     fn config() -> WorldConfig {
@@ -1471,11 +1472,13 @@ mod tests {
 
     #[test]
     fn external_and_internal_temperature_contracts_match_shader_constants() {
-        assert_eq!(TEMPERATURE_REFERENCE, 0.0);
+        assert_eq!(TEMPERATURE_REFERENCE, 20.0);
+        assert_eq!(TEMPERATURE_MIN_C, -250.0);
+        assert_eq!(TEMPERATURE_MAX_C, 2000.0);
         assert_eq!(HEAT_DELTA, 25.0);
         assert_eq!(COOL_DELTA, -25.0);
-        assert_eq!(ICE_PLACEMENT_TEMPERATURE, -30.0);
-        assert_eq!(STEAM_PLACEMENT_TEMPERATURE, 80.0);
+        assert_eq!(ICE_PLACEMENT_TEMPERATURE, -10.0);
+        assert_eq!(STEAM_PLACEMENT_TEMPERATURE, 120.0);
         assert_eq!(
             THERMAL_APPLICATION_FEEDBACK_HOLD,
             Duration::from_millis(180)
@@ -1626,6 +1629,13 @@ mod tests {
         for buffer in [
             &simulation.world.temperature_current,
             &simulation.world.temperature_next,
+        ] {
+            assert_eq!(
+                f32::from_ne_bytes(read_word(&simulation, buffer, index)),
+                TEMPERATURE_REFERENCE
+            );
+        }
+        for buffer in [
             &simulation.world.pressure_current,
             &simulation.world.pressure_next,
         ] {
@@ -1713,7 +1723,7 @@ mod tests {
                 .world
                 .read_temperature_cell(&simulation.context.device, &simulation.context.queue, 5, 5)
                 .unwrap(),
-            HEAT_DELTA
+            TEMPERATURE_REFERENCE + HEAT_DELTA
         );
         simulation.tick().unwrap();
         let after_tick_temperature = simulation

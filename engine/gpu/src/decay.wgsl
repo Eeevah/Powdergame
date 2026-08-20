@@ -11,7 +11,7 @@
 //     age = read_decay_age(flags) + 1
 //     if age >= decay_table[material].lifetime_ticks:
 //       material_next = decay_table[material].target_material (EMPTY)
-//       temperature_next = TEMPERATURE_REFERENCE (0.0)
+//       temperature_next = TEMPERATURE_REFERENCE (20.0 C-like gameplay)
 //       flags_next = 0 (if EMPTY)
 //     else:
 //       material_next = material
@@ -40,7 +40,7 @@ struct DecayDesc {
 
 const FLAG_DECAY_AGE_SHIFT: u32 = 16u;
 const FLAG_DECAY_AGE_MASK: u32 = 0x0FFFu << 16u;
-const TEMPERATURE_REFERENCE: f32 = 0.0;
+const TEMPERATURE_REFERENCE: f32 = 20.0;
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> material_current: array<u32>;

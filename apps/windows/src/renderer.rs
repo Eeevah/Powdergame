@@ -1276,6 +1276,7 @@ impl Renderer {
 /// Live HUD overlay data dispatched to the vector text renderer.
 pub enum HudData<'a> {
     Thermal(&'a crate::observatory::ObservatoryMetrics, u64),
+    ThermalEnvironment(&'a crate::thermal_environment::ThermalEnvironmentHudData),
     Pressure(&'a crate::observatory::PressureObservatoryMetrics, u64),
     ParallelIntegrity(&'a crate::observatory::IntegrityMetrics, u64),
     Activity(&'a crate::observatory::ActivityMetrics, u64),
@@ -1612,6 +1613,16 @@ impl Renderer {
                         self.config.height,
                         metrics,
                         sim_ticks,
+                    );
+                }
+                HudData::ThermalEnvironment(data) => {
+                    tr.render_thermal_environment_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        data,
                     );
                 }
                 HudData::Pressure(metrics, sim_ticks) => {

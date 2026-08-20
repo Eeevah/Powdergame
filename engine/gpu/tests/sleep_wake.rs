@@ -11,7 +11,7 @@
 
 use powdergame_core::{
     fuel_progress, with_fuel_progress, WorldConfig, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING,
-    COMBUSTION_WOOD_BURN_DURATION, COMBUSTION_WOOD_IGNITION, FLAG_COMBUSTING, MATERIAL_EMPTY,
+    COMBUSTION_WOOD_BURN_DURATION, FLAG_COMBUSTING, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY,
     MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
     MATERIAL_WOOD, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE, WAKE_REASON_SELF_ACTIVITY,
     WAKE_REASON_USER_EDIT,
@@ -740,7 +740,7 @@ fn test_scenario_k_combustion_lifecycle_equivalence() {
 
         // Smoke spawn blockers around (16, 16)
         for (dx, dy) in [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0), (0, 1)] {
-            set_mat(sim, 16 + dx, 16 + dy, MATERIAL_STONE);
+            set_mat(sim, 16 + dx, 16 + dy, MATERIAL_BOUNDARY_BLOCK);
             set_temp(sim, 16 + dx, 16 + dy, 20.0);
         }
     };
@@ -781,7 +781,10 @@ fn test_scenario_k_combustion_lifecycle_equivalence() {
     assert_eq!(read_mats(&sim_ref)[target_idx], MATERIAL_WOOD);
 
     // Re-ignite both at the same tick boundary
-    let ignition_t = COMBUSTION_WOOD_IGNITION + 10.0;
+    // Keep this lifecycle fixture well clear of the 250 C sustain boundary;
+    // TE-2 Air exchange must not turn an exact burn-duration test into a
+    // threshold-crossing timing test.
+    let ignition_t = 1_000.0;
     set_temp(&sim_sleep, 16, 16, ignition_t);
     set_temp(&sim_ref, 16, 16, ignition_t);
     for (dx, dy) in [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0), (0, 1)] {

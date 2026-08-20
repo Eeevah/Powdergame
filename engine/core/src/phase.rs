@@ -10,8 +10,8 @@
 //! - Transition rules are **Material data**, pre-ordered First-Match
 //!   (`REACTION_SPEC` §6). The GPU consumes a compact compiled table, not
 //!   material-name branches in the shader.
-//! - Temperature is the G4-A relative gameplay scalar, not Celsius.
-//! - Hysteresis bands (−20 ↔ −10 and 40 ↔ 60) prevent tick-to-tick
+//! - Temperature is the TE-2 Celsius-like gameplay scalar.
+//! - Hysteresis bands (−2 ↔ 2 and 95 ↔ 100) prevent tick-to-tick
 //!   ping-pong near a threshold.
 //! - EMPTY has no phase rule (not a registered Matter); Void has no cell.
 //! - 1:1 transform: temperature is preserved (latent heat is out of scope).
@@ -22,10 +22,10 @@ use crate::thermal::sanitize_temperature;
 
 /// Reference thresholds (relative gameplay scalar, not physical units).
 /// Hysteresis: freeze at −20, melt at −10; condense at 40, boil at 60.
-pub const WATER_FREEZE_BELOW: f32 = -20.0;
-pub const ICE_MELT_ABOVE: f32 = -10.0;
-pub const STEAM_CONDENSE_BELOW: f32 = 40.0;
-pub const WATER_BOIL_ABOVE: f32 = 60.0;
+pub const WATER_FREEZE_BELOW: f32 = -2.0;
+pub const ICE_MELT_ABOVE: f32 = 2.0;
+pub const STEAM_CONDENSE_BELOW: f32 = 95.0;
+pub const WATER_BOIL_ABOVE: f32 = 100.0;
 
 /// G5-B baseline: ordinary phase rules are identity-yield (1 cell in → 1 out).
 pub const PHASE_IDENTITY_MATTER_YIELD: u32 = 1;
@@ -181,11 +181,11 @@ mod tests {
     #[test]
     fn water_freezes_below_threshold() {
         assert_eq!(
-            select_phase_transition(MATERIAL_WATER, -30.0),
+            select_phase_transition(MATERIAL_WATER, -3.0),
             Some(MATERIAL_ICE)
         );
         assert_eq!(
-            select_phase_transition(MATERIAL_WATER, -25.0),
+            select_phase_transition(MATERIAL_WATER, -10.0),
             Some(MATERIAL_ICE)
         );
     }
@@ -193,11 +193,11 @@ mod tests {
     #[test]
     fn water_boils_above_threshold() {
         assert_eq!(
-            select_phase_transition(MATERIAL_WATER, 70.0),
+            select_phase_transition(MATERIAL_WATER, 101.0),
             Some(MATERIAL_STEAM)
         );
         assert_eq!(
-            select_phase_transition(MATERIAL_WATER, 65.0),
+            select_phase_transition(MATERIAL_WATER, 120.0),
             Some(MATERIAL_STEAM)
         );
     }
@@ -205,11 +205,11 @@ mod tests {
     #[test]
     fn ice_melts_above_threshold() {
         assert_eq!(
-            select_phase_transition(MATERIAL_ICE, 0.0),
+            select_phase_transition(MATERIAL_ICE, 3.0),
             Some(MATERIAL_WATER)
         );
         assert_eq!(
-            select_phase_transition(MATERIAL_ICE, -5.0),
+            select_phase_transition(MATERIAL_ICE, 20.0),
             Some(MATERIAL_WATER)
         );
     }
@@ -228,19 +228,19 @@ mod tests {
 
     #[test]
     fn neutral_temperatures_are_stable() {
-        assert_eq!(select_phase_transition(MATERIAL_WATER, 0.0), None);
-        assert_eq!(select_phase_transition(MATERIAL_ICE, -30.0), None);
-        assert_eq!(select_phase_transition(MATERIAL_STEAM, 80.0), None);
+        assert_eq!(select_phase_transition(MATERIAL_WATER, 20.0), None);
+        assert_eq!(select_phase_transition(MATERIAL_ICE, 0.0), None);
+        assert_eq!(select_phase_transition(MATERIAL_STEAM, 100.0), None);
     }
 
     #[test]
     fn hysteresis_bands_prevent_ping_pong() {
-        // Freeze at -20, melt at -10: -15 is inside the band.
-        assert_eq!(select_phase_transition(MATERIAL_WATER, -15.0), None);
-        assert_eq!(select_phase_transition(MATERIAL_ICE, -15.0), None);
-        // Condense at 40, boil at 60: +50 is inside the band.
-        assert_eq!(select_phase_transition(MATERIAL_WATER, 50.0), None);
-        assert_eq!(select_phase_transition(MATERIAL_STEAM, 50.0), None);
+        // Freeze at -2, melt at 2: 0 is inside the band.
+        assert_eq!(select_phase_transition(MATERIAL_WATER, 0.0), None);
+        assert_eq!(select_phase_transition(MATERIAL_ICE, 0.0), None);
+        // Condense at 95, boil at 100: 97 is inside the band.
+        assert_eq!(select_phase_transition(MATERIAL_WATER, 97.0), None);
+        assert_eq!(select_phase_transition(MATERIAL_STEAM, 97.0), None);
     }
 
     #[test]
@@ -271,9 +271,9 @@ mod tests {
     #[test]
     fn targets_are_registered_matter() {
         let targets = [
-            select_phase_transition(MATERIAL_WATER, -30.0),
-            select_phase_transition(MATERIAL_WATER, 70.0),
-            select_phase_transition(MATERIAL_ICE, 0.0),
+            select_phase_transition(MATERIAL_WATER, -3.0),
+            select_phase_transition(MATERIAL_WATER, 101.0),
+            select_phase_transition(MATERIAL_ICE, 3.0),
             select_phase_transition(MATERIAL_STEAM, 30.0),
         ];
         for target in targets {
@@ -345,7 +345,7 @@ mod tests {
 
     #[test]
     fn boiling_effect_requests_expansion_and_confinement_pressure() {
-        let effect = select_phase_effect(MATERIAL_WATER, 70.0).unwrap();
+        let effect = select_phase_effect(MATERIAL_WATER, 101.0).unwrap();
         assert_eq!(effect.target_material, MATERIAL_STEAM);
         assert_eq!(effect.matter_yield, WATER_BOIL_MATTER_YIELD);
         assert_eq!(effect.blocked_pressure, WATER_BOIL_BLOCKED_PRESSURE);
@@ -354,8 +354,8 @@ mod tests {
     #[test]
     fn non_expanding_phase_rules_keep_identity_yield() {
         for (material, t) in [
-            (MATERIAL_WATER, -30.0),
-            (MATERIAL_ICE, 0.0),
+            (MATERIAL_WATER, -3.0),
+            (MATERIAL_ICE, 3.0),
             (MATERIAL_STEAM, 30.0),
         ] {
             let effect = select_phase_effect(material, t).unwrap();

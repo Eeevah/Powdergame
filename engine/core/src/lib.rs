@@ -22,8 +22,8 @@ pub mod thermal;
 pub mod world_config;
 
 pub use activity::{
-    chunk_count, chunks_x, chunks_y, stable_ticks_update, ACTIVITY_ALL_BITS, ACTIVITY_MATTER,
-    ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE,
+    chunk_count, chunks_x, chunks_y, stable_ticks_update, ACTIVITY_ALL_BITS, ACTIVITY_ENVIRONMENT,
+    ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE,
     CHUNK_STATE_SLEEPING, DEFAULT_SLEEP_THRESHOLD_TICKS, PRESSURE_ACTIVITY_EPS,
     THERMAL_ACTIVITY_EPS, WAKE_REASON_ALWAYS_ACTIVE, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE,
     WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_SETTLING, WAKE_REASON_USER_EDIT,
@@ -45,13 +45,20 @@ pub use decay::{
 
 pub use domain::{initial_material_ids, Domain};
 pub use environment::{
-    air_specific_energy, air_temperature_absolute_like, air_temperature_celsius_like,
-    classify_air_state, combine_whole_parcel, environment_image_from_materials,
-    parcel_has_full_headroom, standard_air_state, vacuum_air_state, validate_air_state, AirState,
-    EmptyEnvironmentSeed, EnvironmentClass, EnvironmentError, EnvironmentImage, AIR_ENERGY_MAX,
-    AIR_HEAT_CAPACITY, AIR_MASS_MAX, AIR_PRESENT_THRESHOLD, AIR_TEMPERATURE_ABS_MAX,
-    AIR_TEMPERATURE_ABS_MIN, AIR_ZERO_OFFSET, AMBIENT_TEMPERATURE_ABS, AMBIENT_TEMPERATURE_C,
-    STANDARD_AIR_ENERGY, STANDARD_AIR_MASS, VACUUM_THRESHOLD,
+    advected_energy, air_face_permeability, air_pressure_like, air_specific_energy,
+    air_temperature_absolute_like, air_temperature_celsius_like, air_transport_cell_step,
+    canonical_air_face_transfer, canonical_directed_face_flow, classify_air_state,
+    combine_whole_parcel, derived_air_pressure, donor_outflow_scale,
+    environment_image_from_materials, parcel_has_full_headroom, pressure_excess,
+    raw_air_face_outflow, raw_directed_air_flow, receiver_accept_scale, standard_air_state,
+    vacuum_air_state, validate_air_state, AirState, EmptyEnvironmentSeed, EnvironmentBoundaryMode,
+    EnvironmentClass, EnvironmentError, EnvironmentImage, ReservoirFaceAccounting, AIR_ENERGY_MAX,
+    AIR_FLOW_RATE, AIR_FLOW_SCALE_SAFETY, AIR_HEAT_CAPACITY, AIR_MASS_MAX,
+    AIR_MAX_OUTFLOW_FRACTION, AIR_PRESENT_THRESHOLD, AIR_PRESSURE_DEADBAND,
+    AIR_TEMPERATURE_ABS_MAX, AIR_TEMPERATURE_ABS_MIN, AIR_THERMAL_CONDUCTIVITY, AIR_ZERO_OFFSET,
+    ALL_OTHER_AIR_PERMEABILITY, AMBIENT_TEMPERATURE_ABS, AMBIENT_TEMPERATURE_C,
+    EMPTY_EMPTY_AIR_PERMEABILITY, ENVIRONMENT_UPDATE_INTERVAL, MATTER_AIR_INTERFACE_CONDUCTANCE,
+    STANDARD_AIR_ENERGY, STANDARD_AIR_MASS, STANDARD_AIR_PRESSURE, VACUUM_THRESHOLD,
 };
 pub use layout::{
     WorldLayout, FLAGS_ELEM_SIZE, MATERIAL_ELEM_SIZE, PRESSURE_ELEM_SIZE, TEMPERATURE_ELEM_SIZE,
@@ -84,8 +91,12 @@ pub use rupture::{
     rupture_threshold, rupture_threshold_table, should_rupture, WOOD_RUPTURE_THRESHOLD,
 };
 pub use thermal::{
-    conductivity_table, heat_capacity_table, sanitize_temperature, thermal_properties,
-    thermal_step, ThermalNeighbor, ThermalProperties, TEMPERATURE_REFERENCE, THERMAL_DEADBAND,
-    THERMAL_MAX_DELTA, THERMAL_MIN_CAPACITY, THERMAL_RATE,
+    canonical_thermal_face_flux, conductivity_table, energy_like_total, heat_capacity_table,
+    passive_thermal_cell_step, sanitize_temperature, thermal_face_conductance,
+    thermal_node_for_cell, thermal_properties, thermal_stability_scale, thermal_step,
+    thermal_work_exists, ThermalNeighbor, ThermalNode, ThermalProperties, TEMPERATURE_MAX_C,
+    TEMPERATURE_MIN_C, TEMPERATURE_REFERENCE, TEMPERATURE_REFERENCE_C, THERMAL_BASE_STEP,
+    THERMAL_DEADBAND, THERMAL_DEADBAND_C, THERMAL_MAX_DELTA, THERMAL_MAX_MIX_FRACTION,
+    THERMAL_MIN_CAPACITY, THERMAL_RATE,
 };
 pub use world_config::{ConfigError, WorldConfig};

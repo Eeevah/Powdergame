@@ -50,10 +50,15 @@ pub const ACTIVITY_THERMAL: u32 = 1 << 1;
 pub const ACTIVITY_PRESSURE: u32 = 1 << 2;
 /// Reaction state actively changing (combustion / decay).
 pub const ACTIVITY_REACTION: u32 = 1 << 3;
+/// Passive Air transport frontier present.
+pub const ACTIVITY_ENVIRONMENT: u32 = 1 << 4;
 
 /// All defined activity bits.
-pub const ACTIVITY_ALL_BITS: u32 =
-    ACTIVITY_MATTER | ACTIVITY_THERMAL | ACTIVITY_PRESSURE | ACTIVITY_REACTION;
+pub const ACTIVITY_ALL_BITS: u32 = ACTIVITY_MATTER
+    | ACTIVITY_THERMAL
+    | ACTIVITY_PRESSURE
+    | ACTIVITY_REACTION
+    | ACTIVITY_ENVIRONMENT;
 
 /// Chunk simulation run/sleep state (G7-B).
 pub const CHUNK_STATE_RUNNABLE: u32 = 0;
@@ -72,8 +77,8 @@ pub const WAKE_REASON_ALWAYS_ACTIVE: u32 = 1 << 4;
 pub const DEFAULT_SLEEP_THRESHOLD_TICKS: u32 = 8;
 
 /// Smallest absolute temperature difference considered a meaningful
-/// thermal frontier (gameplay scalar, not Celsius).
-pub const THERMAL_ACTIVITY_EPS: f32 = 0.001;
+/// thermal frontier (Celsius-like gameplay scalar, not an SI claim).
+pub const THERMAL_ACTIVITY_EPS: f32 = 0.01;
 /// Smallest absolute pressure difference considered a meaningful pressure
 /// frontier.
 pub const PRESSURE_ACTIVITY_EPS: f32 = 0.001;
@@ -120,11 +125,15 @@ mod tests {
 
     #[test]
     fn bit_constants_are_disjoint() {
-        assert_eq!(ACTIVITY_ALL_BITS, 0b1111);
+        assert_eq!(ACTIVITY_ALL_BITS, 0b1_1111);
         assert_eq!(ACTIVITY_MATTER & ACTIVITY_THERMAL, 0);
         assert_eq!(ACTIVITY_THERMAL & ACTIVITY_PRESSURE, 0);
         assert_eq!(ACTIVITY_PRESSURE & ACTIVITY_REACTION, 0);
         assert_eq!(ACTIVITY_REACTION & ACTIVITY_MATTER, 0);
+        assert_eq!(
+            ACTIVITY_ENVIRONMENT & ACTIVITY_ALL_BITS,
+            ACTIVITY_ENVIRONMENT
+        );
     }
 
     #[test]

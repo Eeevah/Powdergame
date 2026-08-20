@@ -439,6 +439,8 @@ function Invoke-DevelopmentAudit {
             movement = "--movement-demo"
             density = "--density-demo"
             thermal = "--thermal-demo"
+            "thermal-environment" = "--thermal-environment-candidate"
+            te2 = "--thermal-environment-candidate"
             pressure = "--pressure-demo"
             "parallel-integrity" = "--parallel-integrity-demo"
             activity = "--activity-demo"
@@ -484,6 +486,7 @@ function Invoke-DevelopmentAudit {
             "default = G9-A first playable Sandbox",
             "normal/gallery = G8-B Benchmark Gallery",
             "sandbox/play = G9-A first playable Sandbox",
+            "thermal-environment/te2 = TE-2 passive Thermal Environment candidate",
             "runtime/g0 = technical empty G0 baseline"
         )
         $declaredUsageTerms = @($contract.usage_required_terms | ForEach-Object { [string]$_ })

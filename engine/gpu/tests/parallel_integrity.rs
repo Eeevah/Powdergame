@@ -9,6 +9,7 @@
 use powdergame_core::{
     WorldConfig, FLAG_COMBUSTING, FLAG_FLAME_EVENT, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL,
     MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
+    TEMPERATURE_MAX_C, TEMPERATURE_MIN_C, TEMPERATURE_REFERENCE_C,
 };
 use powdergame_gpu::Simulation;
 
@@ -99,9 +100,24 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
             expected_readwrite_bindings: &["air_mass_next", "air_energy_next"],
         },
         PassContract {
-            name: "thermal.wgsl",
-            source: include_str!("../src/thermal.wgsl"),
-            expected_readwrite_bindings: &["temperature_next"],
+            name: "air_flow_scale.wgsl",
+            source: include_str!("../src/air_flow_scale.wgsl"),
+            expected_readwrite_bindings: &["donor_scale", "receiver_scale"],
+        },
+        PassContract {
+            name: "air_transport_commit.wgsl",
+            source: include_str!("../src/air_transport_commit.wgsl"),
+            expected_readwrite_bindings: &["air_mass_next", "air_energy_next"],
+        },
+        PassContract {
+            name: "thermal_stability_scale.wgsl",
+            source: include_str!("../src/thermal_stability_scale.wgsl"),
+            expected_readwrite_bindings: &["thermal_lambda"],
+        },
+        PassContract {
+            name: "unified_thermal_commit.wgsl",
+            source: include_str!("../src/unified_thermal_commit.wgsl"),
+            expected_readwrite_bindings: &["temperature_next", "air_energy_next"],
         },
         PassContract {
             name: "phase_transition.wgsl",
@@ -191,6 +207,11 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
                 "chunk_changed_this_tick",
                 "chunk_stable_ticks",
             ],
+        },
+        PassContract {
+            name: "environment_activity_propose.wgsl",
+            source: include_str!("../src/environment_activity_propose.wgsl"),
+            expected_readwrite_bindings: &["cell_activity"],
         },
     ];
 
@@ -421,13 +442,13 @@ fn test_expansion_contention_many_boiling_sources_one_empty_target() {
 
     // 3 boiling Water sources share (8,8) as their first available target.
     set(&sim, 8, 9, MATERIAL_WATER);
-    set_t(&sim, 8, 9, 75.0);
+    set_t(&sim, 8, 9, 120.0);
 
     set(&sim, 7, 9, MATERIAL_WATER);
-    set_t(&sim, 7, 9, 75.0);
+    set_t(&sim, 7, 9, 120.0);
 
     set(&sim, 9, 9, MATERIAL_WATER);
-    set_t(&sim, 9, 9, 75.0);
+    set_t(&sim, 9, 9, 120.0);
 
     assert_eq!(count_material(&sim, MATERIAL_WATER), 3);
     assert_eq!(count_material(&sim, MATERIAL_STEAM), 0);
@@ -477,7 +498,7 @@ fn test_expansion_scratch_reuse_after_movement() {
     set(&sim, 20, 20, MATERIAL_EMPTY);
     set(&sim, 20, 19, MATERIAL_EMPTY); // Air receiver two rows above source.
     set(&sim, 20, 21, MATERIAL_WATER);
-    set_t(&sim, 20, 21, 75.0);
+    set_t(&sim, 20, 21, 120.0);
 
     sim.tick().expect("tick 1");
 
@@ -508,10 +529,10 @@ fn test_smoke_spawn_contention_multiple_burning_sources_one_empty_target() {
     set(&sim, 8, 7, MATERIAL_EMPTY);
     set(&sim, 8, 6, MATERIAL_EMPTY); // Air receiver outside every source stencil.
 
-    // 3 burning Wood sources at (8, 8), (7, 8), (9, 8) at T=150.0.
+    // 3 burning Wood sources above the 250 C sustain threshold.
     for &x in &[7, 8, 9] {
         set(&sim, x, 8, MATERIAL_WOOD);
-        set_t(&sim, x, 8, 150.0);
+        set_t(&sim, x, 8, 350.0);
         set_f(&sim, x, 8, FLAG_COMBUSTING | FLAG_FLAME_EVENT);
     }
 
@@ -551,7 +572,7 @@ fn test_smoke_scratch_reuse_after_movement_and_expansion() {
     set(&sim, 12, 12, MATERIAL_EMPTY);
     set(&sim, 13, 12, MATERIAL_EMPTY); // expansion Air receiver
     set(&sim, 12, 13, MATERIAL_WATER);
-    set_t(&sim, 12, 13, 75.0);
+    set_t(&sim, 12, 13, 120.0);
 
     // 3. Smoke spawn active in region C (enclosed in Stone).
     for x in 22..=26 {
@@ -562,10 +583,10 @@ fn test_smoke_scratch_reuse_after_movement_and_expansion() {
     set(&sim, 24, 23, MATERIAL_EMPTY);
     set(&sim, 24, 22, MATERIAL_EMPTY); // Smoke Air receiver
     set(&sim, 24, 24, MATERIAL_WOOD);
-    set_t(&sim, 24, 24, 150.0);
+    set_t(&sim, 24, 24, 350.0);
     set_f(&sim, 24, 24, FLAG_COMBUSTING | FLAG_FLAME_EVENT);
     set(&sim, 23, 24, MATERIAL_WOOD);
-    set_t(&sim, 23, 24, 150.0);
+    set_t(&sim, 23, 24, 350.0);
     set_f(&sim, 23, 24, FLAG_COMBUSTING | FLAG_FLAME_EVENT);
 
     sim.tick().expect("tick 1");
@@ -639,7 +660,7 @@ fn test_mixed_integrity_stress_long_run() {
     for y in 20..=22 {
         for x in 38..=46 {
             set(&sim, x, y, MATERIAL_WOOD);
-            set_t(&sim, x, y, 120.0);
+            set_t(&sim, x, y, 350.0);
             set_f(&sim, x, y, FLAG_COMBUSTING | FLAG_FLAME_EVENT);
         }
     }
@@ -662,11 +683,11 @@ fn test_mixed_integrity_stress_long_run() {
         set(&sim, x, 55, MATERIAL_STONE);
         set_t(&sim, x, 55, 200.0);
     }
-    // Water at T=55.0.
+    // Water above the 100 C boiling threshold.
     for y in 40..=54 {
         for x in 5..=15 {
             set(&sim, x, y, MATERIAL_WATER);
-            set_t(&sim, x, y, 55.0);
+            set_t(&sim, x, y, 120.0);
         }
     }
 
@@ -722,7 +743,7 @@ fn test_mixed_integrity_stress_long_run() {
 
         // 2. Temperature finite.
         assert!(
-            t.is_finite() && (-100.0..=2000.0).contains(&t),
+            t.is_finite() && (TEMPERATURE_MIN_C..=TEMPERATURE_MAX_C).contains(&t),
             "non-finite or runaway temperature {} at index {}",
             t,
             i
@@ -739,9 +760,9 @@ fn test_mixed_integrity_stress_long_run() {
         // 4. EMPTY hygiene.
         if m == MATERIAL_EMPTY {
             assert_eq!(
-                t, 0.0,
-                "EMPTY cell at index {} must have reference temperature 0.0, got {}",
-                i, t
+                t, TEMPERATURE_REFERENCE_C,
+                "EMPTY cell at index {} must have reference temperature {}, got {}",
+                i, TEMPERATURE_REFERENCE_C, t
             );
             assert_eq!(
                 f, 0,

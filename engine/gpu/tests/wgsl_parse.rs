@@ -32,7 +32,22 @@ fn all_production_wgsl_parses_without_a_gpu() {
             "environment_reconcile_movement.wgsl",
             include_str!("../src/environment_reconcile_movement.wgsl"),
         ),
-        ("thermal.wgsl", include_str!("../src/thermal.wgsl")),
+        (
+            "air_flow_scale.wgsl",
+            include_str!("../src/air_flow_scale.wgsl"),
+        ),
+        (
+            "air_transport_commit.wgsl",
+            include_str!("../src/air_transport_commit.wgsl"),
+        ),
+        (
+            "thermal_stability_scale.wgsl",
+            include_str!("../src/thermal_stability_scale.wgsl"),
+        ),
+        (
+            "unified_thermal_commit.wgsl",
+            include_str!("../src/unified_thermal_commit.wgsl"),
+        ),
         (
             "phase_transition.wgsl",
             include_str!("../src/phase_transition.wgsl"),
@@ -82,6 +97,10 @@ fn all_production_wgsl_parses_without_a_gpu() {
             "activity_reduce.wgsl",
             include_str!("../src/activity_reduce.wgsl"),
         ),
+        (
+            "environment_activity_propose.wgsl",
+            include_str!("../src/environment_activity_propose.wgsl"),
+        ),
     ];
 
     for (name, source) in shaders {
@@ -90,15 +109,51 @@ fn all_production_wgsl_parses_without_a_gpu() {
 }
 
 #[test]
-fn te1_keeps_air_out_of_thermal_and_pressure_coupling() {
+fn te2_keeps_air_out_of_pressure_coupling() {
     for (name, source) in [
-        ("thermal.wgsl", include_str!("../src/thermal.wgsl")),
         ("pressure.wgsl", include_str!("../src/pressure.wgsl")),
         ("rupture.wgsl", include_str!("../src/rupture.wgsl")),
     ] {
         assert!(
             !source.contains("air_mass") && !source.contains("air_energy"),
-            "{name} must not couple Matter thermal/pressure physics to Air in TE-1"
+            "{name} must not couple Pressure physics to Air in TE-2"
+        );
+    }
+}
+
+#[test]
+fn te2_passes_stay_within_the_eight_storage_binding_limit() {
+    for (name, source) in [
+        (
+            "air_flow_scale.wgsl",
+            include_str!("../src/air_flow_scale.wgsl"),
+        ),
+        (
+            "air_transport_commit.wgsl",
+            include_str!("../src/air_transport_commit.wgsl"),
+        ),
+        (
+            "thermal_stability_scale.wgsl",
+            include_str!("../src/thermal_stability_scale.wgsl"),
+        ),
+        (
+            "unified_thermal_commit.wgsl",
+            include_str!("../src/unified_thermal_commit.wgsl"),
+        ),
+        (
+            "environment_activity_propose.wgsl",
+            include_str!("../src/environment_activity_propose.wgsl"),
+        ),
+    ] {
+        let module = naga::front::wgsl::parse_str(source).unwrap();
+        let storage_bindings = module
+            .global_variables
+            .iter()
+            .filter(|(_, variable)| matches!(variable.space, naga::AddressSpace::Storage { .. }))
+            .count();
+        assert!(
+            storage_bindings <= 8,
+            "{name} declares {storage_bindings} storage bindings"
         );
     }
 }

@@ -40,7 +40,7 @@ const NO_CLAIM: u32 = 0u;
 const KIND_SOURCE: u32 = 1u;
 const KIND_DEST: u32 = 2u;
 const VOID_PEER: u32 = 0x3FFFFFFFu;
-const TEMPERATURE_REFERENCE: f32 = 0.0;
+const TEMPERATURE_REFERENCE: f32 = 20.0;
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> material_current: array<u32>;

@@ -289,18 +289,18 @@ impl GpuWorld {
             usage: world_usage(),
         });
 
-        let temperature_current = create_zeroed_buffer(
-            device,
-            "world/temperature/current",
-            layout.temperature_bytes,
-            world_usage(),
-        )?;
-        let temperature_next = create_zeroed_buffer(
-            device,
-            "world/temperature/next",
-            layout.temperature_bytes,
-            world_usage(),
-        )?;
+        let reference_temperatures = vec![TEMPERATURE_REFERENCE; layout.cell_count as usize];
+        let reference_temperature_bytes = f32_bytes(&reference_temperatures);
+        let temperature_current = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/temperature/current"),
+            contents: &reference_temperature_bytes,
+            usage: world_usage(),
+        });
+        let temperature_next = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/temperature/next"),
+            contents: &reference_temperature_bytes,
+            usage: world_usage(),
+        });
         let pressure_current = create_zeroed_buffer(
             device,
             "world/pressure/current",
@@ -461,7 +461,7 @@ impl GpuWorld {
     }
 
     /// Resets all dense GPU world state and scratch buffers to the pristine
-    /// initial state (outermost ring BOUNDARY_BLOCK, interior EMPTY, zero temperatures,
+    /// initial state (outermost ring BOUNDARY_BLOCK, interior EMPTY, reference temperatures,
     /// zero pressures, zero flags, cleared proposal/claim scratch buffers, zeroed activity/diagnostics).
     ///
     /// Uses bulk uploads via `queue.write_buffer` instead of per-cell edits, eliminating
@@ -477,9 +477,11 @@ impl GpuWorld {
         queue.write_buffer(&self.material_current, 0, &material_bytes);
         queue.write_buffer(&self.material_next, 0, &material_bytes);
 
+        let reference_temperatures = vec![TEMPERATURE_REFERENCE; initial_ids.len()];
+        let temperature_bytes = f32_bytes(&reference_temperatures);
+        queue.write_buffer(&self.temperature_current, 0, &temperature_bytes);
+        queue.write_buffer(&self.temperature_next, 0, &temperature_bytes);
         let zero_cells = vec![0u8; self.layout.material_bytes as usize];
-        queue.write_buffer(&self.temperature_current, 0, &zero_cells);
-        queue.write_buffer(&self.temperature_next, 0, &zero_cells);
         queue.write_buffer(&self.pressure_current, 0, &zero_cells);
         queue.write_buffer(&self.pressure_next, 0, &zero_cells);
         queue.write_buffer(&self.flags_current, 0, &zero_cells);
@@ -583,27 +585,68 @@ impl GpuWorld {
                 MAX_ENVIRONMENT_TEST_READBACK_CELLS
             )));
         }
-        let mut observations = Vec::with_capacity(cells.len());
-        for &(x, y) in cells {
+        if cells.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        const VALUES_PER_CELL: u64 = 4;
+        const BYTES_PER_CELL: u64 = VALUES_PER_CELL * 4;
+        let staging = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("world/bounded-environment-readback-staging"),
+            size: cells.len() as u64 * BYTES_PER_CELL,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("world-bounded-environment-readback-encoder"),
+        });
+        for (ordinal, &(x, y)) in cells.iter().enumerate() {
             let index = self
                 .domain
                 .index(x, y)
                 .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
-            let offset = index * 4;
-            let read = |buffer: &wgpu::Buffer| -> Result<f32, GpuError> {
-                let bytes = read_back_bytes(device, queue, buffer, offset, 4)?;
-                Ok(f32::from_ne_bytes(bytes[..4].try_into().unwrap()))
+            let source_offset = index * 4;
+            let destination = ordinal as u64 * BYTES_PER_CELL;
+            for (slot, source) in [
+                &self.air_mass_current,
+                &self.air_energy_current,
+                &self.air_mass_next,
+                &self.air_energy_next,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                encoder.copy_buffer_to_buffer(
+                    source,
+                    source_offset,
+                    &staging,
+                    destination + slot as u64 * 4,
+                    4,
+                );
+            }
+        }
+        queue.submit([encoder.finish()]);
+        let bytes = map_readback_buffer(device, &staging)?;
+        let mut observations = Vec::with_capacity(cells.len());
+        for (ordinal, &(x, y)) in cells.iter().enumerate() {
+            let start = ordinal * BYTES_PER_CELL as usize;
+            let value = |slot: usize| {
+                f32::from_ne_bytes(
+                    bytes[start + slot * 4..start + slot * 4 + 4]
+                        .try_into()
+                        .unwrap(),
+                )
             };
             observations.push(EnvironmentCellSnapshot {
                 x,
                 y,
                 current: powdergame_core::AirState {
-                    mass: read(&self.air_mass_current)?,
-                    energy: read(&self.air_energy_current)?,
+                    mass: value(0),
+                    energy: value(1),
                 },
                 next: powdergame_core::AirState {
-                    mass: read(&self.air_mass_next)?,
-                    energy: read(&self.air_energy_next)?,
+                    mass: value(2),
+                    energy: value(3),
                 },
             });
         }
@@ -1066,6 +1109,26 @@ fn f32_bytes(values: &[f32]) -> Vec<u8> {
     bytes
 }
 
+fn map_readback_buffer(device: &wgpu::Device, staging: &wgpu::Buffer) -> Result<Vec<u8>, GpuError> {
+    let _ = device.poll(wgpu::PollType::Wait);
+    let slice = staging.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |result| {
+        let _ = tx.send(result);
+    });
+    let _ = device.poll(wgpu::PollType::Wait);
+
+    rx.recv()
+        .map_err(|e| GpuError::ReadbackFailed(format!("map callback lost: {e}")))?
+        .map_err(|e| GpuError::ReadbackFailed(e.to_string()))?;
+
+    let mapped = slice.get_mapped_range();
+    let data = mapped.to_vec();
+    drop(mapped);
+    staging.unmap();
+    Ok(data)
+}
+
 /// Copies `size` bytes out of `source` at `offset` and maps them back to CPU.
 fn read_back_bytes(
     device: &wgpu::Device,
@@ -1086,25 +1149,7 @@ fn read_back_bytes(
     });
     encoder.copy_buffer_to_buffer(source, offset, &staging, 0, size);
     queue.submit([encoder.finish()]);
-
-    let _ = device.poll(wgpu::PollType::Wait);
-
-    let slice = staging.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
-    slice.map_async(wgpu::MapMode::Read, move |result| {
-        let _ = tx.send(result);
-    });
-    let _ = device.poll(wgpu::PollType::Wait);
-
-    rx.recv()
-        .map_err(|e| GpuError::ReadbackFailed(format!("map callback lost: {e}")))?
-        .map_err(|e| GpuError::ReadbackFailed(e.to_string()))?;
-
-    let mapped = slice.get_mapped_range();
-    let data = mapped.to_vec();
-    drop(mapped);
-    staging.unmap();
-    Ok(data)
+    map_readback_buffer(device, &staging)
 }
 
 /// `material_id` value for an empty cell, re-exported for shader-side

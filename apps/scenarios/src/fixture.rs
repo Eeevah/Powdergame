@@ -813,16 +813,16 @@ fn build_active_sleep_g7(builder: &mut FixtureBuilder) -> Result<(), ScenarioErr
 
     builder.fill_material_inclusive(140, 40, 231, 92, MATERIAL_STONE)?;
     builder.fill_material_inclusive(143, 43, 228, 88, MATERIAL_STEAM)?;
-    builder.fill_temperature_inclusive(140, 40, 231, 92, 80.0)?;
+    builder.fill_temperature_inclusive(140, 40, 231, 92, 120.0)?;
 
     builder.fill_material_inclusive(96, 245, 110, 247, MATERIAL_STONE)?;
     builder.fill_material_inclusive(100, 150, 106, 165, MATERIAL_SAND)?;
 
     builder.fill_material_inclusive(140, 174, 149, 179, MATERIAL_STONE)?;
-    builder.fill_temperature_inclusive(140, 174, 149, 179, 200.0)?;
+    builder.fill_temperature_inclusive(140, 174, 149, 179, 350.0)?;
     builder.fill_material_inclusive(150, 175, 200, 178, MATERIAL_WOOD)?;
     builder.fill_material_inclusive(210, 231, 245, 236, MATERIAL_STONE)?;
-    builder.fill_temperature_inclusive(210, 231, 245, 236, 200.0)?;
+    builder.fill_temperature_inclusive(210, 231, 245, 236, 350.0)?;
     builder.fill_material_inclusive(214, 229, 240, 230, MATERIAL_STONE)?;
     builder.fill_material_inclusive(214, 210, 240, 211, MATERIAL_STONE)?;
     builder.fill_material_inclusive(226, 210, 229, 211, MATERIAL_EMPTY)?;
@@ -967,7 +967,7 @@ mod tests {
         assert_eq!(fixture.materials[cell(&fixture, 143, 43)], MATERIAL_STEAM);
         assert_eq!(
             fixture.temperatures[cell(&fixture, 143, 43)].to_bits(),
-            80.0f32.to_bits()
+            120.0f32.to_bits()
         );
         assert_eq!(fixture.materials[cell(&fixture, 100, 150)], MATERIAL_SAND);
         assert_eq!(fixture.materials[cell(&fixture, 150, 175)], MATERIAL_WOOD);

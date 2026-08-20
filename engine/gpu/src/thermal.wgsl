@@ -23,8 +23,8 @@ struct Params {
 
 const EMPTY: u32 = 0u;
 const TABLE_LEN: u32 = 16u;
-const TEMPERATURE_REFERENCE: f32 = 0.0;
-const THERMAL_DEADBAND: f32 = 0.0001;
+const TEMPERATURE_REFERENCE: f32 = 20.0;
+const THERMAL_DEADBAND: f32 = 0.01;
 const THERMAL_RATE: f32 = 0.12;
 const THERMAL_MAX_DELTA: f32 = 25.0;
 const THERMAL_MIN_CAPACITY: f32 = 0.25;
@@ -76,7 +76,7 @@ fn accumulate(self_t: f32, k_self: f32, nx: i32, ny: i32) -> f32 {
     }
     let n_t = sanitize(temperature_current[nidx]);
     let delta = n_t - self_t;
-    if (abs(delta) < THERMAL_DEADBAND) {
+    if (abs(delta) <= THERMAL_DEADBAND) {
         return 0.0;
     }
     let k_eff = min(k_self, lookup_k(nid));

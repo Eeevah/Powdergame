@@ -10,7 +10,7 @@
 //! density/displacement (G3), no temperature/pressure (G4).
 //!
 //! G4-B note: Steam now has a condensation phase rule, so Steam fixtures
-//! place Steam at a stable hot temperature (T = 80.0, above the 40.0
+//! place Steam at a stable hot temperature (T = 500 C, above the 95 C
 //! condensation threshold) — the movement intent itself is unchanged.
 //!
 //! Note: the default 8×8 fixture has 28 boundary-ring blocks, so absolute
@@ -23,8 +23,8 @@ use powdergame_core::{
 };
 use powdergame_gpu::{GpuError, Simulation};
 
-/// Stable hot temperature for Steam fixtures (above condensation 40.0).
-const STEAM_STABLE_T: f32 = 80.0;
+/// Stable hot temperature for Steam fixtures during multi-tick Air cooling.
+const STEAM_STABLE_T: f32 = 500.0;
 
 fn make_sim(config: WorldConfig) -> Simulation {
     pollster::block_on(Simulation::new(config)).expect("DX12 + RTX 5090 simulation init")

@@ -21,6 +21,8 @@ if /i "%~1"=="g0" goto route_runtime
 if /i "%~1"=="movement" goto route_movement
 if /i "%~1"=="density" goto route_density
 if /i "%~1"=="thermal" goto route_thermal
+if /i "%~1"=="thermal-environment" goto route_thermal_environment
+if /i "%~1"=="te2" goto route_thermal_environment
 if /i "%~1"=="pressure" goto route_pressure
 if /i "%~1"=="parallel-integrity" goto route_parallel_integrity
 if /i "%~1"=="activity" goto route_activity
@@ -44,6 +46,15 @@ goto build
 
 :route_thermal
 set "APP_ARGS=--thermal-demo"
+goto build
+
+:route_thermal_environment
+set "APP_ARGS=--thermal-environment-candidate"
+if "%~2"=="" goto build
+if /i not "%~2"=="--smoke-frames" goto usage
+if "%~3"=="" goto usage
+if not "%~4"=="" goto usage
+set "APP_ARGS=--thermal-environment-candidate --smoke-frames %~3"
 goto build
 
 :route_pressure
@@ -91,9 +102,10 @@ echo POWDERGAME_LAUNCHER_AUDIT_ARGS=%APP_ARGS%
 exit /b 0
 
 :usage
-echo Usage: run_powdergame.bat [sandbox^|play^|normal^|gallery^|runtime^|g0^|movement^|density^|thermal^|pressure^|parallel-integrity^|activity^|app CLI args...] 1>&2
+echo Usage: run_powdergame.bat [sandbox^|play^|thermal-environment^|te2^|normal^|gallery^|runtime^|g0^|movement^|density^|thermal^|pressure^|parallel-integrity^|activity^|app CLI args...] 1>&2
 echo   default = G9-A first playable Sandbox ^(no args^) 1>&2
 echo   normal/gallery = G8-B Benchmark Gallery 1>&2
 echo   sandbox/play = G9-A first playable Sandbox 1>&2
+echo   thermal-environment/te2 = TE-2 passive Thermal Environment candidate 1>&2
 echo   runtime/g0 = technical empty G0 baseline 1>&2
 exit /b 2

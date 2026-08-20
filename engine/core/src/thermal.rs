@@ -1,31 +1,41 @@
-//! G4-A thermal baseline — CPU reference rule.
+//! TE-2 unified passive thermal exchange — CPU reference rules.
 //!
 //! Temperature is a per-cell `f32` field (`SIMULATION_SPEC` §13). It is not
 //! a Material property. Material only supplies cheap gameplay conductivity
 //! and heat-capacity used by the local 4-neighbor transfer.
 //!
 //! Contracts:
-//! - EMPTY is not a hidden thermal medium: no heat flows through EMPTY/Void.
+//! - EMPTY has no Matter node; valid positive Air may provide an Environment node.
 //! - Read Neighbors → Write Self. The caller writes only `self` next T.
 //! - No ownership claim/resolve (this is a local field update).
-//! - `0.0` is the simulation reference temperature (not Celsius).
-//! - NaN / Infinity collapse to the reference. Per-tick delta is clamped.
-//! - Exact global energy conservation is NOT required.
+//! - Gameplay temperatures use a Celsius-like scale with a 20 °C reference.
+//! - NaN / Infinity collapse to the reference and finite values are bounded.
+//! - Canonical face flux is equal and opposite; source-free energy-like totals
+//!   are conserved within floating-point tolerance.
 
 use crate::material::{registry_lookup, MATERIAL_EMPTY, MATERIAL_REGISTRY};
+use crate::{air_temperature_celsius_like, AirState, AIR_HEAT_CAPACITY};
 
-/// Simulation reference temperature. The initial world is filled with this
-/// value; it is a relative hot/cold scalar, not a physical unit.
-pub const TEMPERATURE_REFERENCE: f32 = 0.0;
+/// Simulation reference temperature on the Celsius-like gameplay scale.
+pub const TEMPERATURE_REFERENCE_C: f32 = 20.0;
+/// Compatibility name used by existing staging and evidence code.
+pub const TEMPERATURE_REFERENCE: f32 = TEMPERATURE_REFERENCE_C;
+pub const TEMPERATURE_MIN_C: f32 = -250.0;
+pub const TEMPERATURE_MAX_C: f32 = 2_000.0;
 
 /// Differences smaller than this are treated as equilibrium (no transfer).
-pub const THERMAL_DEADBAND: f32 = 1.0e-4;
+pub const THERMAL_DEADBAND_C: f32 = 0.01;
+pub const THERMAL_DEADBAND: f32 = THERMAL_DEADBAND_C;
 
 /// Global transfer rate. Chosen so 4 high-k neighbors cannot overshoot
 /// into runaway under explicit Euler.
-pub const THERMAL_RATE: f32 = 0.12;
+pub const THERMAL_BASE_STEP: f32 = 0.12;
+pub const THERMAL_RATE: f32 = THERMAL_BASE_STEP;
 
 /// Absolute per-tick temperature change clamp.
+pub const THERMAL_MAX_MIX_FRACTION: f32 = 0.25;
+/// Retained only as an API compatibility constant for authored tools. The
+/// production TE-2 exchange uses stability scaling, not a per-cell clamp.
 pub const THERMAL_MAX_DELTA: f32 = 25.0;
 
 /// Floor on heat capacity so a zero/tiny C cannot explode the update.
@@ -74,10 +84,136 @@ pub struct ThermalNeighbor {
 /// Collapses non-finite values to the reference temperature.
 pub fn sanitize_temperature(t: f32) -> f32 {
     if t.is_finite() {
-        t
+        t.clamp(TEMPERATURE_MIN_C, TEMPERATURE_MAX_C)
     } else {
         TEMPERATURE_REFERENCE
     }
+}
+
+/// The one thermal node exposed by a cell in the TE-2 model.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ThermalNode {
+    Matter {
+        temperature_c: f32,
+        conductivity: f32,
+        capacity: f32,
+    },
+    Air {
+        temperature_c: f32,
+        capacity: f32,
+    },
+}
+
+impl ThermalNode {
+    pub fn temperature_c(self) -> f32 {
+        match self {
+            Self::Matter { temperature_c, .. } | Self::Air { temperature_c, .. } => temperature_c,
+        }
+    }
+
+    pub fn capacity(self) -> f32 {
+        match self {
+            Self::Matter { capacity, .. } | Self::Air { capacity, .. } => capacity,
+        }
+    }
+}
+
+/// Selects exactly one active thermal node. Occupied Matter owns its
+/// temperature; EMPTY may expose valid positive Air; Vacuum exposes none.
+pub fn thermal_node_for_cell(
+    material: u32,
+    matter_temperature_c: f32,
+    air: AirState,
+) -> Option<ThermalNode> {
+    if material != MATERIAL_EMPTY {
+        let props = thermal_properties(material)?;
+        return Some(ThermalNode::Matter {
+            temperature_c: sanitize_temperature(matter_temperature_c),
+            conductivity: props.conductivity.max(0.0),
+            capacity: props.heat_capacity.max(THERMAL_MIN_CAPACITY),
+        });
+    }
+    let temperature_c = air_temperature_celsius_like(air)?;
+    let capacity = air.mass * AIR_HEAT_CAPACITY;
+    (air.mass > 0.0 && capacity.is_finite() && capacity > 0.0).then_some(ThermalNode::Air {
+        temperature_c: sanitize_temperature(temperature_c),
+        capacity,
+    })
+}
+
+/// Conductance of a canonical thermal face.
+pub fn thermal_face_conductance(a: ThermalNode, b: ThermalNode) -> f32 {
+    use crate::{AIR_THERMAL_CONDUCTIVITY, MATTER_AIR_INTERFACE_CONDUCTANCE};
+    match (a, b) {
+        (
+            ThermalNode::Matter {
+                conductivity: ka, ..
+            },
+            ThermalNode::Matter {
+                conductivity: kb, ..
+            },
+        ) => ka.min(kb).max(0.0),
+        (ThermalNode::Air { .. }, ThermalNode::Air { .. }) => AIR_THERMAL_CONDUCTIVITY,
+        (ThermalNode::Matter { conductivity, .. }, ThermalNode::Air { .. })
+        | (ThermalNode::Air { .. }, ThermalNode::Matter { conductivity, .. }) => {
+            conductivity.clamp(0.0, MATTER_AIR_INTERFACE_CONDUCTANCE)
+        }
+    }
+}
+
+/// Per-node explicit stability factor used by every adjacent canonical face.
+pub fn thermal_stability_scale(node: ThermalNode, conductance_sum: f32) -> f32 {
+    if !conductance_sum.is_finite() || conductance_sum <= 0.0 {
+        return 0.0;
+    }
+    (THERMAL_MAX_MIX_FRACTION * node.capacity() / (THERMAL_BASE_STEP * conductance_sum))
+        .clamp(0.0, 1.0)
+}
+
+/// Shared TE-2 physics/activity predicate.
+pub fn thermal_work_exists(delta_c: f32) -> bool {
+    delta_c.is_finite() && delta_c.abs() > THERMAL_DEADBAND_C
+}
+
+/// Signed energy-like flux from the low-index endpoint to the high-index
+/// endpoint. Both endpoints must derive this from the same Current snapshot.
+pub fn canonical_thermal_face_flux(
+    low: ThermalNode,
+    high: ThermalNode,
+    lambda_low: f32,
+    lambda_high: f32,
+) -> f32 {
+    let conductance = thermal_face_conductance(low, high);
+    let delta = high.temperature_c() - low.temperature_c();
+    // The deadband is a work/no-work gate, never a quantity subtracted from
+    // a real temperature difference. This avoids an asymptotic active tail.
+    let effective_delta = if thermal_work_exists(delta) {
+        delta
+    } else {
+        0.0
+    };
+    let flux = THERMAL_BASE_STEP
+        * lambda_low.clamp(0.0, 1.0).min(lambda_high.clamp(0.0, 1.0))
+        * conductance
+        * effective_delta;
+    if flux.is_finite() {
+        flux
+    } else {
+        0.0
+    }
+}
+
+/// Applies the signed sum of incoming energy-like flux to one node.
+pub fn passive_thermal_cell_step(node: ThermalNode, incoming_energy: f32) -> f32 {
+    sanitize_temperature(node.temperature_c() + incoming_energy / node.capacity())
+}
+
+/// Sums energy-like values used by conservation fixtures.
+pub fn energy_like_total(nodes: &[ThermalNode]) -> f64 {
+    nodes
+        .iter()
+        .map(|node| node.temperature_c() as f64 * node.capacity() as f64)
+        .sum()
 }
 
 /// One explicit-Euler self update from the 4 orthogonal neighbors.
@@ -106,7 +242,7 @@ pub fn thermal_step(
         };
         let n_t = sanitize_temperature(neighbor.temperature);
         let delta = n_t - self_t;
-        if delta.abs() < THERMAL_DEADBAND {
+        if !thermal_work_exists(delta) {
             continue;
         }
         let k_eff = k_self.min(n_props.conductivity.max(0.0));
@@ -216,5 +352,79 @@ mod tests {
         assert!(c[MATERIAL_STEAM as usize] > 0.0);
         assert!(c[MATERIAL_SMOKE as usize] > 0.0);
         assert!(k[MATERIAL_STONE as usize] > 0.0);
+    }
+
+    #[derive(Clone, Copy)]
+    enum PairKind {
+        MatterMatter,
+        AirAir,
+        MatterAir,
+    }
+
+    fn node(kind: PairKind, left: bool, temperature_c: f32) -> ThermalNode {
+        match (kind, left) {
+            (PairKind::MatterMatter, _) | (PairKind::MatterAir, true) => ThermalNode::Matter {
+                temperature_c,
+                conductivity: 0.25,
+                capacity: 1.0,
+            },
+            (PairKind::AirAir, _) | (PairKind::MatterAir, false) => ThermalNode::Air {
+                temperature_c,
+                capacity: 1.0,
+            },
+        }
+    }
+
+    #[test]
+    fn small_delta_thermal_convergence_is_monotone_and_scale_independent() {
+        for kind in [
+            PairKind::MatterMatter,
+            PairKind::AirAir,
+            PairKind::MatterAir,
+        ] {
+            for baseline in [20.0f32, 500.0] {
+                for initial_delta in [1.0f32, 0.1, 0.02, 0.011, 0.009] {
+                    let mut cold = baseline;
+                    let mut hot = baseline + initial_delta;
+                    let initial_total =
+                        energy_like_total(&[node(kind, true, cold), node(kind, false, hot)]);
+                    let should_work = initial_delta > THERMAL_DEADBAND_C;
+                    let mut converged = !should_work;
+                    for tick in 0..4096 {
+                        let low = node(kind, true, cold);
+                        let high = node(kind, false, hot);
+                        let conductance = thermal_face_conductance(low, high);
+                        let flux = canonical_thermal_face_flux(
+                            low,
+                            high,
+                            thermal_stability_scale(low, conductance),
+                            thermal_stability_scale(high, conductance),
+                        );
+                        if tick == 0 {
+                            assert_eq!(flux != 0.0, should_work);
+                            assert_eq!(thermal_work_exists(hot - cold), should_work);
+                        }
+                        let previous_cold = cold;
+                        let previous_hot = hot;
+                        cold = passive_thermal_cell_step(low, flux);
+                        hot = passive_thermal_cell_step(high, -flux);
+                        assert!(cold >= previous_cold && hot <= previous_hot);
+                        assert!(cold <= hot, "hot/cold ordering reversed");
+                        assert!(cold >= baseline && hot <= baseline + initial_delta);
+                        let total =
+                            energy_like_total(&[node(kind, true, cold), node(kind, false, hot)]);
+                        assert!((total - initial_total).abs() <= 2.0e-4);
+                        if !thermal_work_exists(hot - cold) {
+                            converged = true;
+                            break;
+                        }
+                    }
+                    assert!(
+                        converged,
+                        "delta {initial_delta} at {baseline} did not converge"
+                    );
+                }
+            }
+        }
     }
 }

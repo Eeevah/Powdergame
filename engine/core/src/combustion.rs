@@ -56,18 +56,18 @@ pub const FLAG_FUEL_PROGRESS_SHIFT: u32 = 4;
 pub const FLAG_FUEL_PROGRESS_MASK: u32 = 0x0FFF << FLAG_FUEL_PROGRESS_SHIFT;
 
 /// Gameplay cap on combustion heat (finite, not a physical unit).
-pub const COMBUSTION_MAX_TEMPERATURE: f32 = 1000.0;
+pub const COMBUSTION_MAX_TEMPERATURE: f32 = 1200.0;
 
 /// Oil baseline tuning (relative gameplay scalar, not physical units).
-pub const COMBUSTION_OIL_IGNITION: f32 = 75.0;
-pub const COMBUSTION_OIL_SUSTAIN: f32 = 45.0;
-pub const COMBUSTION_OIL_HEAT_PER_TICK: f32 = 5.0;
+pub const COMBUSTION_OIL_IGNITION: f32 = 200.0;
+pub const COMBUSTION_OIL_SUSTAIN: f32 = 150.0;
+pub const COMBUSTION_OIL_HEAT_PER_TICK: f32 = 6.0;
 /// Oil fuel: 600 active burn ticks ≈ 10 s at 60 TPS (gameplay baseline).
 pub const COMBUSTION_OIL_BURN_DURATION: u32 = 600;
 
 /// Wood baseline tuning (relative gameplay scalar, not physical units).
-pub const COMBUSTION_WOOD_IGNITION: f32 = 90.0;
-pub const COMBUSTION_WOOD_SUSTAIN: f32 = 55.0;
+pub const COMBUSTION_WOOD_IGNITION: f32 = 300.0;
+pub const COMBUSTION_WOOD_SUSTAIN: f32 = 250.0;
 pub const COMBUSTION_WOOD_HEAT_PER_TICK: f32 = 4.0;
 /// Wood fuel: 900 active burn ticks ≈ 15 s at 60 TPS (gameplay baseline).
 pub const COMBUSTION_WOOD_BURN_DURATION: u32 = 900;
@@ -351,28 +351,28 @@ mod tests {
     #[test]
     fn oil_ignition_threshold() {
         // below ignition → off, at/above → ignite
-        assert!(!combustion_step(MATERIAL_OIL, 74.0, 0).burning);
-        assert!(combustion_step(MATERIAL_OIL, 75.0, 0).burning);
-        assert!(combustion_step(MATERIAL_OIL, 100.0, 0).burning);
+        assert!(!combustion_step(MATERIAL_OIL, 199.0, 0).burning);
+        assert!(combustion_step(MATERIAL_OIL, 200.0, 0).burning);
+        assert!(combustion_step(MATERIAL_OIL, 250.0, 0).burning);
     }
 
     #[test]
     fn wood_ignition_threshold() {
-        assert!(!combustion_step(MATERIAL_WOOD, 89.0, 0).burning);
-        assert!(combustion_step(MATERIAL_WOOD, 90.0, 0).burning);
-        assert!(combustion_step(MATERIAL_WOOD, 120.0, 0).burning);
+        assert!(!combustion_step(MATERIAL_WOOD, 299.0, 0).burning);
+        assert!(combustion_step(MATERIAL_WOOD, 300.0, 0).burning);
+        assert!(combustion_step(MATERIAL_WOOD, 350.0, 0).burning);
     }
 
     #[test]
     fn burning_above_sustain_continues() {
-        let result = combustion_step(MATERIAL_OIL, 50.0, FLAG_COMBUSTING);
+        let result = combustion_step(MATERIAL_OIL, 175.0, FLAG_COMBUSTING);
         assert!(result.burning);
         assert!(result.flame_event);
     }
 
     #[test]
     fn burning_below_sustain_extinguishes() {
-        let result = combustion_step(MATERIAL_OIL, 44.0, FLAG_COMBUSTING);
+        let result = combustion_step(MATERIAL_OIL, 149.0, FLAG_COMBUSTING);
         assert!(!result.burning);
         assert!(!result.flame_event);
         // Extinguished matter keeps its (finite) temperature.
@@ -381,20 +381,20 @@ mod tests {
 
     #[test]
     fn burning_adds_heat() {
-        let result = combustion_step(MATERIAL_OIL, 80.0, FLAG_COMBUSTING);
+        let result = combustion_step(MATERIAL_OIL, 200.0, FLAG_COMBUSTING);
         assert_eq!(
-            result.temperature, 85.0,
+            result.temperature, 206.0,
             "burning Oil adds heat_per_tick each tick"
         );
-        let wood = combustion_step(MATERIAL_WOOD, 95.0, FLAG_COMBUSTING);
-        assert_eq!(wood.temperature, 99.0, "burning Wood adds heat_per_tick");
+        let wood = combustion_step(MATERIAL_WOOD, 300.0, FLAG_COMBUSTING);
+        assert_eq!(wood.temperature, 304.0, "burning Wood adds heat_per_tick");
     }
 
     #[test]
     fn ignition_tick_also_adds_heat() {
-        let result = combustion_step(MATERIAL_OIL, 75.0, 0);
+        let result = combustion_step(MATERIAL_OIL, 200.0, 0);
         assert!(result.burning);
-        assert_eq!(result.temperature, 80.0);
+        assert_eq!(result.temperature, 206.0);
     }
 
     #[test]
@@ -409,7 +409,7 @@ mod tests {
     fn no_oxygen_parameter_or_concept() {
         // The pure rule's signature has no Oxygen input: ignition depends
         // only on the thermal condition (REACTION_SPEC §11).
-        let sealed_hot_wood = combustion_step(MATERIAL_WOOD, 100.0, 0);
+        let sealed_hot_wood = combustion_step(MATERIAL_WOOD, 300.0, 0);
         assert!(sealed_hot_wood.burning);
     }
 
@@ -423,7 +423,7 @@ mod tests {
         // cap only bounds combustion growth), but must stay finite.
         let huge = combustion_step(MATERIAL_OIL, 1.0e30, FLAG_COMBUSTING);
         assert!(huge.temperature.is_finite());
-        assert_eq!(huge.temperature, 1.0e30);
+        assert_eq!(huge.temperature, crate::TEMPERATURE_MAX_C);
         let grown = combustion_step(MATERIAL_OIL, 900.0, FLAG_COMBUSTING);
         assert!(grown.temperature <= COMBUSTION_MAX_TEMPERATURE);
     }
@@ -440,7 +440,7 @@ mod tests {
     #[test]
     fn combustion_flags_preserve_unrelated_bits() {
         let unrelated = 1u32 << 28; // outside the combustion-owned bits
-        let result = combustion_step(MATERIAL_OIL, 80.0, FLAG_COMBUSTING | unrelated);
+        let result = combustion_step(MATERIAL_OIL, 200.0, FLAG_COMBUSTING | unrelated);
         let next = combustion_flags_next(FLAG_COMBUSTING | unrelated, &result);
         assert_ne!(next & unrelated, 0, "unrelated bits must survive");
         assert_ne!(next & FLAG_COMBUSTING, 0);
@@ -556,11 +556,11 @@ mod tests {
         let below_ignition = combustion_step(MATERIAL_WOOD, 50.0, 0);
         assert_eq!(below_ignition.fuel_progress, 0);
         // Ignition tick is active burn tick 1.
-        let ignite = combustion_step(MATERIAL_WOOD, 95.0, 0);
+        let ignite = combustion_step(MATERIAL_WOOD, 300.0, 0);
         assert!(ignite.burning);
         assert_eq!(ignite.fuel_progress, 1);
         // Burning continues to advance progress each tick.
-        let burning = combustion_step(MATERIAL_WOOD, 95.0, with_fuel_progress(FLAG_COMBUSTING, 5));
+        let burning = combustion_step(MATERIAL_WOOD, 300.0, with_fuel_progress(FLAG_COMBUSTING, 5));
         assert_eq!(burning.fuel_progress, 6);
     }
 
@@ -589,7 +589,7 @@ mod tests {
         assert_eq!(cooled.fuel_progress, 200);
         let flags_after_extinguish =
             combustion_flags_next(with_fuel_progress(FLAG_COMBUSTING, 200), &cooled);
-        let reignited = combustion_step(MATERIAL_WOOD, 95.0, flags_after_extinguish);
+        let reignited = combustion_step(MATERIAL_WOOD, 300.0, flags_after_extinguish);
         assert!(reignited.burning);
         assert_eq!(
             reignited.fuel_progress, 201,
@@ -600,7 +600,7 @@ mod tests {
     #[test]
     fn exact_duration_consumes_fuel() {
         let flags = with_fuel_progress(FLAG_COMBUSTING, 899);
-        let result = combustion_step(MATERIAL_WOOD, 95.0, flags);
+        let result = combustion_step(MATERIAL_WOOD, 300.0, flags);
         assert!(result.consumed, "reaching the burn duration consumes fuel");
         assert!(!result.burning);
         assert_eq!(result.temperature, TEMPERATURE_REFERENCE);
@@ -614,7 +614,7 @@ mod tests {
     #[test]
     fn duration_minus_one_does_not_consume() {
         let flags = with_fuel_progress(FLAG_COMBUSTING, 898);
-        let result = combustion_step(MATERIAL_WOOD, 95.0, flags);
+        let result = combustion_step(MATERIAL_WOOD, 300.0, flags);
         assert!(!result.consumed, "one tick before the duration still burns");
         assert!(result.burning);
         assert_eq!(result.fuel_progress, 899);
@@ -646,7 +646,7 @@ mod tests {
     fn unrelated_flag_bits_preserved() {
         let unrelated = 1u32 << 28;
         let flags = FLAG_COMBUSTING | with_fuel_progress(0, 10) | unrelated;
-        let result = combustion_step(MATERIAL_WOOD, 95.0, flags);
+        let result = combustion_step(MATERIAL_WOOD, 300.0, flags);
         let next = combustion_flags_next(flags, &result);
         assert_ne!(next & unrelated, 0);
         assert_ne!(next & FLAG_COMBUSTING, 0);

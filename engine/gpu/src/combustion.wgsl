@@ -70,8 +70,10 @@ const FLAG_FLAME_EVENT: u32 = 2u;
 const FLAG_FUEL_PROGRESS_SHIFT: u32 = 4u;
 const FLAG_FUEL_PROGRESS_MASK: u32 = 0x0FFFu << 4u;
 const COMBUSTION_MASK: u32 = FLAG_COMBUSTING | FLAG_FLAME_EVENT | FLAG_FUEL_PROGRESS_MASK;
-const TEMPERATURE_REFERENCE: f32 = 0.0;
-const COMBUSTION_MAX_TEMPERATURE: f32 = 1000.0;
+const TEMPERATURE_REFERENCE: f32 = 20.0;
+const TEMPERATURE_MIN: f32 = -250.0;
+const TEMPERATURE_MAX: f32 = 2000.0;
+const COMBUSTION_MAX_TEMPERATURE: f32 = 1200.0;
 const NO_SPAWN: u32 = 0u;
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -92,7 +94,7 @@ fn sanitize(t: f32) -> f32 {
     if (t > 1.0e20 || t < -1.0e20) {
         return TEMPERATURE_REFERENCE;
     }
-    return t;
+    return clamp(t, TEMPERATURE_MIN, TEMPERATURE_MAX);
 }
 
 fn fuel_progress(f: u32) -> u32 {

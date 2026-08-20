@@ -6,7 +6,7 @@
 //! write-self only and runs after ownership is settled. EMPTY is not a
 //! hidden thermal medium. Phase / combustion are out of scope (G4-B).
 //!
-//! `0.0` is the simulation reference temperature (relative hot/cold scalar).
+//! `20.0` is the Celsius-like gameplay reference temperature.
 //! Exact global energy conservation is not required.
 //!
 //! G4-B note: Steam now condenses below 40.0, so any Steam in these
@@ -19,7 +19,7 @@ use powdergame_core::{
 use powdergame_gpu::Simulation;
 
 /// Stable hot temperature for Steam fixtures (above condensation 40.0).
-const STEAM_STABLE_T: f32 = 80.0;
+const STEAM_STABLE_T: f32 = 500.0;
 
 fn make_sim(config: WorldConfig) -> Simulation {
     pollster::block_on(Simulation::new(config)).expect("DX12 + RTX 5090 simulation init")
@@ -115,25 +115,24 @@ fn four_neighbor_propagation() {
 }
 
 #[test]
-fn empty_gap_blocks_heat() {
+fn empty_gap_transports_heat_through_air() {
     let mut sim = eight_by_eight();
     set_mat(&sim, 2, 3, MATERIAL_STONE);
     set_mat(&sim, 4, 3, MATERIAL_STONE);
-    set_t(&sim, 2, 3, 20.0);
-    set_t(&sim, 4, 3, 0.0);
-    // (3,3) stays EMPTY — the gap must not conduct.
+    set_t(&sim, 2, 3, 100.0);
+    set_t(&sim, 4, 3, TEMPERATURE_REFERENCE);
+    // (3,3) stays EMPTY, but TE-2 Air transports heat across the gap.
 
     for _ in 0..40 {
         sim.tick().expect("tick");
     }
 
     assert!(
-        temp(&sim, 4, 3).abs() < 1.0e-5,
-        "heat must not cross EMPTY; far stone is {}",
+        temp(&sim, 4, 3) > TEMPERATURE_REFERENCE,
+        "Air must carry heat across EMPTY; far stone is {}",
         temp(&sim, 4, 3)
     );
-    assert_eq!(temp(&sim, 3, 3), TEMPERATURE_REFERENCE);
-    assert!(temp(&sim, 2, 3) > 0.0, "hot stone keeps its own heat");
+    assert!(temp(&sim, 2, 3) < 100.0, "hot stone exports heat");
 }
 
 #[test]
@@ -241,8 +240,8 @@ fn empty_cell_temperature_stays_at_reference() {
 
 #[test]
 fn hot_matter_carries_temperature_when_moving() {
-    // Isolated hot Sand above EMPTY: no neighboring Matter, so the same-tick
-    // thermal pass cannot conduct. Heat must arrive at the destination.
+    // Hot Sand moves first, then exchanges with destination Air in the same
+    // production tick. Its identity carries the hot state before mixing.
     let mut sim = eight_by_eight();
     set_mat(&sim, 3, 3, MATERIAL_SAND);
     set_t(&sim, 3, 3, 100.0);
@@ -253,8 +252,8 @@ fn hot_matter_carries_temperature_when_moving() {
     assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY, "source vacated");
     let dest_t = temp(&sim, 3, 4);
     assert!(
-        (dest_t - 100.0).abs() < 1.0e-3,
-        "destination must carry the hot state; got {dest_t}"
+        dest_t > 90.0,
+        "destination must retain the carried hot state; got {dest_t}"
     );
     assert_eq!(
         temp(&sim, 3, 3),
@@ -346,7 +345,7 @@ fn blocked_or_losing_move_keeps_temperature() {
     set_mat(&sim, 4, 1, MATERIAL_STONE);
     set_mat(&sim, 2, 2, MATERIAL_STEAM);
     set_mat(&sim, 4, 2, MATERIAL_STEAM);
-    set_t(&sim, 2, 2, 90.0);
+    set_t(&sim, 2, 2, 600.0);
     set_t(&sim, 4, 2, STEAM_STABLE_T);
 
     sim.tick().expect("tick");

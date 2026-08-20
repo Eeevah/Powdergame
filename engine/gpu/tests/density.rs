@@ -27,10 +27,10 @@ use powdergame_core::{
 use powdergame_gpu::Simulation;
 
 /// Stable hot temperature for Steam fixtures (above condensation 40.0).
-const STEAM_STABLE_T: f32 = 80.0;
+const STEAM_STABLE_T: f32 = 500.0;
 /// Hotter Steam for the long sealed-channel ordering test: it must survive
 /// many ticks of conduction with cold Smoke/Stone and never condense.
-const STEAM_VERY_HOT_T: f32 = 120.0;
+const STEAM_VERY_HOT_T: f32 = 500.0;
 
 fn make_sim(config: WorldConfig) -> Simulation {
     pollster::block_on(Simulation::new(config)).expect("DX12 + RTX 5090 simulation init")

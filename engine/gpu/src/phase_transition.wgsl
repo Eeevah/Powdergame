@@ -44,7 +44,9 @@ const EMPTY: u32 = 0u;
 const NO_PHASE_TARGET: u32 = 0xFFFFFFFFu;
 const NO_PROPOSAL: u32 = 0u;
 const BLOCKED_EXPANSION: u32 = 0xFFFFFFFFu;
-const TEMPERATURE_REFERENCE: f32 = 0.0;
+const TEMPERATURE_REFERENCE: f32 = 20.0;
+const TEMPERATURE_MIN: f32 = -250.0;
+const TEMPERATURE_MAX: f32 = 2000.0;
 const ACTIVITY_THERMAL: u32 = 1u << 1u;
 
 fn sanitize_temperature(t: f32) -> f32 {
@@ -54,7 +56,7 @@ fn sanitize_temperature(t: f32) -> f32 {
     if (t > 1.0e20 || t < -1.0e20) {
         return TEMPERATURE_REFERENCE;
     }
-    return t;
+    return clamp(t, TEMPERATURE_MIN, TEMPERATURE_MAX);
 }
 
 fn in_domain(x: i32, y: i32) -> bool {

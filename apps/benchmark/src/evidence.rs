@@ -26,7 +26,7 @@ pub const EVIDENCE_SCHEMA_VERSION: &str = G8A_EVIDENCE_SCHEMA_VERSION;
 #[cfg(test)]
 pub const FIXTURE_EVIDENCE_SCHEMA_VERSION: &str = G8B_EVIDENCE_SCHEMA_VERSION;
 
-const GROUP_DEFINITION: &str = "matter_movement=movement_propose+movement_commit+material_flag_hygiene_movement+environment_reconcile_movement;ownership_claim=movement_claim+expansion_claim+expansion_environment_receiver_claim+smoke_claim+smoke_environment_receiver_claim;thermal_conduction=thermal;reaction_phase=phase_transition+expansion_spawn_commit+expansion_pressure+material_flag_hygiene_phase+environment_reconcile_expansion+decay+material_flag_hygiene_decay+environment_reconcile_decay+combustion+smoke_commit+material_flag_hygiene_combustion+environment_reconcile_smoke;pressure_structure=environment_blocked_expansion_pressure+pressure+rupture+material_flag_hygiene_rupture+environment_reconcile_rupture;active_sleep_management=activity_wake+activity_propose+activity_reduce";
+const GROUP_DEFINITION: &str = "matter_movement=movement_propose+movement_commit+material_flag_hygiene_movement+environment_reconcile_movement;ownership_claim=movement_claim+expansion_claim+expansion_environment_receiver_claim+smoke_claim+smoke_environment_receiver_claim;thermal_conduction=air_flow_scale+air_transport_commit+thermal_stability_scale+unified_thermal_commit;reaction_phase=phase_transition+expansion_spawn_commit+expansion_pressure+material_flag_hygiene_phase+environment_reconcile_expansion+decay+material_flag_hygiene_decay+environment_reconcile_decay+combustion+smoke_commit+material_flag_hygiene_combustion+environment_reconcile_smoke;pressure_structure=environment_blocked_expansion_pressure+pressure+rupture+material_flag_hygiene_rupture+environment_reconcile_rupture;active_sleep_management=activity_wake+activity_propose+environment_activity_propose+activity_reduce";
 
 #[derive(Debug, Clone)]
 pub struct GitProvenance {
@@ -1703,7 +1703,7 @@ mod tests {
             .position(|column| *column == "group_definition")
             .unwrap();
         assert_eq!(raw_row[start_index], "1000");
-        assert_eq!(raw_row[final_index], "6900");
+        assert_eq!(raw_row[final_index], "7700");
         assert_eq!(raw_row[group_definition_index], GROUP_DEFINITION);
     }
 }

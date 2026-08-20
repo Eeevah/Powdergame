@@ -145,15 +145,15 @@ without this pressure consequence.
 
 ## 5. Exact memory budget
 
-Persistent uniform/table storage is 2,176 B. Profiling adds 960 B for 60 raw
+Persistent uniform/table storage is 2,352 B. Profiling adds 1,088 B for 68 raw
 timestamp values in both persistent resolve and readback buffers. Transient
 diagnostic staging and opaque driver/query-set memory are not included,
 matching the current report boundary.
 
 | World | One f32/u32 | Four Air buffers | Receiver scratch | Existing no-profiler | New no-profiler | New with profiler |
 |---|---:|---:|---:|---:|---:|---:|
-| 256×256, chunk 64 | 262,144 B | 1,048,576 B | 262,144 B | 2,886,144 B | **4,196,864 B** | **4,197,824 B** |
-| 2048×2048, chunk 64 | 16,777,216 B | 67,108,864 B | 16,777,216 B | 184,576,128 B | **268,462,208 B** | **268,463,168 B** |
+| 256×256, chunk 64 | 262,144 B | 1,048,576 B | 262,144 B | 2,886,144 B | **4,197,040 B** | **4,198,128 B** |
+| 2048×2048, chunk 64 | 16,777,216 B | 67,108,864 B | 16,777,216 B | 184,576,128 B | **268,462,384 B** | **268,463,472 B** |
 
 The 2048² Environment increment is exactly 64 MiB and the receiver scratch
 adds 16 MiB. The tracked correctness total is about 256.026 MiB. The live
@@ -200,3 +200,43 @@ TE-1 is **IMPLEMENTED** and its closure preserves these constraints:
 - no Air flow/thermal/pressure physics;
 - no Inspector payload/cadence expansion;
 - no historical G8 schema/evidence rewrite.
+
+## 8. TE-2 implementation-entry note — scratch lifetime resolution
+
+The final TE-1 command graph leaves both ordinary ownership scratch buffers
+available for the bounded TE-2 transport window without another full-world
+allocation. The movement `proposal` and `claim` consumers end at movement
+commit / Environment reconcile pass 5, and the joint Matter/Air copies finish
+before any TE-2 reader begins. Phase transition is the next ordinary writer of
+`proposal`; expansion claim is the next ordinary writer of `claim`.
+
+TE-2 therefore locks this sequential reinterpretation:
+
+```text
+movement propose/claim/commit/hygiene/Environment reconcile
+-> joint movement settle
+-> proposal as fully-written f32 donor_outflow_scale
+-> claim as fully-written f32 receiver_accept_scale
+-> Air transport commit consumes both scales
+-> Air mass/energy settle
+-> proposal overwritten as fully-written f32 thermal_lambda
+-> unified thermal commit consumes thermal_lambda
+-> Matter temperature/Air energy settle
+-> phase transition overwrites proposal with its normal u32 encoding
+-> expansion claim overwrites claim with its normal u32 encoding
+```
+
+No TE-1 receiver-claim consumer is live in this window. The dedicated
+`environment_receiver_claim` remains independent and unchanged for later
+phase/Smoke transactions. Structural tests must pin the writer/consumer order,
+the `u32 -> f32 -> u32` encodings, full-buffer writes before consumption, the
+expected 34 production passes, and the absence of a new full-world scratch.
+If the implemented order cannot retain these boundaries, TE-2 stops rather
+than allocating another dense scratch buffer.
+
+The implemented graph follows this order exactly at passes 0–33. Air scale,
+Air commit, thermal scale and unified thermal commit are passes 6–9;
+Environment activity is pass 32. The profiler therefore owns 68 timestamp
+queries. Every new pass remains at or below eight storage bindings, proposal
+and claim are fully overwritten before their f32 reads, and phase/expansion
+restore their ordinary u32 meanings after the TE-2 window.

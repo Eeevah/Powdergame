@@ -34,8 +34,8 @@
 //! Thermal = 60 TPS. Existing demo smoke runs start PLAYING so they exercise
 //! ticks + presentation; the Gallery remains PAUSED by contract.
 //!
-//! G4-B note: Steam now condenses below 40.0, so demo Steam is staged at a
-//! stable hot temperature (T = 80.0). G4-C note: Wood/Oil combustion is
+//! TE-2 note: Steam condenses below 95 °C, so demo Steam is staged at a
+//! stable hot temperature (120 °C). Wood/Oil combustion is
 //! driven by real thermal conduction from staged hot Stone reservoirs —
 //! the demo never writes a Material ID mid-tick.
 //!
@@ -49,6 +49,7 @@ mod observatory;
 mod renderer;
 mod sandbox;
 mod text_renderer;
+mod thermal_environment;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -86,6 +87,10 @@ use sandbox::{
     SandboxThermalFeedbackState, SandboxTool, SANDBOX_CHUNK_SIZE, SANDBOX_TITLE, SANDBOX_TPS,
     SANDBOX_WORLD_HEIGHT, SANDBOX_WORLD_WIDTH,
 };
+use thermal_environment::{
+    ThermalEnvironmentHudData, ThermalEnvironmentScene, ThermalEnvironmentState, TE2_CHUNK_SIZE,
+    TE2_TITLE, TE2_TPS, TE2_WORLD_HEIGHT, TE2_WORLD_WIDTH,
+};
 
 /// Demo observation rates: independent of the render FPS. Movement/Density
 /// keep the approved 15 TPS fixture timing; Thermal runs at 60 TPS so the
@@ -118,6 +123,7 @@ enum DemoMode {
     Movement,
     Density,
     Thermal,
+    ThermalEnvironment,
     Pressure,
     ParallelIntegrity,
     Activity,
@@ -135,6 +141,7 @@ impl DemoMode {
             DemoMode::Movement => MOVEMENT_DEMO_TPS,
             DemoMode::Density => DENSITY_DEMO_TPS,
             DemoMode::Thermal => THERMAL_DEMO_TPS,
+            DemoMode::ThermalEnvironment => TE2_TPS,
             DemoMode::Pressure => PRESSURE_DEMO_TPS,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TPS,
             DemoMode::Activity => ACTIVITY_DEMO_TPS,
@@ -315,6 +322,7 @@ struct App {
     demo: Option<DemoState>,
     gallery_provenance: Option<RuntimeProvenance>,
     sandbox: Option<SandboxRuntime>,
+    thermal_environment: Option<ThermalEnvironmentState>,
     experiment: Option<ExperimentWorkerConfig>,
     cursor_position: Option<PhysicalPosition<f64>>,
     fatal_error: Option<String>,
@@ -338,6 +346,7 @@ impl App {
             demo: None,
             gallery_provenance: None,
             sandbox: None,
+            thermal_environment: None,
             experiment,
             cursor_position: None,
             fatal_error: None,
@@ -349,6 +358,7 @@ impl App {
             DemoMode::Movement => MOVEMENT_DEMO_TITLE,
             DemoMode::Density => DENSITY_DEMO_TITLE,
             DemoMode::Thermal => THERMAL_DEMO_TITLE,
+            DemoMode::ThermalEnvironment => TE2_TITLE,
             DemoMode::Pressure => PRESSURE_DEMO_TITLE,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TITLE,
             DemoMode::Activity => ACTIVITY_DEMO_TITLE,
@@ -359,6 +369,7 @@ impl App {
         // The thermal and pressure observatories use a larger world (320×192 / 256×256),
         // so they get a 1600×900 window; the G2/G3 fixtures keep 1280×720.
         let (window_w, window_h) = if self.demo_mode == DemoMode::Thermal
+            || self.demo_mode == DemoMode::ThermalEnvironment
             || self.demo_mode == DemoMode::Pressure
             || self.demo_mode == DemoMode::ParallelIntegrity
             || self.demo_mode == DemoMode::Activity
@@ -407,6 +418,7 @@ impl App {
         } else {
             let (w, h) = match self.demo_mode {
                 DemoMode::Thermal => (320, 192),
+                DemoMode::ThermalEnvironment => (TE2_WORLD_WIDTH, TE2_WORLD_HEIGHT),
                 DemoMode::Pressure => (256, 256),
                 DemoMode::ParallelIntegrity => (256, 256),
                 DemoMode::Activity => (256, 256),
@@ -414,10 +426,10 @@ impl App {
                 DemoMode::Sandbox => (SANDBOX_WORLD_WIDTH, SANDBOX_WORLD_HEIGHT),
                 _ => (128, 128),
             };
-            let chunk_size = if self.demo_mode == DemoMode::Sandbox {
-                SANDBOX_CHUNK_SIZE
-            } else {
-                64
+            let chunk_size = match self.demo_mode {
+                DemoMode::Sandbox => SANDBOX_CHUNK_SIZE,
+                DemoMode::ThermalEnvironment => TE2_CHUNK_SIZE,
+                _ => 64,
             };
             WorldConfig::new(w, h, chunk_size).expect("demo world config")
         };
@@ -469,6 +481,9 @@ impl App {
                 stage_thermal_demo(&simulation)?;
                 println!("[powdergame] thermal demo: 4-panel large observatory staged");
             }
+            DemoMode::ThermalEnvironment => {
+                println!("[powdergame][te2] candidate staging uses bounded production GPU state");
+            }
             DemoMode::Pressure => {
                 stage_pressure_demo(&simulation)?;
                 println!("[powdergame] pressure demo: 2x2 multi-boiler lab staged (Standard vs Extreme Overdrive)");
@@ -513,6 +528,11 @@ impl App {
         } else {
             None
         };
+        let thermal_environment = if self.demo_mode == DemoMode::ThermalEnvironment {
+            Some(ThermalEnvironmentState::new(&mut simulation)?)
+        } else {
+            None
+        };
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
             material_buffer: &simulation.world.material_current,
@@ -523,7 +543,9 @@ impl App {
             height: simulation.world.config.height,
             palette: match self.demo_mode {
                 DemoMode::Density => PresentationPalette::Lab,
-                DemoMode::Thermal | DemoMode::Pressure => PresentationPalette::ThermalLab,
+                DemoMode::Thermal | DemoMode::ThermalEnvironment | DemoMode::Pressure => {
+                    PresentationPalette::ThermalLab
+                }
                 DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
                 DemoMode::Activity => PresentationPalette::Activity,
                 DemoMode::Gallery => PresentationPalette::Gallery,
@@ -639,6 +661,7 @@ impl App {
             self.simulation = Some(simulation);
             self.renderer = Some(renderer);
             self.observatory_collector = observatory_collector;
+            self.thermal_environment = thermal_environment;
             event_loop.exit();
             return Ok(());
         }
@@ -673,6 +696,11 @@ impl App {
                     "[powdergame][sandbox] product HUD ready | palette 9/9 | Draw/Erase/Heat/Cool | 24-byte Inspector max 10 Hz"
                 );
             }
+            if self.demo_mode == DemoMode::ThermalEnvironment {
+                println!(
+                    "[powdergame][te2] scene 1/4 Direct / Atmosphere / Vacuum | boundary Sealed | fixed bounded Environment samples"
+                );
+            }
             self.demo = Some(demo);
             println!(
                 "[powdergame] window + world view ready; demo {}",
@@ -692,6 +720,7 @@ impl App {
         self.renderer = Some(renderer);
         self.observatory_collector = observatory_collector;
         self.sandbox = sandbox;
+        self.thermal_environment = thermal_environment;
         Ok(())
     }
 
@@ -820,6 +849,42 @@ impl App {
             committed.number(),
             committed.name()
         );
+        window.set_title(&demo.title());
+        window.request_redraw();
+    }
+
+    fn select_thermal_environment_scene(&mut self, number: u8, window: &Window) {
+        if self.demo_mode != DemoMode::ThermalEnvironment {
+            return;
+        }
+        let Some(scene) = ThermalEnvironmentScene::from_number(number) else {
+            return;
+        };
+        let (Some(simulation), Some(candidate), Some(demo)) = (
+            self.simulation.as_mut(),
+            self.thermal_environment.as_mut(),
+            self.demo.as_mut(),
+        ) else {
+            return;
+        };
+        demo.playing = false;
+        demo.step_pending = false;
+        demo.last_tick = None;
+        match candidate.select_scene(simulation, scene) {
+            Ok(()) => {
+                demo.commit_pristine_reset();
+                println!(
+                    "[powdergame][te2] scene {}/4 {} staged | boundary {:?} | PAUSED",
+                    scene.number(),
+                    scene.name(),
+                    scene.boundary_mode()
+                );
+            }
+            Err(error) => {
+                eprintln!("[powdergame][te2] scene staging failed: {error}");
+                self.fatal_error = Some(error.to_string());
+            }
+        }
         window.set_title(&demo.title());
         window.request_redraw();
     }
@@ -1437,7 +1502,7 @@ fn stage_movement_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for x in 76..=88 {
         for y in 105..=115 {
             set(x, y, MATERIAL_STEAM)?;
-            simulation.world.write_temperature(q, x, y, 80.0)?;
+            simulation.world.write_temperature(q, x, y, 120.0)?;
         }
     }
 
@@ -1532,7 +1597,7 @@ fn stage_density_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 68..=120 {
         for x in 92..=120 {
             set(x, y, MATERIAL_STEAM)?;
-            simulation.world.write_temperature(q, x, y, 80.0)?;
+            simulation.world.write_temperature(q, x, y, 120.0)?;
         }
     }
 
@@ -1597,21 +1662,21 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 78..=85 {
         for x in 32..=46 {
             set(x, y, MATERIAL_ICE)?;
-            set_t(x, y, -30.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
     // Ice 2: mid distance
     for y in 78..=85 {
         for x in 75..=89 {
             set(x, y, MATERIAL_ICE)?;
-            set_t(x, y, -30.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
     // Ice 3: far distance
     for y in 78..=85 {
         for x in 120..=134 {
             set(x, y, MATERIAL_ICE)?;
-            set_t(x, y, -30.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
     // Top steam vent to Void
@@ -1632,7 +1697,7 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for x in 164..=316 {
         for y in 1..=3 {
             set(x, y, stone)?;
-            set_t(x, y, -40.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
     // Downward cold fins extending from ceiling into steam
@@ -1641,7 +1706,7 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
         for x in fin.clone() {
             for y in 4..=26 {
                 set(x, y, stone)?;
-                set_t(x, y, -40.0)?;
+                set_t(x, y, -10.0)?;
             }
         }
     }
@@ -1651,7 +1716,7 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
             let in_fin = fin_ranges.iter().any(|r| r.contains(&x));
             if !in_fin {
                 set(x, y, MATERIAL_STEAM)?;
-                set_t(x, y, 80.0)?;
+                set_t(x, y, 120.0)?;
             }
         }
     }
@@ -1659,28 +1724,28 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 48..=50 {
         for x in 164..=200 {
             set(x, y, stone)?;
-            set_t(x, y, -40.0)?;
+            set_t(x, y, -10.0)?;
         }
         for x in 280..=316 {
             set(x, y, stone)?;
-            set_t(x, y, -40.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
     // Bottom Freeze basin (T=-100, well below -20.0 freeze threshold)
     for x in 190..=290 {
         for y in 78..=85 {
             set(x, y, stone)?;
-            set_t(x, y, -100.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
     for y in 64..=78 {
         for x in 190..=194 {
             set(x, y, stone)?;
-            set_t(x, y, -100.0)?;
+            set_t(x, y, -10.0)?;
         }
         for x in 286..=290 {
             set(x, y, stone)?;
-            set_t(x, y, -100.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
 
@@ -1709,7 +1774,7 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 112..=174 {
         for x in 25..=65 {
             set(x, y, MATERIAL_WATER)?;
-            set_t(x, y, 0.0)?;
+            set_t(x, y, 20.0)?;
         }
     }
 
@@ -1730,7 +1795,7 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 112..=174 {
         for x in 90..=130 {
             set(x, y, MATERIAL_OIL)?;
-            set_t(x, y, 0.0)?;
+            set_t(x, y, 20.0)?;
         }
     }
 
@@ -1745,14 +1810,14 @@ fn stage_thermal_demo(simulation: &Simulation) -> Result<(), GpuError> {
     for y in 144..=155 {
         for x in 192..=199 {
             set(x, y, stone)?;
-            set_t(x, y, 200.0)?;
+            set_t(x, y, 350.0)?;
         }
     }
     // Large Wood strip
     for y in 146..=153 {
         for x in 200..=280 {
             set(x, y, MATERIAL_WOOD)?;
-            set_t(x, y, 0.0)?;
+            set_t(x, y, 20.0)?;
         }
     }
     // Chimney vent opening to central chimney
@@ -1971,7 +2036,7 @@ fn stage_parallel_integrity_demo(simulation: &Simulation) -> Result<(), GpuError
     for x in 135..155 {
         for y in 230..250 {
             set(x, y, MATERIAL_ICE)?;
-            set_t(x, y, -30.0)?;
+            set_t(x, y, -10.0)?;
         }
     }
     // Water near cold region (will freeze)
@@ -2013,6 +2078,9 @@ fn reset_demo_world(
         DemoMode::Movement => stage_movement_demo(simulation),
         DemoMode::Density => stage_density_demo(simulation),
         DemoMode::Thermal => stage_thermal_demo(simulation),
+        DemoMode::ThermalEnvironment => Err(GpuError::Other(
+            "TE-2 candidate resets are owned by ThermalEnvironmentState".to_string(),
+        )),
         DemoMode::Pressure => stage_pressure_demo(simulation),
         DemoMode::ParallelIntegrity => stage_parallel_integrity_demo(simulation),
         DemoMode::Activity | DemoMode::Gallery => unreachable!("handled above"),
@@ -2030,13 +2098,19 @@ fn step_demo(
     demo: &mut DemoState,
     collector: &mut Option<ObservatoryCollector>,
     cell_inspector: &mut Option<CellInspectorCollector>,
+    thermal_environment: &mut Option<ThermalEnvironmentState>,
     mode: DemoMode,
 ) {
     if demo.reset_pending {
         demo.reset_pending = false;
         demo.step_pending = false;
         let gallery_scenario = demo.gallery.as_ref().and_then(GalleryState::reset_target);
-        match reset_demo_world(simulation, mode, gallery_scenario) {
+        let reset_result = if let Some(candidate) = thermal_environment.as_mut() {
+            candidate.reset(simulation)
+        } else {
+            reset_demo_world(simulation, mode, gallery_scenario)
+        };
+        match reset_result {
             Ok(()) => {
                 let committed_gallery = demo
                     .gallery
@@ -2083,7 +2157,12 @@ fn step_demo(
         if !demo.playing {
             // N always advances EXACTLY ONE tick — unaffected by the
             // fast-forward multiplier.
-            match simulation.tick() {
+            let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
+                candidate.tick(simulation)
+            } else {
+                simulation.tick()
+            };
+            match tick_result {
                 Ok(()) => {
                     demo.ticks += 1;
                     demo.rate_ticks += 1;
@@ -2114,7 +2193,12 @@ fn step_demo(
             // Fast-forward runs the production tick sequentially `fast` times
             // per beat — identical ticks, just more of them per opportunity.
             for _ in 0..demo.fast {
-                match simulation.tick() {
+                let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
+                    candidate.tick(simulation)
+                } else {
+                    simulation.tick()
+                };
+                match tick_result {
                     Ok(()) => {
                         demo.ticks += 1;
                         demo.rate_ticks += 1;
@@ -2370,6 +2454,13 @@ impl ApplicationHandler for App {
                         self.select_gallery_scenario(number, &window);
                     }
                     Key::Character(ref c)
+                        if self.demo_mode == DemoMode::ThermalEnvironment
+                            && matches!(c.as_str(), "1" | "2" | "3" | "4") =>
+                    {
+                        let number = c.as_bytes()[0] - b'0';
+                        self.select_thermal_environment_scene(number, &window);
+                    }
+                    Key::Character(ref c)
                         if self.demo_mode == DemoMode::Sandbox
                             && sandbox_key_action(c).is_some() =>
                     {
@@ -2451,6 +2542,7 @@ impl ApplicationHandler for App {
                             demo,
                             &mut self.observatory_collector,
                             &mut self.cell_inspector,
+                            &mut self.thermal_environment,
                             self.demo_mode,
                         );
                     } else if let Err(e) = simulation.tick() {
@@ -2556,6 +2648,21 @@ impl ApplicationHandler for App {
                 } else {
                     None
                 };
+                let thermal_environment_hud: Option<ThermalEnvironmentHudData> =
+                    if self.demo_mode == DemoMode::ThermalEnvironment {
+                        match (
+                            self.thermal_environment.as_ref(),
+                            self.demo.as_ref(),
+                            self.simulation.as_ref(),
+                        ) {
+                            (Some(candidate), Some(demo), Some(simulation)) => Some(
+                                candidate.hud_data(demo.playing, demo.fast, simulation.tick_count),
+                            ),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
                 if let Some(renderer) = &mut self.renderer {
                     let hud_data = match self.demo_mode {
                         DemoMode::Thermal => self.observatory_collector.as_ref().map(|c| {
@@ -2564,6 +2671,9 @@ impl ApplicationHandler for App {
                                 self.demo.as_ref().map(|d| d.ticks).unwrap_or(0),
                             )
                         }),
+                        DemoMode::ThermalEnvironment => thermal_environment_hud
+                            .as_ref()
+                            .map(renderer::HudData::ThermalEnvironment),
                         DemoMode::Pressure => self.observatory_collector.as_ref().map(|c| {
                             renderer::HudData::Pressure(
                                 c.pressure_metrics(),
@@ -2728,6 +2838,7 @@ where
             "--movement-demo" => return Some(DemoMode::Movement),
             "--density-demo" => return Some(DemoMode::Density),
             "--thermal-demo" => return Some(DemoMode::Thermal),
+            "--thermal-environment-candidate" => return Some(DemoMode::ThermalEnvironment),
             "--pressure-demo" => return Some(DemoMode::Pressure),
             "--parallel-integrity-demo" => return Some(DemoMode::ParallelIntegrity),
             "--activity-demo" => return Some(DemoMode::Activity),
@@ -3123,6 +3234,10 @@ fn main() {
              (4 large panels + live diagnostic metrics), 60 TPS, starts PAUSED \
              (SPACE play | N step | R reset | ESC quit)"
         ),
+        DemoMode::ThermalEnvironment => println!(
+            "[powdergame] TE-2 passive Thermal Environment candidate: 256x192, four scenes, 60 TPS. \
+             Starts PAUSED (1-4 scene | SPACE play | N step | F speed | R reset | ESC quit)"
+        ),
         DemoMode::Pressure => println!(
             "[powdergame] pressure demo: 128×128 twin boilers, 60 TPS. \
              LEFT Wood relief plug should rupture/vent; RIGHT Stone control stays sealed. \
@@ -3248,6 +3363,10 @@ mod tests {
             ("--movement-demo", DemoMode::Movement),
             ("--density-demo", DemoMode::Density),
             ("--thermal-demo", DemoMode::Thermal),
+            (
+                "--thermal-environment-candidate",
+                DemoMode::ThermalEnvironment,
+            ),
             ("--pressure-demo", DemoMode::Pressure),
             ("--parallel-integrity-demo", DemoMode::ParallelIntegrity),
             ("--activity-demo", DemoMode::Activity),

@@ -2,7 +2,7 @@
 
 use powdergame_core::{
     initial_material_ids, WorldConfig, FLAG_COMBUSTING, MATERIAL_OIL, MATERIAL_SAND,
-    MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
+    MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::Simulation;
 
@@ -148,7 +148,7 @@ pub fn build_calibration_fixture(config: &WorldConfig) -> Result<CalibrationFixt
     let mut fixture = CalibrationFixture {
         materials: initial_material_ids(config)
             .map_err(|error| FixtureError::InvalidWorld(error.to_string()))?,
-        temperatures: vec![0.0; cell_count],
+        temperatures: vec![TEMPERATURE_REFERENCE; cell_count],
         flags: vec![0; cell_count],
         width,
         height,
@@ -365,7 +365,7 @@ mod tests {
         let unlit_fire = cell(&fixture, 1001, 300);
         assert_eq!(fixture.materials[unlit_fire], MATERIAL_WOOD);
         assert_eq!(fixture.flags[unlit_fire], 0);
-        assert_eq!(fixture.temperatures[unlit_fire], 0.0);
+        assert_eq!(fixture.temperatures[unlit_fire], TEMPERATURE_REFERENCE);
         assert_eq!(
             fixture.materials[cell(&fixture, 1000, 1500)],
             MATERIAL_WATER
@@ -432,7 +432,7 @@ mod tests {
                     burning_cells += 1;
                 } else {
                     assert_eq!(fixture.flags[index], 0);
-                    assert_eq!(fixture.temperatures[index], 0.0);
+                    assert_eq!(fixture.temperatures[index], TEMPERATURE_REFERENCE);
                     unlit_cells += 1;
                 }
             }

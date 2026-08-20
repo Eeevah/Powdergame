@@ -35,10 +35,10 @@ fn allocation_and_profiler_contracts_are_exact() {
     let reference_report = AllocationReport::from_layout(reference, &reference_layout);
     assert_eq!(reference_report.total_requested_world_bytes, 218_103_808);
 
-    assert_eq!(PASS_COUNT, 30);
+    assert_eq!(PASS_COUNT, 34);
     assert_eq!(PASS_NAMES.len(), PASS_COUNT);
     assert_eq!(PASS_NAMES[0], "activity_wake");
-    assert_eq!(PASS_NAMES[29], "activity_reduce");
+    assert_eq!(PASS_NAMES[33], "activity_reduce");
     for required in [
         "environment_reconcile_movement",
         "expansion_environment_receiver_claim",
@@ -46,6 +46,11 @@ fn allocation_and_profiler_contracts_are_exact() {
         "environment_reconcile_expansion",
         "smoke_environment_receiver_claim",
         "environment_reconcile_smoke",
+        "air_flow_scale",
+        "air_transport_commit",
+        "thermal_stability_scale",
+        "unified_thermal_commit",
+        "environment_activity_propose",
     ] {
         assert!(
             PASS_NAMES.contains(&required),
@@ -61,7 +66,7 @@ fn tracked_no_profiler_total_is_exact_at_256_squared() {
     let report = sim.tracked_memory_report(None);
     assert_eq!(report.environment_state_bytes, 1_048_576);
     assert_eq!(report.environment_receiver_claim_bytes, 262_144);
-    assert_eq!(report.total_tracked_gpu_bytes, 4_196_864);
+    assert_eq!(report.total_tracked_gpu_bytes, 4_197_040);
 }
 
 #[test]
@@ -120,7 +125,7 @@ fn canonical_staging_edits_and_reset_keep_both_halves_exact() {
 }
 
 #[test]
-fn unchanged_tick_has_no_air_flow_or_thermal_exchange() {
+fn passive_air_flow_changes_pressure_gradient_without_creating_mass() {
     let mut sim = eight_by_eight();
     let residual = AirState {
         mass: 0.25,
@@ -129,22 +134,51 @@ fn unchanged_tick_has_no_air_flow_or_thermal_exchange() {
     sim.world
         .write_environment_cell_for_test(&sim.context.queue, 3, 3, residual)
         .unwrap();
-    sim.world
-        .write_material(&sim.context.queue, 4, 3, MATERIAL_STONE)
-        .unwrap();
-    sim.world
-        .write_temperature(&sim.context.queue, 4, 3, 500.0)
-        .unwrap();
-    let before = observe(&sim, &[(3, 3), (3, 4)]);
+    let coordinates = (0..8)
+        .flat_map(|y| (0..8).map(move |x| (x, y)))
+        .collect::<Vec<_>>();
+    let before = observe(&sim, &coordinates);
+    let before_mass: f32 = before.iter().map(|cell| cell.current.mass).sum();
 
     sim.tick().unwrap();
 
-    let after = observe(&sim, &[(3, 3), (3, 4)]);
-    assert_eq!(before, after, "TE-1 must not flow or thermally mix Air");
+    let after = observe(&sim, &coordinates);
+    let after_mass: f32 = after.iter().map(|cell| cell.current.mass).sum();
+    let seeded = &after[(3 * 8 + 3) as usize];
+    assert!(seeded.current.mass > residual.mass);
+    assert_eq!(seeded.current, seeded.next);
+    assert!((before_mass - after_mass).abs() <= 1.0e-4);
 }
 
 #[test]
-fn movement_exchanges_the_exact_destination_parcel() {
+fn equal_mass_hot_air_drives_pressure_like_outflow() {
+    let mut sim = eight_by_eight();
+    let hot = AirState {
+        mass: 1.0,
+        energy: 773.15,
+    };
+    sim.world
+        .write_environment_cell_for_test(&sim.context.queue, 3, 3, hot)
+        .unwrap();
+    let before = observe(&sim, &[(3, 3), (4, 3)]);
+    assert_eq!(before[0].current.mass, before[1].current.mass);
+
+    sim.tick().unwrap();
+
+    let after = observe(&sim, &[(3, 3), (4, 3)]);
+    assert!(
+        after[0].current.mass < 1.0,
+        "hot donor must export Air mass"
+    );
+    assert!(
+        after[1].current.mass > 1.0,
+        "ambient receiver must gain Air mass"
+    );
+    assert!(after.iter().all(|cell| cell.current == cell.next));
+}
+
+#[test]
+fn movement_volume_exchange_then_passive_transport_conserves_the_air_parcel() {
     let mut sim = eight_by_eight();
     let parcel = AirState {
         mass: 0.25,
@@ -156,6 +190,12 @@ fn movement_exchanges_the_exact_destination_parcel() {
     sim.world
         .write_environment_cell_for_test(&sim.context.queue, 3, 3, parcel)
         .unwrap();
+    let coordinates = (0..8)
+        .flat_map(|y| (0..8).map(move |x| (x, y)))
+        .collect::<Vec<_>>();
+    let before = observe(&sim, &coordinates);
+    let before_mass: f32 = before.iter().map(|cell| cell.current.mass).sum();
+    let before_energy: f32 = before.iter().map(|cell| cell.current.energy).sum();
 
     sim.tick().unwrap();
 
@@ -171,22 +211,25 @@ fn movement_exchanges_the_exact_destination_parcel() {
             .unwrap(),
         MATERIAL_SAND
     );
-    let cells = observe(&sim, &[(3, 2), (3, 3)]);
-    assert_eq!(cells[0].current, parcel);
+    let cells = observe(&sim, &coordinates);
+    let source = &cells[(2 * 8 + 3) as usize];
+    let destination = &cells[(3 * 8 + 3) as usize];
+    assert!(source.current.mass > parcel.mass);
+    assert!(source.current.energy > parcel.energy);
+    assert_eq!(source.current, source.next);
     assert_eq!(cells[0].current, cells[0].next);
-    assert_eq!(
-        cells[1].current,
-        AirState {
-            mass: 0.0,
-            energy: 0.0
-        }
-    );
-    assert_eq!(cells[1].current, cells[1].next);
+    assert_eq!(destination.current, vacuum_air_state());
+    assert_eq!(destination.current, destination.next);
+    let after_mass: f32 = cells.iter().map(|cell| cell.current.mass).sum();
+    let after_energy: f32 = cells.iter().map(|cell| cell.current.energy).sum();
+    assert!((before_mass - after_mass).abs() <= 1.0e-4);
+    assert!((before_energy - after_energy).abs() <= 1.0e-2);
 }
 
 #[test]
 fn movement_volume_exchange_covers_vacuum_density_void_chunk_edges_and_sleep_modes() {
-    // Matter entering Vacuum leaves exact Vacuum behind at its vacated source.
+    // Matter entering Vacuum leaves Vacuum at its destination while passive
+    // transport may immediately refill the vacated source from its neighbors.
     let mut vacuum = eight_by_eight();
     vacuum
         .world
@@ -196,11 +239,23 @@ fn movement_volume_exchange_covers_vacuum_density_void_chunk_edges_and_sleep_mod
         .world
         .write_environment_cell_for_test(&vacuum.context.queue, 3, 3, vacuum_air_state())
         .unwrap();
+    let vacuum_coordinates = (0..8)
+        .flat_map(|y| (0..8).map(move |x| (x, y)))
+        .collect::<Vec<_>>();
+    let vacuum_before_mass: f32 = observe(&vacuum, &vacuum_coordinates)
+        .iter()
+        .map(|cell| cell.current.mass)
+        .sum();
     vacuum.tick().unwrap();
     let vacuum_cells = observe(&vacuum, &[(3, 2), (3, 3)]);
-    assert_eq!(vacuum_cells[0].current, vacuum_air_state());
+    assert!(vacuum_cells[0].current.mass > 0.0);
     assert_eq!(vacuum_cells[1].current, vacuum_air_state());
     assert!(vacuum_cells.iter().all(|cell| cell.current == cell.next));
+    let vacuum_after_mass: f32 = observe(&vacuum, &vacuum_coordinates)
+        .iter()
+        .map(|cell| cell.current.mass)
+        .sum();
+    assert!((vacuum_before_mass - vacuum_after_mass).abs() <= 1.0e-4);
 
     // A Matter-for-Matter density swap never creates same-cell Air.
     let mut density = eight_by_eight();
@@ -242,7 +297,8 @@ fn movement_volume_exchange_covers_vacuum_density_void_chunk_edges_and_sleep_mod
         .iter()
         .all(|cell| cell.current == vacuum_air_state() && cell.current == cell.next));
 
-    // A Void exit exposes Vacuum rather than spontaneously refilling Atmosphere.
+    // A Void exit exposes an EMPTY cell which the sealed interior may refill;
+    // it does not receive an external reservoir parcel.
     let mut void_exit = eight_by_eight();
     void_exit
         .world
@@ -255,10 +311,11 @@ fn movement_volume_exchange_covers_vacuum_density_void_chunk_edges_and_sleep_mod
     void_exit.tick().unwrap();
     void_exit.tick().unwrap();
     let void_cell = observe(&void_exit, &[(4, 7)])[0];
-    assert_eq!(void_cell.current, vacuum_air_state());
+    assert!(void_cell.current.mass > 0.0);
     assert_eq!(void_cell.current, void_cell.next);
 
-    // Crossing a chunk boundary transfers the exact destination parcel.
+    // Crossing a chunk boundary preserves occupancy and lets the transferred
+    // parcel join the ordinary passive transport cohort.
     let mut boundary =
         pollster::block_on(Simulation::new(WorldConfig::new(128, 16, 64).unwrap())).unwrap();
     let edge_parcel = AirState {
@@ -283,7 +340,7 @@ fn movement_volume_exchange_covers_vacuum_density_void_chunk_edges_and_sleep_mod
         .unwrap();
     boundary.tick().unwrap();
     let boundary_cells = observe(&boundary, &[(63, 1), (64, 2)]);
-    assert_eq!(boundary_cells[0].current, edge_parcel);
+    assert!(boundary_cells[0].current.mass > 0.0);
     assert_eq!(boundary_cells[1].current, vacuum_air_state());
 
     // Sleep ON and OFF use the same occupancy-linked Environment result.

@@ -41,9 +41,10 @@
 use powdergame_core::{
     chunk_count, chunks_x, chunks_y, combustion_table, conductivity_table, decay_table,
     density_table, heat_capacity_table, movement_class_table, phase_descriptor_table,
-    rupture_threshold_table, WorldConfig, ACTIVITY_MATTER, ACTIVITY_PRESSURE, ACTIVITY_REACTION,
-    ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING, DEFAULT_SLEEP_THRESHOLD_TICKS,
-    PRESSURE_ACTIVITY_EPS, THERMAL_ACTIVITY_EPS,
+    rupture_threshold_table, EnvironmentBoundaryMode, WorldConfig, ACTIVITY_MATTER,
+    ACTIVITY_PRESSURE, ACTIVITY_REACTION, ACTIVITY_THERMAL, CHUNK_STATE_RUNNABLE,
+    CHUNK_STATE_SLEEPING, DEFAULT_SLEEP_THRESHOLD_TICKS, PRESSURE_ACTIVITY_EPS,
+    THERMAL_ACTIVITY_EPS,
 };
 
 use crate::context::{GpuContext, GpuError};
@@ -59,10 +60,14 @@ const WORKGROUPS_X: u32 = 256;
 const THREADS_X: u64 = (WORKGROUPS_X as u64) * (WORKGROUP_SIZE as u64);
 /// Params uniform size: cell_count, threads_x, width, height, chunk_size, chunks_x, chunks_y, sleep_enabled (8 u32) = 32 bytes.
 const PARAMS_SIZE: u64 = 32;
+/// TE-2 Environment params extend common geometry with boundary mode and pad.
+const ENVIRONMENT_PARAMS_SIZE: u64 = 48;
 /// Arbitration uniform size: tick (u32) + 3 pad u32 = 16 bytes.
 const ARBITRATION_PARAMS_SIZE: u64 = 16;
 /// Material table buffer size (16 u32 entries each).
 const TABLE_SIZE: u64 = 64;
+/// 16 pairs of conductivity/capacity f32 values.
+const THERMAL_TABLE_SIZE: u64 = 128;
 /// Phase descriptor table: 16 descriptors × 32 bytes (G5-B yield/confinement metadata).
 const PHASE_TABLE_SIZE: u64 = 512;
 /// Combustion descriptor uniform table: 16 descriptors × 32 bytes = 512 bytes.
@@ -84,6 +89,7 @@ const WAKE_PARAMS_SIZE: u64 = 16;
 /// activity params, marker, five 64-byte material tables, phase descriptors,
 /// the combined activity table, decay descriptors, and combustion descriptors.
 const TRACKED_UNIFORMS_AND_TABLES_SIZE: u64 = PARAMS_SIZE
+    + ENVIRONMENT_PARAMS_SIZE
     + WAKE_PARAMS_SIZE
     + ARBITRATION_PARAMS_SIZE
     + ACTIVITY_PARAMS_SIZE
@@ -93,6 +99,7 @@ const TRACKED_UNIFORMS_AND_TABLES_SIZE: u64 = PARAMS_SIZE
     + TABLE_SIZE // density
     + TABLE_SIZE // conductivity
     + TABLE_SIZE // heat capacity
+    + THERMAL_TABLE_SIZE // combined TE-2 thermal table
     + PHASE_TABLE_SIZE
     + (PHASE_TABLE_SIZE + TABLE_SIZE) // activity phase + conductivity table
     + DECAY_TABLE_SIZE
@@ -160,7 +167,10 @@ pub struct Simulation {
     commit_pipeline: wgpu::ComputePipeline,
     material_flag_hygiene_pipeline: wgpu::ComputePipeline,
     movement_environment_reconcile_pipeline: wgpu::ComputePipeline,
-    thermal_pipeline: wgpu::ComputePipeline,
+    air_flow_scale_pipeline: wgpu::ComputePipeline,
+    air_transport_pipeline: wgpu::ComputePipeline,
+    thermal_stability_pipeline: wgpu::ComputePipeline,
+    unified_thermal_pipeline: wgpu::ComputePipeline,
     phase_pipeline: wgpu::ComputePipeline,
     expansion_claim_pipeline: wgpu::ComputePipeline,
     expansion_environment_receiver_claim_pipeline: wgpu::ComputePipeline,
@@ -178,6 +188,7 @@ pub struct Simulation {
     pressure_pipeline: wgpu::ComputePipeline,
     rupture_pipeline: wgpu::ComputePipeline,
     activity_propose_pipeline: wgpu::ComputePipeline,
+    environment_activity_propose_pipeline: wgpu::ComputePipeline,
     activity_reduce_pipeline: wgpu::ComputePipeline,
     activity_wake_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
@@ -185,7 +196,10 @@ pub struct Simulation {
     commit_bind_group: wgpu::BindGroup,
     material_flag_hygiene_bind_group: wgpu::BindGroup,
     movement_environment_reconcile_bind_group: wgpu::BindGroup,
-    thermal_bind_group: wgpu::BindGroup,
+    air_flow_scale_bind_group: wgpu::BindGroup,
+    air_transport_bind_group: wgpu::BindGroup,
+    thermal_stability_bind_group: wgpu::BindGroup,
+    unified_thermal_bind_group: wgpu::BindGroup,
     phase_bind_group: wgpu::BindGroup,
     expansion_claim_bind_group: wgpu::BindGroup,
     environment_receiver_claim_bind_group: wgpu::BindGroup,
@@ -202,15 +216,18 @@ pub struct Simulation {
     pressure_bind_group: wgpu::BindGroup,
     rupture_bind_group: wgpu::BindGroup,
     activity_propose_bind_group: wgpu::BindGroup,
+    environment_activity_propose_bind_group: wgpu::BindGroup,
     activity_reduce_bind_group: wgpu::BindGroup,
     activity_wake_bind_group: wgpu::BindGroup,
     pub params: wgpu::Buffer,
+    pub environment_params: wgpu::Buffer,
     pub wake_params: wgpu::Buffer,
     pub arbitration_params: wgpu::Buffer,
     marker: wgpu::Buffer,
 
     pub sleep_enabled: bool,
     pub sleep_threshold: u32,
+    pub environment_boundary_mode: EnvironmentBoundaryMode,
     /// Number of ticks submitted since creation.
     pub tick_count: u64,
 }
@@ -272,12 +289,40 @@ impl Simulation {
                         include_str!("environment_reconcile_movement.wgsl").into(),
                     ),
                 });
-        let shader_thermal = context
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("powdergame-g4a-thermal"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("thermal.wgsl").into()),
-            });
+        let shader_air_flow_scale =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te2-air-flow-scale"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("air_flow_scale.wgsl").into()),
+                });
+        let shader_air_transport =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te2-air-transport"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("air_transport_commit.wgsl").into(),
+                    ),
+                });
+        let shader_thermal_stability =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te2-thermal-stability"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("thermal_stability_scale.wgsl").into(),
+                    ),
+                });
+        let shader_unified_thermal =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te2-unified-thermal"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("unified_thermal_commit.wgsl").into(),
+                    ),
+                });
         let shader_phase = context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -400,6 +445,15 @@ impl Simulation {
                     label: Some("powdergame-g7a-activity-reduce"),
                     source: wgpu::ShaderSource::Wgsl(include_str!("activity_reduce.wgsl").into()),
                 });
+        let shader_environment_activity_propose =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te2-environment-activity-propose"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("environment_activity_propose.wgsl").into(),
+                    ),
+                });
         let shader_activity_wake =
             context
                 .device
@@ -481,19 +535,70 @@ impl Simulation {
                         buffer_entry(7, &BindingKind::ReadWrite),
                     ],
                 });
-        let thermal_layout =
+        let air_flow_scale_layout =
             context
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("powdergame-g4a-thermal-bgl"),
+                    label: Some("powdergame-te2-air-flow-scale-bgl"),
                     entries: &[
-                        buffer_entry(0, &BindingKind::Uniform),
-                        buffer_entry(1, &BindingKind::Read), // material_current
-                        buffer_entry(2, &BindingKind::Read), // temperature_current
-                        buffer_entry(3, &BindingKind::ReadWrite), // temperature_next
-                        buffer_entry(4, &BindingKind::Read), // conductivity_table
-                        buffer_entry(5, &BindingKind::Read), // capacity_table
-                        buffer_entry(6, &BindingKind::Read), // chunk_state
+                        uniform_entry(0, ENVIRONMENT_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        buffer_entry(5, &BindingKind::ReadWrite),
+                        buffer_entry(6, &BindingKind::ReadWrite),
+                    ],
+                });
+        let air_transport_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te2-air-transport-bgl"),
+                    entries: &[
+                        uniform_entry(0, ENVIRONMENT_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        buffer_entry(5, &BindingKind::Read),
+                        buffer_entry(6, &BindingKind::ReadWrite),
+                        buffer_entry(7, &BindingKind::ReadWrite),
+                        buffer_entry(8, &BindingKind::Read),
+                    ],
+                });
+        let thermal_stability_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te2-thermal-stability-bgl"),
+                    entries: &[
+                        uniform_entry(0, ENVIRONMENT_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        uniform_entry(5, THERMAL_TABLE_SIZE),
+                        buffer_entry(6, &BindingKind::Read),
+                        buffer_entry(7, &BindingKind::ReadWrite),
+                    ],
+                });
+        let unified_thermal_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te2-unified-thermal-bgl"),
+                    entries: &[
+                        uniform_entry(0, ENVIRONMENT_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        uniform_entry(5, THERMAL_TABLE_SIZE),
+                        buffer_entry(6, &BindingKind::Read),
+                        buffer_entry(7, &BindingKind::ReadWrite),
+                        buffer_entry(8, &BindingKind::ReadWrite),
+                        buffer_entry(9, &BindingKind::Read),
                     ],
                 });
         let phase_layout =
@@ -752,6 +857,21 @@ impl Simulation {
                         buffer_entry(4, &BindingKind::ReadWrite), // chunk_stable
                     ],
                 });
+        let environment_activity_propose_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te2-environment-activity-propose-bgl"),
+                    entries: &[
+                        uniform_entry(0, ENVIRONMENT_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read),
+                        buffer_entry(2, &BindingKind::Read),
+                        buffer_entry(3, &BindingKind::Read),
+                        buffer_entry(4, &BindingKind::Read),
+                        uniform_entry(5, THERMAL_TABLE_SIZE),
+                        buffer_entry(6, &BindingKind::ReadWrite),
+                    ],
+                });
 
         // G7-B activity wake pass: 1 thread per chunk evaluates self activity,
         // 8-neighbor activity halo, edit wakes, settling threshold, and sleep enable.
@@ -824,11 +944,29 @@ impl Simulation {
             &shader_movement_environment_reconcile,
             "movement_environment_reconcile_main",
         );
-        let thermal_pipeline = make_pipeline(
-            "powdergame-g4a-thermal",
-            &thermal_layout,
-            &shader_thermal,
-            "thermal_main",
+        let air_flow_scale_pipeline = make_pipeline(
+            "powdergame-te2-air-flow-scale",
+            &air_flow_scale_layout,
+            &shader_air_flow_scale,
+            "air_flow_scale_main",
+        );
+        let air_transport_pipeline = make_pipeline(
+            "powdergame-te2-air-transport",
+            &air_transport_layout,
+            &shader_air_transport,
+            "air_transport_commit_main",
+        );
+        let thermal_stability_pipeline = make_pipeline(
+            "powdergame-te2-thermal-stability",
+            &thermal_stability_layout,
+            &shader_thermal_stability,
+            "thermal_stability_scale_main",
+        );
+        let unified_thermal_pipeline = make_pipeline(
+            "powdergame-te2-unified-thermal",
+            &unified_thermal_layout,
+            &shader_unified_thermal,
+            "unified_thermal_commit_main",
         );
         let phase_pipeline = make_pipeline(
             "powdergame-g4b-g5b-phase",
@@ -939,6 +1077,12 @@ impl Simulation {
             &shader_activity_reduce,
             "reduce_main",
         );
+        let environment_activity_propose_pipeline = make_pipeline(
+            "powdergame-te2-environment-activity-propose",
+            &environment_activity_propose_layout,
+            &shader_environment_activity_propose,
+            "environment_activity_propose_main",
+        );
         let activity_wake_pipeline = make_pipeline(
             "powdergame-g7b-activity-wake",
             &activity_wake_layout,
@@ -966,6 +1110,14 @@ impl Simulation {
                 | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let environment_params = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("te2/environment/params"),
+            size: ENVIRONMENT_PARAMS_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let wake_params = context.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("g7b/activity/wake-params"),
@@ -978,6 +1130,7 @@ impl Simulation {
 
         let sleep_enabled = true;
         let sleep_threshold = DEFAULT_SLEEP_THRESHOLD_TICKS;
+        let environment_boundary_mode = EnvironmentBoundaryMode::Sealed;
 
         let mut params_data = [0u8; PARAMS_SIZE as usize];
         params_data[..4].copy_from_slice(&cell_count_u32.to_ne_bytes());
@@ -990,6 +1143,13 @@ impl Simulation {
         params_data[28..32]
             .copy_from_slice(&(if sleep_enabled { 1u32 } else { 0u32 }).to_ne_bytes());
         context.queue.write_buffer(&params, 0, &params_data);
+        let mut environment_params_data = [0u8; ENVIRONMENT_PARAMS_SIZE as usize];
+        environment_params_data[..32].copy_from_slice(&params_data);
+        environment_params_data[32..36]
+            .copy_from_slice(&(environment_boundary_mode as u32).to_ne_bytes());
+        context
+            .queue
+            .write_buffer(&environment_params, 0, &environment_params_data);
 
         let mut wake_data = [0u8; WAKE_PARAMS_SIZE as usize];
         wake_data[..4].copy_from_slice(&chunks_x_u32.to_ne_bytes());
@@ -1098,6 +1258,24 @@ impl Simulation {
         context
             .queue
             .write_buffer(&capacity_table_buf, 0, &capacity_data);
+
+        let mut thermal_data = [0u8; THERMAL_TABLE_SIZE as usize];
+        let conductivity = conductivity_table();
+        let capacities = heat_capacity_table();
+        for index in 0..16usize {
+            let offset = index * 8;
+            thermal_data[offset..offset + 4].copy_from_slice(&conductivity[index].to_ne_bytes());
+            thermal_data[offset + 4..offset + 8].copy_from_slice(&capacities[index].to_ne_bytes());
+        }
+        let thermal_table_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("te2/thermal/combined-table"),
+            size: THERMAL_TABLE_SIZE,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        context
+            .queue
+            .write_buffer(&thermal_table_buf, 0, &thermal_data);
 
         // G4-B/G5-B phase descriptor table (16 × 32 bytes; Material data,
         // not per-cell state): targets + matter yield + thresholds +
@@ -1372,42 +1550,178 @@ impl Simulation {
                         },
                     ],
                 });
-        let thermal_bind_group = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("powdergame-g4a-thermal-bg"),
-                layout: &thermal_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: params.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: world.material_current.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: world.temperature_current.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 3,
-                        resource: world.temperature_next.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 4,
-                        resource: conductivity_table_buf.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 5,
-                        resource: capacity_table_buf.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 6,
-                        resource: world.chunk_state.as_entire_binding(),
-                    },
-                ],
-            });
+        let air_flow_scale_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te2-air-flow-scale-bg"),
+                    layout: &air_flow_scale_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: environment_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.chunk_state.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                    ],
+                });
+        let air_transport_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te2-air-transport-bg"),
+                    layout: &air_transport_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: environment_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: world.claim.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.air_mass_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.air_energy_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: world.chunk_state.as_entire_binding(),
+                        },
+                    ],
+                });
+        let thermal_stability_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te2-thermal-stability-bg"),
+                    layout: &thermal_stability_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: environment_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.temperature_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: thermal_table_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.chunk_state.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                    ],
+                });
+        let unified_thermal_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te2-unified-thermal-bg"),
+                    layout: &unified_thermal_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: environment_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.temperature_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: thermal_table_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.temperature_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 8,
+                            resource: world.air_energy_next.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 9,
+                            resource: world.chunk_state.as_entire_binding(),
+                        },
+                    ],
+                });
         let phase_bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -2016,6 +2330,43 @@ impl Simulation {
                         },
                     ],
                 });
+        let environment_activity_propose_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te2-environment-activity-propose-bg"),
+                    layout: &environment_activity_propose_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: environment_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.temperature_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.air_mass_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: world.air_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
+                            resource: thermal_table_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 6,
+                            resource: world.cell_activity.as_entire_binding(),
+                        },
+                    ],
+                });
         let activity_reduce_bind_group =
             context
                 .device
@@ -2088,7 +2439,10 @@ impl Simulation {
             commit_pipeline,
             material_flag_hygiene_pipeline,
             movement_environment_reconcile_pipeline,
-            thermal_pipeline,
+            air_flow_scale_pipeline,
+            air_transport_pipeline,
+            thermal_stability_pipeline,
+            unified_thermal_pipeline,
             phase_pipeline,
             expansion_claim_pipeline,
             expansion_environment_receiver_claim_pipeline,
@@ -2106,6 +2460,7 @@ impl Simulation {
             pressure_pipeline,
             rupture_pipeline,
             activity_propose_pipeline,
+            environment_activity_propose_pipeline,
             activity_reduce_pipeline,
             activity_wake_pipeline,
             propose_bind_group,
@@ -2113,7 +2468,10 @@ impl Simulation {
             commit_bind_group,
             material_flag_hygiene_bind_group,
             movement_environment_reconcile_bind_group,
-            thermal_bind_group,
+            air_flow_scale_bind_group,
+            air_transport_bind_group,
+            thermal_stability_bind_group,
+            unified_thermal_bind_group,
             phase_bind_group,
             expansion_claim_bind_group,
             environment_receiver_claim_bind_group,
@@ -2129,14 +2487,17 @@ impl Simulation {
             pressure_bind_group,
             rupture_bind_group,
             activity_propose_bind_group,
+            environment_activity_propose_bind_group,
             activity_reduce_bind_group,
             activity_wake_bind_group,
             params,
+            environment_params,
             wake_params,
             arbitration_params,
             marker,
             sleep_enabled,
             sleep_threshold,
+            environment_boundary_mode,
             tick_count: 0,
         })
     }
@@ -2150,6 +2511,11 @@ impl Simulation {
     /// Sets the number of consecutive stable ticks required before a chunk may sleep.
     pub fn set_sleep_threshold(&mut self, threshold: u32) {
         self.sleep_threshold = threshold;
+        self.update_uniforms();
+    }
+
+    pub fn set_environment_boundary_mode(&mut self, mode: EnvironmentBoundaryMode) {
+        self.environment_boundary_mode = mode;
         self.update_uniforms();
     }
 
@@ -2186,6 +2552,13 @@ impl Simulation {
         self.context
             .queue
             .write_buffer(&self.params, 0, &params_data);
+        let mut environment_params_data = [0u8; ENVIRONMENT_PARAMS_SIZE as usize];
+        environment_params_data[..32].copy_from_slice(&params_data);
+        environment_params_data[32..36]
+            .copy_from_slice(&(self.environment_boundary_mode as u32).to_ne_bytes());
+        self.context
+            .queue
+            .write_buffer(&self.environment_params, 0, &environment_params_data);
 
         let mut wake_data = [0u8; WAKE_PARAMS_SIZE as usize];
         wake_data[..4].copy_from_slice(&chunks_x_u32.to_ne_bytes());
@@ -2372,13 +2745,68 @@ impl Simulation {
             self.world.layout.material_bytes,
         );
 
-        // Pass 6: thermal
+        // Pass 6: donor/receiver Air scales overwrite movement scratch.
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("powdergame-g4a-thermal-pass"),
+                label: Some("powdergame-te2-air-flow-scale-pass"),
                 timestamp_writes: make_timestamp_writes(6),
             });
-            dispatch(&mut pass, &self.thermal_pipeline, &self.thermal_bind_group);
+            dispatch(
+                &mut pass,
+                &self.air_flow_scale_pipeline,
+                &self.air_flow_scale_bind_group,
+            );
+        }
+        // Pass 7: conservative Air mass/energy transport.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te2-air-transport-pass"),
+                timestamp_writes: make_timestamp_writes(7),
+            });
+            dispatch(
+                &mut pass,
+                &self.air_transport_pipeline,
+                &self.air_transport_bind_group,
+            );
+        }
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_mass_next,
+            0,
+            &self.world.air_mass_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_energy_next,
+            0,
+            &self.world.air_energy_current,
+            0,
+            self.world.layout.material_bytes,
+        );
+
+        // Pass 8: thermal stability lambda overwrites proposal scratch.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te2-thermal-stability-pass"),
+                timestamp_writes: make_timestamp_writes(8),
+            });
+            dispatch(
+                &mut pass,
+                &self.thermal_stability_pipeline,
+                &self.thermal_stability_bind_group,
+            );
+        }
+        // Pass 9: unified Matter/Air passive thermal exchange.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te2-unified-thermal-pass"),
+                timestamp_writes: make_timestamp_writes(9),
+            });
+            dispatch(
+                &mut pass,
+                &self.unified_thermal_pipeline,
+                &self.unified_thermal_bind_group,
+            );
         }
         encoder.copy_buffer_to_buffer(
             &self.world.temperature_next,
@@ -2387,20 +2815,27 @@ impl Simulation {
             0,
             self.world.layout.temperature_bytes,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.world.air_energy_next,
+            0,
+            &self.world.air_energy_current,
+            0,
+            self.world.layout.material_bytes,
+        );
 
-        // Pass 7: phase_transition
+        // Pass 10: phase_transition
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4b-g5b-phase-pass"),
-                timestamp_writes: make_timestamp_writes(7),
+                timestamp_writes: make_timestamp_writes(10),
             });
             dispatch(&mut pass, &self.phase_pipeline, &self.phase_bind_group);
         }
-        // Pass 8: expansion_claim
+        // Pass 11: expansion_claim
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-claim-pass"),
-                timestamp_writes: make_timestamp_writes(8),
+                timestamp_writes: make_timestamp_writes(11),
             });
             dispatch(
                 &mut pass,
@@ -2408,12 +2843,12 @@ impl Simulation {
                 &self.expansion_claim_bind_group,
             );
         }
-        // Pass 9: Environment receiver claim (scratch is fully rewritten).
+        // Pass 12: Environment receiver claim (scratch is fully rewritten).
         encoder.clear_buffer(&self.world.environment_receiver_claim, 0, None);
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-expansion-environment-receiver-claim-pass"),
-                timestamp_writes: make_timestamp_writes(9),
+                timestamp_writes: make_timestamp_writes(12),
             });
             dispatch(
                 &mut pass,
@@ -2421,11 +2856,11 @@ impl Simulation {
                 &self.environment_receiver_claim_bind_group,
             );
         }
-        // Pass 10: expansion_spawn_commit (receiver gated)
+        // Pass 13: expansion_spawn_commit (receiver gated)
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-spawn-commit-pass"),
-                timestamp_writes: make_timestamp_writes(10),
+                timestamp_writes: make_timestamp_writes(13),
             });
             dispatch(
                 &mut pass,
@@ -2433,11 +2868,11 @@ impl Simulation {
                 &self.expansion_spawn_commit_bind_group,
             );
         }
-        // Pass 11: existing expansion_pressure
+        // Pass 14: existing expansion_pressure
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5b-expansion-pressure-pass"),
-                timestamp_writes: make_timestamp_writes(11),
+                timestamp_writes: make_timestamp_writes(14),
             });
             dispatch(
                 &mut pass,
@@ -2445,11 +2880,11 @@ impl Simulation {
                 &self.expansion_pressure_bind_group,
             );
         }
-        // Pass 12: original Matter winner whose Environment receiver failed.
+        // Pass 15: original Matter winner whose Environment receiver failed.
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-environment-blocked-expansion-pressure-pass"),
-                timestamp_writes: make_timestamp_writes(12),
+                timestamp_writes: make_timestamp_writes(15),
             });
             dispatch(
                 &mut pass,
@@ -2457,11 +2892,11 @@ impl Simulation {
                 &self.environment_blocked_expansion_pressure_bind_group,
             );
         }
-        // Pass 13: phase/spawn identity flag hygiene.
+        // Pass 16: phase/spawn identity flag hygiene.
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-material-flag-hygiene-phase-pass"),
-                timestamp_writes: make_timestamp_writes(13),
+                timestamp_writes: make_timestamp_writes(16),
             });
             dispatch(
                 &mut pass,
@@ -2469,11 +2904,11 @@ impl Simulation {
                 &self.material_flag_hygiene_bind_group,
             );
         }
-        // Pass 14: paired phase Environment reconcile.
+        // Pass 17: paired phase Environment reconcile.
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-expansion-environment-reconcile-pass"),
-                timestamp_writes: make_timestamp_writes(14),
+                timestamp_writes: make_timestamp_writes(17),
             });
             dispatch(
                 &mut pass,
@@ -2526,18 +2961,18 @@ impl Simulation {
             self.world.layout.material_bytes,
         );
 
-        // Pass 15: decay
+        // Pass 18: decay
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4d-decay-pass"),
-                timestamp_writes: make_timestamp_writes(15),
+                timestamp_writes: make_timestamp_writes(18),
             });
             dispatch(&mut pass, &self.decay_pipeline, &self.decay_bind_group);
         }
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-material-flag-hygiene-decay-pass"),
-                timestamp_writes: make_timestamp_writes(16),
+                timestamp_writes: make_timestamp_writes(19),
             });
             dispatch(
                 &mut pass,
@@ -2548,7 +2983,7 @@ impl Simulation {
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-environment-reconcile-decay-pass"),
-                timestamp_writes: make_timestamp_writes(17),
+                timestamp_writes: make_timestamp_writes(20),
             });
             dispatch(
                 &mut pass,
@@ -2592,11 +3027,11 @@ impl Simulation {
             self.world.layout.material_bytes,
         );
 
-        // Pass 18: combustion
+        // Pass 21: combustion
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-combustion-pass"),
-                timestamp_writes: make_timestamp_writes(18),
+                timestamp_writes: make_timestamp_writes(21),
             });
             dispatch(
                 &mut pass,
@@ -2604,11 +3039,11 @@ impl Simulation {
                 &self.combustion_bind_group,
             );
         }
-        // Pass 19: smoke_claim
+        // Pass 22: smoke_claim
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-smoke-claim-pass"),
-                timestamp_writes: make_timestamp_writes(19),
+                timestamp_writes: make_timestamp_writes(22),
             });
             dispatch(
                 &mut pass,
@@ -2616,12 +3051,12 @@ impl Simulation {
                 &self.smoke_claim_bind_group,
             );
         }
-        // Pass 20: Smoke Environment receiver claim.
+        // Pass 23: Smoke Environment receiver claim.
         encoder.clear_buffer(&self.world.environment_receiver_claim, 0, None);
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-smoke-environment-receiver-claim-pass"),
-                timestamp_writes: make_timestamp_writes(20),
+                timestamp_writes: make_timestamp_writes(23),
             });
             dispatch(
                 &mut pass,
@@ -2629,11 +3064,11 @@ impl Simulation {
                 &self.environment_receiver_claim_bind_group,
             );
         }
-        // Pass 21: smoke_commit (receiver gated)
+        // Pass 24: smoke_commit (receiver gated)
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g4c-smoke-commit-pass"),
-                timestamp_writes: make_timestamp_writes(21),
+                timestamp_writes: make_timestamp_writes(24),
             });
             dispatch(
                 &mut pass,
@@ -2644,7 +3079,7 @@ impl Simulation {
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-material-flag-hygiene-combustion-pass"),
-                timestamp_writes: make_timestamp_writes(22),
+                timestamp_writes: make_timestamp_writes(25),
             });
             dispatch(
                 &mut pass,
@@ -2655,7 +3090,7 @@ impl Simulation {
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-environment-reconcile-smoke-pass"),
-                timestamp_writes: make_timestamp_writes(23),
+                timestamp_writes: make_timestamp_writes(26),
             });
             dispatch(
                 &mut pass,
@@ -2701,11 +3136,11 @@ impl Simulation {
             self.world.layout.material_bytes,
         );
 
-        // Pass 24: pressure
+        // Pass 27: pressure
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5a-pressure-pass"),
-                timestamp_writes: make_timestamp_writes(24),
+                timestamp_writes: make_timestamp_writes(27),
             });
             dispatch(
                 &mut pass,
@@ -2721,18 +3156,18 @@ impl Simulation {
             self.world.layout.pressure_bytes,
         );
 
-        // Pass 25: rupture
+        // Pass 28: rupture
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g5c-rupture-pass"),
-                timestamp_writes: make_timestamp_writes(25),
+                timestamp_writes: make_timestamp_writes(28),
             });
             dispatch(&mut pass, &self.rupture_pipeline, &self.rupture_bind_group);
         }
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-material-flag-hygiene-rupture-pass"),
-                timestamp_writes: make_timestamp_writes(26),
+                timestamp_writes: make_timestamp_writes(29),
             });
             dispatch(
                 &mut pass,
@@ -2743,7 +3178,7 @@ impl Simulation {
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-te1-environment-reconcile-rupture-pass"),
-                timestamp_writes: make_timestamp_writes(27),
+                timestamp_writes: make_timestamp_writes(30),
             });
             dispatch(
                 &mut pass,
@@ -2787,11 +3222,11 @@ impl Simulation {
             self.world.layout.material_bytes,
         );
 
-        // Pass 28: activity_propose
+        // Pass 31: activity_propose
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7a-activity-propose-pass"),
-                timestamp_writes: make_timestamp_writes(28),
+                timestamp_writes: make_timestamp_writes(31),
             });
             dispatch(
                 &mut pass,
@@ -2799,11 +3234,23 @@ impl Simulation {
                 &self.activity_propose_bind_group,
             );
         }
-        // Pass 29: activity_reduce
+        // Pass 32: Environment activity augments the same per-cell flags.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te2-environment-activity-propose-pass"),
+                timestamp_writes: make_timestamp_writes(32),
+            });
+            dispatch(
+                &mut pass,
+                &self.environment_activity_propose_pipeline,
+                &self.environment_activity_propose_bind_group,
+            );
+        }
+        // Pass 33: activity_reduce
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7a-activity-reduce-pass"),
-                timestamp_writes: make_timestamp_writes(29),
+                timestamp_writes: make_timestamp_writes(33),
             });
             pass.set_pipeline(&self.activity_reduce_pipeline);
             pass.set_bind_group(0, &self.activity_reduce_bind_group, &[]);

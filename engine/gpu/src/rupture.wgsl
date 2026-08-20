@@ -33,7 +33,7 @@ const CLASS_LIQUID: u32 = 2u;
 const CLASS_GAS: u32 = 3u;
 const PRESSURE_REFERENCE: f32 = 0.0;
 const PRESSURE_MAX: f32 = 1.0e6;
-const TEMPERATURE_REFERENCE: f32 = 0.0;
+const TEMPERATURE_REFERENCE: f32 = 20.0;
 
 fn sanitize_pressure(value: f32) -> f32 {
     if (value != value || value > 1.0e20 || value < -1.0e20) {

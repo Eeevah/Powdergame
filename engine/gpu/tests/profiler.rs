@@ -94,7 +94,7 @@ fn test_profiled_simulation_tick_produces_all_valid_pass_timings() {
         "the second resolved query set must follow the first on the GPU timeline"
     );
     assert_eq!(report.passes.len(), PASS_COUNT);
-    assert_eq!(PASS_COUNT, 30);
+    assert_eq!(PASS_COUNT, 34);
 
     for (i, pass) in report.passes.iter().enumerate() {
         assert_eq!(pass.name, PASS_NAMES[i]);
@@ -361,7 +361,7 @@ fn test_tracked_gpu_allocation_report_structure() {
     let sim = Simulation::with_context(ctx, config).expect("failed to create sim");
 
     let unprofiled = sim.tracked_memory_report(None);
-    assert_eq!(unprofiled.total_tracked_gpu_bytes, 268_462_208);
+    assert_eq!(unprofiled.total_tracked_gpu_bytes, 268_462_384);
     let mem = sim.tracked_memory_report(Some(&profiler));
 
     // 2048x2048 = 4,194,304 cells
@@ -380,15 +380,15 @@ fn test_tracked_gpu_allocation_report_structure() {
     // Activity scratch: cell_activity (16 MB) + 6 chunk buffers (6 * 1024 * 4 = 24,576 bytes)
     assert_eq!(mem.activity_scratch_bytes, 4_194_304 * 4 + 1024 * 4 * 6);
 
-    // Profiler: 60 timestamps * 8 bytes * resolve+readback = 960 bytes.
-    assert_eq!(mem.profiler_bytes, 960);
+    // Profiler: 68 timestamps * 8 bytes * resolve+readback = 1,088 bytes.
+    assert_eq!(mem.profiler_bytes, 1_088);
 
-    // Exact persistent inventory: 4 uniforms + marker + 9 property/table
-    // buffers. This assertion must fail if tracked_memory_report omits one of
-    // the allocations made by Simulation::with_context.
-    assert_eq!(mem.uniforms_and_tables_bytes, 2_176);
+    // Exact persistent inventory: TE-2 adds the Environment and wake uniforms
+    // plus one combined thermal table without adding full-resolution scratch.
+    // This assertion must fail if tracked_memory_report omits an allocation.
+    assert_eq!(mem.uniforms_and_tables_bytes, 2_352);
 
-    assert_eq!(mem.total_tracked_gpu_bytes, 268_463_168);
+    assert_eq!(mem.total_tracked_gpu_bytes, 268_463_472);
 
     assert_eq!(
         mem.total_tracked_gpu_bytes,

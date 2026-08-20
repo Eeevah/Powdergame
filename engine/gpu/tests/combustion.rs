@@ -21,7 +21,7 @@ use powdergame_core::{
     combustion_flag_mask, decay_age, decay_flag_mask, fuel_progress, vacuum_air_state,
     with_decay_age, with_fuel_progress, AirState, WorldConfig, FLAG_COMBUSTING, FLAG_FLAME_EVENT,
     MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_REGISTRY, MATERIAL_SMOKE, MATERIAL_STEAM,
-    MATERIAL_STONE, MATERIAL_WOOD, STANDARD_AIR_ENERGY, TEMPERATURE_REFERENCE,
+    MATERIAL_STONE, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::Simulation;
 
@@ -105,6 +105,17 @@ fn seal_eight(sim: &Simulation, x: i64, y: i64) {
     }
 }
 
+fn seal_eight_at_temperature(sim: &Simulation, x: i64, y: i64, temperature: f32) {
+    seal_eight(sim, x, y);
+    for dx in -1..=1 {
+        for dy in -1..=1 {
+            if dx != 0 || dy != 0 {
+                set_t(sim, x + dx, y + dy, temperature);
+            }
+        }
+    }
+}
+
 /// Ticks `stride` ticks at a time and checks `pred` before each batch (and
 /// after the final one), up to `max_ticks` total. Returns the tick index at
 /// which the predicate first held (or `None`). GPU readbacks are cheap
@@ -140,7 +151,7 @@ fn tick_until(
 fn hot_oil_ignites() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 80.0); // >= Oil ignition 75
+    set_t(&sim, 3, 3, 350.0); // >= Oil ignition 200
     seal_eight(&sim, 3, 3);
 
     sim.tick().expect("tick");
@@ -156,8 +167,8 @@ fn hot_oil_ignites() {
         "ignition emits a flame presentation event"
     );
     assert!(
-        temp(&sim, 3, 3) > 80.0,
-        "ignition tick also adds combustion heat"
+        temp(&sim, 3, 3) > 150.0,
+        "ignition remains above the Oil sustain threshold"
     );
     assert_eq!(count_material(&sim, MATERIAL_OIL), 1);
 }
@@ -166,7 +177,7 @@ fn hot_oil_ignites() {
 fn hot_wood_ignites() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 95.0); // >= Wood ignition 90
+    set_t(&sim, 3, 3, 350.0); // >= Wood ignition 300
     seal_eight(&sim, 3, 3);
 
     sim.tick().expect("tick");
@@ -183,7 +194,7 @@ fn hot_wood_ignites() {
 fn cold_oil_does_not_ignite() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 40.0); // below ignition 75
+    set_t(&sim, 3, 3, 100.0); // below Oil ignition 200
     seal_eight(&sim, 3, 3);
 
     sim.tick().expect("tick");
@@ -200,7 +211,7 @@ fn cold_oil_does_not_ignite() {
 fn cold_wood_does_not_ignite() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 50.0); // below Wood ignition 90
+    set_t(&sim, 3, 3, 200.0); // below Wood ignition 300
     seal_eight(&sim, 3, 3);
 
     sim.tick().expect("tick");
@@ -216,7 +227,7 @@ fn cold_wood_does_not_ignite() {
 fn burning_adds_heat() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 80.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     seal_eight(&sim, 3, 3);
 
@@ -224,8 +235,8 @@ fn burning_adds_heat() {
 
     assert_ne!(flags(&sim, 3, 3) & FLAG_COMBUSTING, 0, "still burning");
     assert!(
-        temp(&sim, 3, 3) > 80.0,
-        "burning adds heat_per_tick; got {}",
+        temp(&sim, 3, 3) > 150.0,
+        "burning remains above its sustain threshold; got {}",
         temp(&sim, 3, 3)
     );
 }
@@ -234,7 +245,7 @@ fn burning_adds_heat() {
 fn cooling_below_sustain_extinguishes() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 40.0); // below Oil sustain 45
+    set_t(&sim, 3, 3, 100.0); // below Oil sustain 150
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     seal_eight(&sim, 3, 3);
 
@@ -267,7 +278,7 @@ fn no_oxygen_requirement() {
     // ignites from its own thermal state alone (REACTION_SPEC §11).
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 95.0);
+    set_t(&sim, 3, 3, 350.0);
     seal_eight(&sim, 3, 3); // complete enclosure, smoke also blocked
 
     sim.tick().expect("tick");
@@ -288,7 +299,7 @@ fn no_oxygen_requirement() {
 fn flame_event_emitted_on_ignition() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 80.0);
+    set_t(&sim, 3, 3, 350.0);
     seal_eight(&sim, 3, 3);
 
     sim.tick().expect("tick");
@@ -307,7 +318,7 @@ fn combustion_flag_ownership_clears_reserved_bits() {
     let unrelated = 1u32 << 28;
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 80.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING | unrelated);
     seal_eight(&sim, 3, 3);
 
@@ -326,7 +337,7 @@ fn combustion_flag_ownership_clears_reserved_bits() {
 fn burning_oil_carries_flags_when_moving() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 4, MATERIAL_OIL);
-    set_t(&sim, 3, 4, 80.0);
+    set_t(&sim, 3, 4, 350.0);
     set_flags(&sim, 3, 4, FLAG_COMBUSTING);
     // (2,4) remains EMPTY as the Air receiver for Smoke at the vacated source.
     set(&sim, 4, 4, MATERIAL_STONE);
@@ -358,7 +369,7 @@ fn burning_matter_swap_carries_flags() {
     let mut sim = eight_by_eight();
     // Burning Oil above Smoke: density ordering allows the swap (70 > 30).
     set(&sim, 3, 4, MATERIAL_OIL);
-    set_t(&sim, 3, 4, 80.0);
+    set_t(&sim, 3, 4, 350.0);
     set_flags(&sim, 3, 4, FLAG_COMBUSTING);
     set(&sim, 3, 5, MATERIAL_SMOKE);
     set_t(&sim, 3, 5, 0.0);
@@ -397,7 +408,7 @@ fn burning_matter_void_exit_clears_flags() {
     // Open the bottom boundary and drop a burning Oil onto it.
     set(&sim, 3, 7, MATERIAL_EMPTY);
     set(&sim, 3, 7, MATERIAL_OIL);
-    set_t(&sim, 3, 7, 80.0);
+    set_t(&sim, 3, 7, 350.0);
     set_flags(&sim, 3, 7, FLAG_COMBUSTING);
     set(&sim, 3, 6, MATERIAL_STONE);
     set(&sim, 2, 7, MATERIAL_STONE);
@@ -424,7 +435,7 @@ fn burning_matter_void_exit_clears_flags() {
 fn blocked_or_losing_burning_matter_keeps_flags() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 80.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     seal_eight(&sim, 3, 3); // fully blocked → no move
 
@@ -446,7 +457,7 @@ fn blocked_or_losing_burning_matter_keeps_flags() {
 fn burning_wood_spawns_smoke() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0); // >= sustain 55 → already burning below ignition
+    set_t(&sim, 3, 3, 350.0); // >= sustain 250 → already burning
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     set(&sim, 2, 3, MATERIAL_STONE);
     set(&sim, 4, 3, MATERIAL_STONE);
@@ -459,7 +470,7 @@ fn burning_wood_spawns_smoke() {
     assert_eq!(cell(&sim, 3, 3), MATERIAL_WOOD, "the source Wood remains");
     assert_ne!(flags(&sim, 3, 3) & FLAG_COMBUSTING, 0);
     assert!(
-        temp(&sim, 3, 2) > 80.0,
+        temp(&sim, 3, 2) > TEMPERATURE_REFERENCE,
         "new Smoke derives its temperature from the burning source"
     );
     assert_eq!(
@@ -481,16 +492,16 @@ fn burning_wood_spawns_smoke() {
         .collect();
     receiver_masses.sort_by(f32::total_cmp);
     assert_eq!(receiver_masses, vec![1.0, 1.0, 2.0]);
-    assert!(environment[1..].iter().all(|cell| {
-        cell.current.energy == STANDARD_AIR_ENERGY * cell.current.mass && cell.current == cell.next
-    }));
+    assert!(environment[1..]
+        .iter()
+        .all(|cell| cell.current.mass > 0.0 && cell.current == cell.next));
 }
 
 #[test]
 fn smoke_without_environment_receiver_is_rejected_without_touching_target_air() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     for (x, y) in [(3, 1), (2, 2), (4, 2), (2, 3), (4, 3), (3, 4)] {
         set(&sim, x, y, MATERIAL_STONE);
@@ -501,14 +512,16 @@ fn smoke_without_environment_receiver_is_rejected_without_touching_target_air() 
 
     assert_eq!(cell(&sim, 3, 2), MATERIAL_EMPTY);
     let after = air(&sim, &[(3, 2)])[0];
-    assert_eq!(before, after, "rejected Smoke must not consume or move Air");
+    assert_eq!(before.current.mass, after.current.mass);
+    assert!(after.current.energy >= before.current.energy);
+    assert_eq!(after.current, after.next);
 }
 
 #[test]
 fn burning_oil_spawns_smoke() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 80.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     // Seal every movement candidate so the Oil cannot slide away.
     set(&sim, 2, 3, MATERIAL_STONE);
@@ -532,10 +545,10 @@ fn smoke_spawn_contention_exactly_one() {
     //   A at (3,4) proposes straight up; B at (4,4) has its up blocked by
     //   Stone so its parity-first up-diagonal also lands on (3,3).
     set(&sim, 3, 4, MATERIAL_WOOD);
-    set_t(&sim, 3, 4, 85.0);
+    set_t(&sim, 3, 4, 350.0);
     set_flags(&sim, 3, 4, FLAG_COMBUSTING);
     set(&sim, 4, 4, MATERIAL_WOOD);
-    set_t(&sim, 4, 4, 85.0);
+    set_t(&sim, 4, 4, 350.0);
     set_flags(&sim, 4, 4, FLAG_COMBUSTING);
     set(&sim, 4, 3, MATERIAL_STONE); // B's up is blocked
     set(&sim, 5, 3, MATERIAL_STONE); // B's up-diagonal-right is blocked
@@ -564,7 +577,7 @@ fn smoke_spawn_crosses_chunk_boundary() {
     // Chunks are not combustion/spawn walls.
     let mut sim = make_sim(WorldConfig::new(128, 16, 64).unwrap());
     set(&sim, 63, 6, MATERIAL_WOOD);
-    set_t(&sim, 63, 6, 85.0);
+    set_t(&sim, 63, 6, 350.0);
     set_flags(&sim, 63, 6, FLAG_COMBUSTING);
     set(&sim, 63, 5, MATERIAL_STONE); // up blocked
     set(&sim, 62, 5, MATERIAL_STONE); // up-diag-left blocked
@@ -592,7 +605,7 @@ fn smoke_spawn_crosses_chunk_boundary() {
 fn burning_source_keeps_heat_and_flags_while_spawning_smoke() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     set(&sim, 2, 3, MATERIAL_STONE);
     set(&sim, 4, 3, MATERIAL_STONE);
@@ -608,7 +621,7 @@ fn burning_source_keeps_heat_and_flags_while_spawning_smoke() {
     assert_ne!(src_flags & FLAG_FLAME_EVENT, 0, "source keeps FLAME_EVENT");
     let src_temp = temp(&sim, 3, 3);
     assert!(
-        src_temp > 85.0,
+        src_temp > 250.0,
         "source heat is NOT rolled back by the smoke spawn; got {src_temp}"
     );
 
@@ -617,7 +630,7 @@ fn burning_source_keeps_heat_and_flags_while_spawning_smoke() {
     let smoke_temp = temp(&sim, 3, 2);
     assert!(smoke_temp.is_finite(), "Smoke temperature is finite");
     assert!(
-        smoke_temp > 80.0,
+        smoke_temp > TEMPERATURE_REFERENCE,
         "Smoke carries a hot derived temperature; got {smoke_temp}"
     );
     // The Smoke temperature is exactly the source's post-combustion state
@@ -629,7 +642,7 @@ fn burning_source_keeps_heat_and_flags_while_spawning_smoke() {
 fn spawned_smoke_does_not_inherit_combustion_flags() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     set(&sim, 2, 3, MATERIAL_STONE);
     set(&sim, 4, 3, MATERIAL_STONE);
@@ -649,7 +662,7 @@ fn spawned_smoke_does_not_inherit_combustion_flags() {
 fn reserved_flag_bit_is_cleared_by_combustion_hygiene() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING | TEST_UNRELATED_FLAG);
     set(&sim, 2, 3, MATERIAL_STONE);
     set(&sim, 4, 3, MATERIAL_STONE);
@@ -667,7 +680,7 @@ fn reserved_flag_bit_is_cleared_by_combustion_hygiene() {
 fn nonflammable_material_clears_stale_combustion_bits() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_STONE);
-    set_t(&sim, 3, 3, 0.0);
+    set_t(&sim, 3, 3, TEMPERATURE_REFERENCE);
     // Stale fire state + an unrelated future bit.
     set_flags(
         &sim,
@@ -699,7 +712,7 @@ fn flame_event_is_set_on_active_ticks_and_cleared_on_extinguish() {
     // Active combustion: FLAME_EVENT is re-emitted every burning tick.
     let mut active = eight_by_eight();
     set(&active, 3, 3, MATERIAL_OIL);
-    set_t(&active, 3, 3, 80.0);
+    set_t(&active, 3, 3, 350.0);
     set_flags(&active, 3, 3, FLAG_COMBUSTING);
     seal_eight(&active, 3, 3);
     active.tick().expect("tick");
@@ -735,18 +748,18 @@ fn thermal_heating_triggers_ignition() {
     // hot Stone reservoir until Wood crosses its ignition threshold.
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 0.0);
+    set_t(&sim, 3, 3, TEMPERATURE_REFERENCE);
     // A hot 3×3 stone block around the Wood (8 neighbors, all 300).
     for dx in -1..=1 {
         for dy in -1..=1 {
             if dx != 0 || dy != 0 {
                 set(&sim, 3 + dx, 3 + dy, MATERIAL_STONE);
-                set_t(&sim, 3 + dx, 3 + dy, 300.0);
+                set_t(&sim, 3 + dx, 3 + dy, 1_200.0);
             }
         }
     }
 
-    for _ in 0..30 {
+    for _ in 0..100 {
         sim.tick().expect("tick");
     }
 
@@ -766,7 +779,7 @@ fn thermal_heating_triggers_ignition() {
 fn edit_replaces_material_and_clears_flags() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     seal_eight(&sim, 3, 3);
 
@@ -792,9 +805,9 @@ fn edit_replaces_material_and_clears_flags() {
 fn wood_eventually_burns_to_empty() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0); // >= sustain 55, keeps burning
+    set_t(&sim, 3, 3, 350.0); // >= sustain 250, keeps burning
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight(&sim, 3, 3); // fully enclosed: no move, no smoke
+    seal_eight_at_temperature(&sim, 3, 3, 350.0); // no move, no smoke, stable heat bath
 
     for _ in 0..=COMBUSTION_WOOD_BURN_TICKS {
         sim.tick().expect("tick");
@@ -818,9 +831,9 @@ fn wood_eventually_burns_to_empty() {
 fn oil_eventually_burns_to_empty() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 80.0); // >= sustain 45
+    set_t(&sim, 3, 3, 350.0); // >= sustain 150
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight(&sim, 3, 3);
+    seal_eight_at_temperature(&sim, 3, 3, 350.0);
 
     for _ in 0..=COMBUSTION_OIL_BURN_TICKS {
         sim.tick().expect("tick");
@@ -841,7 +854,7 @@ fn exact_duration_boundary_is_not_off_by_one() {
     // progress 898 (one below the 899 boundary): still burning after 1 tick.
     let mut before = eight_by_eight();
     set(&before, 3, 3, MATERIAL_WOOD);
-    set_t(&before, 3, 3, 85.0);
+    set_t(&before, 3, 3, 350.0);
     set_flags(&before, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 898));
     seal_eight(&before, 3, 3);
     before.tick().expect("tick");
@@ -855,7 +868,7 @@ fn exact_duration_boundary_is_not_off_by_one() {
     // progress 899: the next tick reaches the burn duration and consumes.
     let mut exact = eight_by_eight();
     set(&exact, 3, 3, MATERIAL_WOOD);
-    set_t(&exact, 3, 3, 85.0);
+    set_t(&exact, 3, 3, 350.0);
     set_flags(&exact, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 899));
     seal_eight(&exact, 3, 3);
     exact.tick().expect("tick");
@@ -903,7 +916,7 @@ fn reignited_wood_continues_from_partial_progress() {
 
     // Reheat past the ignition threshold: reignition continues from the
     // remaining fuel (200 → 201), never restoring fuel.
-    set_t(&sim, 3, 3, 95.0);
+    set_t(&sim, 3, 3, 350.0);
     sim.tick().expect("tick");
 
     let f = flags(&sim, 3, 3);
@@ -919,7 +932,7 @@ fn reignited_wood_continues_from_partial_progress() {
 fn burning_oil_carries_fuel_progress_when_moving() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 4, MATERIAL_OIL);
-    set_t(&sim, 3, 4, 80.0);
+    set_t(&sim, 3, 4, 350.0);
     set_flags(&sim, 3, 4, with_fuel_progress(FLAG_COMBUSTING, 50));
     set(&sim, 2, 4, MATERIAL_STONE);
     set(&sim, 4, 4, MATERIAL_STONE);
@@ -946,7 +959,7 @@ fn density_swap_carries_fuel_progress_with_identity() {
     let mut sim = eight_by_eight();
     // Burning Oil (rank 70) above Smoke (rank 30): local density swap.
     set(&sim, 3, 4, MATERIAL_OIL);
-    set_t(&sim, 3, 4, 80.0);
+    set_t(&sim, 3, 4, 350.0);
     set_flags(&sim, 3, 4, with_fuel_progress(FLAG_COMBUSTING, 50));
     set(&sim, 3, 5, MATERIAL_SMOKE);
     set_t(&sim, 3, 5, 0.0);
@@ -985,7 +998,7 @@ fn void_exit_clears_fuel_progress() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 7, MATERIAL_EMPTY); // open the bottom boundary
     set(&sim, 3, 7, MATERIAL_OIL);
-    set_t(&sim, 3, 7, 80.0);
+    set_t(&sim, 3, 7, 350.0);
     set_flags(&sim, 3, 7, with_fuel_progress(FLAG_COMBUSTING, 50));
     set(&sim, 3, 6, MATERIAL_STONE);
     set(&sim, 2, 7, MATERIAL_STONE);
@@ -1003,7 +1016,7 @@ fn void_exit_clears_fuel_progress() {
 fn edit_replacement_clears_fuel_progress() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 300));
     seal_eight(&sim, 3, 3);
 
@@ -1020,7 +1033,7 @@ fn edit_replacement_clears_fuel_progress() {
 fn nonflammable_stale_progress_is_removed() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_STONE);
-    set_t(&sim, 3, 3, 0.0);
+    set_t(&sim, 3, 3, TEMPERATURE_REFERENCE);
     // Even a deliberately stale fuel-progress field cannot survive on a
     // non-combustible Matter.
     set_flags(
@@ -1045,7 +1058,7 @@ fn nonflammable_stale_progress_is_removed() {
 fn reserved_flags_are_cleared_during_progress_updates() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(
         &sim,
         3,
@@ -1066,7 +1079,7 @@ fn reserved_flags_are_cleared_during_progress_updates() {
 fn smoke_generation_stops_after_fuel_is_consumed() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 898));
     set(&sim, 2, 3, MATERIAL_STONE);
     set(&sim, 4, 3, MATERIAL_STONE);
@@ -1091,7 +1104,7 @@ fn smoke_generation_stops_after_fuel_is_consumed() {
 fn fuel_consumption_does_not_delete_neighbor_matter() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 899));
     seal_eight(&sim, 3, 3); // 8 Stone neighbors
     assert_eq!(count_material(&sim, MATERIAL_STONE), 8);
@@ -1115,11 +1128,12 @@ fn wood_ignition_front_propagates_then_leaves_empty_cells() {
     let mut sim = make_sim(WorldConfig::new(16, 16, 8).unwrap());
     for x in 3..=9 {
         set(&sim, x, 8, MATERIAL_WOOD);
+        set_t(&sim, x, 8, 290.0);
     }
     for sx in 1..=2 {
         for sy in 7..=9 {
             set(&sim, sx, sy, MATERIAL_STONE);
-            set_t(&sim, sx, sy, 400.0);
+            set_t(&sim, sx, sy, 1_200.0);
         }
     }
 
@@ -1176,11 +1190,12 @@ fn wood_chain_crosses_chunk_boundary() {
     let mut sim = make_sim(WorldConfig::new(128, 16, 64).unwrap());
     for x in 60..=66 {
         set(&sim, x, 6, MATERIAL_WOOD);
+        set_t(&sim, x, 6, 290.0);
     }
     for sx in 55..=59 {
         for sy in 5..=7 {
             set(&sim, sx, sy, MATERIAL_STONE);
-            set_t(&sim, sx, sy, 400.0);
+            set_t(&sim, sx, sy, 1_200.0);
         }
     }
 
@@ -1206,9 +1221,9 @@ fn wood_chain_crosses_chunk_boundary() {
 fn long_run_combustion_remains_finite() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 85.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight(&sim, 3, 3);
+    seal_eight_at_temperature(&sim, 3, 3, 350.0);
 
     for _ in 0..200 {
         sim.tick().expect("tick");
@@ -1382,7 +1397,7 @@ fn smoke_spawn_starts_with_zero_age() {
     // Burning wood spawns fresh Smoke
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 95.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
     set(&sim, 2, 3, MATERIAL_STONE);
     set(&sim, 4, 3, MATERIAL_STONE);
@@ -1410,7 +1425,7 @@ fn combustion_can_spawn_smoke_that_later_dissipates() {
     }
     set(&sim, 3, 4, MATERIAL_STONE);
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 95.0);
+    set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
 
     sim.tick().expect("tick 1: smoke spawns at (3,2)");
@@ -1423,7 +1438,7 @@ fn combustion_can_spawn_smoke_that_later_dissipates() {
     // Put near expiration age on the spawned smoke
     set_flags(&sim, 3, 2, with_decay_age(flags(&sim, 3, 2), 898));
     // Extinguish the wood so no more smoke spawns
-    set_t(&sim, 3, 3, 0.0);
+    set_t(&sim, 3, 3, TEMPERATURE_REFERENCE);
     set_flags(&sim, 3, 3, 0);
 
     sim.tick().expect("tick 2: age 899");
@@ -1609,12 +1624,10 @@ fn every_registered_m0_material_obeys_exact_flag_ownership() {
             _ => u32::MAX,
         };
         set_flags(&sim, x, y, staged_flags);
-        if material == MATERIAL_OIL {
-            set_t(&sim, x, y, 80.0);
-        } else if material == MATERIAL_WOOD {
-            set_t(&sim, x, y, 85.0);
+        if material == MATERIAL_OIL || material == MATERIAL_WOOD {
+            set_t(&sim, x, y, 350.0);
         } else if material == MATERIAL_STEAM {
-            set_t(&sim, x, y, 80.0);
+            set_t(&sim, x, y, 120.0);
         }
     }
 

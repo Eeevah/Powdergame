@@ -25,6 +25,7 @@ use crate::sandbox::{
     SANDBOX_PALETTE_GROUP_LABEL_Y, SANDBOX_PALETTE_ROW_Y, SANDBOX_PRESET_FIRST_ROW_Y,
     SANDBOX_PRESET_TITLE_Y,
 };
+use crate::thermal_environment::{ThermalEnvironmentHudData, ThermalEnvironmentScene};
 
 const INSPECTOR_TITLE: &str = "CELL INSPECTOR [I]";
 const INSPECTOR_UNAVAILABLE: &str = "Inspector unavailable";
@@ -3774,6 +3775,243 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.index_capacity = (self.batch.indices.len() * 3) / 2;
             self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("gallery_text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// TE-2 candidate HUD. Values come from fixed bounded GPU readback cells;
+    /// no full-world mirror or invented flow particles are used.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_thermal_environment_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        data: &ThermalEnvironmentHudData,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+        self.batch.clear();
+        let white_uv = self.atlas.solid_white_uv;
+        let title = [0.96, 0.98, 1.0, 1.0];
+        let header = [0.48, 0.88, 1.0, 1.0];
+        let label = [0.64, 0.72, 0.82, 1.0];
+        let value = [0.96, 0.97, 0.99, 1.0];
+        let accent = [1.0, 0.72, 0.30, 1.0];
+        let card_bg = [0.045, 0.062, 0.09, 0.94];
+        let card_border = [0.20, 0.34, 0.46, 1.0];
+
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            18.0,
+            22,
+            "TE-2 PASSIVE THERMAL ENVIRONMENT",
+            title,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            sw - 22.0,
+            24.0,
+            14,
+            &format!(
+                "{} | x{} | SIM TICK {}",
+                if data.playing { "PLAYING" } else { "PAUSED" },
+                data.fast,
+                data.simulation_tick
+            ),
+            header,
+        );
+
+        let card_w = 250.0;
+        self.batch
+            .draw_rect(18.0, 70.0, card_w, 250.0, card_bg, white_uv);
+        self.batch
+            .draw_outline(18.0, 70.0, card_w, 250.0, 1.0, card_border, white_uv);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            86.0,
+            17,
+            &format!("SCENE {}/4", data.scene.number()),
+            header,
+        );
+        self.batch
+            .draw_text(&self.atlas, 32.0, 116.0, 13, data.scene.name(), value);
+        let description = fit_ascii_text(
+            &self.batch,
+            &self.atlas,
+            12,
+            data.scene.description(),
+            card_w - 28.0,
+        );
+        self.batch
+            .draw_text(&self.atlas, 32.0, 146.0, 12, &description, label);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            215.0,
+            12,
+            &format!("Boundary: {:?}", data.scene.boundary_mode()),
+            accent,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            246.0,
+            12,
+            "1-4 Scene | SPACE Play/Pause",
+            label,
+        );
+        self.batch
+            .draw_text(&self.atlas, 32.0, 267.0, 12, "N Step | F x1/x4/x16", label);
+        self.batch
+            .draw_text(&self.atlas, 32.0, 288.0, 12, "R Reset | ESC Quit", label);
+
+        if data.scene == ThermalEnvironmentScene::ReservoirCooling {
+            self.batch
+                .draw_rect(18.0, 338.0, card_w, 176.0, card_bg, white_uv);
+            self.batch
+                .draw_outline(18.0, 338.0, card_w, 176.0, 1.0, card_border, white_uv);
+            self.batch
+                .draw_text(&self.atlas, 32.0, 354.0, 14, "EXTERNAL RESERVOIR", accent);
+            for (row, (name, metric)) in [
+                ("Air mass", data.cumulative_external_air_mass),
+                ("Advected energy", data.cumulative_external_advected_energy),
+                ("Passive heat", data.cumulative_external_passive_heat),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                self.batch.draw_text(
+                    &self.atlas,
+                    32.0,
+                    388.0 + row as f32 * 30.0,
+                    12,
+                    name,
+                    label,
+                );
+                self.batch.draw_text_right(
+                    &self.atlas,
+                    250.0,
+                    388.0 + row as f32 * 30.0,
+                    12,
+                    &format!("{metric:+.5}"),
+                    value,
+                );
+            }
+        }
+
+        let right_x = sw - 286.0;
+        self.batch
+            .draw_rect(right_x, 70.0, 268.0, 660.0, card_bg, white_uv);
+        self.batch
+            .draw_outline(right_x, 70.0, 268.0, 660.0, 1.0, card_border, white_uv);
+        if let Some(sample) = &data.sample {
+            self.batch.draw_text(
+                &self.atlas,
+                right_x + 14.0,
+                86.0,
+                15,
+                &format!(
+                    "GPU SAMPLE #{} | TICK {}",
+                    sample.sequence, sample.simulation_tick
+                ),
+                header,
+            );
+            let mut y = 122.0;
+            for row in &sample.rows {
+                self.batch
+                    .draw_text(&self.atlas, right_x + 14.0, y, 13, row.label, value);
+                y += 20.0;
+                let thermal = row.material_temperature_c.map_or_else(
+                    || {
+                        row.air_temperature_c
+                            .map_or("T n/a".to_string(), |t| format!("Air {t:.3} C"))
+                    },
+                    |t| format!("Matter {t:.3} C"),
+                );
+                self.batch.draw_text(
+                    &self.atlas,
+                    right_x + 14.0,
+                    y,
+                    11,
+                    &format!("{} | {}", row.environment_class, thermal),
+                    label,
+                );
+                y += 18.0;
+                self.batch.draw_text(
+                    &self.atlas,
+                    right_x + 14.0,
+                    y,
+                    11,
+                    &format!("mass {:.5} | P* {:.5}", row.air_mass, row.derived_pressure),
+                    accent,
+                );
+                y += 34.0;
+            }
+        } else {
+            self.batch.draw_text(
+                &self.atlas,
+                right_x + 14.0,
+                90.0,
+                13,
+                "Bounded GPU sample pending",
+                label,
+            );
+        }
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            sh - 31.0,
+            13,
+            "Actual GPU state | No fake convection | Air pressure is not structure force",
+            label,
+        );
+
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te2_text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te2_text_index_buffer"),
                 size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,

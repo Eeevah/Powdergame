@@ -211,12 +211,11 @@ fn pressure_gradient_reports_pressure_active() {
 fn burning_wood_reports_reaction_active() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
 
-    // Wood above its ignition threshold (90) with EMPTY surroundings
-    // (EMPTY is not a thermal medium, so the fuel keeps its heat).
+    // Wood above its Celsius ignition threshold (300 C) with Air surroundings.
     fill_rect(&sim, 30, 30, 33, 31, MATERIAL_WOOD);
     for y in 30..=31 {
         for x in 30..=33 {
-            set_t(&sim, x, y, 100.0);
+            set_t(&sim, x, y, 350.0);
         }
     }
 
@@ -349,16 +348,16 @@ fn sand_falling_into_water_wakes_interface() {
 fn thermal_frontier_wakes_cold_steam_candidate() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
 
-    // Sealed Steam chamber (T=80 uniform, stable above the 40 condense
+    // Sealed Steam chamber (T=120 uniform, stable above the 95 C condense
     // threshold) inside a Stone world, with a Stone reservoir beside it.
     // No EMPTY exists anywhere in the interior (EMPTY resets to T=0 and
     // would create an unavoidable gradient); the boundary ring is included.
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE); // whole interior
     fill_rect(&sim, 22, 20, 53, 43, MATERIAL_STEAM); // sealed gas chamber
-                                                     // Phase 1: uniform 80.0 across the ENTIRE world (incl. the ring).
+                                                     // Phase 1: uniform 120 C across the ENTIRE world (incl. the ring).
     for y in 0..=63 {
         for x in 0..=63 {
-            set_t(&sim, x, y, 80.0);
+            set_t(&sim, x, y, 120.0);
         }
     }
 
@@ -399,11 +398,11 @@ fn ignition_heat_wakes_sleep_candidate_wood() {
     assert_eq!(chunk_activity(&sim)[0], 0);
     assert_eq!(chunk_stable(&sim)[0], 3);
 
-    // Ignition heat arrives (Wood above its 90 threshold): combustion
+    // Ignition heat arrives (Wood above its 300 C threshold): combustion
     // starts → reaction + thermal frontier, stable counter resets.
     for y in 20..=21 {
         for x in 30..=33 {
-            set_t(&sim, x, y, 100.0);
+            set_t(&sim, x, y, 350.0);
         }
     }
 
@@ -431,7 +430,7 @@ fn uniform_water_above_boil_threshold_reports_thermal_active() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
     fill_rect(&sim, 20, 20, 43, 43, MATERIAL_WATER); // sealed chamber
-    fill_uniform_t(&sim, 70.0, 64, 64); // uniform, above boil (60)
+    fill_uniform_t(&sim, 120.0, 64, 64); // uniform, above boil (100 C)
 
     sim.tick().expect("tick 1 (boil)");
 
@@ -446,7 +445,7 @@ fn uniform_steam_below_condense_threshold_reports_thermal_active() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
     fill_rect(&sim, 20, 20, 43, 43, MATERIAL_STEAM); // sealed chamber
-    fill_uniform_t(&sim, 30.0, 64, 64); // uniform, below condense (40)
+    fill_uniform_t(&sim, 90.0, 64, 64); // uniform, below condense (95 C)
 
     sim.tick().expect("tick 1 (condense)");
 
@@ -460,7 +459,7 @@ fn uniform_water_below_freeze_threshold_reports_thermal_active() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
     fill_rect(&sim, 20, 20, 43, 43, MATERIAL_WATER); // sealed chamber
-    fill_uniform_t(&sim, -30.0, 64, 64); // uniform, below freeze (-20)
+    fill_uniform_t(&sim, -10.0, 64, 64); // uniform, below freeze (-2 C)
 
     sim.tick().expect("tick 1 (freeze)");
 
@@ -474,7 +473,7 @@ fn uniform_ice_above_melt_threshold_reports_thermal_active() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
     fill_rect(&sim, 20, 20, 43, 43, MATERIAL_ICE); // sealed chamber
-    fill_uniform_t(&sim, 0.0, 64, 64); // uniform, above melt (-10)
+    fill_uniform_t(&sim, 10.0, 64, 64); // uniform, above melt (2 C)
 
     sim.tick().expect("tick 1 (melt)");
 
@@ -488,7 +487,7 @@ fn uniform_water_inside_phase_hysteresis_without_gradient_can_be_inactive() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
     fill_rect(&sim, 20, 20, 43, 43, MATERIAL_WATER); // sealed chamber
-    fill_uniform_t(&sim, 0.0, 64, 64); // uniform reference T, hysteresis band
+    fill_uniform_t(&sim, 20.0, 64, 64); // uniform reference T, hysteresis band
 
     sim.tick().expect("tick 1");
     sim.tick().expect("tick 2");
@@ -579,10 +578,9 @@ fn uniform_pressurized_medium_sealed_by_stone_is_not_pressure_frontier() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
-fn hot_matter_next_to_empty_does_not_false_report_thermal() {
-    // G4: EMPTY is not a thermal medium. A hot Stone cell surrounded only by
-    // EMPTY has no heat-exchange edge, so its temperature difference against
-    // the EMPTY reference is NOT thermal work.
+fn hot_matter_next_to_air_reports_thermal() {
+    // TE-2: EMPTY stores no Matter, but its Environment is real Air. A hot
+    // Stone cell therefore has four Matter/Air exchange faces.
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     set(&sim, 32, 32, MATERIAL_STONE);
     set_t(&sim, 32, 32, 100.0);
@@ -590,8 +588,7 @@ fn hot_matter_next_to_empty_does_not_false_report_thermal() {
     sim.tick().expect("tick 1");
 
     let mask = chunk_activity(&sim)[0];
-    assert_eq!(mask & ACTIVITY_THERMAL, 0);
-    assert_eq!(mask, 0);
+    assert_ne!(mask & ACTIVITY_THERMAL, 0);
 }
 
 #[test]
@@ -602,8 +599,10 @@ fn temperature_difference_across_boundary_block_is_inactive() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     set(&sim, 30, 30, MATERIAL_STONE);
     set_t(&sim, 30, 30, 100.0);
-    set(&sim, 31, 30, MATERIAL_BOUNDARY_BLOCK);
-    set_t(&sim, 31, 30, 0.0);
+    for (x, y) in [(29, 30), (31, 30), (30, 29), (30, 31)] {
+        set(&sim, x, y, MATERIAL_BOUNDARY_BLOCK);
+        set_t(&sim, x, y, 20.0);
+    }
 
     sim.tick().expect("tick 1");
 

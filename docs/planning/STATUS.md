@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** — continuity v2 source `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; latest review was revision-required |
-| Thermal Environment / Ignition Causality | **TE-0R/TE-0/TE-0A/TE-0B COMPLETE / TE-1 READY / NOT STARTED** — design blocker 0; production runtime unchanged; G9-B prerequisite |
+| Thermal Environment / Ignition Causality | **TE-1 ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED / TE-2 NOT STARTED** — Air transport, Air thermal exchange and Air pressure coupling remain disabled; G9-B prerequisite |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -27,6 +27,7 @@
 - Legacy launcher retirement: `8ee1ae238c324c1db1d7e2882af071fec179a8f1`
 - Current implementation line: `feature/m0-g9-first-playable`
 - G9-A continuity v2 tested source: `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`
+- TE-1 runtime source: `1a722d239a16bade5772688fa822465d5cef4602`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -133,7 +134,7 @@ G9 does not authorize new Matter, recipe/unlock progression, final FX, speculati
 
 This is not user acceptance. The revised candidate was **USER RE-REVIEWED / REVISION REQUIRED**; continuity v2 requires direct user re-review.
 
-Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. TE-0R reuse survey, TE-0 design, TE-0A independent review and TE-0B reference proof are complete with Critical/High blocker zero. Current EMPTY/no-hidden-Air, direct four-neighbor transport and immediate threshold ignition remain unchanged in production; TE-1 implementation has not started.
+Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. TE-0R reuse survey, TE-0 design, TE-0A independent review and TE-0B reference proof are complete with Critical/High blocker zero. D-014/source `1a722d...` implements TE-1 state, canonical staging, occupancy hygiene, receiver-gated phase/Smoke spawn and exact blocked phase pressure. Air does not yet flow or exchange heat, and it does not couple pressure to Matter. TE-2 and later thermal/ignition gates are not started.
 
 ---
 
@@ -155,14 +156,15 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 다음 행동
 
-1. run `run_powdergame.bat sandbox` and re-review Inspector continuity v2 during rapid Cell movement;
+1. run `run_powdergame.bat sandbox` and re-review Inspector continuity v2 on the new TE-1 descendant executable;
 2. accept, revise or reject the continuity v2 editor experience;
-3. do not start G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization before that decision.
+3. authorize TE-2 separately only after the TE-1 evidence boundary is accepted;
+4. do not start G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization before those decisions.
 
 ## 아직 별도 결정인 것
 
 - G9-A continuity v2 user re-review
-- Thermal Environment TE-1 implementation authorization from the clean design source; later ignition-dose coefficients remain gate-owned
+- Thermal Environment TE-2 authorization; Air flow/thermal coefficients and later ignition-dose coefficients remain gate-owned
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

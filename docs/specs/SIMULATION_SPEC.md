@@ -81,11 +81,13 @@ Temperature/Pressure는 Matter가 아니다.
 - 물성이 없다.
 - Density가 없다.
 - 현재 production runtime에서는 열 또는 압력을 전달하는 숨은 매질로 동작하지 않는다.
-- ADR-0005는 향후 ordinary EMPTY 공간의 Atmosphere와 Vacuum을 구분하는 별도 `air_mass`/`air_energy` Environment Field를 채택했다.
+- ADR-0005/TE-1은 ordinary EMPTY 공간의 Atmosphere와 Vacuum을 구분하는 별도 `air_mass`/`air_energy` Environment Field를 구현했다.
 - 그 Air는 Material ID, Density 대상, palette Matter 또는 occupied Cell 아래의 두 번째 Matter가 아니다.
 - Steam과 Smoke는 계속 explicit GAS Matter다.
 
-TE-0은 runtime을 바꾸지 않는다. Environment가 TE-1 이후 구현되기 전까지 Dense Field 배열의 기존 값은 `material_id == EMPTY` Cell에서 물리적 Air로 사용하지 않는다. 이후 계약은 `THERMAL_ENVIRONMENT_SPEC.md`를 따른다.
+TE-1 source `1a722d239a16bade5772688fa822465d5cef4602`는 Air state와
+occupancy hygiene만 구현한다. EMPTY Air는 아직 이동하거나 열/압력을
+전달하지 않는다. 이후 gate 계약은 `THERMAL_ENVIRONMENT_SPEC.md`를 따른다.
 
 ---
 

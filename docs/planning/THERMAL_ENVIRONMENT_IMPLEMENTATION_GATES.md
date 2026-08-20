@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-0 design program authorized; TE-1 ready but not started
-- **Architecture:** D-013 / ADR-0005
+- **Status:** TE-1 Environment state / occupancy hygiene implemented; TE-2 not started
+- **Architecture:** D-013 / D-014 / ADR-0005
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -47,25 +47,25 @@ Explicitly disabled:
 - Vacuum tool/product UI;
 - G9-B validation.
 
-Required entry checklist:
+Completed TE-1 checklist at source `1a722d239a16bade5772688fa822465d5cef4602`:
 
-- [ ] start from the exact clean/pushed TE-0 docs source;
-- [ ] preserve the eight-storage-buffer ceiling with separate passes;
-- [ ] declare every new writer and settle boundary;
-- [ ] use one canonical staging/reset Environment image API;
-- [ ] include movement, density swap, Void, phase self transition, phase spawn, Smoke spawn, rupture, decay, fuel consumption, Draw, Erase, preset/reset, direct test write, scenario and benchmark staging;
-- [ ] prove receiver arbitration and the no-receiver blocked outcome;
-- [ ] pin receiver scratch encoding/live range, same-stage Matter-target
+- [x] start from the exact clean/pushed TE-0 docs source;
+- [x] preserve the eight-storage-buffer ceiling with separate passes;
+- [x] declare every new writer and settle boundary;
+- [x] use one canonical staging/reset Environment image API;
+- [x] include movement, density swap, Void, phase self transition, phase spawn, Smoke spawn, rupture, decay, fuel consumption, Draw, Erase, preset/reset, direct test write, scenario and benchmark staging;
+- [x] prove receiver arbitration and the no-receiver blocked outcome;
+- [x] pin receiver scratch encoding/live range, same-stage Matter-target
   exclusion, whole-parcel headroom and paired rollback;
-- [ ] pin exactly-once Environment-blocked expansion-pressure accounting and
+- [x] pin exactly-once Environment-blocked expansion-pressure accounting and
   its seven-storage layout/order before pressure settle;
-- [ ] pin coefficient domains and exact-zero Vacuum with no residual deletion;
-- [ ] pin Matter flags ownership and separate hygiene-pass bindings;
-- [ ] extend profiler identities and allocation report;
-- [ ] extend Naga parse/write-contract and reset tests;
-- [ ] leave the 24-byte/10-Hz Inspector contract unchanged;
-- [ ] run `validation-plan` and follow the Engine/Core/WGSL/shared-layout FULL requirement exactly once at final source;
-- [ ] do not start TE-2.
+- [x] pin coefficient domains and exact-zero Vacuum with no residual deletion;
+- [x] pin Matter flags ownership and separate hygiene-pass bindings;
+- [x] extend profiler identities and allocation report;
+- [x] extend Naga parse/write-contract and reset tests;
+- [x] leave the 24-byte/10-Hz Inspector contract unchanged;
+- [x] run `validation-plan` and complete the required final-source FULL;
+- [x] do not start TE-2.
 
 Stop: `ENVIRONMENT STATE/OCCUPANCY HYGIENE IMPLEMENTED / AIR TRANSPORT NOT STARTED`.
 
@@ -107,6 +107,7 @@ TE-0R  COMPLETE
 TE-0   COMPLETE
 TE-0A  COMPLETE / seven High findings resolved in the design / blocker 0
 TE-0B  PASS_REFERENCE_MATH_ONLY
-TE-1   READY / NOT STARTED
-runtime unchanged
+TE-1   ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED
+Air transport / Air thermal exchange / Air pressure coupling   NOT STARTED
+TE-2   NOT STARTED
 ```

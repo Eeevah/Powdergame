@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-0R / TE-0 / TE-0A / TE-0B COMPLETE / TE-1 READY / IMPLEMENTATION NOT STARTED**
+Status: **TE-1 ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED / TE-2 NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -18,16 +18,18 @@ remain gate-owned work rather than an open Air ontology choice.
 
 ## 2. Current production baseline
 
-The current baseline remains authoritative until a later design is explicitly approved:
+The TE-1 baseline keeps these thermal/ignition rules authoritative until a
+later gate is explicitly approved:
 
-- `EMPTY` is absence of Matter, has no physical properties and is not hidden Air.
-- A temperature value stored at an EMPTY index is not a physical thermal medium; EMPTY self temperature resolves to the reference state.
+- `EMPTY` is absence of foreground Matter. Its separate Environment may now be Atmosphere, low pressure, or Vacuum, but is not yet a thermal transport medium.
+- A Matter-temperature value stored at an EMPTY index is not physical Air temperature; EMPTY self Matter temperature resolves to the reference state.
 - Thermal transfer is direct contact through the four orthogonal neighbors only.
 - Each participating Matter uses its conductivity and heat-capacity gameplay scalars; no diagonal, distance or line-of-sight transport is present.
 - Combustible Matter ignites as soon as its own current temperature reaches its Material ignition threshold. Oil and Wood share this generic threshold grammar and currently have no exposure-time or accumulated-dose requirement.
-- There is no Oxygen requirement and no separate ambient-temperature field.
+- There is no Oxygen requirement. TE-1 has separate Air mass/energy state, but no Air flow or heat exchange.
 
-The project must not quietly change any of those statements while it remains **NOT STARTED**.
+TE-2 and later gates must not quietly change any of those statements without
+their named authorization and fixtures.
 
 ## 3. Historical architecture options — superseded by D-013 / ADR-0005
 
@@ -60,8 +62,9 @@ Neither historical option is selected. The canonical design is linked below.
 TE-0 is complete and remains docs-only. Independent review found seven High
 design defects; all seven are resolved in the canonical contracts and the
 review records Critical/High blocker zero. The reference formula proof passed
-within its declared limited domain. This does not alter the current
-direct-contact runtime, and TE-1 code is not started by adopting the design.
+within its declared limited domain. TE-1 subsequently implemented only
+Environment state/occupancy hygiene at source `1a722d...`; the runtime still
+has no Air transport, Air thermal exchange or Air-pressure coupling.
 
 ## 4. Ignition exposure or dose requirement
 
@@ -131,10 +134,9 @@ The initial project explicitly excludes:
 
 ## 8. Stop and approval boundary
 
-The architecture selection and design contract are complete. TE-1 may start
-only as a separate implementation task from the exact clean/pushed design
-source and must satisfy its entry checklist. Current state:
+The architecture selection, design contract and TE-1 state/occupancy
+foundation are complete. Current state:
 
-- Thermal Environment is **DESIGN LOCK COMPLETE / TE-1 READY / NOT STARTED**;
+- Thermal Environment is **TE-1 ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED / TE-2 NOT STARTED**;
 - G9-B emergence validation remains blocked on this prerequisite;
 - G9-A continuity work may proceed independently within its existing readback/presentation boundary.

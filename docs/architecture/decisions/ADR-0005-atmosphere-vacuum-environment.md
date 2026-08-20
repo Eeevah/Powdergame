@@ -1,9 +1,9 @@
 # ADR-0005 — Separate foreground Matter from atmospheric and vacuum Environment
 
-- **Status:** Accepted design contract; production implementation not started
+- **Status:** Accepted; TE-1 Environment state and occupancy foundation implemented
 - **Date:** 2026-08-20
 - **Decision:** D-013
-- **Implementation entry:** TE-1 only after the checklist in `THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md`
+- **Implementation:** TE-1 source `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 not started
 
 ## Context
 
@@ -173,4 +173,11 @@ Rejected for the correctness baseline. Both combine architecture with optimizati
 
 The design can support open-space cooling, Vacuum insulation, Steam cooling/condensation, sealed heating, and later pressure differential using common local rules. It adds 64 MiB at 2048², new reconcile/settle passes, activity integration, staging/reset work, and new causal evidence requirements.
 
-TE-1 is **READY / NOT STARTED** only after TE-0R, TE-0A and TE-0B are complete. This ADR does not authorize Rust, WGSL, layout, fixture, executable, or runtime changes.
+TE-1 is **ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED** at source
+`1a722d239a16bade5772688fa822465d5cef4602`. It implements the four locked Air
+buffers, one receiver-claim scratch, canonical staging/reset, occupancy-linked
+Volume Exchange, receiver-gated phase/Smoke spawn, exactly-once blocked phase
+pressure, flag identity hygiene, bounded observation, profiler identity and
+allocation reporting. Inter-cell Air transport, Air thermal exchange and Air
+pressure coupling remain **NOT STARTED**; this implementation does not
+authorize TE-2.

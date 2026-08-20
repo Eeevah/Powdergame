@@ -128,3 +128,24 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   G9-A remains USER RE-REVIEW PENDING; G9-B/C/D/E remain not started.
 - No Rust/WGSL/Cargo/runtime/fixture change, Cargo test, GPU/FULL/build, bounded
   launch, candidate or capture ran.
+
+## 2026-08-20 · Thermal Environment TE-1 state and occupancy foundation
+
+- D-014 authorized and source `1a722d239a16bade5772688fa822465d5cef4602`
+  implemented four Air Current/Next buffers, one receiver scratch, canonical
+  Atmosphere/Vacuum staging, occupancy reconciliation, whole-parcel
+  receiver-gated phase/Smoke spawn, exactly-once blocked phase pressure and
+  exact Matter flag identity hygiene.
+- The production profiler now names 30 passes. Tracked no-profiler totals are
+  4,196,864 B at 256² and 268,462,208 B at 2048²; the Inspector remains a
+  24-byte Matter sample at no more than 10 Hz.
+- Targeted Core/GPU/staging/Sandbox/profiler tests, all-target check,
+  warnings-denied clippy and strict audit passed. The first FULL attempt found
+  a pre-existing Heavy Mixed census assertion block misplaced inside a
+  Fire/Heat fixture test; only that stale test block was removed, and the
+  final-source workspace FULL passed. Attempts 2, final-SHA valid pass 1.
+- One release build and one three-frame Sandbox bounded launch passed on RTX
+  5090/DX12. EXE SHA-256
+  `8c3f0050eef67cfca04e970c071276ce8ae856a7a1a65e58ff63a0deecb34ea6`.
+- Air transport, Air thermal exchange, Air pressure coupling, TE-2 and
+  G9-B/C/D/E were not started. G8/G8-C/candidate/official runs remained 0.

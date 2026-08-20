@@ -124,7 +124,8 @@ Thermal Environment 작업은 ADR-0005,
 `architecture/THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md`,
 `development/THERMAL_ENVIRONMENT_VALIDATION.md`,
 `planning/THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md` 순서로 읽는다.
-현재 TE-1은 READY이지만 구현은 시작되지 않았다.
+현재 TE-1 Environment state / occupancy hygiene는 구현됐고, Air transport와
+thermal exchange를 시작하는 TE-2는 별도 승인 전 **NOT STARTED**다.
 
 ### 현재 Gate를 이어서 개발
 

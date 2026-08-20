@@ -70,9 +70,9 @@ Production path는 RTX 5090에서 실제로 검증된 가장 좋은 구현을 �
 
 ### Thermal Environment design boundary
 
-Current production still uses Matter-only direct-contact thermal transport.
-D-013 and ADR-0005 lock the future Environment architecture without changing
-that runtime: foreground `EMPTY` is distinct from Atmosphere, Vacuum and Void;
+TE-1 production now carries the locked Environment state while thermal
+transport remains Matter-only and direct-contact. D-013/D-014 and ADR-0005
+distinguish foreground `EMPTY` from Atmosphere, Vacuum and Void;
 Air is a full-resolution mass/energy Field rather than Matter; occupied Cells
 carry canonical zero Air. Four Current/Next Air buffers plus one receiver-claim
 scratch form the correctness baseline. Every occupancy change receives a
@@ -83,8 +83,9 @@ Canonical details live in
 [`ADR-0005`](decisions/ADR-0005-atmosphere-vacuum-environment.md),
 [`THERMAL_ENVIRONMENT_SPEC`](../specs/THERMAL_ENVIRONMENT_SPEC.md) and the
 [`production inventory`](THERMAL_ENVIRONMENT_PRODUCTION_INVENTORY.md). TE-1 is
-READY / NOT STARTED; Air flow, thermal exchange, phase/ignition retune and
-Air-pressure coupling belong to later gates.
+implemented at source `1a722d...`; Air flow, thermal exchange,
+phase/ignition retune and Air-pressure coupling remain later-gate work and
+TE-2 is not started.
 
 ---
 

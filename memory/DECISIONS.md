@@ -176,3 +176,15 @@ Scope: Thermal Environment TE-0R/TE-0/TE-0A/TE-0B on `feature/m0-g9-first-playab
 Evidence: User-provided TE-0 design-lock prompt; `docs/architecture/decisions/ADR-0005-atmosphere-vacuum-environment.md`; verified design package SHA-256 `3f5abcc282881a190a0881499b61f8d00cf782f305354f6b533740ac0d0b9c84`; live production inventory at source `f5c7ac8e76867f769cdf19d7f420432d8fef4509`.
 
 Invalidated by: A later explicit user decision selecting a different Environment ontology or abandoning the Thermal Environment program. Later coefficient, edge, combustion-support, phase and permeability decisions refine this architecture only through their own sequential decision entries.
+
+## D-014 · Authorize and implement the TE-1 Environment state/occupancy foundation — 2026-08-20 (source: direct user TE-1 implementation authorization)
+
+Decision: Implement only TE-1 from the locked D-013/ADR-0005 architecture: four full-resolution Air mass/energy Current/Next buffers, one reusable u32 receiver-claim scratch, exact Atmosphere/Vacuum initialization and reset, occupancy-linked Volume Exchange, deterministic receiver-gated phase/Smoke spawn, exactly-once Environment-blocked phase pressure, Matter flag identity hygiene, bounded test observation, and explicit allocation/profiler accounting. Do not implement inter-cell Air transport, Matter↔Air or Air↔Air thermal exchange, Air-pressure coupling, TE-2, later thermal/ignition gates, G9-B/C/D/E, optimization, Vacuum tooling, Oxygen or Ash.
+
+Reason: The user explicitly authorized the bounded TE-1 foundation after TE-0R/TE-0/TE-0A/TE-0B closed its architecture and blockers. Preserving whole Air parcels and transactional occupancy changes creates the required state foundation without silently starting the later physics.
+
+Scope: Runtime/test source `1a722d239a16bade5772688fa822465d5cef4602` on `feature/m0-g9-first-playable`; canonical TE-1 docs and evidence. G9-A remains **REVISED IMPLEMENTATION CANDIDATE / USER RE-REVIEW PENDING** and Q-008 remains open for its named later gates.
+
+Evidence: `docs/evidence/THERMAL_ENVIRONMENT_TE_1_FOUNDATION_2026-08-20.md`; final-source serial workspace FULL PASS; release Sandbox bounded launch PASS; exact allocation/profiler/receiver transaction tests.
+
+Invalidated by: A later explicit user decision changing the Environment ontology or a reproducible invariant failure at the named runtime source. This decision does not authorize TE-2.

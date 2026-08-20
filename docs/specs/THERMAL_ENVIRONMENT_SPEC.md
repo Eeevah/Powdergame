@@ -1,8 +1,8 @@
 # Powdergame Thermal Environment Specification
 
-- **Status:** Canonical design lock; implementation not started
-- **Architecture:** ADR-0005 / D-013
-- **Runtime boundary:** Current thermal, phase, combustion and pressure behavior remains unchanged until its named implementation gate
+- **Status:** TE-1 Environment state / occupancy hygiene implemented; TE-2 not started
+- **Architecture:** ADR-0005 / D-013 / D-014
+- **Runtime boundary:** Air transport, Air thermal exchange and Air pressure coupling remain disabled until their named later gates
 
 ## 1. State model
 

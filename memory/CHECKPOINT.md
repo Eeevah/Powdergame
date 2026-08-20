@@ -1,76 +1,57 @@
-# Checkpoint — Thermal Environment design locked; TE-1 ready and not started — 2026-08-20 13:10 KST
+# Checkpoint — TE-1 Environment foundation implemented; TE-2 not started — 2026-08-20 16:41 KST
 
 ## Repository coordinate
 
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- HEAD: `2591dd5196752ca0caa4a69029dd04a9eee76744` docs architecture commit; live Git wins if this checkpoint is stale
-- Working tree: expected Ballast closure files only until the memory commit; final target is clean and upstream-equal
+- HEAD: runtime source `1a722d239a16bade5772688fa822465d5cef4602`; the immediately following docs/memory closure contains this checkpoint, so live Git wins
+- Working tree: expected TE-1 docs/memory closure files until the closure commit; final target is clean and upstream-equal
 
 ## The story so far
 
-G8 is closed/frozen. G9-A continuity v2 remains **REVISED IMPLEMENTATION
-CANDIDATE / USER RE-REVIEW PENDING** at runtime source
-`a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; no user acceptance was inferred.
+G8 remains closed/frozen. G9-A continuity v2 remains **REVISED IMPLEMENTATION
+CANDIDATE / USER RE-REVIEW PENDING**; no acceptance verdict was inferred.
 
-D-013 closes the Thermal Environment ontology before code. Foreground EMPTY,
-Atmosphere, Vacuum and Void are distinct. Air is a full-resolution mass/energy
-Environment Field, not Matter. The correctness baseline has four Air
-Current/Next buffers plus one `u32` receiver-claim scratch. Occupancy changes
-use bounded reconcile/joint settle and the eight-storage ceiling. The
-Celsius-like product anchors migrate atomically in a later gate.
+D-014 implements TE-1 only. The GPU world now owns four full-resolution Air
+mass/energy Current/Next buffers and one u32 receiver-claim scratch. One
+canonical staging/reset contract distinguishes Atmosphere and Vacuum, while
+movement, phase, Smoke, decay, fuel consumption and rupture reconcile
+Environment at explicit joint-settle boundaries. Phase/Smoke spawns are
+receiver-gated whole-parcel transactions; a failed phase receiver receives the
+existing blocked-expansion pressure source exactly once. Matter flag ownership
+is sanitized independently. The profiler covers all 30 passes and allocation
+reports pin 4,196,864 B at 256² and 268,462,208 B at 2048² without profiling.
 
-TE-0R reuse research, TE-0 canonical design, TE-0A independent review and
-TE-0B reference math are complete. Independent review first found seven High
-defects; the final recheck confirmed Critical 0 / High 0 / blocker 0 after the
-design locked transactional spawn displacement, whole-parcel headroom,
-exact-zero Vacuum, coefficient domains, bilateral sleep/wake cohorts, flag
-hygiene and a sealed TE-2 reference edge. Production runtime is unchanged.
+Air does not move between EMPTY Cells, exchange heat, or apply atmospheric
+pressure to Matter. TE-2 and G9-B/C/D/E are not started.
 
 ## Valid evidence
 
-- TE-0 docs source `2591dd5196752ca0caa4a69029dd04a9eee76744` — valid while the ADR/spec/inventory/review files
-  remain unchanged; strict policy audit, Markdown/link/index/JSON/secret checks
-  and diff-check passed.
-- TE-0.2 reference proof — package SHA-256
-  `3f5abcc282881a190a0881499b61f8d00cf782f305354f6b533740ac0d0b9c84`,
-  seed `1413820466`, 40,000 randomized trials, maximum numerical error
-  `7.275957614183426e-12`, result `PASS_REFERENCE_MATH_ONLY`. It does not prove
-  WGSL, GPU ordering/races, bindings, sleep, performance, fun or acceptance.
-- G9-A continuity v2 runtime evidence remains attached to source
-  `a00e39b2e00bfbd9ac28214c44cd22cc97542bb4`; this docs/memory work does not
-  invalidate or extend it.
+- Runtime source `1a722d239a16bade5772688fa822465d5cef4602` — valid while runtime/test bytes, RTX 5090/DX12 environment and locked commands remain unchanged. Final-source workspace FULL, warnings-denied clippy, all-target check, strict audit and one Sandbox bounded launch passed.
+- `docs/evidence/THERMAL_ENVIRONMENT_TE_1_FOUNDATION_2026-08-20.md` — exact TE-1 scope, constants, pass/allocation data and limitations.
+- Release EXE `target/release/powdergame-windows.exe` — SHA-256 `8c3f0050eef67cfca04e970c071276ce8ae856a7a1a65e58ff63a0deecb34ea6`, size 9,936,896 B, valid only for runtime source `1a722d...`.
+- TE-0.2 reference proof remains formula-only evidence and does not prove TE-2 physics.
 
 ## Decided
 
 - D-007 — G8 is closed/frozen.
-- D-010 — canonical no-argument launch opens Sandbox; Gallery stays explicit.
-- D-012 — G9-A re-review still requires continuity v2; no acceptance verdict.
-- D-013 — separate foreground Matter from atmospheric/vacuum Environment and
-  adopt Air mass/energy plus reuse-first design.
+- D-012 — G9-A still awaits continuity v2 user re-review.
+- D-013 — Air is separate mass/energy Environment, not Matter.
+- D-014 — TE-1 state/occupancy foundation is implemented; TE-2 is not authorized.
 
 ## Waiting on the user
 
-- Re-review G9-A continuity v2 and accept, revise or reject it.
-- Authorize TE-1 as a separate implementation task if desired.
-- Q-008 decisions remain later-gate owned and do not block TE-1.
+- Re-review G9-A continuity v2 on the new TE-1 descendant executable.
+- Decide whether to authorize TE-2 as a separate task.
+- Q-008 later-gate choices remain open and were not silently selected.
 
 ## Next first action
 
-On an explicit TE-1 task, verify the clean pushed docs source, then open
-`docs/planning/THERMAL_ENVIRONMENT_IMPLEMENTATION_GATES.md` and execute only
-the TE-1 entry checklist; do not start TE-2.
+Run `run_powdergame.bat sandbox` for the pending G9-A continuity v2 re-review;
+do not start TE-2 or G9-B/C/D/E without a new explicit authorization.
 
 ## Tried
 
-- The package's proposed no-scratch spawn receiver was rejected because the
-  original ownership claim remains live. The locked design pays one explicit
-  `u32` scratch and uses a paired commit/block transaction.
-- Independent review initially rejected TE-1 with seven High findings. A first
-  revision left receiver-failure phase pressure ambiguous; the final revision
-  pinned a mandatory seven-storage pass, settle order and exactly-once fixture.
-- The local personal-infra Wiki checkout had user changes and could not
-  fast-forward safely. Remote `origin/main` object `b8c22c1...` was fetched and
-  read as authority; no Wiki file was modified.
-- No Rust, WGSL, Cargo, fixture, runtime, build, GPU, FULL, bounded launch,
-  candidate or capture command ran in TE-0.
+- A no-scratch receiver design was rejected during TE-0 because the original Matter claim remains live; TE-1 uses exactly one dedicated u32 scratch.
+- The first final FULL attempt exposed a pre-existing Heavy Mixed census block misplaced in the Fire/Heat fixture test. The stale test block was removed without retuning production fixtures, invalidating that attempt; the final source then passed the full workspace.
+- The local personal-infra Wiki checkout remained user-dirty. Remote `origin/main` object `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3` was used as authority and no Wiki file was modified.

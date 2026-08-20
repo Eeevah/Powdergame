@@ -1,6 +1,6 @@
 # Thermal Environment Validation Contract
 
-- **Status:** Canonical design validation; runtime implementation not started
+- **Status:** TE-1 validation complete at source `1a722d239a16bade5772688fa822465d5cef4602`; later-gate validation not started
 - **Architecture:** ADR-0005 / `THERMAL_ENVIRONMENT_SPEC.md`
 - **Principle:** automated evidence proves invariants and named causal claims, not fun or user acceptance
 
@@ -128,3 +128,21 @@ or user acceptance. Those limitations are mandatory report content.
 Correctness-source measurement records exact persistent bytes, any non-reused scratch, pass/bind-group inventory, per-pass P50/P95, active chunks/tail, 60-TPS responsiveness and reset/source identity. It measures 256² product and 2048² reference configurations.
 
 No coarsening, packing, f16 or solver optimization begins until the full-resolution correctness baseline demonstrates a measured blocker and the user authorizes a bounded optimization review.
+
+## 9. TE-1 completed evidence
+
+The TE-1 source implements and validates TE-F30, TE-F35, TE-F36, TE-F37 and
+TE-F38 through named Core/GPU/staging/Sandbox/profiler tests. The locked
+machine guards cover exact Atmosphere/Vacuum state, invalid finite domains,
+whole-parcel headroom, movement/density/Void Volume Exchange, phase and Smoke
+receiver transactions, no-receiver rollback, exactly-once phase pressure,
+flag ownership, both reset halves, direct/scenario/benchmark/Sandbox staging,
+Naga/write bindings, the eight-storage ceiling, 30 profiler pass identities,
+exact 256²/2048² tracked allocation, and the unchanged 24-byte/10-Hz Inspector.
+
+Targeted checks, workspace all-target check, warnings-denied clippy, strict
+policy audit and final-source workspace FULL passed. The first FULL attempt
+exposed a pre-existing Heavy Mixed census block misplaced in the Fire/Heat
+fixture test; that test-only block was removed, scenario tests passed, the
+source SHA changed, and the invalidated attempt was rerun successfully at the
+final SHA. No G8/G8-C/candidate/official capture ran.

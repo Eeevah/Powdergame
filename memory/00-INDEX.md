@@ -29,6 +29,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260820-2239-te2-revised-candidate-rereview.md`](checkpoints/20260820-2239-te2-revised-candidate-rereview.md) | Revised TE-2 candidate return point before direct user acceptance | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260820-2328-te2-accepted-te3d-authorized.md`](checkpoints/20260820-2328-te2-accepted-te3d-authorized.md) | TE-2 accepted and TE-3D design-authorized return point before the design candidate | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260821-0111-te3d-v1-review-pending.md`](checkpoints/20260821-0111-te3d-v1-review-pending.md) | TE-3D v1 independent-review return point before D-018 locked-amendment closure | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260821-0153-te3d-accepted-te5b-next.md`](checkpoints/20260821-0153-te3d-accepted-te5b-next.md) | D-018 architecture-accepted return point before TE-5B design authorization | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

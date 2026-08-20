@@ -275,3 +275,21 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - No Rust/WGSL/Cargo, build, launch, Cargo/test/check/clippy, GPU, FULL,
   candidate, G8/G8-C or Wiki change/run occurred. The v1 proof/review and all
   TE-1/TE-2/G5 evidence remain source-bound and preserved.
+
+## 2026-08-21 · TE-5B phase-volume bridge design authorization
+
+- Preflight verified the Powdergame branch clean and synchronized at
+  `d7500e219af6f670be05f830b50c232d2bb53077` with local/remote `0/0`.
+- The local personal-infra Wiki was user-dirty and behind; it was not pulled,
+  reset, stashed, committed or edited. Connected `origin/main`
+  `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3` was inspected read-only.
+- D-019 authorizes docs/memory research, one fixed-seed pure proof and a
+  fresh-context adversarial review for the named exclusive local
+  volume-relief-token candidate. ADR-0007 remains to be proposed and reviewed.
+- Initial source audit found a feasible reuse route through the 30-bit
+  proposal/claim domain, planned TE-3 scratch lifetime, existing GAS movement
+  reachability and gauge-pressure consequence grammar. This is not runtime
+  evidence and does not authorize implementation.
+- TE-3 runtime, TE-5B runtime, full TE-5, Air force, rupture changes, TE-4 and
+  G9-B/C/D/E remain **NOT STARTED**. No Rust, WGSL, Cargo, build, launch or
+  runtime validation occurred in this authorization unit.

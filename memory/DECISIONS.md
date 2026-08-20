@@ -384,3 +384,40 @@ TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS** and ADR-0006 is
 **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. This receipt authorizes no
 runtime work; TE-3 is **NOT STARTED** and the TE-5 bridge is **DESIGN REQUIRED
 / NOT STARTED**.
+
+## D-019 · Authorize the TE-5B phase-volume bridge design program — 2026-08-21 (source: direct user TE-5B design authorization)
+
+Decision: Preserve TE-3D as **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**
+and ADR-0006 as **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. Authorize a
+docs/reference-only TE-5B design program around the named primary candidate
+**EXCLUSIVE LOCAL VOLUME-RELIEF TOKEN + EXISTING GAUGE PRESSURE**. The program
+must compare the unconditional-impulse, non-exclusive-EMPTY, new-state and
+exclusive-token options; reuse the existing GAS movement stencil,
+proposal/claim ownership domain, Environment-receiver separation and gauge
+pressure/rupture grammar; produce ADR-0007/spec/validation/planning/inventory,
+one fixed-seed pure proof and a fresh-context adversarial review; and stop at
+**PHASE-VOLUME BRIDGE DESIGN CANDIDATE / USER ARCHITECTURE REVIEW PENDING** if
+unresolved Critical/High findings are zero. ADR-0007 remains **PROPOSED**.
+
+Reason: D-018 requires an explicit, separately approved pressure-volume
+transaction before the 1:1 Water/Steam path can activate without regressing
+the frozen G5 boil/confinement/pressure/rupture/vent chain. The narrow bridge
+must distinguish open relief from confinement and preserve same-tick exclusive
+ownership without inventing a general pressure solver or extra phase quantity.
+
+Scope: Docs, memory, research, pure reference proof and independent design
+review on `feature/m0-g9-first-playable`, starting from
+`d7500e219af6f670be05f830b50c232d2bb53077`. TE-3 runtime, TE-5B runtime, full
+TE-5 background-pressure/structure coupling, Air force, product edge mode,
+Vacuum combustion, rupture changes, TE-4, G9-B/C/D/E, optimization, build,
+launch, PR and `main` merge remain unauthorized and **NOT STARTED**.
+
+Evidence: Direct user authorization in the TE-5B Phase-Volume Relief /
+Confinement Bridge task; D-018/ADR-0006 atomic-activation requirement; current
+G5-B proposal/claim/consequence and G5-C gauge-pressure/rupture contracts at
+the named start source. This entry records authorization only and is not proof
+that ADR-0007 or the candidate has passed review.
+
+Invalidated by: A later explicit user supersession; an unresolved Critical or
+High design counterexample, which stops TE-5B as **DESIGN BLOCKED**; or future
+source-bound implementation evidence that contradicts a locked invariant.

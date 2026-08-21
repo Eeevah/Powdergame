@@ -399,3 +399,15 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   possible future user-owned requirement.
 - Runtime, Cargo, GPU, FULL, build and launch counts remained zero. External
   implementation copy count remained `0 files / 0 lines`.
+
+## 2026-08-21 · TE-5X pressure-volume comparison authorized
+
+- Verified repository baseline `f5b146571f2cb95b89d56d8831b68ddbeb75f395`
+  equals the branch remote with a clean worktree.
+- Preserved the user-dirty local Wiki checkout and verified connected
+  `origin/main` object `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3`
+  read-only.
+- D-022 preserves TE-5B/C/D as blocked history and authorizes exactly three
+  docs/reference comparison candidates. No model or runtime is accepted.
+- Session ID:
+  `20260821T042119391Z-te5x-pressure-volume-architecture-reset-f5b14657`.

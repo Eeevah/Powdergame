@@ -162,6 +162,13 @@ phase-pressure movement ownership. Final counts are Critical `0` / High `6` /
 Medium `2`; review SHA-256 is
 `73adaf56bea1589d425d89ba9430a7f50f3d0b9cf50f5b8fdc2155f263968ed6`.
 
+D-022 preserves all three blocked designs and authorizes a docs/reference-only
+TE-5X comparison of exact persistent-extent matching, shared gas-chamber
+capacity and a conservative Vapor-volume Environment field. No model is
+accepted or implemented. The comparison must use one pre-registered combined
+execution, primary-source prior-art identities, the same fixture matrix and a
+fresh-context review before any recommendation can be recorded.
+
 ---
 
 ## 비공식 진단 artifact
@@ -178,19 +185,19 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN BLOCKED; TE-5D DESIGN
-BLOCKED / RUNTIME NOT STARTED.** D-021 permits one reciprocal extent-link plus
-dedicated phase-pressure Current/Next pair while preserving 1:1 family
-quantity and no extra Steam. ADR-0009 remains Proposed, but the fixed-depth
-matching hard gate is unsatisfied.
+**TE-5B/TE-5C/TE-5D REJECTED / DESIGN BLOCKED; TE-5X ARCHITECTURE COMPARISON
+AUTHORIZED / RUNTIME NOT STARTED.** D-022 authorizes exactly three comparative
+reference models and accepts none. The fixed-depth matching contract remains
+disproved; persistent ownership and 1:1 family quantity remain available for
+comparison.
 
 ## 다음 행동
 
-1. preserve the failed TE-5B/TE-5C candidates and their source-bound receipts;
-2. preserve the one-shot TE-5D proof and eight-source persistent counterexample;
-3. obtain user direction on wider matching scope and any required search scratch;
+1. preserve all blocked candidates and their source-bound receipts;
+2. compare exactly A exact matching, B shared chamber and C conservative field;
+3. execute one combined pre-registered reference comparison and fresh review;
 4. keep TE-3/TE-5 runtime **NOT STARTED** and the current G5 Water path active;
-5. do not start full Air coupling, TE-4, G9-B/C/D/E or optimization.
+5. return the comparison for explicit user model selection or report DESIGN BLOCKED.
 
 ## 아직 별도 결정인 것
 

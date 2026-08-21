@@ -323,3 +323,28 @@ Q-011 remains open for a user decision on wider matching scope and, if needed,
 one full-world frontier/predecessor scratch with exact lifetime and bytes.
 Another persistent field, a different volume representation and relaxation of
 the 1:1 quantity contract are not required by the current counterexamples.
+
+### 2026-08-21 D-022 disposition — comparative reset authorized, question superseded
+
+D-022 preserves TE-5D's exact blocker and supersedes Q-011 for current model
+selection. A larger fixed reassignment depth is forbidden. Wider exact
+matching is now compared, without preference, against connected shared-chamber
+capacity and a conservative Vapor-volume Environment scalar under Q-012.
+
+## Q-012 · TE-5X pressure-volume model selection — open 2026-08-21
+
+Owner: user at the proposed ADR-0010 model-selection boundary.
+
+D-022 authorizes exactly three docs/reference candidates and one combined,
+pre-registered execution. The unresolved user choice is whether any candidate
+preserves the common phase quantity, finite-capacity, reversible-pressure,
+Air/H hygiene, bounded-work and product-readability contract strongly enough
+to become a future atomic TE-3/TE-5 implementation architecture.
+
+The comparison must disclose exact matching convergence/scratch, chamber
+connectivity and narrow-neck meaning, conservative-field source/sink and Air
+coexistence, 2048² memory/pass/query/binding costs, prior-art identity/license,
+proof limitations and fresh comparative-review findings. No candidate is
+accepted in advance. Any unresolved Critical/High makes TE-5X **DESIGN
+BLOCKED**; otherwise the maximum disposition is **ARCHITECTURE COMPARISON
+COMPLETE / USER MODEL SELECTION PENDING**. Runtime remains not started.

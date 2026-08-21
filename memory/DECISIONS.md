@@ -545,3 +545,51 @@ a bounded GPU realization may additionally need an explicitly authorized
 full-world frontier/predecessor scratch. This result does not require another
 persistent field, a different volume representation or relaxation of 1:1
 quantity. Runtime remains not started.
+
+## D-022 · Authorize the TE-5 pressure-volume architecture comparison — 2026-08-21 (source: direct user model-selection authorization)
+
+Decision: Preserve D-019, D-020 and D-021 and their source-bound receipts as
+immutable blocked-design history. TE-5B and TE-5C remain **REJECTED / DESIGN
+BLOCKED**. TE-5D fixed-depth reassignment remains **REJECTED / DESIGN
+BLOCKED**. Those failures do not disprove persistent phase-volume ownership,
+the one-Cell/one-Water-equivalent ontology or 1:1 phase-family transitions;
+they disprove the fixed-depth matching implementation contract. Raising depth
+six to another constant is not an architecture repair.
+
+Authorize a docs/reference-only **TE-5X PRESSURE-VOLUME ARCHITECTURE
+COMPARISON PROGRAM** over exactly three candidates: exact persistent-extent
+maximum matching; shared connected gas-chamber capacity; and a conservative
+Vapor-volume Environment scalar. The study must apply the same predeclared
+product contract and fixtures, execute one combined pre-registered reference
+comparison exactly once, survey maintained primary prior art without importing
+code, and obtain a fresh-context comparative review. No runtime model is
+accepted by this decision.
+
+Locked selection boundary: any candidate causing false rupture with sufficient
+capacity, quantity/Air/phase-volume loss, irreversible pressure,
+solver-delay-as-confinement, unbounded or unspecified production work, a pass
+above eight storage bindings, unexplained persistent state, stale
+movement/edit/reset state, historical evidence rebound or external code ingress
+is ineligible. Eligible candidates rank by causal meaning, conservation,
+deterministic GPU feasibility, bounded work, memory and then complexity. The
+study may report exactly one Recommended, one Retained fallback and one
+Rejected only if fresh review leaves no unresolved Critical/High finding.
+
+Scope: Docs, memory and one external pure comparison script/result only on
+`feature/m0-g9-first-playable`, starting from
+`f5b146571f2cb95b89d56d8831b68ddbeb75f395`. Rust, WGSL, Cargo, runtime
+allocation, build, launch, TE-3/TE-5 runtime, TE-4, G9-B/C/D/E, optimization,
+PR, tag and `main` merge remain unauthorized and **NOT STARTED**. External
+copied/translated/vendored implementation remains `0 files / 0 lines`.
+
+Stop rule: This entry is comparison authorization, not acceptance. With zero
+unresolved Critical/High findings, the maximum stop is **TE-5X ARCHITECTURE
+COMPARISON COMPLETE / USER MODEL SELECTION PENDING** and ADR-0010 remains
+**PROPOSED**. If no model is eligible, or comparative review leaves any
+Critical/High finding, stop **TE-5X DESIGN BLOCKED**, name the exact reason and
+do not synthesize a fourth candidate after the reference execution.
+
+Invalidated by: A later explicit user supersession, a failed locked reference
+property, unresolved Critical/High comparative finding or source-bound future
+evidence contradicting a common invariant. Failure does not revive TE-5B/C/D,
+rewrite D-018 or authorize runtime.

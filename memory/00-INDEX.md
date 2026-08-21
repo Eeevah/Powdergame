@@ -33,6 +33,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260821-0219-te5b-authorized-before-design-blocker.md`](checkpoints/20260821-0219-te5b-authorized-before-design-blocker.md) | D-019 authorization return point before independent review exposed the finite-capacity blocker | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260821-1139-te5b-blocked-te5c-authorized.md`](checkpoints/20260821-1139-te5b-blocked-te5c-authorized.md) | TE-5B blocked return point before D-020 authorized TE-5C | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260821-1245-te5c-blocked-te5d-authorized.md`](checkpoints/20260821-1245-te5c-blocked-te5d-authorized.md) | TE-5C blocked return point before D-021 authorized TE-5D persistent state | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260821-1323-te5d-blocked-te5x-authorized.md`](checkpoints/20260821-1323-te5d-blocked-te5x-authorized.md) | TE-5D fixed-depth blocker return point before D-022 comparative reset | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

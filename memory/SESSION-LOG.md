@@ -535,3 +535,19 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   size 10,098,688 bytes.
 - Created local-only Desktop shortcut `Powdergame TE-3 Phase Cycle.lnk`,
   verified target/argument/working-directory properties, and did not add it to Git.
+
+## 2026-08-22 · TE-3 Scene 1 finite-heat remediation
+
+- Direct review failed at tick `21,160`: Water `3,885`, Steam `0`, surface
+  `85.824 C / E=0`. The finite heater and oversized fill equilibrated below
+  boiling; no production-physics change was needed.
+- Source `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448` stages a shallow 288-Cell
+  finite one-shot beaker and labels `R` as replay.
+- Actual grid events: boiling `72`, Steam/rise `320`, condensation `336`,
+  upper Water `552`, fall `584`; family count stayed `288`.
+- Windows suite `174 passed / 0 failed / 1 unrelated ignored`; affected check,
+  clippy, fmt, audit, and diff check passed. FULL remained `0`.
+- One release compilation and one bounded launch passed. The launcher's release
+  freshness check was a second no-op build invocation. EXE SHA-256 is
+  `6F2EF0BF49FC39AF550B2CF958DCC5A2F551AAE65ACD9F1735D208519E8E1C0E`,
+  size `10,097,664` bytes. Scene 1 remains user re-review pending.

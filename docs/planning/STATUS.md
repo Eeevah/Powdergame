@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3 production physics remains `4146721...`; Scenes 2–4 **DIRECT OBSERVATION CONSISTENT**; **REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW IN PROGRESS** at `89d2400...`; Scene 1 pending; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3 production physics remains `4146721...`; Scenes 2–4 **DIRECT OBSERVATION CONSISTENT**; Scene 1 finite-heat defect remediated at `e9f4a37...` and **USER RE-REVIEW PENDING**; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -186,9 +186,14 @@ source-bound. D-025 records Scenes 2–4 as direct-observation consistent and
 keeps Scene 1 pending. App source `89d2400...` preserves the 24-byte Inspector
 while showing authoritative phase energy in Sandbox, discloses the sealed
 world/no external ambient sink, and provides a local-only one-click shortcut.
+Scene 1 source `e9f4a37...` replaces the below-boiling 3,885-Cell fixture with
+a finite one-shot 288-Cell beaker. Actual ticks record boiling progress at 72,
+Steam/rise at 320, condensation progress at 336, upper Water at 552 and fall at
+584 while family quantity stays exact.
 `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is deferred/not started. Receipts:
 [`THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21`](../evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md).
 [`TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22`](../evidence/TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22.md).
+[`TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22`](../evidence/TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22.md).
 
 ---
 
@@ -210,14 +215,14 @@ They are not official performance evidence. Do not prune them without a separate
 rejects ADR-0011 and preserves all TE-5/packet failures as history. Runtime
 source `4146721...` implements the accepted one-Cell/one-quantity enthalpy
 model without Water phase pressure. D-025 records Scenes 2–4 as consistent;
-Scene 1 remains the only direct-review item. No TE-5 pressure-volume
+the remediated Scene 1 remains the only direct-review item. No TE-5 pressure-volume
 architecture is selected or started.
 
 ## 다음 행동
 
 1. open `Powdergame TE-3 Phase Cycle.lnk` from the Windows Desktop;
-2. review Scene 1 quantity, boiling, rise, condensation, return, sealed-world
-   disclosure, Sandbox phase progress and the explicit deferred-pressure label;
+2. press `SPACE`; confirm boiling begins near tick 72, Steam/rise near tick 320,
+   condensation/Water return follows, and `R` replays the finite sequence;
 3. preserve all blocked TE-5/packet candidates and receipts without rerun;
 4. require a new direct decision before TE-5, TE-4 or G9-B work.
 

@@ -445,3 +445,14 @@ rise, condensation/falling Water, honest residual Steam in the sealed world,
 and the deferred-pressure label.
 
 This question does not authorize TE-5 Pressure redesign, TE-4 or G9-B/C/D/E.
+
+### 2026-08-22 direct failure and replacement candidate
+
+The user ran the old fixture through tick `21,160` and observed Water `3,885`,
+Steam `0`, and no visible cycle. Source audit confirmed that the large fill and
+finite Stone reservoir equilibrated below boiling. Source `e9f4a37...` replaces
+only Scene 1 staging and records the actual ordered events at ticks `72`, `320`,
+`336`, `552`, and `584` with family count fixed at `288`.
+
+Q-015 remains open for direct re-review. Automated evidence does not convert
+the failed observation into acceptance.

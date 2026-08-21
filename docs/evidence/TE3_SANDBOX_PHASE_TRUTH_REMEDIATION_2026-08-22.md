@@ -155,3 +155,12 @@ second executable or launcher was created.
 
 TE-5 Pressure redesign remains deferred/not started. TE-4 and G9-B/C/D/E
 remain not started.
+
+## 2026-08-22 Scene 1 direct-review failure and remediation
+
+The user reached tick `21,160` with Water `3,885`, Steam `0`, and the surface
+probe at `85.824 C / E=0`. The finite heater had equilibrated below boiling;
+this receipt's Scene 1 review route therefore failed. App source `e9f4a37...`
+supersedes only that candidate fixture and adds an actual ordered 584-tick
+boil/rise/condense/fall check. See
+[`TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22`](TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22.md).

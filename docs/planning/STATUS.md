@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3 production physics remains `4146721...`; **REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING** at `c2f4f2b...`; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3 production physics remains `4146721...`; Scenes 2–4 **DIRECT OBSERVATION CONSISTENT**; **REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW IN PROGRESS** at `89d2400...`; Scene 1 pending; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -34,6 +34,7 @@
 - TE-5C replacement-design baseline: `6a1c83fad702d18f2d24365a4fc747ab74225f5c`
 - TE-3 pressure-decoupled runtime source: `41467219819c5d0cb3eab8ae22b652449da20480`
 - TE-3 direct-review surface candidate: `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`
+- TE-3 Sandbox phase-truth candidate: `89d2400d677dec7e39cba76234c18d8b2363a496`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -181,9 +182,13 @@ source `41467219819c5d0cb3eab8ae22b652449da20480` implements only the two
 phase-energy buffers, passes actual TE3-F01–F15 fixtures and final-source FULL,
 and exposes the paused `phase-cycle`/`te3` candidate. Water creates no second
 Steam and no phase expansion/blocked pressure. Historical G5 evidence remains
-source-bound. Direct user review is pending; `WATER_STEAM_PRESSURE_VOLUME_REDESIGN`
-is deferred/not started. Full receipt:
+source-bound. D-025 records Scenes 2–4 as direct-observation consistent and
+keeps Scene 1 pending. App source `89d2400...` preserves the 24-byte Inspector
+while showing authoritative phase energy in Sandbox, discloses the sealed
+world/no external ambient sink, and provides a local-only one-click shortcut.
+`WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is deferred/not started. Receipts:
 [`THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21`](../evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md).
+[`TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22`](../evidence/TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22.md).
 
 ---
 
@@ -201,17 +206,18 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING.** D-024
+**TE-3 REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW IN PROGRESS.** D-024
 rejects ADR-0011 and preserves all TE-5/packet failures as history. Runtime
 source `4146721...` implements the accepted one-Cell/one-quantity enthalpy
-model without Water phase pressure. No TE-5 pressure-volume architecture is
-selected or started.
+model without Water phase pressure. D-025 records Scenes 2–4 as consistent;
+Scene 1 remains the only direct-review item. No TE-5 pressure-volume
+architecture is selected or started.
 
 ## 다음 행동
 
-1. run `run_powdergame.bat phase-cycle` for direct user review;
-2. check quantity, surface/buried behavior, movement, condensation, reversal,
-   metastability, reset and the explicit deferred-pressure label;
+1. open `Powdergame TE-3 Phase Cycle.lnk` from the Windows Desktop;
+2. review Scene 1 quantity, boiling, rise, condensation, return, sealed-world
+   disclosure, Sandbox phase progress and the explicit deferred-pressure label;
 3. preserve all blocked TE-5/packet candidates and receipts without rerun;
 4. require a new direct decision before TE-5, TE-4 or G9-B work.
 

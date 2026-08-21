@@ -507,3 +507,31 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   `F15B8B1198443935CB233A0FA526256563F400A0775ECC246542BB195938F966`.
 - TE-3 remains revised candidate / user review pending. Pressure redesign,
   TE-4 and G9-B/C/D/E remain not started.
+
+## 2026-08-22 · TE-3 Sandbox phase truth and one-click review
+
+- Verified clean synchronized baseline `f1f1a8532fab3e2d7d541562643a9bebee61000f`.
+  Preserved the user-dirty Wiki and used connected `origin/main`
+  `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3` read-only.
+- D-025 records Scenes 2–4 as direct-observation consistent while Scene 1 and
+  whole-candidate acceptance remain pending.
+- Source `89d2400d677dec7e39cba76234c18d8b2363a496` keeps the Inspector at
+  24 bytes / <=10 Hz: Gallery reads Cell activity in offset 16; Sandbox reads
+  authoritative phase energy there. Typed profile samples and request identity
+  prevent cross-profile stale relabelling.
+- Sandbox now shows phase progress/energy and the latent plateau explanation,
+  labels thermal tools Add/Remove Heat, and discloses SEALED / no external
+  ambient heat sink. Scene 2 labels identify fixed probes.
+- The original single cold-lid Stone exhausted finite heat capacity before
+  completion. A finite 63-Cell Stone block behind the same direct contact face
+  completed Water without a physics change or infinite sink.
+- Actual ticks: cold-lid partial 5, Water 656 at 99.867607 C, below-plateau
+  657 at 98.475067 C; free-Air partial 63 and Water 1043; no-sink unchanged
+  through 31 and resumed at 32.
+- Windows suite: 173 passed / 0 failed / 1 unrelated ignored. Formatting,
+  affected check/clippy, strict audit and diff checks passed. FULL remained 0.
+- Release build and bounded launch counts are each 1. Canonical EXE SHA-256 is
+  `B22044D1E96AA9EAAED7A66D37DF76FA502FDFE9762BBD4EB19413A260EE9CA8`,
+  size 10,098,688 bytes.
+- Created local-only Desktop shortcut `Powdergame TE-3 Phase Cycle.lnk`,
+  verified target/argument/working-directory properties, and did not add it to Git.

@@ -114,3 +114,13 @@ frames. Its 14 simulation ticks do not prove a phase cycle.
 
 Pressure redesign remains deferred/not started. TE-4 and G9-B/C/D/E remain
 not started. Direct user review is still required.
+
+## 2026-08-22 partial direct review and observability follow-up
+
+D-025 records Scenes 2–4 as direct-observation consistent while Scene 1 stays
+pending. App source `89d2400d677dec7e39cba76234c18d8b2363a496`
+supersedes this receipt only for current candidate presentation: it adds the
+Sandbox phase-energy Inspector profile, sealed-world disclosure, truthful
+probe labels and a finite cold-lid reservoir. Production physics remains
+`4146721...`. Current receipt:
+[`TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22`](TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22.md).

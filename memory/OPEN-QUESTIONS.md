@@ -431,3 +431,17 @@ pressure-decoupled phase cycle and passes source-bound automated validation.
 This does not close Q-014 or provide a pressure architecture. The next user
 choice is direct TE-3 candidate acceptance/revision; only a later explicit
 decision may start `WATER_STEAM_PRESSURE_VOLUME_REDESIGN`.
+
+## Q-015 · TE-3 Scene 1 direct review — open 2026-08-22
+
+Owner: user reviewing the revised phase-cycle candidate.
+
+D-025 records Scenes 2–4 as **DIRECT OBSERVATION CONSISTENT** and explicitly
+does not claim whole-candidate acceptance. Sandbox now exposes authoritative
+phase energy in its unchanged 24-byte Inspector profile and discloses the
+sealed boundary with no external ambient heat sink. The only remaining direct
+review is Scene 1: stable family quantity, surface boiling, 1:1 Steam, ordinary
+rise, condensation/falling Water, honest residual Steam in the sealed world,
+and the deferred-pressure label.
+
+This question does not authorize TE-5 Pressure redesign, TE-4 or G9-B/C/D/E.

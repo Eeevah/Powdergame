@@ -754,3 +754,56 @@ or Water phase-pressure source. An unresolved invariant, H conservation,
 identity/Air partial-commit, GPU integration or validation blocker stops
 **TE-3 BLOCKED** with its smallest reproduction. Do not invent a pressure-
 volume replacement inside this task.
+
+## D-025 · Record partial direct TE-3 review and require Sandbox phase truth — 2026-08-22 (source: direct user observation and remediation authorization)
+
+Decision: Preserve D-024 and the production-physics source
+`41467219819c5d0cb3eab8ae22b652449da20480`. Record Scenes 2, 3 and 4 as
+**DIRECT OBSERVATION CONSISTENT**, without promoting the whole TE-3 candidate
+to user accepted. Scene 1 remains **USER REVIEW PENDING**.
+
+Observed Scene 2: equal-H surface and buried Water began at `T=100`, `E=480`;
+the first eligible tick completed only the surface Cell to Steam; the buried
+Cell remained Water at `E=480`; the tick-24 opening permitted its later 1:1
+Steam completion; family quantity remained two. A later EMPTY fixed probe is
+ordinary Steam movement away from that coordinate, not quantity loss.
+
+Observed Scene 3: the cold-lid path began latent condensation before the
+free-Air path; free-Air condensation began later through sparse nucleation;
+the K=0 Boundary path remained unchanged; lid Water later cooled below
+`100 C`; and no whole lane converted in one tick. Observed Scene 4: cooling
+reduced partial-boiling energy, heating initially increased partial-
+condensation energy, no-sink Steam remained unchanged until a real cooling
+face was restored, and the restored sink resumed condensation and eventually
+created Water.
+
+Sandbox clarification: a large Steam cloud near the top of the sealed Starter
+Lab, some condensed falling Water, and Water appearing at the `100 C` phase
+plateau are observations consistent with the current finite-energy sealed
+world, but the normal Sandbox Inspector cannot yet expose the authoritative
+phase energy needed to review that state honestly. This is **CLARIFICATION /
+PRODUCT OBSERVABILITY REQUIRED**, not a thermodynamics retuning request.
+
+Authorization: keep the Inspector staging payload at exactly 24 bytes and at
+no more than 10 Hz. Reuse its fifth four-byte slot as authoritative
+`phase_energy` only in the Sandbox profile while Gallery/technical modes retain
+Cell activity. Add truthful phase progress/plateau copy, disclose the sealed
+boundary and absence of an external ambient heat sink, rename the primary
+thermal tools to `Add Heat` and `Remove Heat`, polish fixed probe labels, and
+create one local Desktop shortcut to the canonical EXE after the final release
+build. The shortcut is local-only and is not committed.
+
+Scope: `apps/windows` Inspector/Sandbox/candidate presentation, targeted
+tests, docs and memory only on `feature/m0-g9-first-playable`. Engine/Core,
+production WGSL, phase constants/predicates, Air/thermal coefficients, default
+Environment boundary mode, Pressure, TE-4, G9-B/C/D/E, optimization, another
+EXE/BAT, PR and main merge remain unauthorized. External copied, translated or
+vendored implementation remains `0 files / 0 lines`.
+
+Stop rule: Successful remediation stops at **REVISED WATER/STEAM PHASE-CYCLE
+CANDIDATE / USER REVIEW IN PROGRESS** with Scene 1 still pending. If targeted
+production semantics fail the latent-plateau, no-sink or free-Air controls,
+stop and report the smallest reproduction without retuning thresholds.
+
+Invalidated by: a later explicit user supersession or source-bound evidence
+that contradicts the recorded observations or 24-byte profile contract.

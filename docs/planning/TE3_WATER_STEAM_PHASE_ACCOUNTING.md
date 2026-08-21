@@ -232,3 +232,11 @@ predeclared two-Steam/two-EMPTY asymmetric open-capacity case: proportional
 shares were underused after a per-Cell cap, producing false target `100`.
 TE-5C is also **DESIGN BLOCKED**. No accepted phase rule changes here; the next
 architecture decision must explicitly permit persistent phase-volume state.
+
+D-021 makes that explicit and evaluates
+[`TE5_PERSISTENT_VAPOR_EXTENT`](TE5_PERSISTENT_VAPOR_EXTENT.md). The persistent
+extent closes the old vacancy-reuse representation gap, but its frozen
+depth-six matching cannot settle every canonical persistent state that has a
+complete assignment. The eight-source alternating-chain counterexample makes
+TE-5D **DESIGN BLOCKED** on wider matching scope. The accepted TE-3 phase
+architecture remains unchanged and still cannot activate alone.

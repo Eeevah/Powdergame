@@ -307,3 +307,19 @@ full-world scratch, another persistent field, relaxation of 1:1 quantity or a
 different volume representation. Runtime, background Air pressure, structure
 differential, product edge mode and Vacuum combustion remain separate and not
 started.
+
+### 2026-08-21 proof and independent-review update — candidate blocked
+
+The one-shot proof returned `DESIGN_BLOCKED` and did not execute the required
+all-labeled 6×6 exhaustion. A canonical persistent eight-source alternating
+chain has a complete matching but needs an augmenting path deeper than the
+frozen six-source bound. Fresh review independently confirmed it and recorded
+five more High findings: proof overclaim, receiver-blind target matching,
+missing editor reciprocal cleanup, pass/binding/scratch understatement and
+undefined phase-pressure movement ownership. Final counts are Critical `0` /
+High `6` / Medium `2`.
+
+Q-011 remains open for a user decision on wider matching scope and, if needed,
+one full-world frontier/predecessor scratch with exact lifetime and bytes.
+Another persistent field, a different volume representation and relaxation of
+the 1:1 quantity contract are not required by the current counterexamples.

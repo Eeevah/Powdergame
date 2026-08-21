@@ -526,3 +526,22 @@ Invalidated by: A later explicit user supersession, failed locked
 grid/time/matching property, unresolved Critical/High review finding or
 source-bound future implementation evidence contradicting an invariant.
 Failure does not revive either stateless candidate or rewrite D-018.
+
+### D-021 evaluation receipt — 2026-08-21
+
+The frozen proof ran in one process and returned `DESIGN_BLOCKED`; script and
+result SHA-256 are
+`06d0cea8500fcc3a2ffa4010d0dab70770a3fb2fd8a94f0bf47846cd980dedb9` /
+`853379af86ee536166cb752bffbf45cefe5eec93bc10038a023679d507d7a29a`.
+It did not satisfy the all-labeled 6×6 obligation. Static analysis and fresh
+independent review found that a legal persistent eight-source alternating
+chain has a complete matching beyond the frozen depth six. Review SHA-256 is
+`73adaf56bea1589d425d89ba9430a7f50f3d0b9cf50f5b8fdc2155f263968ed6`;
+unresolved counts are Critical `0`, High `6`, Medium `2`.
+
+TE-5D is therefore **DESIGN BLOCKED** and ADR-0009 remains **PROPOSED /
+ARCHITECTURE REVISION REQUIRED**. The required repair is wider matching scope;
+a bounded GPU realization may additionally need an explicitly authorized
+full-world frontier/predecessor scratch. This result does not require another
+persistent field, a different volume representation or relaxation of 1:1
+quantity. Runtime remains not started.

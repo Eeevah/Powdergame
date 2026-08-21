@@ -268,6 +268,14 @@ cap에서 버려져 다른 Steam에 false pressure `100`을 만든다. 고정 pr
 phase-volume state를 명시적으로 허용해야 한다. 기존 G5 evidence는 어느
 미래 후보에도 소급 결합하지 않는다.
 
+D-021의 [`TE5_PERSISTENT_VAPOR_EXTENT`](TE5_PERSISTENT_VAPOR_EXTENT.md)는
+처음으로 persistent EMPTY extent와 별도 phase pressure를 허용하지만 이
+역사적 Gate를 다시 쓰지 않는다. frozen depth-six matching은 합법적인
+8-source alternating persistent state에서 complete matching을 찾지 못해
+false rupture-capable pressure를 허용한다. 따라서 ADR-0009도 Proposed /
+DESIGN BLOCKED이며, G5 causal chain은 wider matching scope가 별도로 승인·
+검증되기 전까지 미래 source에 결합되지 않는다.
+
 ### User validation
 
 전용 `boiler_explosion()` 없이 작은 Rule chain으로 압력 사고가 납득되는지 확인한다.

@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 accepted; TE-3D architecture accepted; TE-5B rejected/blocked; TE-5C design blocked; all TE-3/TE-5 runtime not started
-- **Architecture:** D-013 through D-020 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007 and ADR-0008
+- **Status:** TE-2 accepted; TE-3D architecture accepted; TE-5B/TE-5C/TE-5D design blocked; all TE-3/TE-5 runtime not started
+- **Architecture:** D-013 through D-021 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007, ADR-0008 and ADR-0009
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -223,6 +223,32 @@ STARTED`. Per D-020, the next design decision must explicitly permit persistent
 phase-volume state. No formula substitution or another stateless token/impulse
 attempt is authorized.
 
+### TE-5D — docs-only persistent Vapor extent replacement
+
+D-021 permits one reciprocal extent-link plus dedicated phase-pressure
+Current/Next pair.
+
+- [x] define exact link encoding, reciprocal invariants and target zero-Air ownership;
+- [x] define whole-parcel receiver acquisition and byte-identical failure;
+- [x] define owner movement, other-EMPTY relocation, density swap, condensation and Void release;
+- [x] freeze depth-six matching, six settle ticks and the five-position GAS target domain;
+- [x] freeze phase-pressure relaxation `0.10`, diffusion `0.025` and equilibrium `100`;
+- [x] audit the 64 MiB 2048² state delta and fixed 62-pass / 124-query projection;
+- [x] run one 50,000-graph / 10,000-grid proof process;
+- [ ] satisfy the all-labeled 6×6 proof obligation;
+- [ ] satisfy PVX-INV-011 for arbitrary canonical persistent matchings;
+- [x] complete fresh independent review;
+- [ ] close independent-review High blockers (`6` open).
+
+The frozen candidate fails on an eight-source alternating chain whose complete
+matching requires an augmenting path deeper than six. Retrying atomically does
+not change the links, so the unmatched source can cross Wood threshold despite
+available capacity. Current stop: `TE-5D DESIGN BLOCKED / ADR-0009 PROPOSED /
+RUNTIME NOT STARTED`. Required repair is wider matching scope; an efficient
+fixed GPU graph may also require user authorization for a full-world search
+scratch. Fresh review ended at Critical `0` / High `6` / Medium `2`, SHA-256
+`73adaf56bea1589d425d89ba9430a7f50f3d0b9cf50f5b8fdc2155f263968ed6`.
+
 ## TE-4 — Ignition kinetics
 
 Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
@@ -258,6 +284,9 @@ TE-5B runtime  NOT STARTED
 TE-5C local capacity-pressure design  DESIGN BLOCKED / CRITICAL 0 / HIGH 6
 ADR-0008  PROPOSED / ARCHITECTURE REVISION REQUIRED
 TE-5C runtime  NOT STARTED
+TE-5D persistent extent design  DESIGN BLOCKED / CRITICAL 0 / HIGH 6
+ADR-0009  PROPOSED / ARCHITECTURE REVISION REQUIRED
+TE-5D runtime  NOT STARTED
 Full TE-5  NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4  NOT STARTED

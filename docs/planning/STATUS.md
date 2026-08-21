@@ -148,11 +148,19 @@ obligations and recorded unresolved Critical `0` / High `6`. ADR-0008 is
 **PROPOSED — DESIGN BLOCKED**; the next decision must explicitly permit
 persistent phase-volume state. No TE-3/TE-5 runtime has started.
 
-D-021 now preserves both failed stateless candidates and authorizes a
+D-021 preserves both failed stateless candidates and authorizes a
 docs/reference-only TE-5D persistent Vapor extent plus dedicated phase-pressure
-design program. This is authorization to evaluate ADR-0009, not acceptance or
-runtime authority. One frozen grid/time/matching proof and an independent
-review remain required; any unresolved Critical/High stops DESIGN BLOCKED.
+design program. The one-shot proof returned DESIGN BLOCKED: it did not meet the
+all-labeled 6×6 obligation, and static analysis found a legal eight-source
+persistent alternating chain beyond the frozen depth-six reassignment. Wider
+matching scope is required; runtime remains unauthorized.
+
+Fresh independent review confirmed the matching counterexample and found five
+additional High issues: proof overclaim, receiver-blind matching, missing
+editor reciprocal cleanup, pass/binding/scratch understatement and undefined
+phase-pressure movement ownership. Final counts are Critical `0` / High `6` /
+Medium `2`; review SHA-256 is
+`73adaf56bea1589d425d89ba9430a7f50f3d0b9cf50f5b8fdc2155f263968ed6`.
 
 ---
 
@@ -170,17 +178,17 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN BLOCKED; TE-5D
-PERSISTENT-STATE DESIGN PROGRAM AUTHORIZED / RUNTIME NOT STARTED.** D-021
-permits one reciprocal extent-link plus dedicated phase-pressure Current/Next
-pair for the replacement design while preserving 1:1 family quantity and no
-extra Steam. The ADR/spec/proof/review outcome is not yet established.
+**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN BLOCKED; TE-5D DESIGN
+BLOCKED / RUNTIME NOT STARTED.** D-021 permits one reciprocal extent-link plus
+dedicated phase-pressure Current/Next pair while preserving 1:1 family
+quantity and no extra Steam. ADR-0009 remains Proposed, but the fixed-depth
+matching hard gate is unsatisfied.
 
 ## 다음 행동
 
 1. preserve the failed TE-5B/TE-5C candidates and their source-bound receipts;
-2. complete the TE-5D persistent-state authority set and frozen proof exactly once;
-3. obtain a fresh-context independent review and stop on any Critical/High;
+2. preserve the one-shot TE-5D proof and eight-source persistent counterexample;
+3. obtain user direction on wider matching scope and any required search scratch;
 4. keep TE-3/TE-5 runtime **NOT STARTED** and the current G5 Water path active;
 5. do not start full Air coupling, TE-4, G9-B/C/D/E or optimization.
 

@@ -65,6 +65,11 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/specs/LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md`](../docs/specs/LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md) | Exact failed capacity/pressure/vent candidate contract | Before interpreting the TE-5C result |
 | [`docs/development/LOCAL_VAPOR_CAPACITY_PRESSURE_VALIDATION.md`](../docs/development/LOCAL_VAPOR_CAPACITY_PRESSURE_VALIDATION.md) | Predeclared one-shot grid/time proof and DESIGN BLOCKED receipt | Before making any TE-5C evidence claim |
 | [`docs/adversarial-reviews/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE_DESIGN.md`](../docs/adversarial-reviews/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE_DESIGN.md) | Fresh review; Critical 0 / High 6 and TE-5C DESIGN BLOCKED | Before any persistent-state replacement decision or interpretation of the one-shot receipt |
+| [`docs/planning/TE5_PERSISTENT_VAPOR_EXTENT.md`](../docs/planning/TE5_PERSISTENT_VAPOR_EXTENT.md) | D-021 TE-5D plan and wider-matching DESIGN BLOCKED router | Before any wider matching or search-scratch decision |
+| [`docs/architecture/decisions/ADR-0009-persistent-vapor-extent.md`](../docs/architecture/decisions/ADR-0009-persistent-vapor-extent.md) | Proposed reciprocal extent/dedicated pressure candidate and depth-six blocker | Before revising persistent phase-volume ownership |
+| [`docs/specs/PERSISTENT_VAPOR_EXTENT_SPEC.md`](../docs/specs/PERSISTENT_VAPOR_EXTENT_SPEC.md) | Exact failed link, movement, matching and phase-pressure candidate | Before interpreting the TE-5D result |
+| [`docs/development/PERSISTENT_VAPOR_EXTENT_VALIDATION.md`](../docs/development/PERSISTENT_VAPOR_EXTENT_VALIDATION.md) | Frozen one-shot proof contract and DESIGN BLOCKED receipt | Before making any TE-5D evidence claim |
+| [`docs/adversarial-reviews/TE5_PERSISTENT_VAPOR_EXTENT_DESIGN.md`](../docs/adversarial-reviews/TE5_PERSISTENT_VAPOR_EXTENT_DESIGN.md) | Fresh review; Critical 0 / High 6 / Medium 2 and TE-5D DESIGN BLOCKED | Before a wider matching replacement decision |
 
 ## Authority and evidence boundaries
 

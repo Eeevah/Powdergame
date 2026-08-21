@@ -409,3 +409,11 @@ runtime task by itself. TE-3 runtime is **NOT STARTED**; TE-5B and TE-5C are
 **DESIGN BLOCKED** with ADR-0007/ADR-0008 preserved as Proposed history; all
 pressure-volume runtime, Air-pressure force, full TE-5, TE-4 and G9-B/C/D/E
 remain **NOT STARTED**.
+
+D-021 later authorizes proposed
+[`ADR-0009`](ADR-0009-persistent-vapor-extent.md), the first replacement that
+permits persistent phase-volume ownership and a dedicated pressure component.
+Its frozen depth-six matching candidate is DESIGN BLOCKED by a legal
+eight-source persistent alternating chain. This does not alter the accepted
+phase-energy/1:1 architecture. It means the required atomic TE-3/TE-5 bridge
+still has no approved implementation authority.

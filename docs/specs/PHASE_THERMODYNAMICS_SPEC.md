@@ -706,3 +706,14 @@ The fixed-seed reference proof establishes only the pure math subset. It does
 not prove WGSL ownership, bindings, pass order, movement, sleep, performance,
 visual quality or user acceptance. Those remain implementation/user gates in
 [`PHASE_THERMODYNAMICS_VALIDATION.md`](../development/PHASE_THERMODYNAMICS_VALIDATION.md).
+
+## 15. D-021 TE-5D replacement outcome
+
+Proposed [`PERSISTENT_VAPOR_EXTENT_SPEC`](PERSISTENT_VAPOR_EXTENT_SPEC.md)
+keeps this specification's 1:1 quantity and local-H rules while adding a
+reciprocal EMPTY extent and dedicated phase pressure. Its one-shot evidence
+does not close the atomic completion gate: the frozen depth-six reassignment
+cannot repair a legal eight-source alternating persistent matching, so a
+complete capacity assignment may coexist with rupture-capable false pressure.
+TE-5D is DESIGN BLOCKED pending wider matching scope. TE-3 runtime remains not
+started and no rule above is weakened.

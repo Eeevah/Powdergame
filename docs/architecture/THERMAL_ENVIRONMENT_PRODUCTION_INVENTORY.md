@@ -3,8 +3,8 @@
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
-- **Scope:** implemented TE-1/TE-2 graph plus accepted TE-3D and blocked TE-5B/TE-5C static projections
-- **Runtime status:** TE-2 accepted; TE-3D architecture accepted; TE-5B and TE-5C design blocked; all TE-3/TE-5 runtime not started
+- **Scope:** implemented TE-1/TE-2 graph plus accepted TE-3D and blocked TE-5B/TE-5C/TE-5D static projections
+- **Runtime status:** TE-2 accepted; TE-3D architecture accepted; TE-5B, TE-5C and TE-5D design blocked; all TE-3/TE-5 runtime not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
 Section 8 is the current implemented TE-2 34-pass delta and supersedes that
@@ -539,3 +539,30 @@ capacity/zero-vent conflation, irreversible phase-pressure provenance,
 unreachable downward capacity and reference-receipt overclaim. Therefore this
 section is not an implementation recommendation and no persistent allocation
 claim is established for the next required architecture.
+
+## 12. Proposed but design-blocked TE-5D persistent-state delta
+
+D-021 and [`ADR-0009`](decisions/ADR-0009-persistent-vapor-extent.md) permit
+one 8-byte-per-Cell Current/Next pair: reciprocal `u32` link plus dedicated
+`f32` phase pressure. Both halves add 16 bytes per Cell, exactly 1,048,576 B
+at 256² and 67,108,864 B at 2048². Adding that to the accepted TE-3 projection
+gives 369,125,680 B at 2048² before profiler or any other allocation change.
+
+The fixed design projects 62 passes and 124 timestamps: a phase-volume
+movement context, eighteen bounded reassignment dispatches, Environment
+receiver acceptance, reservation commit and phase-pressure update beyond the
+40-pass TE-3 graph. Movement propose, Air-flow scale, thermal-stability scale
+and Environment activity can read the link within eight storage bindings.
+The existing movement Environment commit is already full, so a fully written
+context must replace rather than add a raw link binding. Rupture can read the
+new pressure only if its two current material tables are combined into one
+descriptor binding. All are static projections.
+
+The projection is not an implementation recommendation. A canonical
+persistent matching may contain an augmenting path with eight source vertices;
+the frozen depth-six atomic algorithm cannot reach its free target. Exact
+world-scale convergence would need wider matching scope and either an
+unbounded/far larger fixed dispatch budget or a source-proven global search
+lifetime. Proposal and claim can represent frontier/predecessor roles after
+Smoke, but no fixed pass bound or exact convergence protocol has been proven.
+No additional scratch allocation is authorized.

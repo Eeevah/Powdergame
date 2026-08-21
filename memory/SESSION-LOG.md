@@ -372,3 +372,30 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   closed PASS in `1227.203856 s`; FULL `0`, candidate `0`, target delta `0` B.
   The `838` B artifact delta is the external session summary, not runtime or a
   repository artifact.
+
+## 2026-08-21 · TE-5D persistent extent design blocked by bounded matching
+
+- D-021 explicitly permitted one reciprocal extent/dedicated phase-pressure
+  Current/Next pair while preserving 1:1 family quantity and no extra Steam.
+- The frozen proof ran in exactly one process at seed `0x54453544`, with
+  50,000 randomized matching graphs, 10,000 abstract multi-tick grids and an
+  in-process deterministic replay. Script/result SHA-256 are
+  `06d0cea8500fcc3a2ffa4010d0dab70770a3fb2fd8a94f0bf47846cd980dedb9` /
+  `853379af86ee536166cb752bffbf45cefe5eec93bc10038a023679d507d7a29a`.
+- The proof returned DESIGN_BLOCKED because it did not satisfy the all-labeled
+  6×6 graph requirement. Its fresh-start model also omitted arbitrary legal
+  persistent initial matches.
+- A legal eight-source alternating chain has a complete matching but needs a
+  path beyond the frozen depth six; repeated atomic retries can therefore
+  create rupture-capable false phase pressure.
+- Fresh review found Critical `0`, High `6`, Medium `2`; review SHA-256 is
+  `73adaf56bea1589d425d89ba9430a7f50f3d0b9cf50f5b8fdc2155f263968ed6`.
+  Additional High findings cover proof overclaim, receiver-blind matching,
+  missing editor cleanup, pass/binding/scratch understatement and undefined
+  phase-pressure movement ownership.
+- Final disposition is **TE-5D DESIGN BLOCKED / ADR-0009 PROPOSED /
+  ARCHITECTURE REVISION REQUIRED / RUNTIME NOT STARTED**. Required repair is
+  wider matching scope; a full-world frontier/predecessor scratch is a
+  possible future user-owned requirement.
+- Runtime, Cargo, GPU, FULL, build and launch counts remained zero. External
+  implementation copy count remained `0 files / 0 lines`.

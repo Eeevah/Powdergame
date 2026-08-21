@@ -137,6 +137,7 @@ docs/
 │  ├─ TE3_WATER_STEAM_PHASE_ACCOUNTING.md
 │  ├─ TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md
 │  ├─ TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md
+│  ├─ TE5_PERSISTENT_VAPOR_EXTENT.md
 │  └─ STATUS.md
 ├─ architecture/
 │  ├─ ARCHITECTURE.md
@@ -150,7 +151,8 @@ docs/
 │  ├─ THERMAL_ENVIRONMENT_SPEC.md
 │  ├─ PHASE_THERMODYNAMICS_SPEC.md
 │  ├─ PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md
-│  └─ LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md
+│  ├─ LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md
+│  └─ PERSISTENT_VAPOR_EXTENT_SPEC.md
 ├─ development/
 │  ├─ QUICKSTART.md
 │  ├─ DEVELOPMENT.md
@@ -160,6 +162,7 @@ docs/
 │  ├─ PHASE_THERMODYNAMICS_VALIDATION.md
 │  ├─ PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION.md
 │  ├─ LOCAL_VAPOR_CAPACITY_PRESSURE_VALIDATION.md
+│  ├─ PERSISTENT_VAPOR_EXTENT_VALIDATION.md
 │  ├─ PERFORMANCE.md
 │  ├─ DEVELOPMENT_LEARNING_LOOP.md
 │  ├─ LESSONS_LEDGER.md
@@ -236,7 +239,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. TE-3D는 [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**이며 ADR-0006은 **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**이다. D-019 [`TE-5B`](planning/TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md) token은 vacancy 재사용으로 REJECTED / DESIGN BLOCKED다. D-020 [`TE-5C`](planning/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md) 비례 capacity 후보도 완전 EMPTY 배정이 가능한 비대칭 격자에서 false pressure `100`을 만들었고, fresh review는 unresolved Critical `0` / High `6`을 기록했다. ADR-0008은 **PROPOSED / DESIGN BLOCKED**다. 다음 결정은 persistent phase-volume state를 명시적으로 허용해야 한다. 모든 TE-3/TE-5 runtime은 **NOT STARTED**이고 기존 증거는 source-bound다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. TE-3D는 [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**이며 ADR-0006은 **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**이다. D-019 [`TE-5B`](planning/TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md)와 D-020 [`TE-5C`](planning/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md)는 vacancy 재사용과 false capacity pressure로 REJECTED / DESIGN BLOCKED다. D-021 [`TE-5D`](planning/TE5_PERSISTENT_VAPOR_EXTENT.md)는 persistent extent를 허용했지만 frozen depth-six matching이 legal eight-source alternating state의 complete matching을 찾지 못해 ADR-0009도 **PROPOSED / DESIGN BLOCKED**다. 모든 TE-3/TE-5 runtime은 **NOT STARTED**이고 기존 증거는 source-bound다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

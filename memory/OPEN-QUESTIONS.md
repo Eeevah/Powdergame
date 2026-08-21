@@ -234,3 +234,29 @@ state, target-non-mutation or 1:1 constraint may change. Occupancy-only Air
 eligibility, the two-bit encoding, pressure `100.0`, edge mode and the final
 F05/F11 product meaning remain downstream questions after that blocker is
 resolved. No alternate model or runtime work is authorized.
+
+### 2026-08-21 D-020 disposition — token rejected, question superseded
+
+D-020 rejects the exclusive completion token as **REJECTED / DESIGN BLOCKED**
+and preserves Q-009 as history. The replacement does not use its two-bit token
+or an additive Water-completion impulse. Q-009 is superseded for current design
+selection by Q-010.
+
+## Q-010 · TE-5C local Vapor capacity-pressure disposition — open 2026-08-21
+
+Owner: user at the proposed ADR-0008 architecture-review boundary.
+
+D-020 authorizes the final no-new-persistent-state attempt. The locked
+candidate derives Vapor demand from accepted phase energy, proportionally
+shares each radius-1 EMPTY among adjacent phase Cells, maps compression to a
+state-derived gauge-pressure target capped at `100.0`, and treats orthogonal
+EMPTY as a gauge-zero vent face. It reuses proposal scratch after Smoke, adds
+one projected pass and does not mutate EMPTY Matter or Air.
+
+The exact sharing law, EMPTY vent effect on generic pressure, vacancy-walk and
+finite-headspace meaning, open-plume false-pressure control, scratch lifetime,
+atomic G5 fixture and scalar response remain subject to the one-shot grid/time
+proof and fresh independent review. Any unresolved Critical/High makes TE-5C
+DESIGN BLOCKED and requires the next decision to permit persistent
+phase-volume state. Runtime, background Air pressure, structure differential,
+product edge mode and Vacuum combustion remain separate and not started.

@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; atomic TE-3/TE-5 runtime evidence remains a separate prerequisite before G9-B |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** — candidate source `0977281...`; **TE-3D ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**; ADR-0006 accepted for future atomic implementation; **TE-5B DESIGN BLOCKED / REFERENCE ABSTRACTION PASS / FINITE-CAPACITY HIGH OPEN**; ADR-0007 Proposed; TE-3 and TE-5B runtime not started; G9-B prerequisite |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** — candidate source `0977281...`; **TE-3D ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**; ADR-0006 accepted for future atomic implementation; **TE-5B TOKEN REJECTED / DESIGN BLOCKED**; D-020 **TE-5C LOCAL VAPOR CAPACITY-PRESSURE DESIGN AUTHORIZED**; TE-3/TE-5 runtime not started; G9-B prerequisite |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -31,6 +31,7 @@
 - TE-2 runtime source: `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - TE-2 review-remediation candidate source: `097728128343cf89383920c968a010b3dcf8e8c0`
 - TE-3D accepted architecture / TE-5B design baseline: `d7500e219af6f670be05f830b50c232d2bb53077`
+- TE-5C replacement-design baseline: `6a1c83fad702d18f2d24365a4fc747ab74225f5c`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -153,16 +154,23 @@ They are not official performance evidence. Do not prune them without a separate
 
 ---
 
-## 기술 blocker
+## 현재 설계 작업
 
-**TE-5B DESIGN BLOCKED / REFERENCE ABSTRACTION PASS / RUNTIME NOT STARTED.** D-018 closes the current `1 Water -> up to 2 Steam -> up to 2 Water` quantity defect with one Water-equivalent quantity per Cell plus two reversible phase-energy halves. D-019's bridge reused movement reachability, exclusive proposal/claim ownership and gauge-pressure consequences, but its non-mutating same-tick token does not consume volume. In a sealed stagger-heated column, Steam moves into the only EMPTY Cell and vacates its source; the next Water reaches the endpoint only after that vacancy arrives, so the vacancy walks through every later Water Cell with zero pressure and no simultaneous swap stop. This unresolved High makes F05/F11 and atomic G5 continuity unsatisfiable under the current candidate. The one-shot pure model's failed checks remain `0` only inside its narrower no-grid arbitration/accounting scope. Historical G5 evidence remains source-bound and cannot be rebound.
+**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN PROGRAM AUTHORIZED /
+RUNTIME NOT STARTED.** D-020 preserves the vacancy-walk counterexample and
+authorizes the final no-new-persistent-state replacement: derive Vapor demand
+from phase energy, recompute shared local EMPTY capacity every tick and drive
+the existing gauge field toward a bounded state target. The locked formula is
+under one-shot grid/time proof and fresh review; it is not yet ADR acceptance,
+an independent-review pass or runtime authority.
 
 ## 다음 행동
 
-1. obtain a user architecture revision that explicitly owns finite-capacity consumption and says which no-state, non-mutation or 1:1 constraint, if any, may change;
-2. do not reinterpret the existing abstraction PASS as clearing the vacancy-conservation High or rerun it in this task;
-3. keep TE-3 and TE-5B runtime **NOT STARTED** and the current G5 Water path active until a later separately authorized same-source replacement exists;
-4. do not start full TE-5 Air/background-pressure coupling, TE-4, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
+1. evaluate the exact D-020 capacity law with the predeclared grid/time proof;
+2. obtain a fresh-context independent review without reusing the TE-5B PASS;
+3. if any Critical/High remains, stop TE-5C and require a later decision that explicitly permits persistent phase-volume state;
+4. keep TE-3/TE-5 runtime **NOT STARTED** and the current G5 Water path active;
+5. do not start full Air/background-pressure coupling, TE-4, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
 
 ## 아직 별도 결정인 것
 

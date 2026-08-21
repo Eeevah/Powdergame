@@ -324,3 +324,16 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - The local Wiki remained user-dirty/behind and untouched; connected
   `origin/main` object `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3` was the
   read-only fallback.
+
+## 2026-08-21 · TE-5C replacement design authorization
+
+- Preflight verified the worktree clean and synchronized at
+  `6a1c83fad702d18f2d24365a4fc747ab74225f5c`, local/remote `0/0`.
+- The local Wiki was user-dirty and preserved unchanged; connected
+  `origin/main` `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3` was read-only.
+- D-020 rejects the TE-5B token and authorizes the final stateless TE-5C local
+  Vapor capacity-share/gauge-pressure-equilibrium design attempt.
+- Source audit found a static proposal-scratch window after Smoke settle and
+  before pressure. This is feasibility only, not implementation evidence.
+- TE-3/TE-5 runtime, Rust, WGSL, Cargo, build, launch, GPU and FULL validation
+  remain not started and were not run in this authorization unit.

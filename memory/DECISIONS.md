@@ -387,6 +387,10 @@ runtime work; TE-3 is **NOT STARTED** and the TE-5 bridge is **DESIGN REQUIRED
 
 ## D-019 · Authorize the TE-5B phase-volume bridge design program — 2026-08-21 (source: direct user TE-5B design authorization)
 
+→ superseded in TE-5 pressure-volume design-selection scope by D-020
+(2026-08-21). D-019 and ADR-0007 remain the immutable authorization and
+blocked-candidate history.
+
 Decision: Preserve TE-3D as **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**
 and ADR-0006 as **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. Authorize a
 docs/reference-only TE-5B design program around the named primary candidate
@@ -421,3 +425,49 @@ that ADR-0007 or the candidate has passed review.
 Invalidated by: A later explicit user supersession; an unresolved Critical or
 High design counterexample, which stops TE-5B as **DESIGN BLOCKED**; or future
 source-bound implementation evidence that contradicts a locked invariant.
+
+## D-020 · Reject TE-5B and authorize TE-5C local Vapor capacity-pressure design — 2026-08-21 (source: direct user replacement-design authorization)
+
+Decision: Reject the D-019 exclusive completion-token model as **REJECTED /
+DESIGN BLOCKED** because same-tick exclusivity does not conserve finite
+capacity across ticks. Preserve D-019 and proposed ADR-0007 as historical
+blocked authority. Authorize the docs/reference-only TE-5C program **LOCAL
+VAPOR CAPACITY SHARE + GAUGE-PRESSURE EQUILIBRIUM**. It must preserve one
+phase-family Cell as one quantity, 1:1 transitions, no extra Steam, no target
+Matter/Air mutation and no new persistent/full-world allocation. It replaces
+completion-event pressure with a state-derived Vapor-volume pressure target.
+
+Locked evaluation candidate: `Lv=480`; additional Vapor demand from accepted
+phase energy; Chebyshev-radius-1 EMPTY capacity; the stated per-EMPTY
+proportional sharing law; pressure target capped at `100.0` with full pressure
+at compression `0.5`; existing diffusion `0.20`; EMPTY vent rate `0.20`; and
+reuse of proposal as fully overwritten `f32` capacity-sum scratch after Smoke.
+The formula may not be silently replaced after evidence is observed. Produce
+ADR-0008/spec/validation/planning/inventory, one predeclared grid/time proof
+executed exactly once and a fresh-context independent review.
+
+Reason: TE-5B owned availability only inside one arbitration epoch; ordinary
+1:1 Steam movement relocated the EMPTY vacancy and allowed every staggered
+completion to receive zero pressure. A current-state population/capacity law
+is the final authorized attempt to represent volume response without new
+persistent phase-volume state.
+
+Scope: Docs, memory and one external pure reference script/result only on
+`feature/m0-g9-first-playable`, starting from
+`6a1c83fad702d18f2d24365a4fc747ab74225f5c`. Rust, WGSL, Cargo, runtime,
+build, launch, background-Air force, structure differential, TE-4,
+G9-B/C/D/E, optimization, PR and `main` merge remain unauthorized and **NOT
+STARTED**. Historical evidence stays source-bound.
+
+Stop rule: This entry is authorization, not proof. Any Critical/High failure
+in the locked proof or review stops **TE-5C DESIGN BLOCKED**. The next decision
+must then explicitly permit persistent phase-volume state; no third stateless
+token/impulse variant is allowed. With zero unresolved Critical/High findings,
+the maximum stop is **LOCAL VAPOR CAPACITY-PRESSURE DESIGN CANDIDATE /
+INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW PENDING**, ADR-0008 remains
+**PROPOSED**, and runtime remains unchanged.
+
+Invalidated by: A later explicit user supersession, failed locked grid/time
+property, unresolved Critical/High review finding, or source-bound future
+evidence contradicting an invariant. Failure does not revive ADR-0007 or
+rewrite D-018.

@@ -20,7 +20,7 @@ use crate::observatory::{
     ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
     ACTIVITY_PANEL_NAMES,
 };
-use crate::phase_cycle::PhaseCycleHudData;
+use crate::phase_cycle::{PhaseCycleDiagnosticState, PhaseCycleHudData};
 use crate::sandbox::{
     SandboxHudData, SandboxPaletteGroup, SandboxThermalFeedbackState, SandboxTool, SANDBOX_PALETTE,
     SANDBOX_PALETTE_GROUP_LABEL_Y, SANDBOX_PALETTE_ROW_Y, SANDBOX_PRESET_FIRST_ROW_Y,
@@ -4644,7 +4644,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             32.0,
             194.0,
             12,
-            "1-4 scene | SPACE play | N step | F speed | R reset",
+            "1-4 scene | SPACE play | N step/sample | F speed | I rows | R reset",
             value,
         );
         self.batch.draw_text(
@@ -4655,8 +4655,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             "Pressure coupling: DEFERRED / NOT ACTIVE",
             accent,
         );
-        let x = sw - 390.0;
-        self.batch.draw_rect(x, 70.0, 372.0, 260.0, card, white_uv);
+        let x = sw - 560.0;
+        self.batch.draw_rect(x, 70.0, 542.0, 430.0, card, white_uv);
         self.batch.draw_text(
             &self.atlas,
             x + 16.0,
@@ -4665,46 +4665,108 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             "PERSISTENT SUMMARY",
             header,
         );
-        if let Some(sample) = &data.sample {
-            let material = match sample.selected_material {
-                4 => "Water",
-                6 => "Steam",
-                8 => "Ice",
-                0 => "EMPTY",
-                _ => "Other",
-            };
-            for (row, text) in [
-                format!("Sample tick: {}", sample.sample_tick),
-                format!("Selected: {material}"),
-                format!("Temperature: {:.3} C", sample.selected_temperature),
-                format!("Phase energy: {:.3}", sample.selected_phase_energy),
-                format!("Family total: {}", sample.family_count),
-                format!(
-                    "Water {} | Steam {} | Ice {}",
-                    sample.water_count, sample.steam_count, sample.ice_count
-                ),
-            ]
-            .into_iter()
-            .enumerate()
-            {
+        match &data.diagnostic {
+            PhaseCycleDiagnosticState::Fresh(sample) => {
                 self.batch.draw_text(
                     &self.atlas,
                     x + 16.0,
-                    124.0 + row as f32 * 30.0,
+                    122.0,
+                    12,
+                    &format!(
+                        "Fresh | sample tick {} | family {} | Water {} Steam {} Ice {}",
+                        sample.sample_tick,
+                        sample.family_count,
+                        sample.water_count,
+                        sample.steam_count,
+                        sample.ice_count
+                    ),
+                    value,
+                );
+                if data.details_visible {
+                    for (index, row) in sample.rows.iter().enumerate() {
+                        let y = 158.0 + index as f32 * 102.0;
+                        let material = match row.material {
+                            4 => "Water",
+                            6 => "Steam",
+                            8 => "Ice",
+                            0 => "EMPTY",
+                            _ => "Other",
+                        };
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y,
+                            13,
+                            &format!(
+                                "{} | Cell ({}, {}) | Fresh",
+                                row.label, row.cell.0, row.cell.1
+                            ),
+                            header,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y + 30.0,
+                            12,
+                            &format!(
+                                "{material} | T {:.3} C | E {:.3} | tick {}",
+                                row.temperature, row.phase_energy, sample.sample_tick
+                            ),
+                            value,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y + 58.0,
+                            12,
+                            &row.progress,
+                            accent,
+                        );
+                    }
+                } else {
+                    self.batch.draw_text(
+                        &self.atlas,
+                        x + 16.0,
+                        168.0,
+                        13,
+                        "Fixed diagnostic rows collapsed [I]",
+                        label,
+                    );
+                }
+            }
+            PhaseCycleDiagnosticState::Sampling {
+                generation,
+                sequence,
+                simulation_tick,
+            } => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    x + 16.0,
+                    130.0,
                     13,
-                    &text,
-                    if row == 3 { accent } else { value },
+                    &format!(
+                        "Sampling | generation {generation} sequence {sequence} tick {simulation_tick}"
+                    ),
+                    accent,
                 );
             }
-        } else {
-            self.batch.draw_text(
-                &self.atlas,
-                x + 16.0,
-                130.0,
-                13,
-                "Sampling production GPU state...",
-                accent,
-            );
+            PhaseCycleDiagnosticState::Failed {
+                generation,
+                sequence,
+                simulation_tick,
+                message,
+            } => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    x + 16.0,
+                    130.0,
+                    12,
+                    &format!(
+                        "Failed | generation {generation} sequence {sequence} tick {simulation_tick} | {message}"
+                    ),
+                    accent,
+                );
+            }
         }
         self.batch.draw_text(
             &self.atlas,

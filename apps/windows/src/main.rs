@@ -986,17 +986,29 @@ impl App {
         }
     }
 
-    fn toggle_thermal_environment_diagnostics(&mut self, window: &Window) {
-        if self.demo_mode != DemoMode::ThermalEnvironment {
-            return;
-        }
-        if let Some(candidate) = &mut self.thermal_environment {
-            let visible = candidate.toggle_details();
-            println!(
-                "[powdergame][te2] diagnostics details {}",
-                if visible { "EXPANDED" } else { "COLLAPSED" }
-            );
-            window.request_redraw();
+    fn toggle_candidate_diagnostics(&mut self, window: &Window) {
+        match self.demo_mode {
+            DemoMode::ThermalEnvironment => {
+                if let Some(candidate) = &mut self.thermal_environment {
+                    let visible = candidate.toggle_details();
+                    println!(
+                        "[powdergame][te2] diagnostics details {}",
+                        if visible { "EXPANDED" } else { "COLLAPSED" }
+                    );
+                    window.request_redraw();
+                }
+            }
+            DemoMode::PhaseCycle => {
+                if let Some(candidate) = &mut self.phase_cycle {
+                    let visible = candidate.toggle_details();
+                    println!(
+                        "[powdergame][te3] fixed diagnostic rows {}",
+                        if visible { "EXPANDED" } else { "COLLAPSED" }
+                    );
+                    window.request_redraw();
+                }
+            }
+            _ => {}
         }
     }
 
@@ -2463,14 +2475,14 @@ fn should_toggle_gallery_inspector(
         && character.is_some_and(|value| value.eq_ignore_ascii_case("i"))
 }
 
-fn should_toggle_thermal_environment_diagnostics(
+fn should_toggle_candidate_diagnostics(
     mode: DemoMode,
     experiment_worker: bool,
     state: ElementState,
     repeat: bool,
     character: Option<&str>,
 ) -> bool {
-    mode == DemoMode::ThermalEnvironment
+    matches!(mode, DemoMode::ThermalEnvironment | DemoMode::PhaseCycle)
         && !experiment_worker
         && state == ElementState::Pressed
         && !repeat
@@ -2536,14 +2548,14 @@ impl ApplicationHandler for App {
                     Key::Character(value) => Some(value.as_str()),
                     _ => None,
                 };
-                if should_toggle_thermal_environment_diagnostics(
+                if should_toggle_candidate_diagnostics(
                     self.demo_mode,
                     self.experiment.is_some(),
                     event.state,
                     event.repeat,
                     character,
                 ) {
-                    self.toggle_thermal_environment_diagnostics(&window);
+                    self.toggle_candidate_diagnostics(&window);
                     return;
                 }
                 if should_toggle_gallery_inspector(
@@ -3422,7 +3434,7 @@ fn main() {
         ),
         DemoMode::PhaseCycle => println!(
             "[powdergame] TE-3 Water / Steam Phase Cycle candidate: 256x192, four scenes, 60 TPS. \
-             Starts PAUSED (1-4 scene | SPACE play | N step | F speed | R reset | ESC quit). \
+             Starts PAUSED (1-4 scene | SPACE play | N step/sample | F speed | I rows | R reset | ESC quit). \
              Pressure coupling: DEFERRED / NOT ACTIVE IN THIS TE-3 CANDIDATE"
         ),
         DemoMode::Pressure => println!(
@@ -3469,8 +3481,8 @@ fn main() {
 mod tests {
     use super::{
         cell_inspector_is_enabled, demo_mode_from_args, experiment_worker_from_args,
-        fast_forward_is_enabled, mode_for_launch, should_toggle_gallery_inspector,
-        should_toggle_thermal_environment_diagnostics, smoke_frames_from_args, DemoMode, DemoState,
+        fast_forward_is_enabled, mode_for_launch, should_toggle_candidate_diagnostics,
+        should_toggle_gallery_inspector, smoke_frames_from_args, DemoMode, DemoState,
     };
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
     use powdergame_gpu::{ActivityCensusReport, Simulation};
@@ -3640,15 +3652,17 @@ mod tests {
     }
 
     #[test]
-    fn thermal_environment_i_and_fast_forward_are_candidate_only_additions() {
+    fn candidate_i_and_fast_forward_controls_cover_te2_and_te3_only() {
         for character in ["i", "I"] {
-            assert!(should_toggle_thermal_environment_diagnostics(
-                DemoMode::ThermalEnvironment,
-                false,
-                ElementState::Pressed,
-                false,
-                Some(character),
-            ));
+            for mode in [DemoMode::ThermalEnvironment, DemoMode::PhaseCycle] {
+                assert!(should_toggle_candidate_diagnostics(
+                    mode,
+                    false,
+                    ElementState::Pressed,
+                    false,
+                    Some(character),
+                ));
+            }
         }
         for (mode, worker, state, repeat, character) in [
             (
@@ -3694,12 +3708,13 @@ mod tests {
                 Some("n"),
             ),
         ] {
-            assert!(!should_toggle_thermal_environment_diagnostics(
+            assert!(!should_toggle_candidate_diagnostics(
                 mode, worker, state, repeat, character,
             ));
         }
 
         assert!(fast_forward_is_enabled(DemoMode::ThermalEnvironment));
+        assert!(fast_forward_is_enabled(DemoMode::PhaseCycle));
         for mode in [
             DemoMode::ParallelIntegrity,
             DemoMode::Activity,

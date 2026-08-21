@@ -621,3 +621,61 @@ narrow-neck/component/reduction/pressure ownership incomplete, C's
 condensation sink blocked, and all candidates' activity/edge/Air/H contracts
 open. Final D-022 stop remains **TE-5X DESIGN BLOCKED / NO RECOMMENDATION / NO
 RETAINED FALLBACK / RUNTIME NOT STARTED**.
+
+## D-023 · Supersede whole-Cell phase quantity and authorize conservative phase packets — 2026-08-21 (source: direct user architecture authorization)
+
+Decision: Preserve D-019 through D-022 and ADR-0007 through ADR-0010 as
+immutable blocked-design history. TE-5X remains **DESIGN BLOCKED** with proof
+process attempted/completed `1 / 0`, A/B/C evaluations `0 / 0 / 0`, and no
+Recommendation or Retained fallback. Its frozen script and failure receipt
+must not be patched, rerun, continued or reused as the new evidence identity.
+
+This decision explicitly supersedes D-018's constraint that one
+Ice/Water/Steam Cell equals one whole Water-equivalent quantity, and D-022's
+preservation of that ontology. D-018 remains accepted in every other locked
+respect unless the new candidate explicitly names a necessary amendment:
+foreground occupancy is still at most one Matter per Cell, phase-family
+quantity and enthalpy remain conservative, same-Cell mixed foreground Matter
+is forbidden, and TE-2 thermal ownership and the Atmosphere/Vacuum ontology
+remain unchanged.
+
+Authorize the docs/reference-only **TE-3Q / TE-5Q CONSERVATIVE PHASE PACKET
+DESIGN PROGRAM**. The primary candidate adds `phase_units_current/next` with
+`PHASE_UNIT_SCALE = 2`: EMPTY and non-phase Matter have zero units, Ice and
+Water have two, normal expanded Steam has one, and compressed Steam has two.
+The finite-world sum of units is conserved except explicit Void exit or
+destructive authoring. Water boiling may split two units into two spatial
+one-unit Steam packets through the existing expansion/Environment-receiver
+transaction; blocked expansion remains one two-unit compressed Steam packet.
+Two local endpoint-ready one-unit Steam packets may merge into one two-unit
+Water packet and one canonical Vacuum EMPTY Cell. A dedicated spatial
+Current/Next phase-pressure component derives only from compressed Steam and
+remains separate from generic gauge pressure.
+
+The new evidence identity is `TE3Q-PHASE-PACKETS-REFERENCE-V1`. It must use
+Python standard library only, be syntax/import/fixture-list checked before
+freezing, and execute exactly once after its seed, coefficients, merge order,
+geometries, bounds and tolerances are fixed. The study must include at least
+100,000 split/merge algebra trials and 10,000 bounded multi-tick grids, preserve
+quantity/H/Environment accounting, audit the projected 96 MiB Current/Next
+state increment and every future pass/binding/scratch lifetime, and obtain a
+fresh-context independent review. External copied/translated/vendored
+implementation remains `0 files / 0 lines`.
+
+Scope: Docs, memory, one new external pure reference script/result and
+read-only prior-art research only on `feature/m0-g9-first-playable`, starting
+from `df6801272aa7505f34c7484ec406916516604c56`. Rust, WGSL, Cargo, runtime
+buffer allocation, TE-3/TE-5 runtime, build, launch, TE-4, G9-B/C/D/E,
+optimization, PR, tag and `main` merge remain unauthorized and **NOT STARTED**.
+
+Stop rule: This entry authorizes evaluation, not acceptance. With zero
+unresolved Critical/High findings, the maximum stop is **CONSERVATIVE PHASE
+PACKET DESIGN CANDIDATE / INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW
+PENDING** and ADR-0011 remains **PROPOSED**. Any unresolved Critical/High proof
+or review finding stops **TE-3Q / TE-5Q DESIGN BLOCKED**. Do not synthesize
+another pressure-volume model or begin implementation.
+
+Invalidated by: A later explicit user supersession, a failed locked
+grid/time/conservation property, an unresolved Critical/High independent-review
+finding, or future source-bound implementation evidence contradicting an
+invariant. Failure does not revive TE-5B/C/D/X or rewrite their evidence.

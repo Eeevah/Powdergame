@@ -367,3 +367,31 @@ Fresh review closes no model-selection item: Critical `0` / High `11` /
 Medium `0`. A, B and C are all ineligible under the frozen criteria; there is
 no Recommendation or Retained fallback. Q-012 stays open only for a new direct
 user decision, not for continuation under the failed D-022 evidence identity.
+
+### 2026-08-21 D-023 disposition — closed by ontology supersession
+
+D-023 supplies the required new direct decision. It leaves all TE-5X evidence
+frozen, accepts no A/B/C candidate, and supersedes the whole-Cell quantity
+constraint instead of continuing the failed comparison. Q-012 is closed for
+current work; TE-5X remains DESIGN BLOCKED with no recommendation.
+
+## Q-013 · Conservative phase-packet architecture review — open 2026-08-21
+
+Owner: user at the proposed ADR-0011 architecture-review boundary.
+
+D-023 authorizes `TE3Q-PHASE-PACKETS-REFERENCE-V1` and a candidate in which
+explicit half-unit Steam packets conserve phase quantity while actual Matter
+spawn/merge supplies expansion and contraction. User review must decide
+whether half-packet foreground occupancy is acceptable, whether a lone
+condensation-ready one-unit Steam packet may remain metastable, which local
+merge neighbourhood/order is acceptable, whether the predeclared
+phase-pressure coefficients and rupture timing preserve product meaning, and
+whether the projected 96 MiB state increment plus future pass/binding cost is
+acceptable.
+
+The decision also remains open on runtime-only evidence: quantity-aware
+Environment receiver behavior, split/merge collision and movement ownership,
+activity/sleep equivalence, readback/editor hygiene, GPU feasibility,
+performance, visuals and direct user acceptance. ADR-0011 must remain
+**PROPOSED — USER ARCHITECTURE REVIEW PENDING**. Any unresolved Critical/High
+finding stops **TE-3Q / TE-5Q DESIGN BLOCKED** and runtime remains not started.

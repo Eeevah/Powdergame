@@ -188,19 +188,21 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-5B/TE-5C/TE-5D REJECTED / DESIGN BLOCKED; TE-5X DESIGN BLOCKED /
-RUNTIME NOT STARTED.** D-022's frozen comparison produced incomplete evidence
-because its only process failed before any model ran. ADR-0010 remains
-Proposed and no recommendation is available. Independent review additionally
-made A, B and C ineligible on their frozen architecture contracts.
+**TE-5B/TE-5C/TE-5D REJECTED / DESIGN BLOCKED; TE-5X DESIGN BLOCKED;
+TE-3Q / TE-5Q CONSERVATIVE PHASE PACKET DESIGN PROGRAM AUTHORIZED / RUNTIME
+NOT STARTED.** D-023 preserves the failed TE-5X identity without rerun and
+explicitly supersedes only the whole-Cell/whole-quantity constraint. The new
+docs/reference candidate uses explicit half-unit Steam packets, real local
+spawn/merge, and a separate reversible phase-pressure component. No candidate
+or runtime implementation is accepted yet.
 
 ## 다음 행동
 
 1. preserve all blocked candidates and their source-bound receipts;
-2. preserve the TE-5X frozen script and failed one-shot receipt without rerun;
-3. complete fresh comparative review of the frozen design/evidence failure;
-4. keep TE-3/TE-5 runtime **NOT STARTED** and the current G5 Water path active;
-5. request a new user decision before any new evidence identity or implementation.
+2. preserve the TE-5X frozen script and failed receipt without rerun;
+3. predeclare and execute `TE3Q-PHASE-PACKETS-REFERENCE-V1` exactly once;
+4. obtain a fresh-context independent review of ADR-0011 and its evidence;
+5. keep TE-3/TE-5 runtime **NOT STARTED** pending user architecture review.
 
 ## 아직 별도 결정인 것
 

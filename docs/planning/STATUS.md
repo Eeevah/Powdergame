@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3 production physics remains `4146721...`; Scenes 2–4 **DIRECT OBSERVATION CONSISTENT**; Scene 1 finite-heat defect remediated at `e9f4a37...` and **USER RE-REVIEW PENDING**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3 production physics remains `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; whole-candidate disposition pending; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -211,20 +211,19 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-3 REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW IN PROGRESS.** D-024
+**TE-3 REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / DIRECT REVIEW COMPLETE /
+USER DISPOSITION PENDING.** D-024
 rejects ADR-0011 and preserves all TE-5/packet failures as history. Runtime
 source `4146721...` implements the accepted one-Cell/one-quantity enthalpy
 model without Water phase pressure. D-025 records Scenes 2–4 as consistent;
-the remediated Scene 1 remains the only direct-review item. No TE-5 pressure-volume
-architecture is selected or started.
+the remediated Scene 1 is direct-observation consistent under D-026. No TE-5
+pressure-volume architecture is selected or started.
 
 ## 다음 행동
 
-1. open `Powdergame TE-3 Phase Cycle.lnk` from the Windows Desktop;
-2. press `SPACE`; confirm boiling begins near tick 72, Steam/rise near tick 320,
-   condensation/Water return follows, and `R` replays the finite sequence;
-3. preserve all blocked TE-5/packet candidates and receipts without rerun;
-4. require a new direct decision before TE-5, TE-4 or G9-B work.
+1. obtain the user's explicit whole-candidate accept/revise disposition;
+2. preserve all blocked TE-5/packet candidates and receipts without rerun;
+3. require a new direct decision before TE-5, TE-4 or G9-B work.
 
 ## 아직 별도 결정인 것
 

@@ -551,3 +551,11 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   freshness check was a second no-op build invocation. EXE SHA-256 is
   `6F2EF0BF49FC39AF550B2CF958DCC5A2F551AAE65ACD9F1735D208519E8E1C0E`,
   size `10,097,664` bytes. Scene 1 remains user re-review pending.
+
+## 2026-08-22 · TE-3 Scene 1 direct re-review
+
+- The user directly confirmed Steam creation, rise, condensation, and falling
+  Water in source `e9f4a37...`.
+- D-026 records Scene 1 as direct-observation consistent and closes Q-015.
+- No runtime source or evidence changed; no tests, FULL, build, or launch ran.
+- Whole-candidate acceptance remains a separate direct user disposition.

@@ -456,3 +456,10 @@ only Scene 1 staging and records the actual ordered events at ticks `72`, `320`,
 
 Q-015 remains open for direct re-review. Automated evidence does not convert
 the failed observation into acceptance.
+
+### 2026-08-22 direct re-review — closed by D-026
+
+The user directly observed Steam creation, ordinary rise, condensation, and
+falling Water in the remediated Scene 1. Q-015 is closed as **DIRECT
+OBSERVATION CONSISTENT**. Whole-candidate acceptance remains a separate direct
+user disposition; none is inferred here.

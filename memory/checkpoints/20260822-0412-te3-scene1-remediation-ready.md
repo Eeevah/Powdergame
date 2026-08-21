@@ -1,4 +1,4 @@
-# Checkpoint — TE-3 direct review complete; disposition pending — 2026-08-22 04:23 KST
+# Checkpoint — TE-3 Scene 1 finite-cycle remediation ready — 2026-08-22 04:12 KST
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
@@ -8,31 +8,30 @@
 - Wiki remote fallback: `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3`; local Wiki is user-dirty and untouched
 
 ## The story so far
-The user directly confirmed that remediated Scene 1 creates Steam, raises it,
-condenses it and drops Water. D-026 records Scene 1 as direct-observation
-consistent; all four TE-3 review scenes are now consistent. Production physics
-remains `4146721...`, candidate source remains `e9f4a37...`, and pressure is
-still deferred.
+The user's Scene 1 run reached tick 21,160 with no Steam because the 3,885-Cell
+fill diluted a finite heater and equilibrated below boiling. App source
+`e9f4a37...` replaces only that fixture with a 288-Cell finite one-shot beaker.
+Production physics remains `4146721...`; Scenes 2–4, Sandbox Inspector, the
+Desktop shortcut, and deferred pressure remain unchanged.
 
 ## Valid evidence
 - `docs/evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md` — production F01–F15/FULL receipt; valid only for `41467219819c5d0cb3eab8ae22b652449da20480`.
-- `docs/evidence/TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22.md` — app/profile/staging receipt; valid while source `89d2400d677dec7e39cba76234c18d8b2363a496`, the RTX 5090/DX12 environment and canonical artifact identity remain unchanged.
+- `docs/evidence/TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22.md` — app/profile receipt for source `89d2400...`.
 - `docs/evidence/TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22.md` — valid for Scene 1 source `e9f4a37...`, exact fixture, RTX 5090/DX12, and recorded artifact identity.
 - Actual Scene 1 ticks: boil `72`, Steam/rise `320`, condensation `336`, upper Water `552`, fall `584`; family `288` exact.
 - Windows suite `174 passed / 1 unrelated ignored`; FULL `0`.
 - EXE SHA-256 `6F2EF0BF49FC39AF550B2CF958DCC5A2F551AAE65ACD9F1735D208519E8E1C0E`, 10,097,664 bytes.
-- Direct user observation — Steam creation, rise, condensation, and falling Water confirmed for Scene 1.
 
 ## Decided
 - D-024 — pressure-decoupled one-Cell/one-quantity TE-3 remains active.
-- D-025 — Scenes 2–4 direct observation consistent; Scene 1 pending; Sandbox phase truth required and implemented.
-- D-026 — Scene 1 direct observation consistent; Q-015 closed without inferring whole-candidate acceptance.
+- D-025 — Scenes 2–4 direct observation consistent; Scene 1 pending; Sandbox phase truth implemented.
+- Scene 1 is remediated but not user accepted; Q-015 remains open.
 
 ## Waiting on the user
-Explicit whole-candidate TE-3 accept/revise disposition.
+Scene 1 direct re-review and the resulting accept/revise decision.
 
 ## Next first action
-Ask for the explicit whole-candidate TE-3 accept/revise disposition; do not start TE-5, TE-4, or G9-B implicitly.
+Open the Desktop shortcut, press `SPACE`, and confirm the visible one-shot sequence by about tick 584; press `R` to replay.
 
 ## Tried
 - The original one-Cell cold lid began condensation but exhausted its finite heat capacity before completing within 900 ticks.

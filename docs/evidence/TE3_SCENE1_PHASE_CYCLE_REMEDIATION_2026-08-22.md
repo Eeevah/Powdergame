@@ -1,6 +1,6 @@
 # TE-3 Scene 1 Phase-Cycle Remediation — 2026-08-22
 
-- **Disposition:** REVISED SCENE 1 CANDIDATE / USER RE-REVIEW PENDING
+- **Disposition:** DIRECT OBSERVATION CONSISTENT / WHOLE-CANDIDATE DISPOSITION PENDING
 - **App source:** `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`
 - **Task baseline:** `a40caee00eec3d2357b6096dcf9c21dc76dc5cd7`
 - **Production physics:** `41467219819c5d0cb3eab8ae22b652449da20480` — unchanged
@@ -75,3 +75,10 @@ Scene 1 is not user accepted by this automated result. Direct review must
 confirm the visible sequence, stable family count, replay wording, and
 deferred-pressure label. TE-5 Pressure redesign, TE-4, and G9-B/C/D/E remain
 not started.
+
+## Direct user re-review
+
+After rebuilding source `e9f4a37...`, the user directly confirmed that Steam
+is created, rises, condenses, and the resulting Water falls. D-026 records
+Scene 1 as **DIRECT OBSERVATION CONSISTENT** and closes Q-015. This observation
+does not by itself declare the whole TE-3 candidate user accepted.

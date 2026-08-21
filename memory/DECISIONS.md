@@ -805,5 +805,24 @@ CANDIDATE / USER REVIEW IN PROGRESS** with Scene 1 still pending. If targeted
 production semantics fail the latent-plateau, no-sink or free-Air controls,
 stop and report the smallest reproduction without retuning thresholds.
 
+## D-026 · Record the remediated Scene 1 direct observation — 2026-08-22 (source: direct user review)
+
+Decision: Record the `e9f4a37...` Scene 1 replacement as **DIRECT OBSERVATION
+CONSISTENT**. The user directly confirmed that Steam is created, rises, then
+condenses and the resulting Water falls, matching the ordered production
+phase/thermal/movement chain.
+
+Boundary: This confirms the Scene 1 remediation and closes Q-015. It does not
+invent a whole-candidate `USER ACCEPTED` disposition that the user did not
+state. D-024's one-Cell/one-quantity model, deferred Water/Steam pressure
+redesign, historical evidence boundaries, and D-025's Scenes 2–4 observations
+remain unchanged.
+
+Scope: Candidate source `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`,
+artifact SHA-256
+`6F2EF0BF49FC39AF550B2CF958DCC5A2F551AAE65ACD9F1735D208519E8E1C0E`,
+and the direct user observation in this task. TE-5, TE-4, and G9-B/C/D/E
+remain not started.
+
 Invalidated by: a later explicit user supersession or source-bound evidence
 that contradicts the recorded observations or 24-byte profile contract.

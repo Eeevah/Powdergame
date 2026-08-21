@@ -42,6 +42,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260821-1817-te3-initial-candidate-before-direct-remediation.md`](checkpoints/20260821-1817-te3-initial-candidate-before-direct-remediation.md) | Initial TE-3 candidate return point before direct-review scene and diagnostic remediation | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-0348-te3-scenes-2-4-consistent-before-sandbox-truth.md`](checkpoints/20260822-0348-te3-scenes-2-4-consistent-before-sandbox-truth.md) | Scene 2–4 remediation return point before D-025 Sandbox phase-truth work | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-0348-te3-sandbox-truth-scene1-pending.md`](checkpoints/20260822-0348-te3-sandbox-truth-scene1-pending.md) | Sandbox phase-truth return point before the direct Scene 1 failure was reported | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260822-0412-te3-scene1-remediation-ready.md`](checkpoints/20260822-0412-te3-scene1-remediation-ready.md) | Remediated Scene 1 return point before direct user confirmation | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

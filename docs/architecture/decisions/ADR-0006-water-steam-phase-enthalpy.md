@@ -6,7 +6,7 @@
 - **Decision:** D-018
 - **Design source:** docs-only work descended from TE-2 closure `fd97e8b...`
 - **Runtime status:** TE-3 NOT STARTED
-- **Proposed atomic bridge:** [`ADR-0007`](ADR-0007-phase-volume-pressure-bridge.md), DESIGN BLOCKED / architecture revision required
+- **Atomic bridge attempts:** [`ADR-0007`](ADR-0007-phase-volume-pressure-bridge.md) token REJECTED / DESIGN BLOCKED; [`ADR-0008`](ADR-0008-local-vapor-capacity-pressure.md) local capacity law PROPOSED / DESIGN BLOCKED
 - **Supersedes at implementation only:** current Water `matter_yield = 2` and
   blocked-expansion-pressure behavior; no runtime source is changed here
 
@@ -293,6 +293,17 @@ later explicit user disposition and separate runtime authorization, the
 current production Water path remains active and TE-3/TE-5B runtime remains not
 started.
 
+D-020 rejected the token and authorized
+[`ADR-0008`](ADR-0008-local-vapor-capacity-pressure.md), a final
+no-new-persistent-state attempt that recomputed Vapor demand and radius-1 EMPTY
+capacity each tick. Its one-shot proof failed a predeclared asymmetric
+open-capacity control: proportional shares were capped at one already-satisfied
+Steam Cell rather than reallocated to another Steam Cell, producing false
+target `100` despite a complete two-Steam/two-EMPTY assignment. TE-5C is
+design-blocked. The next decision must explicitly permit persistent
+phase-volume state; neither failure changes this ADR's phase quantity, H or
+atomic-activation rule.
+
 The historical expansion pipelines remain available for generic non-family
 phase rules. After TE-2's float scratch lifetime, `phase_context_propose` fully
 overwrites claim with immutable phase-context markers and
@@ -394,7 +405,7 @@ amended radius-2 reference proof passed its only run and the fresh independent
 v2 review closed with no unresolved Critical/High finding. This ADR is
 therefore **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION** and TE-3D is
 **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**. That status authorizes no
-runtime task by itself. TE-3 runtime is **NOT STARTED**; the TE-5B
-pressure-volume bridge is **DESIGN BLOCKED / ADR-0007 PROPOSED / RUNTIME NOT
-STARTED**; Air-pressure force, full TE-5, TE-4 and G9-B/C/D/E remain **NOT
-STARTED**.
+runtime task by itself. TE-3 runtime is **NOT STARTED**; TE-5B and TE-5C are
+**DESIGN BLOCKED** with ADR-0007/ADR-0008 preserved as Proposed history; all
+pressure-volume runtime, Air-pressure force, full TE-5, TE-4 and G9-B/C/D/E
+remain **NOT STARTED**.

@@ -47,3 +47,8 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   candidate. Current disposition: **TE-5B DESIGN BLOCKED — UNRESOLVED CRITICAL
   0 / HIGH 1**. The staggered-heating vacancy-walk counterexample prevents the
   non-mutating 1:1 token from guaranteeing finite-headspace exhaustion.
+- [`TE5_LOCAL_VAPOR_CAPACITY_PRESSURE_DESIGN.md`](TE5_LOCAL_VAPOR_CAPACITY_PRESSURE_DESIGN.md)
+  — D-020 fresh-context review of the final no-new-persistent-state capacity-
+  pressure candidate. Current disposition: **TE-5C DESIGN BLOCKED —
+  UNRESOLVED CRITICAL 0 / HIGH 6**. The locked sharing law fails an open-
+  capacity witness, and five additional architecture/evidence blockers remain.

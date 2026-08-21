@@ -619,6 +619,20 @@ This subsection is a dependency cross-reference, not acceptance of ADR-0007.
 If its proof or independent review leaves a Critical/High issue, the overlay is
 blocked while this D-018 phase architecture remains accepted but inactive.
 
+### 10.4 D-020 TE-5C replacement outcome
+
+D-020 rejects the TE-5B token overlay. Proposed
+[`LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC`](LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md)
+instead lets initiated/ready Water complete 1:1 and derives a later pressure
+target from the current phase-energy population and EMPTY capacity. It
+projected one capacity-sum pass after Smoke, for 41 passes and 82 queries.
+
+The locked proof failed its predeclared open-capacity control because the
+proportional per-EMPTY allocation can discard capacity at a saturated Cell and
+leave another Cell falsely compressed. TE-5C is therefore **DESIGN BLOCKED**
+and inactive. This accepted phase specification remains unchanged; the next
+pressure-volume decision must explicitly permit persistent state.
+
 ## 11. Activity and sleep
 
 The old phase pass activity marker and threshold-only phase candidate are

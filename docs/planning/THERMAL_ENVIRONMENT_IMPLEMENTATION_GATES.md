@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 user accepted with known follow-up; TE-3D architecture accepted with locked amendments; TE-5B design program authorized/in progress; TE-3 and TE-5B runtime not started
-- **Architecture:** D-013 / D-014 / D-015 / D-016 / D-017 / D-018 / D-019 / ADR-0005 / accepted ADR-0006 / proposed ADR-0007
+- **Status:** TE-2 accepted; TE-3D architecture accepted; TE-5B rejected/blocked; TE-5C design blocked; all TE-3/TE-5 runtime not started
+- **Architecture:** D-013 through D-020 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007 and ADR-0008
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -192,6 +192,37 @@ PROPOSED / USER ARCHITECTURE REVISION REQUIRED`. A future replacement requires
 user disposition and separate authorization before any runtime task; verified
 TE-3 and the eventual bridge must still activate together with new G5 evidence.
 
+### TE-5C — docs-only local Vapor capacity-pressure replacement
+
+D-020 rejects the TE-5B token and authorizes the final attempt without new
+persistent phase-volume state.
+
+- [x] derive continuous demand from accepted phase energy;
+- [x] define radius-1 per-EMPTY proportional capacity and linear target `0..100`;
+- [x] define orthogonal EMPTY gauge-zero venting at rate `0.20`;
+- [x] audit proposal reuse after Smoke and project 41 passes / 82 queries;
+- [x] predeclare F01–F13 plus the asymmetric reachable-capacity control;
+- [x] run the fixed-seed 50,000-static / 10,000-multi-tick proof once;
+- [ ] satisfy VC-INV-008: sufficient reachable local capacity must not create false pressure;
+- [ ] close independent-review Critical/High blockers.
+
+The result reported the vacancy-walk, bounds, quantity, partial, generic,
+pressure/vent and atomic pure-model checks as passed but failed the predeclared
+asymmetric control. Independent review found several reported checks did not
+execute their named obligations. One Steam adjacent to both EMPTYs absorbed
+`1.5` gross share then
+capped at one; another Steam adjacent only to the shared EMPTY retained
+capacity `0.5` and false target `100`, although a complete assignment existed.
+
+Fresh review left Critical `0` / High `6`, adding internal-EMPTY capacity/vent
+conflation, irreversible phase-pressure provenance, unreachable downward
+capacity, activity/snapshot/binding infeasibility and receipt overclaim.
+
+Current stop: `TE-5C DESIGN BLOCKED / ADR-0008 PROPOSED / RUNTIME NOT
+STARTED`. Per D-020, the next design decision must explicitly permit persistent
+phase-volume state. No formula substitution or another stateless token/impulse
+attempt is authorized.
+
 ## TE-4 — Ignition kinetics
 
 Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
@@ -224,6 +255,9 @@ TE-3 runtime  NOT STARTED
 TE-5B phase-volume bridge design  DESIGN BLOCKED / FINITE-CAPACITY HIGH OPEN
 ADR-0007  PROPOSED / USER ARCHITECTURE REVISION REQUIRED
 TE-5B runtime  NOT STARTED
+TE-5C local capacity-pressure design  DESIGN BLOCKED / CRITICAL 0 / HIGH 6
+ADR-0008  PROPOSED / ARCHITECTURE REVISION REQUIRED
+TE-5C runtime  NOT STARTED
 Full TE-5  NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4  NOT STARTED

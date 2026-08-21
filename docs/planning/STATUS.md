@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; atomic TE-3/TE-5 runtime evidence remains a separate prerequisite before G9-B |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** — candidate source `0977281...`; **TE-3D ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**; ADR-0006 accepted for future atomic implementation; **TE-5B TOKEN REJECTED / DESIGN BLOCKED**; D-020 **TE-5C LOCAL VAPOR CAPACITY-PRESSURE DESIGN AUTHORIZED**; TE-3/TE-5 runtime not started; G9-B prerequisite |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3D ARCHITECTURE ACCEPTED**; TE-5B token **REJECTED / BLOCKED**; TE-5C **DESIGN BLOCKED**, independent review Critical 0 / High 6; ADR-0008 Proposed; TE-3/TE-5 runtime not started |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -140,6 +140,14 @@ The latest direct disposition accepts G9-A Inspector continuity and records G9-A
 
 Thermal follow-up is registered in [`THERMAL_TRANSPORT_IGNITION_CAUSALITY.md`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md). D-013/ADR-0005 lock Air as a separate mass/energy Environment field and distinguish Atmosphere, Vacuum, EMPTY and Void. D-014/source `1a722d...` implements TE-1 occupancy hygiene. D-015/source `fb7e568...` implements TE-2 full-resolution Air flow, donor-energy advection, unified passive thermal exchange, activity/wake and the atomic Celsius-like migration. The 30-case small-delta CPU/GPU regression pins the deadband as a shared work gate. Candidate source `0977281...` remediates only controls, bounded diagnostics and scene staging. Direct re-review confirmed F/N/I, all four scene contracts and reset/controls; D-017 records TE-2 **USER ACCEPTED WITH KNOWN FOLLOW-UP** while preserving every prior automated/runtime/performance boundary. `LONG_HORIZON_SEALED_AIR_DRIFT_BUDGET` and `TE2_CANDIDATE_HUD_LABEL_POLISH` are non-blocking. D-018 accepts the Water/Steam Hybrid A+C architecture with locked amendments in [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md), [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md) and [`PHASE_THERMODYNAMICS_VALIDATION`](../development/PHASE_THERMODYNAMICS_VALIDATION.md). The one-shot amended proof and fresh v2 review passed with unresolved Critical `0` / High `0`. D-019 authorized a docs/reference-only TE-5B design program around an exclusive local volume-relief token and the existing gauge-pressure grammar. Its fixed-seed pure arbitration/accounting model passed its only execution, but the model contained no grid or cross-tick vacancy conservation. Fresh-context review found that staggered endpoint timing lets 1:1 Steam movement pass one EMPTY vacancy down a sealed Water column, so finite headspace need never become blocked and the required G5 pressure chain is not guaranteed. ADR-0007 is **PROPOSED — DESIGN BLOCKED / USER ARCHITECTURE REVISION REQUIRED**. TE-3 and TE-5B runtime remain **NOT STARTED**.
 
+D-020 rejects that token and evaluates [`TE-5C`](TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md).
+Its one-shot grid/time result reported the vacancy-walk and F01–F13 checks as
+passed but failed the predeclared asymmetric open-capacity control; fresh
+review found that several reported checks do not implement their named
+obligations and recorded unresolved Critical `0` / High `6`. ADR-0008 is
+**PROPOSED — DESIGN BLOCKED**; the next decision must explicitly permit
+persistent phase-volume state. No TE-3/TE-5 runtime has started.
+
 ---
 
 ## 비공식 진단 artifact
@@ -156,21 +164,20 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN PROGRAM AUTHORIZED /
-RUNTIME NOT STARTED.** D-020 preserves the vacancy-walk counterexample and
-authorizes the final no-new-persistent-state replacement: derive Vapor demand
-from phase energy, recompute shared local EMPTY capacity every tick and drive
-the existing gauge field toward a bounded state target. The locked formula is
-under one-shot grid/time proof and fresh review; it is not yet ADR acceptance,
-an independent-review pass or runtime authority.
+**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN BLOCKED / RUNTIME NOT
+STARTED.** The one-shot TE-5C grid/time proof passed F01–F13 and generated
+bounds but failed its predeclared asymmetric open-capacity control. A complete
+two-Steam/two-EMPTY assignment exists, yet proportional shares discard `0.5`
+at one capped Steam and give the other false target `100`. Per D-020, the next
+architecture decision must explicitly permit persistent phase-volume state.
 
 ## 다음 행동
 
-1. evaluate the exact D-020 capacity law with the predeclared grid/time proof;
-2. obtain a fresh-context independent review without reusing the TE-5B PASS;
-3. if any Critical/High remains, stop TE-5C and require a later decision that explicitly permits persistent phase-volume state;
+1. preserve the failed TE-5C formula/proof and complete the fresh independent review;
+2. require any next architecture decision to explicitly permit persistent phase-volume state;
+3. do not attempt another stateless token, impulse or post-result formula substitution;
 4. keep TE-3/TE-5 runtime **NOT STARTED** and the current G5 Water path active;
-5. do not start full Air/background-pressure coupling, TE-4, G9-B/C/D/E, Discovery, Save/Load, Rewind, broad presentation or optimization.
+5. do not start full Air coupling, TE-4, G9-B/C/D/E or optimization.
 
 ## 아직 별도 결정인 것
 

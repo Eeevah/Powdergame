@@ -18,7 +18,9 @@ architecture. Its normative contract is split across:
 - [`TE3_PHASE_ENTHALPY_DESIGN`](../adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md)
   for the independent adversarial disposition.
 - [`TE5_PHASE_VOLUME_PRESSURE_BRIDGE`](TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md)
-  for the separately authorized proposed atomic completion bridge.
+  for the rejected/blocked token attempt;
+- [`TE5_LOCAL_VAPOR_CAPACITY_PRESSURE`](TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md)
+  for the D-020 replacement and its one-shot DESIGN BLOCKED result.
 
 D-018 accepts Hybrid A+C, its constants, memory cost, no-sink metastability
 and atomic TE-5 activation constraint. The v1 ADR text is not accepted
@@ -222,3 +224,11 @@ at **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. TE-3 runtime remains **NOT
 STARTED**; the TE-5B pressure-volume bridge is **ADR-0007 PROPOSED / DESIGN
 BLOCKED / RUNTIME NOT STARTED**; full TE-5 Air/background-pressure
 force, TE-4 and G9-B/C/D/E remain **NOT STARTED**.
+
+D-020 rejects that token and records the replacement
+[`TE5_LOCAL_VAPOR_CAPACITY_PRESSURE`](TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md).
+Its population/capacity model passed the vacancy-walk control but failed a
+predeclared two-Steam/two-EMPTY asymmetric open-capacity case: proportional
+shares were underused after a per-Cell cap, producing false target `100`.
+TE-5C is also **DESIGN BLOCKED**. No accepted phase rule changes here; the next
+architecture decision must explicitly permit persistent phase-volume state.

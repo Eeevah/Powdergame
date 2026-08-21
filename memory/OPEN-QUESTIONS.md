@@ -260,3 +260,25 @@ proof and fresh independent review. Any unresolved Critical/High makes TE-5C
 DESIGN BLOCKED and requires the next decision to permit persistent
 phase-volume state. Runtime, background Air pressure, structure differential,
 product edge mode and Vacuum combustion remain separate and not started.
+
+### 2026-08-21 one-shot proof update — TE-5C blocked
+
+The locked proof executed once and returned `DESIGN_BLOCKED`. F01–F13,
+50,000 static neighbourhoods, 10,000 multi-tick grids and deterministic replay
+passed their modeled checks. The predeclared
+`reachable_capacity_no_false_pressure` control failed: a complete
+two-Steam/two-EMPTY assignment exists, but the proportional law discards an
+excess share at one capped Steam and leaves the other at capacity `0.5` with
+target `100`.
+
+Fresh-context review independently reproduced that failure and left five more
+High findings open: internal EMPTY capacity/vent conflation, irreversible
+phase-pressure provenance in the shared gauge field, unreachable downward
+Chebyshev capacity, activity/snapshot/binding infeasibility, and overclaimed
+one-shot checks. Final review counts are Critical `0` / High `6`.
+
+Q-010 therefore remains open only for a replacement decision that explicitly
+permits persistent phase-volume state. Another stateless token, impulse,
+matching substitution, radius change or post-result response curve is not
+authorized. ADR-0008 remains Proposed / DESIGN BLOCKED and runtime remains not
+started.

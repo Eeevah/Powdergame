@@ -337,3 +337,38 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   before pressure. This is feasibility only, not implementation evidence.
 - TE-3/TE-5 runtime, Rust, WGSL, Cargo, build, launch, GPU and FULL validation
   remain not started and were not run in this authorization unit.
+
+## 2026-08-21 · TE-5C one-shot grid/time proof blocked the stateless law
+
+- Script/contract were fixed before execution; script SHA-256
+  `f0b4cb155fcc0785c60ff6ff4c2ee9d18a439ed3ea0941e679140de4188af791`.
+- Exactly one process ran at seed `0x54453543`: 50,000 static neighbourhoods,
+  10,000 multi-tick grids and two deterministic replays.
+- Result SHA-256
+  `59b98a3454e13a22742e66559e06cfa9b3552a37e18929fa3b71949afaf1e8e5`;
+  status `DESIGN_BLOCKED`; one failed predeclared check.
+- The JSON reported F01–F13 and generated checks as passed. Fresh static review
+  later showed that several named checks were literals, aliases or missing
+  state transitions, so those properties are not established. A complete
+  asymmetric two-Steam/two-EMPTY assignment gave one Steam false target `100`
+  because excess proportional share was capped and discarded at its neighbour.
+- The failed output was preserved and the proof was not rerun. No formula,
+  radius or pressure curve was changed. The next architecture decision must
+  explicitly permit persistent phase-volume state.
+
+## 2026-08-21 · TE-5C independent review confirmed six High blockers
+
+- Fresh-context review ran no proof or runtime command and wrote only
+  `docs/adversarial-reviews/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE_DESIGN.md`.
+- It independently reproduced the proportional-underuse witness and found five
+  additional High findings: internal EMPTY capacity/vent conflation,
+  irreversible phase-pressure provenance, unreachable downward capacity,
+  activity/snapshot/binding infeasibility and one-shot receipt overclaim.
+- Final counts are Critical `0` / High `6`; review SHA-256 is
+  `d0d26585326d79cfe60ab0fd0a334e9537e6bedc8d41059e5e129caa08d2edf2`.
+- Final disposition is **TE-5C DESIGN BLOCKED / ADR-0008 PROPOSED /
+  ARCHITECTURE REVISION REQUIRED / RUNTIME NOT STARTED**.
+- Session `20260821T023553699Z-te5c-local-vapor-capacity-design-6a1c83fa`
+  closed PASS in `1227.203856 s`; FULL `0`, candidate `0`, target delta `0` B.
+  The `838` B artifact delta is the external session summary, not runtime or a
+  repository artifact.

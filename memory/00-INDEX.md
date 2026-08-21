@@ -59,6 +59,11 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md`](../docs/specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md) | Evaluated mode/arbitration contract plus unsatisfied finite-capacity invariant | Before any TE-5B redesign or structural fixture |
 | [`docs/development/PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION.md`](../docs/development/PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION.md) | One-shot pure proof boundary and currently unsatisfiable F05/F11 fixtures | Before making any TE-5B validation claim |
 | [`docs/adversarial-reviews/TE5_PHASE_VOLUME_PRESSURE_BRIDGE_DESIGN.md`](../docs/adversarial-reviews/TE5_PHASE_VOLUME_PRESSURE_BRIDGE_DESIGN.md) | Fresh independent review; Critical 0 / High 1 and TE-5B DESIGN BLOCKED | Before revising the capacity model or interpreting the reference PASS |
+| [`docs/planning/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md`](../docs/planning/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md) | D-020 TE-5C plan and one-shot open-capacity DESIGN BLOCKED router | Before any persistent phase-volume replacement decision |
+| [`docs/architecture/decisions/ADR-0008-local-vapor-capacity-pressure.md`](../docs/architecture/decisions/ADR-0008-local-vapor-capacity-pressure.md) | Proposed proportional capacity/equilibrium law and blocking underuse counterexample | Before revising volume ownership |
+| [`docs/specs/LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md`](../docs/specs/LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md) | Exact failed capacity/pressure/vent candidate contract | Before interpreting the TE-5C result |
+| [`docs/development/LOCAL_VAPOR_CAPACITY_PRESSURE_VALIDATION.md`](../docs/development/LOCAL_VAPOR_CAPACITY_PRESSURE_VALIDATION.md) | Predeclared one-shot grid/time proof and DESIGN BLOCKED receipt | Before making any TE-5C evidence claim |
+| [`docs/adversarial-reviews/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE_DESIGN.md`](../docs/adversarial-reviews/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE_DESIGN.md) | Fresh review; Critical 0 / High 6 and TE-5C DESIGN BLOCKED | Before any persistent-state replacement decision or interpretation of the one-shot receipt |
 
 ## Authority and evidence boundaries
 

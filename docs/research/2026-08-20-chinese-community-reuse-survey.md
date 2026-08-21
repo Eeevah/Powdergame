@@ -48,10 +48,11 @@ This intake does not broaden those reuse permissions.
 
 ## Scope boundary
 
-Proposed ADR-0006 now exists as an independently derived Powdergame design; this
-research intake neither authorizes it nor supplies its equations, constants or
-implementation. No external phase formula was copied. ADR-0007 and ADR-0008 do
-not exist. `NO_REGION_WIDE_INSTANT_COMBUSTION`, corrosion, reaction orientation
+Proposed ADR-0006 existed at this intake as an independently derived Powdergame
+design; this research intake neither authorized it nor supplied its equations,
+constants or implementation. No external phase formula was copied. ADR-0007
+and ADR-0008 did not exist at the 2026-08-20 intake snapshot; their later
+creation does not change this provenance boundary. `NO_REGION_WIDE_INSTANT_COMBUSTION`, corrosion, reaction orientation
 and semantic-event presentation are not part of the TE-2 runtime diff or TE-3D
 design. No Oxygen, Ash, new Matter, final FX, CFD or optimization is authorized
 here.

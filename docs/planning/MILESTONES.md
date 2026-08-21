@@ -260,6 +260,14 @@ source-bound evidence로 증명해야 하며, 기존 G5 receipt를 소급 재결
 ADR-0007은 Proposed / DESIGN BLOCKED, runtime은 시작되지 않았다. G5의
 역사적 Gate나 receipt는 이 실패를 숨기도록 다시 쓰지 않는다.
 
+D-020의 후속 [`TE5_LOCAL_VAPOR_CAPACITY_PRESSURE`](TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md)
+역시 이 Gate를 다시 쓰지 않는다. vacancy-walk는 막았지만 비대칭 두
+Steam/두 EMPTY 격자에서 완전 배정이 존재하는데도 비례 share가 한 Cell
+cap에서 버려져 다른 Steam에 false pressure `100`을 만든다. 고정 proof가
+이 항목을 실패했으므로 TE-5C도 DESIGN BLOCKED이며, 다음 결정은 persistent
+phase-volume state를 명시적으로 허용해야 한다. 기존 G5 evidence는 어느
+미래 후보에도 소급 결합하지 않는다.
+
 ### User validation
 
 전용 `boiler_explosion()` 없이 작은 Rule chain으로 압력 사고가 납득되는지 확인한다.

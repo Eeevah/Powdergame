@@ -3,8 +3,8 @@
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
-- **Scope:** implemented TE-1/TE-2 production graph plus the D-018-accepted TE-3D and D-019-authorized TE-5B writer, binding, memory and scratch projections
-- **Runtime status:** TE-2 implemented and user accepted with known follow-up; TE-3D architecture accepted with locked amendments; TE-5B design candidate in progress; Air-pressure force, TE-3 and TE-5B runtime not started
+- **Scope:** implemented TE-1/TE-2 graph plus accepted TE-3D and blocked TE-5B/TE-5C static projections
+- **Runtime status:** TE-2 accepted; TE-3D architecture accepted; TE-5B and TE-5C design blocked; all TE-3/TE-5 runtime not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
 Section 8 is the current implemented TE-2 34-pass delta and supersedes that
@@ -506,3 +506,36 @@ candidate or a rejected option. The projected `40` passes, `80` queries and zero
 TE-5B memory delta describe only the infeasible candidate; they do not prove a
 replacement can preserve those counts. ADR-0007 remains Proposed / DESIGN
 BLOCKED and all runtime remains not started.
+
+## 11. Proposed but design-blocked TE-5C capacity-share delta
+
+D-020 rejects Section 10's token and evaluates
+[`ADR-0008`](decisions/ADR-0008-local-vapor-capacity-pressure.md). Static source
+order permits one new `vapor_capacity_sum` dispatch after the settled Smoke
+transaction and before pressure. It fully overwrites proposal as `f32 D_e`;
+pressure consumes it, phase activity consumes the same still-live values as an
+eighth storage binding, and next-tick movement overwrites proposal as u32.
+
+| Projected pass | Storage RO | Storage RW | Total |
+|---|---:|---:|---:|
+| capacity sum | 3 | 1 | 4 |
+| pressure with target | 6 | 1 | 7 |
+| phase activity with capacity | 7 | 1 | 8 |
+
+The projection is 41 passes, 82 queries and two 656-byte profiler buffers
+(1,312 B). With no new buffer or table, tracked totals would be 4,722,640 B at
+256² and 302,018,128 B at 2048². These are arithmetic, not runtime evidence.
+
+The proposed scratch window is packable in isolation, but fresh review found
+the overall activity path is not: the eight-binding phase-activity projection
+has no pressure input, base activity ignores the new medium-to-EMPTY vent work,
+and rupture changes the Material snapshot after `D_e` was computed. The law is
+also semantically blocked. In a two-Steam,
+two-EMPTY adjacency graph with a complete assignment, independent
+proportional shares give one Steam gross `1.5` then cap/discard `0.5`, while
+the other stays at `0.5` and receives target `100`. The one-shot proof failed
+that predeclared control. Other open High findings are internal-EMPTY finite-
+capacity/zero-vent conflation, irreversible phase-pressure provenance,
+unreachable downward capacity and reference-receipt overclaim. Therefore this
+section is not an implementation recommendation and no persistent allocation
+claim is established for the next required architecture.

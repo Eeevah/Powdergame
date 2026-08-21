@@ -282,3 +282,28 @@ permits persistent phase-volume state. Another stateless token, impulse,
 matching substitution, radius change or post-result response curve is not
 authorized. ADR-0008 remains Proposed / DESIGN BLOCKED and runtime remains not
 started.
+
+### 2026-08-21 D-021 disposition — persistent state authorized, question superseded
+
+D-021 preserves the TE-5C result and explicitly permits one reciprocal
+extent-link plus dedicated phase-pressure Current/Next pair. Q-010 is
+superseded for current design selection by Q-011; neither the failed sharing
+law nor its EMPTY vent rule is carried into the Water path.
+
+## Q-011 · TE-5D persistent Vapor extent-pressure disposition — open 2026-08-21
+
+Owner: user at the proposed ADR-0009 architecture-review boundary.
+
+D-021 authorizes the persistent-state replacement design and one fixed-seed
+grid/time/matching proof. User review remains required for the reciprocal
+extent representation, exact link encoding, approved matching neighbourhood
+and reassignment bound, owner movement/environment transaction, dedicated
+phase-pressure response and relaxation, rupture stress combination, memory
+cost and atomic G5 fixture.
+
+Any unresolved Critical/High makes TE-5D **DESIGN BLOCKED**. The blocking
+receipt must identify whether a repair needs wider matching scope, additional
+full-world scratch, another persistent field, relaxation of 1:1 quantity or a
+different volume representation. Runtime, background Air pressure, structure
+differential, product edge mode and Vacuum combustion remain separate and not
+started.

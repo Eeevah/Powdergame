@@ -428,6 +428,10 @@ source-bound implementation evidence that contradicts a locked invariant.
 
 ## D-020 · Reject TE-5B and authorize TE-5C local Vapor capacity-pressure design — 2026-08-21 (source: direct user replacement-design authorization)
 
+→ superseded in TE-5 pressure-volume design-selection scope by D-021
+(2026-08-21). D-020 and ADR-0008 remain the immutable authorization and
+blocked-candidate history.
+
 Decision: Reject the D-019 exclusive completion-token model as **REJECTED /
 DESIGN BLOCKED** because same-tick exclusivity does not conserve finite
 capacity across ticks. Preserve D-019 and proposed ADR-0007 as historical
@@ -471,3 +475,54 @@ Invalidated by: A later explicit user supersession, failed locked grid/time
 property, unresolved Critical/High review finding, or source-bound future
 evidence contradicting an invariant. Failure does not revive ADR-0007 or
 rewrite D-018.
+
+## D-021 · Authorize TE-5D persistent Vapor extent and dedicated phase pressure — 2026-08-21 (source: direct user replacement-design authorization)
+
+Decision: Preserve TE-5B and TE-5C as **REJECTED / DESIGN BLOCKED**. Together
+their failures establish that same-tick ownership and stateless local sharing
+do not provide cross-tick finite-capacity ownership. Authorize a
+docs/reference-only TE-5D design program named **PERSISTENT VAPOR EXTENT +
+DEDICATED PHASE PRESSURE**. This decision explicitly relaxes the prior
+no-persistent-phase-volume-state rule and permits one Current/Next per-Cell
+pair containing a reciprocal extent link and a dedicated phase-pressure
+scalar. It also permits the reserved EMPTY extent target to carry canonical
+zero Air while reserved.
+
+Locked preservation boundary: one Ice/Water/Steam Cell remains one
+Water-equivalent quantity; all family transitions remain 1:1; no extra Steam,
+same-Cell mixed Matter, `phase_quantity` field, general fluid/velocity solver,
+owner-linked fragment collection or external implementation port is allowed.
+Generic gauge `pressure[]` remains separate. The design must define exact
+link ownership, movement/condensation/rupture/editor/reset hygiene, bounded
+matching behavior, dedicated phase-pressure equilibrium and atomic TE-3/TE-5D
+activation. It must produce ADR-0009/spec/validation/planning/inventory, one
+predeclared fixed-seed grid/time/matching proof executed exactly once and a
+fresh-context independent review.
+
+Reason: TE-5B let one EMPTY vacancy be reused across ticks; TE-5C could
+double-count and discard useful capacity and conflated capacity with venting.
+A reciprocal persistent extent is the first authorized candidate that can
+retain exclusive phase-volume ownership across ticks, while a dedicated
+phase-pressure field can relax or clear without losing provenance to the
+historical generic gauge field.
+
+Scope: Docs, memory and one external pure reference script/result only on
+`feature/m0-g9-first-playable`, starting from
+`94e4da7603dafcf4a83c652abe192a435779a127`. Rust, WGSL, Cargo, runtime
+allocation, build, launch, full background-Air force, structure differential,
+TE-4, G9-B/C/D/E, optimization, PR and `main` merge remain unauthorized and
+**NOT STARTED**. Historical evidence remains source-bound.
+
+Stop rule: This entry authorizes evaluation, not acceptance. Any unresolved
+Critical/High proof or review finding stops **TE-5D DESIGN BLOCKED** and must
+name whether the required repair is wider matching scope, more full-world
+scratch, another persistent field, relaxation of 1:1 quantity or a different
+volume representation. With zero unresolved Critical/High findings, the
+maximum stop is **PERSISTENT VAPOR EXTENT-PRESSURE DESIGN CANDIDATE /
+INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW PENDING**. ADR-0009 remains
+**PROPOSED** and runtime remains unchanged.
+
+Invalidated by: A later explicit user supersession, failed locked
+grid/time/matching property, unresolved Critical/High review finding or
+source-bound future implementation evidence contradicting an invariant.
+Failure does not revive either stateless candidate or rewrite D-018.

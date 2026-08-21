@@ -148,6 +148,12 @@ obligations and recorded unresolved Critical `0` / High `6`. ADR-0008 is
 **PROPOSED — DESIGN BLOCKED**; the next decision must explicitly permit
 persistent phase-volume state. No TE-3/TE-5 runtime has started.
 
+D-021 now preserves both failed stateless candidates and authorizes a
+docs/reference-only TE-5D persistent Vapor extent plus dedicated phase-pressure
+design program. This is authorization to evaluate ADR-0009, not acceptance or
+runtime authority. One frozen grid/time/matching proof and an independent
+review remain required; any unresolved Critical/High stops DESIGN BLOCKED.
+
 ---
 
 ## 비공식 진단 artifact
@@ -164,18 +170,17 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN BLOCKED / RUNTIME NOT
-STARTED.** The one-shot TE-5C grid/time proof passed F01–F13 and generated
-bounds but failed its predeclared asymmetric open-capacity control. A complete
-two-Steam/two-EMPTY assignment exists, yet proportional shares discard `0.5`
-at one capped Steam and give the other false target `100`. Per D-020, the next
-architecture decision must explicitly permit persistent phase-volume state.
+**TE-5B TOKEN REJECTED / DESIGN BLOCKED; TE-5C DESIGN BLOCKED; TE-5D
+PERSISTENT-STATE DESIGN PROGRAM AUTHORIZED / RUNTIME NOT STARTED.** D-021
+permits one reciprocal extent-link plus dedicated phase-pressure Current/Next
+pair for the replacement design while preserving 1:1 family quantity and no
+extra Steam. The ADR/spec/proof/review outcome is not yet established.
 
 ## 다음 행동
 
-1. preserve the failed TE-5C formula/proof and complete the fresh independent review;
-2. require any next architecture decision to explicitly permit persistent phase-volume state;
-3. do not attempt another stateless token, impulse or post-result formula substitution;
+1. preserve the failed TE-5B/TE-5C candidates and their source-bound receipts;
+2. complete the TE-5D persistent-state authority set and frozen proof exactly once;
+3. obtain a fresh-context independent review and stop on any Critical/High;
 4. keep TE-3/TE-5 runtime **NOT STARTED** and the current G5 Water path active;
 5. do not start full Air coupling, TE-4, G9-B/C/D/E or optimization.
 

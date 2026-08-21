@@ -296,6 +296,12 @@ relief를 새로 검증하고 사용자 승인을 받기 전까지 Gate는 미�
 source 제거 뒤 threshold `80` 잔류, greedy local merge stranding과 fixture
 overclaim 때문에 ADR-0011은 Proposed / DESIGN BLOCKED다.
 
+D-024는 위 역사적 G5 Gate와 receipt를 재작성하지 않고, 그 chain을 새
+TE-3의 활성 조건에서 분리한다. Source `4146721...`의 1:1 Water boiling은
+extra Steam과 blocked-expansion pressure를 만들지 않으며 G5 PASS를
+주장하지 않는다. `WATER_STEAM_PRESSURE_VOLUME_REDESIGN`은 별도 미래 Gate로
+deferred/not started다.
+
 ### User validation
 
 전용 `boiler_explosion()` 없이 작은 Rule chain으로 압력 사고가 납득되는지 확인한다.
@@ -508,7 +514,7 @@ Required evidence:
 
 Current status: **NOT STARTED**.
 
-Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is **USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...`. TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**, while TE-3 runtime is **NOT STARTED** and the TE-5 pressure-volume bridge is **DESIGN REQUIRED / NOT STARTED**. G9-B emergence validation does not begin until the TE-3 phase path plus separately authorized TE-5 pressure-volume replacement are atomically activated with their named user evidence.
+Entry prerequisite: [`Thermal Transport & Ignition Causality`](THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) has completed TE-0R/TE-0/TE-0A/TE-0B and TE-1 Environment state/occupancy hygiene with Critical/High blocker zero. TE-2 is **USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...`. TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS** and D-024 source `4146721...` is a **WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING**. G9-B remains not started; this milestone does not silently turn the deferred Water/Steam pressure-volume redesign, TE-4 or later G9 work into a prerequisite implementation authorization.
 
 현재 M0 Matter와 공통 Rule만으로 사용자가 만든 sandbox setup에서 다음 chain이 가능해야 한다.
 

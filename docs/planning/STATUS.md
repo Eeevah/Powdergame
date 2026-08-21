@@ -14,8 +14,8 @@
 | G8-B Benchmark Scenario Suite | **CLOSED / FROZEN** — 다섯 official scenario와 Cell Inspector v0 사용자 승인 완료 |
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
-| G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; atomic TE-3/TE-5 runtime evidence remains a separate prerequisite before G9-B |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3D ARCHITECTURE ACCEPTED**; TE-5B token **REJECTED / BLOCKED**; TE-5C **DESIGN BLOCKED**, independent review Critical 0 / High 6; ADR-0008 Proposed; TE-3/TE-5 runtime not started |
+| G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING** at `4146721...`; pressure coupling deferred; all TE-5 replacement attempts remain blocked history |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -32,6 +32,7 @@
 - TE-2 review-remediation candidate source: `097728128343cf89383920c968a010b3dcf8e8c0`
 - TE-3D accepted architecture / TE-5B design baseline: `d7500e219af6f670be05f830b50c232d2bb53077`
 - TE-5C replacement-design baseline: `6a1c83fad702d18f2d24365a4fc747ab74225f5c`
+- TE-3 pressure-decoupled runtime source: `41467219819c5d0cb3eab8ae22b652449da20480`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---
@@ -172,6 +173,17 @@ ranked or recommended and TE-5X is DESIGN BLOCKED. Fresh comparative review
 ended at Critical `0` / High `11` / Medium `0`; review SHA-256 is
 `c424c8336d3b34784f6a3ffbb37421ceca8888608c198da45793774b49ffb579`.
 
+D-023's packet candidate is also preserved as blocked history. D-024 rejects
+ADR-0011 as the active representation, restores ADR-0006 one-Cell/one-quantity
+semantics and supersedes the atomic TE-3/TE-5 activation constraint. Runtime
+source `41467219819c5d0cb3eab8ae22b652449da20480` implements only the two
+phase-energy buffers, passes actual TE3-F01–F15 fixtures and final-source FULL,
+and exposes the paused `phase-cycle`/`te3` candidate. Water creates no second
+Steam and no phase expansion/blocked pressure. Historical G5 evidence remains
+source-bound. Direct user review is pending; `WATER_STEAM_PRESSURE_VOLUME_REDESIGN`
+is deferred/not started. Full receipt:
+[`THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21`](../evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md).
+
 ---
 
 ## 비공식 진단 artifact
@@ -188,28 +200,25 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-5B/TE-5C/TE-5D REJECTED / DESIGN BLOCKED; TE-5X DESIGN BLOCKED;
-TE-3Q / TE-5Q DESIGN BLOCKED / RUNTIME NOT STARTED.** D-023 preserves the
-failed TE-5X identity without rerun and supersedes only the whole-Cell/whole-
-quantity constraint. The new proof returned mathematical PASS, but fresh
-review found Critical `0` / High `8` / Medium `1`: named fixtures were
-under-modeled, local pairing can strand packets, and spatial pressure can be
-reset by movement or remain rupture-eligible after relief. ADR-0011 remains
-Proposed / architecture revision required; no runtime is accepted.
+**TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING.** D-024
+rejects ADR-0011 and preserves all TE-5/packet failures as history. Runtime
+source `4146721...` implements the accepted one-Cell/one-quantity enthalpy
+model without Water phase pressure. No TE-5 pressure-volume architecture is
+selected or started.
 
 ## 다음 행동
 
-1. preserve all blocked candidates and their source-bound receipts;
-2. preserve the TE-5X frozen script and failed receipt without rerun;
-3. preserve `TE3Q-PHASE-PACKETS-REFERENCE-V1` and its result without rerun;
-4. preserve the fresh Critical 0 / High 8 review and exact counterexamples;
-5. require a new direct user decision before revision or another evidence identity.
+1. run `run_powdergame.bat phase-cycle` for direct user review;
+2. check quantity, surface/buried behavior, movement, condensation, reversal,
+   metastability, reset and the explicit deferred-pressure label;
+3. preserve all blocked TE-5/packet candidates and receipts without rerun;
+4. require a new direct decision before TE-5, TE-4 or G9-B work.
 
 ## 아직 별도 결정인 것
 
 - product edge mode, Vacuum combustion and later ignition-dose choices remain gate-owned
 - user revision of finite-capacity ownership and the exclusive-relief-token model; occupancy-only Air relief, exact mode encoding, inherited pressure scalar 100 and finite-headspace causal fixture remain secondary decisions
-- full TE-5 pressure law, atomic implementation authorization and source-bound runtime/user evidence
+- full TE-5 pressure law and source-bound runtime/user evidence
 - later G9-B/C/D/E scope progression after the first candidate
 - shared `main` promotion
 - final M0 `ACHIEVED`

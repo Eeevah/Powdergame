@@ -1,16 +1,24 @@
 # ADR-0006 — Water/Steam Phase Enthalpy
 
-- **Status:** ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
+- **Status:** ACCEPTED / IMPLEMENTED AS PRESSURE-DECOUPLED TE-3 CANDIDATE
 - **Date:** 2026-08-20; amended 2026-08-21
 - **Decision owner:** user at the TE-3D architecture-review boundary
-- **Decision:** D-018
+- **Decision:** D-018, amended and activated by D-024
 - **Design source:** docs-only work descended from TE-2 closure `fd97e8b...`
-- **Runtime status:** TE-3 NOT STARTED
-- **D-023 supersession:** one-Cell/one-whole-quantity only; see
-  [`ADR-0011`](ADR-0011-conservative-phase-packets.md), Proposed
+- **Runtime status:** TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
+- **D-023 supersession:** rejected by D-024; [`ADR-0011`](ADR-0011-conservative-phase-packets.md) is blocked history
 - **Atomic bridge attempts:** [`ADR-0007`](ADR-0007-phase-volume-pressure-bridge.md) token REJECTED / DESIGN BLOCKED; [`ADR-0008`](ADR-0008-local-vapor-capacity-pressure.md) local capacity law PROPOSED / DESIGN BLOCKED
-- **Supersedes at implementation only:** current Water `matter_yield = 2` and
-  blocked-expansion-pressure behavior; no runtime source is changed here
+- **Implemented source:** `41467219819c5d0cb3eab8ae22b652449da20480`
+
+## D-024 pressure-decoupling amendment
+
+D-024 supersedes only the old atomic TE-3/TE-5 activation constraint. The
+accepted one-Cell/one-quantity phase-energy model is active: Water boiling is
+1:1, emits no expansion proposal, creates no second Steam Cell and adds zero
+blocked-expansion pressure. The generic gauge-pressure and rupture systems
+remain implemented, but historical G5 Water expansion evidence is source-bound
+and is not claimed by this source. `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is a
+known deferred product follow-up; full TE-5 remains not started.
 
 ## Context
 
@@ -436,3 +444,14 @@ explicit integer phase units and a separate spatial phase-pressure pair, and
 reinterprets visible boiling expansion as two half-quantity Steam packets.
 ADR-0011 remains **PROPOSED — USER ARCHITECTURE REVIEW PENDING**; its reference
 PASS is mathematical only and no runtime is authorized.
+
+## D-024 final disposition
+
+D-024 rejects ADR-0011 as the active representation, preserves every blocked
+TE-5/packet receipt as history and supersedes this ADR's atomic activation
+constraint. The accepted one-Cell/one-quantity phase model is implemented at
+`41467219819c5d0cb3eab8ae22b652449da20480`. Water boiling is 1:1, emits no
+expansion proposal, creates no second Steam and adds zero blocked pressure.
+Historical G5 Water pressure evidence is not rebound. ADR-0006 is therefore
+**ACCEPTED / IMPLEMENTED AS PRESSURE-DECOUPLED TE-3 CANDIDATE**, with direct
+user review pending and `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` deferred.

@@ -1,10 +1,10 @@
 # TE-3 Water / Steam Phase Accounting
 
-- **Status:** ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS
+- **Status:** WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
 - **Registered from:** direct Sandbox observation after TE-2 review
 - **Audited production-physics source:** `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **Design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
-- **Runtime implementation authorized:** no
+- **Runtime source:** `41467219819c5d0cb3eab8ae22b652449da20480`
 
 This page is the review entry point for the accepted TE-3D Water/Steam
 architecture. Its normative contract is split across:
@@ -219,7 +219,22 @@ consume finite headspace: 1:1 Steam movement vacates the source, so one EMPTY
 vacancy can walk down a sealed Water column and grant zero-pressure completion
 repeatedly. ADR-0007 is therefore design-blocked and does not authorize runtime.
 
-## 8. Stop boundary
+## 8. D-024 runtime activation and evidence
+
+D-024 rejects ADR-0011 as the active representation and supersedes only the
+D-018 atomic TE-3/TE-5 activation constraint. The one-Cell/one-quantity model
+is restored and implemented. Water boiling has yield one, emits
+`NO_PROPOSAL`, creates no second Steam and produces zero blocked-expansion
+pressure. The generic expansion, gauge-pressure and rupture systems remain.
+
+The source-bound validation and artifact receipt is
+[`THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21`](../evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md).
+The implementation has two phase-energy buffers only, 40 passes, 80 queries,
+actual TE3-F01–F15 results and a final-source FULL PASS. Historical G5 Water
+pressure evidence is not rebound. `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is a
+known deferred follow-up and full TE-5 remains not started.
+
+## 9. Historical stop boundary
 
 TE-3D stops at **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS** and ADR-0006
 at **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**. TE-3 runtime remains **NOT
@@ -244,9 +259,12 @@ TE-5D **DESIGN BLOCKED** on wider matching scope. The accepted TE-3 phase
 architecture remains unchanged and still cannot activate alone.
 
 D-022's three-model comparison subsequently completed no candidate evaluation
-and is preserved DESIGN BLOCKED. D-023 now supersedes only this page's
-one-Cell/one-whole-quantity statement. The proposed ADR-0011 path keeps one
+and is preserved DESIGN BLOCKED. D-023 superseded this page's quantity model
+only until D-024 rejected the packet candidate. The historical ADR-0011 path keeps one
 foreground Matter per Cell but represents Water/Ice as two units, expanded
 Steam as one unit and compressed Steam as two units. Its new reference process
 passed mathematical conservation/grid checks; independent and user
-architecture review remain required, so TE-3Q/TE-5Q runtime is not started.
+architecture review were never completed; TE-3Q/TE-5Q remains blocked history.
+
+Current stop: **TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW
+PENDING**. Pressure redesign, TE-4 and G9-B/C/D/E remain **NOT STARTED**.

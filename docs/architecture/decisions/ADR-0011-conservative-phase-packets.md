@@ -1,9 +1,9 @@
 # ADR-0011: Conservative phase packets
 
-- **Status:** PROPOSED — DESIGN BLOCKED / ARCHITECTURE REVISION REQUIRED
+- **Status:** REJECTED / DESIGN BLOCKED — PRESERVED HISTORY
 - **Decision:** D-023
 - **Evidence identity:** `TE3Q-PHASE-PACKETS-REFERENCE-V1`
-- **Runtime:** NOT STARTED
+- **Runtime:** NOT STARTED; superseded by D-024 pressure-decoupled ADR-0006 runtime
 
 ## Context
 

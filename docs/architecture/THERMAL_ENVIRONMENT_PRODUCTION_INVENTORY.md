@@ -3,14 +3,14 @@
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
-- **Scope:** implemented TE-1/TE-2 graph plus accepted TE-3D and blocked TE-5B/TE-5C/TE-5D/TE-5X static projections
-- **Runtime status:** TE-2 accepted; TE-3D architecture accepted; TE-5B through TE-5X design blocked; all TE-3/TE-5 runtime not started
+- **Scope:** implemented TE-1/TE-2/pressure-decoupled TE-3 graph plus blocked TE-5 and packet history
+- **Runtime status:** TE-2 accepted; TE-3 candidate at `41467219819c5d0cb3eab8ae22b652449da20480`; Pressure redesign deferred/not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
-Section 8 is the current implemented TE-2 34-pass delta and supersedes that
-baseline for current pass/order/profiler claims. Section 9 projects D-018 from
-the TE-2 graph; Section 10 adds the proposed TE-5B mode/lifetime delta. Neither
-projection treats the 30-pass TE-1 table as current or claims runtime evidence.
+Section 8 is the implemented TE-2 34-pass delta. Section 9 began as the D-018
+projection and is confirmed by the D-024 40-pass runtime. Later sections
+preserve rejected TE-5/packet projections as history. The 30-pass TE-1 table is
+not current.
 
 ## 1. TE-1 30-pass baseline order
 
@@ -326,11 +326,11 @@ owned destination-phase-energy writer design and separate acceptance.
 
 | Proposed pass | Storage RO | Storage RW | Total storage | Other binding |
 |---|---:|---:|---:|---|
-| phase-energy movement reconcile | 6 | 1 | 7 | params uniform |
-| phase context propose | 6 | 1 | 7 | params + phase descriptor + existing TE-2 thermal-table uniforms |
+| phase-energy movement reconcile | 5 | 1 | 6 | params uniform |
+| phase context propose | 7 | 1 | **8** | params + phase descriptor + existing TE-2 thermal-table uniforms |
 | phase thermodynamics | 4 | 4 | **8** | params + phase descriptor + existing TE-2 thermal-table uniforms |
-| phase-energy identity hygiene | 5 | 1 | 6 | params uniform |
-| phase activity propose | 6 | 1 | 7 | params + phase descriptor + existing TE-2 thermal-table uniforms |
+| phase-energy identity hygiene | 4 | 1 | 5 | params uniform |
+| phase activity propose | 7 | 1 | **8** | params + phase descriptor + existing TE-2 thermal-table uniforms |
 | Sandbox phase edit (outside tick graph) | 3 | 2 | 5 | params uniform |
 
 The context pass storage order is Material Current, temperature Current, phase
@@ -371,6 +371,10 @@ The tracked boundary excludes transient diagnostic staging and opaque driver
 or query-set storage, matching the TE-2 report. These figures must be replaced
 by exact runtime allocation/profiler evidence only after a separately
 authorized implementation exists.
+
+D-024 implementation at `41467219819c5d0cb3eab8ae22b652449da20480`
+confirms these allocation totals, 40 passes, 80 queries and the corrected live
+binding rows above.
 
 The locked sink, ready-Water, radius-2 and metastability amendments alter
 predicates and state interpretation only. They add no pass, persistent buffer,

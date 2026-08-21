@@ -461,3 +461,22 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   DESIGN BLOCKED. Review SHA-256 is
   `40ff5a240851048d77d2afa27004856c69bdb67b6fae6d6b3398df57c6913146`.
 - Cargo, WGSL/GPU, FULL, build, launch and runtime counts remained zero.
+
+## 2026-08-21 · Pressure-decoupled TE-3 phase-cycle candidate
+
+- D-024 authorization was recorded at `ae4a04f`; final runtime source is
+  `41467219819c5d0cb3eab8ae22b652449da20480`.
+- Implemented only phase-energy Current/Next, 1:1 Ice/Water/Steam enthalpy,
+  D-018 sink/burial/metastability/nucleation rules, matching activity and the
+  paused four-scene `phase-cycle`/`te3` candidate.
+- Runtime graph is 40 passes / 80 queries, with 32 MiB new persistent state at
+  2048 squared and no new full-world scratch or phase pressure/volume state.
+- Actual TE3-F01–F15 fixtures, targeted regressions and final-source FULL pass.
+  Two earlier FULL attempts found stale benchmark/allocation expectations and
+  were corrected before the final source was frozen.
+- Release build, bounded launch and bounded measurement counts are each one.
+  The 60-frame run exited cleanly; its 14 ticks ended before visible Steam, so
+  user visual review remains pending and automation does not claim acceptance.
+- Historical G5 Water pressure evidence remains source-bound. Water phase
+  expansion/pressure is disabled; TE-5 Pressure redesign is deferred/not
+  started. TE-4 and G9-B/C/D/E remain not started.

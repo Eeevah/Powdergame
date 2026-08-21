@@ -1,6 +1,6 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 accepted; TE-3D architecture accepted; TE-5B/TE-5C/TE-5D/TE-5X design blocked; all TE-3/TE-5 runtime not started
+- **Status:** TE-2 accepted; pressure-decoupled TE-3 candidate implemented; TE-5B/C/D/X and packet designs blocked; Pressure redesign deferred
 - **Architecture:** D-013 through D-022 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007 through ADR-0010
 - **Rule:** no task may silently include the physics of a later gate
 
@@ -136,7 +136,7 @@ this records architecture acceptance only and does not authorize runtime work.
 - [x] restrict generic yield-greater-than-one phase targets and record internal mixer provenance;
 - [x] preserve TE-1/TE-2 evidence boundaries and copy zero external implementation formulas;
 - [x] keep pressure-volume force, ignition and all runtime work outside this gate.
-- [x] block production activation until a separately authorized TE-5 replacement preserves the frozen G5 expansion/confinement chain atomically.
+- [x] preserve the historical atomic constraint until a direct user decision supersedes it; D-024 now supersedes that constraint without rebinding G5 evidence.
 
 Accepted design authorities:
 
@@ -145,19 +145,14 @@ Accepted design authorities:
 - [`PHASE_THERMODYNAMICS_VALIDATION`](../development/PHASE_THERMODYNAMICS_VALIDATION.md)
 - [`TE3_PHASE_ENTHALPY_DESIGN`](../adversarial-reviews/TE3_PHASE_ENTHALPY_DESIGN.md)
 
-TE-3D stop: `ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS`.
-ADR-0006 is `ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION`. This closure is not
-implementation authorization. A phase-only runtime must remain
-disabled/non-production until the separate TE-5 replacement is ready on the
-same source.
-
-After a separate implementation authorization, TE-3 phase code may reach only:
-
-`PHASE-ENTHALPY IMPLEMENTATION VERIFIED BUT INACTIVE / CURRENT G5 WATER PATH ACTIVE / TE-4 NOT STARTED`.
-
-It is not a user-testable candidate. The existing Water yield-2/blocked-
-pressure production path stays active until TE-5 can perform the atomic
-replacement.
+TE-3D remains `ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS`. D-024 activates
+ADR-0006 as a standalone pressure-decoupled candidate at
+`41467219819c5d0cb3eab8ae22b652449da20480`: 1:1 family identity, no second
+Steam, family `NO_PROPOSAL`, zero Water blocked-expansion pressure, 40 passes,
+80 queries and 32 MiB phase state at 2048 squared. The source-bound receipt is
+[`THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21`](../evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md).
+Direct user review is pending. Full TE-5 pressure redesign is deferred and not
+started.
 
 ### TE-5B — docs-only phase-volume bridge design
 
@@ -320,8 +315,8 @@ TE-1   ENVIRONMENT STATE / OCCUPANCY HYGIENE IMPLEMENTED
 TE-2   USER ACCEPTED WITH KNOWN FOLLOW-UP
 Air transport / unified passive thermal exchange   IMPLEMENTED
 TE-3D  ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS
-ADR-0006  ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
-TE-3 runtime  NOT STARTED
+ADR-0006  ACCEPTED / IMPLEMENTED AS PRESSURE-DECOUPLED CANDIDATE
+TE-3 runtime  WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
 TE-5B phase-volume bridge design  DESIGN BLOCKED / FINITE-CAPACITY HIGH OPEN
 ADR-0007  PROPOSED / USER ARCHITECTURE REVISION REQUIRED
 TE-5B runtime  NOT STARTED
@@ -335,9 +330,9 @@ TE-5X architecture comparison  DESIGN BLOCKED / CRITICAL 0 / HIGH 11
 ADR-0010  PROPOSED / NO MODEL RECOMMENDED
 TE-5X runtime  NOT STARTED
 TE-3Q / TE-5Q packet design  DESIGN BLOCKED / CRITICAL 0 / HIGH 8
-ADR-0011  PROPOSED / ARCHITECTURE REVISION REQUIRED
+ADR-0011  REJECTED / DESIGN BLOCKED HISTORY
 TE-3Q / TE-5Q runtime  NOT STARTED
-Full TE-5  NOT STARTED
+Full TE-5 Pressure redesign  DEFERRED / NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4  NOT STARTED
 G9-B/C/D/E  NOT STARTED

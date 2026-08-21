@@ -423,3 +423,11 @@ active TE-3 source does not claim their Water-to-pressure causal chain. A
 future `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` must receive separate authority
 and must not be synthesized during TE-3 implementation. TE-5 Pressure redesign
 is **DEFERRED / NOT STARTED**.
+
+### 2026-08-21 TE-3 candidate update
+
+Runtime source `41467219819c5d0cb3eab8ae22b652449da20480` implements the
+pressure-decoupled phase cycle and passes source-bound automated validation.
+This does not close Q-014 or provide a pressure architecture. The next user
+choice is direct TE-3 candidate acceptance/revision; only a later explicit
+decision may start `WATER_STEAM_PRESSURE_VOLUME_REDESIGN`.

@@ -243,7 +243,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. TE-3D는 [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**이며 D-023은 그중 whole-Cell quantity clause만 supersede한다. TE-5B/C/D/X는 모두 DESIGN BLOCKED history로 보존된다. 새 [`TE-3Q / TE-5Q`](planning/TE3Q_CONSERVATIVE_PHASE_PACKETS.md)는 reference math PASS를 얻었지만 fresh review가 Critical 0 / High 8을 기록해 **DESIGN BLOCKED**다. ADR-0011은 Proposed / architecture revision required이며 모든 TE-3/TE-5 runtime은 **NOT STARTED**다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. D-024는 blocked TE-5B/C/D/X와 packet history를 보존하면서 ADR-0011을 거부하고, [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 one-Cell/one-quantity 모델을 pressure-decoupled TE-3로 활성화했다. Source `4146721...`은 **WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING**이며, 실행 근거는 [`TE-3 evidence`](evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md)에 있다. Water phase pressure는 비활성이고 TE-5 Pressure redesign은 deferred/not started다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

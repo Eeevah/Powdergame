@@ -1,25 +1,17 @@
 # Phase Thermodynamics Specification
 
-- **Status:** ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
+- **Status:** IMPLEMENTED CANDIDATE / USER REVIEW PENDING
 - **ADR:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
-- **Decision:** D-018; whole-Cell quantity clause superseded by D-023 candidate
-- **Runtime:** NOT STARTED
+- **Decision:** D-018 amended by D-024; D-023 packet candidate rejected
+- **Runtime:** implemented at `41467219819c5d0cb3eab8ae22b652449da20480`
 - **Proposed completion bridge:** [`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md), D-019 design only
-- **Normative architecture:** accepted local phase enthalpy; proposed quantity
-  amendment in [`CONSERVATIVE_PHASE_PACKETS_SPEC`](CONSERVATIVE_PHASE_PACKETS_SPEC.md)
+- **Normative architecture:** accepted local phase enthalpy and one-Cell/one-quantity D-024 runtime
 
 This specification defines the user-accepted core plus locked amendments.
-The amended reference proof passed its only run and the fresh independent v2
-review closed with unresolved Critical `0` / High `0`; `MUST`, `MUST NOT`,
-`SHOULD` and `MAY` are therefore future atomic-implementation authority. No
-Rust or WGSL implementation is authorized by this file.
-
-D-023 supersedes §§1–3 only where they require every phase Cell to equal one
-whole quantity or forbid an explicit phase-unit pair. The accepted local-H,
-strict initiation, real sink, radius-two nucleation and TE-2 ownership rules
-remain inherited by the proposed packet specification. Until ADR-0011 receives
-user acceptance and separate runtime authority, this file remains the accepted
-but inactive TE-3D baseline and production remains unchanged.
+D-024 rejects the D-023 packet candidate and authorizes this specification's
+one-Cell/one-quantity runtime. `MUST`, `MUST NOT`, `SHOULD` and `MAY` are active
+for source `41467219819c5d0cb3eab8ae22b652449da20480`. Older TE-5 and packet
+sections below are preserved as historical outcomes, not current gates.
 
 ## 1. Scope and exclusions
 
@@ -38,13 +30,12 @@ Excluded:
 - physically exact gas volume, CFD or velocity;
 - new Matter, mixed-Matter Cells, owner fragments or sub-cell quantity;
 - threshold or TE-2 Air/thermal coefficient retuning;
-- packing, `f16`, optimization or runtime implementation.
+- packing, `f16` or optimization.
 
-Activation constraint: the frozen G5 expansion/confinement product chain may
-not regress. Water `yield = 1` and blocked pressure `0` MUST remain disabled in
-production until a separately authorized TE-5 pressure-volume replacement is
-ready on the same source. This document neither designs nor authorizes that
-TE-5 law.
+Activation amendment: D-024 explicitly permits the pressure-decoupled product
+slice. Water `yield = 1` and blocked pressure `0` are active; Water family
+transitions MUST emit `NO_PROPOSAL`. Historical G5 Water pressure evidence is
+not rebound. This document still neither designs nor authorizes a TE-5 law.
 
 ## 2. Ontology and quantity
 
@@ -53,7 +44,7 @@ Environment states under ADR-0005. Ice, Water and Steam remain registered
 foreground Matter.
 
 Each phase-family foreground Cell is exactly one Water-equivalent quantity
-unit. Every Ice ↔ Water ↔ Steam transition is 1:1. Water boiling has future
+unit. Every Ice ↔ Water ↔ Steam transition is 1:1. Water boiling has active
 `matter_yield = 1`, creates no independent second Steam, claims no expansion
 receiver and creates no blocked-expansion pressure.
 
@@ -67,9 +58,9 @@ GAS movement disperses conserved Steam Cells. TE-5 may later derive background
 pressure, but neither Environment Air nor phase energy is converted into
 foreground quantity or pressure in TE-3.
 
-Consequently, a phase-only implementation may exist only as disabled staging.
-It is not a user-testable candidate and cannot supersede the current production
-Water rule until the atomic activation constraint above is satisfied.
+Under D-024 this pressure-decoupled phase-only implementation is a user-testable
+candidate. It intentionally does not claim the historical G5 Water pressure
+chain.
 
 ## 3. State
 
@@ -700,7 +691,7 @@ projections, not runtime measurements.
 - **PH-INV-016 — Valid ranges:** Every phase-energy state is finite and inside the target Material's valid range.
 - **PH-INV-017 — Matching work:** Phase progress and activity use matching work predicates.
 - **PH-INV-018 — Sleep:** Equilibrium phase bulk can sleep.
-- **PH-INV-019 — Atomic G5 continuity:** Production activation of Water yield 1 is atomic with a separately approved pressure-volume replacement; no released source loses the frozen expansion/confinement chain.
+- **PH-INV-019 — G5 evidence boundary:** Water yield 1 does not claim or rebind the historical expansion/confinement evidence; future pressure-volume work requires a new decision and source-bound evidence.
 - **PH-INV-020 — Context snapshot:** Phase eligibility uses one fully written claim-backed Matter/Air context snapshot; Atmosphere/Vacuum is never inferred from EMPTY and no context marker races a claim/proposal writer.
 - **PH-INV-021 — Real condensation sink:** Surface condensation initiation requires the exact positive-conductance TE-2 energy-removal face predicate; a cold K=0 Boundary is not a sink or phase-activity source.
 - **PH-INV-022 — Completion permission:** Water→Steam completion requires a current gas-facing surface or an explicit accepted future TE-5 transaction; vaporization-ready Water preserves H without fake pressure.
@@ -723,8 +714,8 @@ reciprocal EMPTY extent and dedicated phase pressure. Its one-shot evidence
 does not close the atomic completion gate: the frozen depth-six reassignment
 cannot repair a legal eight-source alternating persistent matching, so a
 complete capacity assignment may coexist with rupture-capable false pressure.
-TE-5D is DESIGN BLOCKED pending wider matching scope. TE-3 runtime remains not
-started and no rule above is weakened.
+TE-5D is DESIGN BLOCKED pending wider matching scope. D-024 later decouples
+TE-3 activation without weakening the phase rules above.
 
 ## 16. D-022 TE-5X comparison outcome
 
@@ -733,5 +724,13 @@ compares exact persistent matching, shared connected chamber capacity and a
 conservative Vapor-volume Environment field. The one permitted combined
 process exited at its NetworkX oracle-version guard before evaluating any
 candidate or fixture. No model is eligible or recommended by that incomplete
-receipt. TE-5X is DESIGN BLOCKED; PH-INV-019 and PH-INV-022 remain closed gates
-and TE-3 runtime remains not started.
+receipt. TE-5X is DESIGN BLOCKED and remains historical under D-024.
+
+## 17. D-024 runtime disposition
+
+D-024 rejects ADR-0011, restores this specification's one-Cell/one-quantity
+model and supersedes its atomic TE-3/TE-5 activation constraint. Runtime source
+`41467219819c5d0cb3eab8ae22b652449da20480` implements the phase-energy pair,
+1:1 family transitions, family `NO_PROPOSAL`, zero Water blocked pressure and
+all D-018 locked amendments. `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is deferred
+and no pressure-volume model is defined here.

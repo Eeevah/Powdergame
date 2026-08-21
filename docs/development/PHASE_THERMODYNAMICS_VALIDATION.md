@@ -1,6 +1,6 @@
 # Phase Thermodynamics Validation Contract
 
-- **Status:** D-018 architecture evidence closed — runtime validation NOT STARTED
+- **Status:** SOURCE-BOUND RUNTIME VALIDATION PASS / USER REVIEW PENDING
 - **Architecture:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
 - **Specification:** [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
 - **Reference result:** v1 preserved; v2 `PASS_AMENDED_REFERENCE_MATH_ONLY`
@@ -21,6 +21,18 @@ layer MUST NOT be relabelled as another.
 | production GPU fixtures | actual buffers, order, movement, hygiene and sleep semantics | not run |
 | profiler/allocation | actual pass/query/bytes and cost | not run; arithmetic projection only |
 | product observation | visual timing, nucleation appearance and traffic-jam outcome | not run / user pending |
+
+### 1.1 D-024 runtime receipt
+
+Runtime source `41467219819c5d0cb3eab8ae22b652449da20480` passed Core semantics,
+Naga/binding/write contracts, all actual TE3-F01–F15 GPU fixtures, movement and
+identity hygiene, sleep/wake, TE-2 regressions, workspace check, warnings-denied
+clippy, strict policy audit and the final workspace FULL. One earlier FULL
+attempt failed only on stale 34-pass benchmark expectations; a second failed
+only on the old pre-32-MiB headless allocation literal. Both were corrected
+before the final-source FULL PASS. Release build count is one. The bounded
+candidate launch and measurement count is one. Direct user review remains
+pending and is not implied by automation.
 
 ## 2. Reference proof records
 

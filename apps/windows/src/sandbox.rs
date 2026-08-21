@@ -68,8 +68,8 @@ impl SandboxTool {
         match self {
             Self::Draw => "Matter Draw",
             Self::Erase => "Erase",
-            Self::Heat => "Heat +25",
-            Self::Cool => "Cool -25",
+            Self::Heat => "Add Heat",
+            Self::Cool => "Remove Heat",
         }
     }
 }
@@ -1411,6 +1411,8 @@ mod tests {
         assert_eq!(blank.materials.len(), starter_a.materials.len());
         assert_eq!(SandboxPreset::StarterLab.display_name(), "Starter Lab");
         assert_eq!(SandboxPreset::BlankWorld.display_name(), "New Blank World");
+        assert_eq!(SandboxTool::Heat.display_name(), "Add Heat");
+        assert_eq!(SandboxTool::Cool.display_name(), "Remove Heat");
     }
 
     #[test]

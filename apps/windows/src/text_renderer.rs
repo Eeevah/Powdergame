@@ -13,8 +13,9 @@ use powdergame_gpu::GpuError;
 use crate::gallery::{GalleryHudData, GalleryTransition, GALLERY_CONTROLS};
 use crate::inspector::{
     activity_display, chunk_state_display, compact_sample_label, detail_panel_rect, field_display,
-    flags_display, freshness_display, material_display_name, phase_identity_display, tooltip_rect,
-    InspectorDisplayState, InspectorHudData, ScreenRect,
+    flags_display, freshness_display, material_display_name, phase_energy_display,
+    phase_identity_display, phase_progress_display, phase_progress_is_active, tooltip_rect,
+    InspectorDisplayState, InspectorHudData, InspectorProfileField, ScreenRect,
 };
 use crate::observatory::{
     ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
@@ -161,10 +162,27 @@ fn append_sample_detail_lines(lines: &mut Vec<String>, data: &InspectorHudData, 
         field_display(sample.temperature)
     ));
     lines.push(format!("Pressure: {}", field_display(sample.pressure)));
-    lines.push(format!(
-        "Activity: {}",
-        activity_display(sample.cell_activity)
-    ));
+    match sample.profile_field {
+        InspectorProfileField::CellActivity(activity) => {
+            lines.push(format!("Activity: {}", activity_display(activity)));
+        }
+        InspectorProfileField::PhaseEnergy(phase_energy) => {
+            lines.push(format!(
+                "Phase: {}",
+                phase_progress_display(sample.material_id, phase_energy)
+            ));
+            lines.push(format!(
+                "Phase energy: {}",
+                phase_energy_display(sample.material_id, phase_energy)
+            ));
+            if phase_progress_is_active(sample.material_id, phase_energy) {
+                lines.push(
+                    "Temperature may remain at the phase plateau while latent energy changes."
+                        .to_string(),
+                );
+            }
+        }
+    }
     lines.push(format!(
         "Chunk: {}, {} | {}",
         sample.chunk.x,
@@ -175,8 +193,10 @@ fn append_sample_detail_lines(lines: &mut Vec<String>, data: &InspectorHudData, 
         "Flags: {}",
         flags_display(sample.material_id, sample.flags).unwrap_or_else(|| "None".to_string())
     ));
-    if let Some(identity) = phase_identity_display(sample.material_id) {
-        lines.push(format!("Phase: {identity}"));
+    if matches!(sample.profile_field, InspectorProfileField::CellActivity(_)) {
+        if let Some(identity) = phase_identity_display(sample.material_id) {
+            lines.push(format!("Phase: {identity}"));
+        }
     }
     lines.push(format!(
         "Sample: sim {} | diagnostic {}",
@@ -4856,10 +4876,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             "Build freely, then press SPACE to observe production physics",
             label,
         );
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            60.0,
+            12,
+            "Environment boundary: SEALED",
+            orange,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            75.0,
+            12,
+            "External ambient heat sink: NONE",
+            orange,
+        );
 
         let card_w = 292.0f32;
-        let top = 70.0f32;
-        let card_h = (sh - 120.0).max(360.0);
+        let top = 96.0f32;
+        let card_h = (sh - top - 50.0).max(360.0);
         let left = 14.0f32;
         let right = sw - card_w - 14.0;
         for x in [left, right] {
@@ -4903,7 +4939,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         y += 12.0;
         for line in [
-            "D Draw  E Erase  H Heat  C Cool",
+            "D Draw  E Erase  H Add Heat",
+            "C Remove Heat",
             "Left drag: selected tool",
             "Right drag: Erase  Middle: Pan",
             "Wheel: Zoom  Shift+wheel: Brush",
@@ -5010,12 +5047,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 SandboxTool::Heat => (
                     [1.0, 0.45, 0.12, 0.95],
                     [1.0, 0.24, 0.06, 0.18],
-                    format!("HEAT +25{action}"),
+                    format!("ADD HEAT +25{action}"),
                 ),
                 SandboxTool::Cool => (
                     [0.28, 0.72, 1.0, 0.95],
                     [0.10, 0.42, 1.0, 0.18],
-                    format!("COOL -25{action}"),
+                    format!("REMOVE HEAT -25{action}"),
                 ),
                 SandboxTool::Draw | SandboxTool::Erase => unreachable!("thermal feedback tool"),
             };
@@ -5230,6 +5267,49 @@ mod tests {
             );
         }
         assert!(lines.iter().all(|line| line.is_ascii()));
+    }
+
+    #[test]
+    fn sandbox_inspector_reports_authoritative_phase_progress_without_activity_relabeling() {
+        let sample = crate::inspector::CellInspectorSample::sandbox_fixture(
+            powdergame_core::MATERIAL_STEAM,
+            276.0,
+        );
+        let ready = InspectorHudData {
+            display_state: InspectorDisplayState::Ready,
+            details_visible: true,
+            hovered_cell: Some(sample.cell),
+            sample: Some(sample),
+            error_message: None,
+            current_simulation_tick: 7412,
+            sample_age_ticks: Some(0),
+            sample_age_millis: Some(12),
+            sample_tick_is_future: false,
+        };
+        let lines = inspector_detail_lines(&ready);
+        for expected in [
+            "Phase: Condensing 42.5%",
+            "Phase energy: 276.0 / 480",
+            "Temperature may remain at the phase plateau while latent energy changes.",
+        ] {
+            assert!(
+                lines.iter().any(|line| line == expected),
+                "missing {expected}"
+            );
+        }
+        assert!(!lines.iter().any(|line| line.starts_with("Activity:")));
+
+        let canonical = crate::inspector::CellInspectorSample::sandbox_fixture(
+            powdergame_core::MATERIAL_STEAM,
+            480.0,
+        );
+        let mut canonical_hud = ready;
+        canonical_hud.sample = Some(canonical);
+        let canonical_lines = inspector_detail_lines(&canonical_hud);
+        assert!(canonical_lines.contains(&"Phase: Canonical Steam".to_string()));
+        assert!(!canonical_lines
+            .iter()
+            .any(|line| line.contains("phase plateau")));
     }
 
     #[test]

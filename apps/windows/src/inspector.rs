@@ -26,8 +26,20 @@ const MATERIAL_OFFSET: u64 = 0;
 const TEMPERATURE_OFFSET: u64 = 4;
 const PRESSURE_OFFSET: u64 = 8;
 const FLAGS_OFFSET: u64 = 12;
-const CELL_ACTIVITY_OFFSET: u64 = 16;
+const PROFILE_FIELD_OFFSET: u64 = 16;
 const CHUNK_STATE_OFFSET: u64 = 20;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum InspectorProfile {
+    Technical,
+    SandboxPhase,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum InspectorProfileField {
+    CellActivity(u32),
+    PhaseEnergy(f32),
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ReadbackSource {
@@ -36,6 +48,7 @@ enum ReadbackSource {
     Pressure,
     Flags,
     CellActivity,
+    PhaseEnergy,
     ChunkState,
 }
 
@@ -176,7 +189,7 @@ pub(crate) struct CellInspectorSample {
     pub temperature: f32,
     pub pressure: f32,
     pub flags: u32,
-    pub cell_activity: u32,
+    pub profile_field: InspectorProfileField,
     pub chunk_state: u32,
     pub simulation_tick: u64,
     pub diagnostic_sequence: u64,
@@ -196,7 +209,9 @@ impl CellInspectorSample {
             temperature: 72.4,
             pressure: 53.5,
             flags,
-            cell_activity: ACTIVITY_MATTER | ACTIVITY_THERMAL | ACTIVITY_PRESSURE,
+            profile_field: InspectorProfileField::CellActivity(
+                ACTIVITY_MATTER | ACTIVITY_THERMAL | ACTIVITY_PRESSURE,
+            ),
             chunk_state: CHUNK_STATE_RUNNABLE,
             simulation_tick: 7412,
             diagnostic_sequence: 928,
@@ -205,6 +220,12 @@ impl CellInspectorSample {
             world_epoch: 2,
             completed_at: Instant::now(),
         }
+    }
+
+    pub(crate) fn sandbox_fixture(material_id: u32, phase_energy: f32) -> Self {
+        let mut sample = Self::fixture(material_id, 0);
+        sample.profile_field = InspectorProfileField::PhaseEnergy(phase_energy);
+        sample
     }
 }
 
@@ -335,6 +356,50 @@ pub(crate) fn phase_identity_display(material_id: u32) -> Option<&'static str> {
         .then_some("Water | Ice | Steam")
 }
 
+pub(crate) fn phase_progress_display(material_id: u32, phase_energy: f32) -> String {
+    match material_id {
+        MATERIAL_WATER if phase_energy > 0.0 => {
+            format!("Boiling {:.1}%", 100.0 * phase_energy / 480.0)
+        }
+        MATERIAL_WATER if phase_energy < 0.0 => {
+            format!("Freezing {:.1}%", 100.0 * -phase_energy / 80.0)
+        }
+        MATERIAL_WATER => "Canonical Water".to_string(),
+        MATERIAL_STEAM if phase_energy < 480.0 => {
+            format!("Condensing {:.1}%", 100.0 * (480.0 - phase_energy) / 480.0)
+        }
+        MATERIAL_STEAM => "Canonical Steam".to_string(),
+        MATERIAL_ICE if phase_energy > -80.0 => {
+            format!("Melting {:.1}%", 100.0 * (phase_energy + 80.0) / 80.0)
+        }
+        MATERIAL_ICE => "Canonical Ice".to_string(),
+        _ => "n/a".to_string(),
+    }
+}
+
+pub(crate) fn phase_progress_is_active(material_id: u32, phase_energy: f32) -> bool {
+    match material_id {
+        MATERIAL_WATER => {
+            (-80.0..0.0).contains(&phase_energy)
+                || (0.0..=480.0).contains(&phase_energy) && phase_energy > 0.0
+        }
+        MATERIAL_STEAM => (0.0..480.0).contains(&phase_energy),
+        MATERIAL_ICE => (-80.0..=0.0).contains(&phase_energy) && phase_energy > -80.0,
+        _ => false,
+    }
+}
+
+pub(crate) fn phase_energy_display(material_id: u32, phase_energy: f32) -> String {
+    match material_id {
+        MATERIAL_WATER if phase_energy >= 0.0 => {
+            format!("{phase_energy:.1} / 480")
+        }
+        MATERIAL_STEAM => format!("{phase_energy:.1} / 480"),
+        MATERIAL_WATER | MATERIAL_ICE => format!("{phase_energy:.1} / -80..0"),
+        _ => format!("{phase_energy:.1} (n/a)"),
+    }
+}
+
 pub(crate) fn compact_sample_label(sample: &CellInspectorSample) -> String {
     let mut label = material_display_name(sample.material_id);
     if sample.flags & FLAG_COMBUSTING != 0 {
@@ -369,6 +434,7 @@ struct RequestIdentity {
     request_generation: u64,
     selection_generation: u64,
     world_epoch: u64,
+    profile: InspectorProfile,
 }
 
 fn request_identity_is_current(
@@ -378,17 +444,20 @@ fn request_identity_is_current(
     selection_generation: u64,
     latest_request_generation: u64,
     world_ready: bool,
+    profile: InspectorProfile,
 ) -> bool {
     world_ready
         && Some(identity.cell) == hovered_cell
         && identity.world_epoch == world_epoch
         && identity.selection_generation == selection_generation
         && identity.request_generation == latest_request_generation
+        && identity.profile == profile
 }
 
 fn readback_copy_plan(
     config: &WorldConfig,
     cell: CellCoordinate,
+    profile: InspectorProfile,
 ) -> Result<(CellCoordinate, [ReadbackCopy; 6]), CellInspectorReadbackError> {
     if cell.x >= config.width || cell.y >= config.height {
         return Err(CellInspectorReadbackError::CoordinateOutOfRange(cell));
@@ -430,9 +499,12 @@ fn readback_copy_plan(
                 size: FIELD_BYTES,
             },
             ReadbackCopy {
-                source: ReadbackSource::CellActivity,
+                source: match profile {
+                    InspectorProfile::Technical => ReadbackSource::CellActivity,
+                    InspectorProfile::SandboxPhase => ReadbackSource::PhaseEnergy,
+                },
                 source_offset: cell_offset,
-                destination_offset: CELL_ACTIVITY_OFFSET,
+                destination_offset: PROFILE_FIELD_OFFSET,
                 size: FIELD_BYTES,
             },
             ReadbackCopy {
@@ -521,10 +593,11 @@ pub(crate) struct CellInspectorCollector {
     next_request_generation: u64,
     completed_sequence: u64,
     last_request_at: Option<Instant>,
+    profile: InspectorProfile,
 }
 
 impl CellInspectorCollector {
-    pub(crate) fn new(simulation: &Simulation) -> Self {
+    pub(crate) fn new(simulation: &Simulation, profile: InspectorProfile) -> Self {
         let staging = simulation
             .context
             .device
@@ -548,7 +621,18 @@ impl CellInspectorCollector {
             next_request_generation: 0,
             completed_sequence: 0,
             last_request_at: None,
+            profile,
         }
+    }
+
+    #[cfg(test)]
+    fn set_profile(&mut self, profile: InspectorProfile) {
+        if self.profile == profile {
+            return;
+        }
+        self.profile = profile;
+        self.invalidate_for_pending_world();
+        self.mark_ready();
     }
 
     pub(crate) fn set_hover(&mut self, hovered_cell: Option<CellCoordinate>) {
@@ -736,7 +820,7 @@ impl CellInspectorCollector {
         if self.pending.is_some() {
             return Err(CellInspectorReadbackError::ReadbackAlreadyPending);
         }
-        let (chunk, copy_plan) = readback_copy_plan(&simulation.world.config, cell)?;
+        let (chunk, copy_plan) = readback_copy_plan(&simulation.world.config, cell, self.profile)?;
 
         let device = &simulation.context.device;
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -749,6 +833,7 @@ impl CellInspectorCollector {
                 ReadbackSource::Pressure => &simulation.world.pressure_current,
                 ReadbackSource::Flags => &simulation.world.flags_current,
                 ReadbackSource::CellActivity => &simulation.world.cell_activity,
+                ReadbackSource::PhaseEnergy => &simulation.world.phase_energy_current,
                 ReadbackSource::ChunkState => &simulation.world.chunk_state,
             };
             encoder.copy_buffer_to_buffer(
@@ -778,6 +863,7 @@ impl CellInspectorCollector {
                 request_generation: self.next_request_generation,
                 selection_generation: self.selection_generation,
                 world_epoch: self.world_epoch,
+                profile: self.profile,
             },
             receiver,
         });
@@ -850,13 +936,13 @@ impl CellInspectorCollector {
                 f32_at(TEMPERATURE_OFFSET as usize),
                 f32_at(PRESSURE_OFFSET as usize),
                 u32_at(FLAGS_OFFSET as usize),
-                u32_at(CELL_ACTIVITY_OFFSET as usize),
+                u32_at(PROFILE_FIELD_OFFSET as usize),
                 u32_at(CHUNK_STATE_OFFSET as usize),
             ))
         };
         drop(mapped);
         self.staging.unmap();
-        let (material_id, temperature, pressure, flags, cell_activity, chunk_state) = parsed?;
+        let (material_id, temperature, pressure, flags, profile_bits, chunk_state) = parsed?;
 
         let identity = pending.identity;
         let identity_is_current = request_identity_is_current(
@@ -866,6 +952,7 @@ impl CellInspectorCollector {
             self.selection_generation,
             self.next_request_generation,
             self.world_ready,
+            self.profile,
         );
         if !identity_is_current {
             return Ok(());
@@ -879,7 +966,12 @@ impl CellInspectorCollector {
             temperature,
             pressure,
             flags,
-            cell_activity,
+            profile_field: match identity.profile {
+                InspectorProfile::Technical => InspectorProfileField::CellActivity(profile_bits),
+                InspectorProfile::SandboxPhase => {
+                    InspectorProfileField::PhaseEnergy(f32::from_bits(profile_bits))
+                }
+            },
             chunk_state,
             simulation_tick: identity.simulation_tick,
             diagnostic_sequence: identity.diagnostic_sequence,
@@ -962,6 +1054,24 @@ mod tests {
         assert_eq!(field_display(f32::NAN), "Diagnostic error: NaN");
         assert_eq!(field_display(f32::INFINITY), "Diagnostic error: +Inf");
         assert_eq!(field_display(f32::NEG_INFINITY), "Diagnostic error: -Inf");
+        assert_eq!(
+            phase_progress_display(MATERIAL_WATER, 240.0),
+            "Boiling 50.0%"
+        );
+        assert_eq!(
+            phase_progress_display(MATERIAL_STEAM, 276.0),
+            "Condensing 42.5%"
+        );
+        assert_eq!(
+            phase_progress_display(MATERIAL_WATER, -40.0),
+            "Freezing 50.0%"
+        );
+        assert_eq!(phase_progress_display(MATERIAL_ICE, -40.0), "Melting 50.0%");
+        assert_eq!(
+            phase_progress_display(MATERIAL_STEAM, 480.0),
+            "Canonical Steam"
+        );
+        assert_eq!(phase_progress_display(MATERIAL_STONE, 0.0), "n/a");
     }
 
     #[test]
@@ -1098,7 +1208,8 @@ mod tests {
         assert_eq!(INSPECTOR_SAMPLE_HOLD, Duration::from_millis(150));
         let config = WorldConfig::new(128, 128, 64).expect("world config");
         let cell = CellCoordinate { x: 70, y: 90 };
-        let (chunk, plan) = readback_copy_plan(&config, cell).expect("copy plan");
+        let (chunk, plan) =
+            readback_copy_plan(&config, cell, InspectorProfile::Technical).expect("copy plan");
         assert_eq!(chunk, CellCoordinate { x: 1, y: 1 });
         assert_eq!(plan.len(), 6);
         assert_eq!(
@@ -1111,6 +1222,23 @@ mod tests {
                 ReadbackSource::CellActivity,
                 ReadbackSource::ChunkState,
             ]
+        );
+        let (_, sandbox_plan) = readback_copy_plan(&config, cell, InspectorProfile::SandboxPhase)
+            .expect("Sandbox copy plan");
+        assert_eq!(
+            sandbox_plan.map(|copy| copy.source),
+            [
+                ReadbackSource::Material,
+                ReadbackSource::Temperature,
+                ReadbackSource::Pressure,
+                ReadbackSource::Flags,
+                ReadbackSource::PhaseEnergy,
+                ReadbackSource::ChunkState,
+            ]
+        );
+        assert_eq!(
+            sandbox_plan.map(|copy| copy.destination_offset),
+            [0, 4, 8, 12, 16, 20]
         );
         assert!(plan.iter().all(|copy| copy.size == FIELD_BYTES));
         assert_eq!(
@@ -1127,7 +1255,11 @@ mod tests {
             INSPECTOR_READBACK_BYTES
         );
         assert_eq!(
-            readback_copy_plan(&config, CellCoordinate { x: 128, y: 0 }),
+            readback_copy_plan(
+                &config,
+                CellCoordinate { x: 128, y: 0 },
+                InspectorProfile::Technical,
+            ),
             Err(CellInspectorReadbackError::CoordinateOutOfRange(
                 CellCoordinate { x: 128, y: 0 }
             ))
@@ -1144,13 +1276,15 @@ mod tests {
             request_generation: 4,
             selection_generation: 3,
             world_epoch: 5,
+            profile: InspectorProfile::Technical,
         };
         let current = |candidate: RequestIdentity,
                        hovered_cell: Option<CellCoordinate>,
                        world_epoch: u64,
                        selection_generation: u64,
                        request_generation: u64,
-                       world_ready: bool| {
+                       world_ready: bool,
+                       profile: InspectorProfile| {
             request_identity_is_current(
                 candidate,
                 hovered_cell,
@@ -1158,21 +1292,72 @@ mod tests {
                 selection_generation,
                 request_generation,
                 world_ready,
+                profile,
             )
         };
-        assert!(current(identity, Some(identity.cell), 5, 3, 4, true));
+        assert!(current(
+            identity,
+            Some(identity.cell),
+            5,
+            3,
+            4,
+            true,
+            InspectorProfile::Technical
+        ));
         assert!(!current(
             identity,
             Some(CellCoordinate { x: 8, y: 9 }),
             5,
             3,
             4,
-            true
+            true,
+            InspectorProfile::Technical
         ));
-        assert!(!current(identity, Some(identity.cell), 6, 3, 4, true));
-        assert!(!current(identity, Some(identity.cell), 5, 4, 4, true));
-        assert!(!current(identity, Some(identity.cell), 5, 3, 5, true));
-        assert!(!current(identity, Some(identity.cell), 5, 3, 4, false));
+        assert!(!current(
+            identity,
+            Some(identity.cell),
+            6,
+            3,
+            4,
+            true,
+            InspectorProfile::Technical
+        ));
+        assert!(!current(
+            identity,
+            Some(identity.cell),
+            5,
+            4,
+            4,
+            true,
+            InspectorProfile::Technical
+        ));
+        assert!(!current(
+            identity,
+            Some(identity.cell),
+            5,
+            3,
+            5,
+            true,
+            InspectorProfile::Technical
+        ));
+        assert!(!current(
+            identity,
+            Some(identity.cell),
+            5,
+            3,
+            4,
+            false,
+            InspectorProfile::Technical
+        ));
+        assert!(!current(
+            identity,
+            Some(identity.cell),
+            5,
+            3,
+            4,
+            true,
+            InspectorProfile::SandboxPhase
+        ));
     }
 
     #[test]
@@ -1195,6 +1380,65 @@ mod tests {
         assert_eq!(
             CellInspectorReadbackError::MapFailed("injected".to_string()).to_string(),
             "Inspector map failed: injected"
+        );
+    }
+
+    #[test]
+    fn sandbox_profile_reads_phase_energy_and_profile_switch_discards_old_sample() {
+        let simulation = pollster::block_on(Simulation::new(
+            WorldConfig::new(64, 64, 64).expect("world config"),
+        ))
+        .expect("simulation");
+        let cell = CellCoordinate { x: 8, y: 9 };
+        simulation
+            .world
+            .write_material(
+                &simulation.context.queue,
+                i64::from(cell.x),
+                i64::from(cell.y),
+                MATERIAL_STEAM,
+            )
+            .expect("Steam staging");
+        simulation
+            .world
+            .write_phase_energy(
+                &simulation.context.queue,
+                i64::from(cell.x),
+                i64::from(cell.y),
+                MATERIAL_STEAM,
+                276.0,
+            )
+            .expect("phase-energy staging");
+
+        let started = Instant::now();
+        let mut collector =
+            CellInspectorCollector::new(&simulation, InspectorProfile::SandboxPhase);
+        collector.set_hover_at(Some(cell), started);
+        collector
+            .update(&simulation, 0, started)
+            .expect("Sandbox request");
+        simulation
+            .context
+            .device
+            .poll(wgpu::PollType::Wait)
+            .expect("Sandbox map completion");
+        collector
+            .update(&simulation, 0, started + Duration::from_millis(1))
+            .expect("Sandbox map consumption");
+        assert_eq!(
+            collector
+                .presented_sample
+                .as_ref()
+                .map(|sample| sample.profile_field),
+            Some(InspectorProfileField::PhaseEnergy(276.0))
+        );
+
+        collector.set_profile(InspectorProfile::Technical);
+        assert!(collector.presented_sample.is_none());
+        assert!(collector.pending.is_none());
+        assert_eq!(
+            collector.hud_data(0, started).display_state,
+            InspectorDisplayState::Sampling
         );
     }
 
@@ -1312,7 +1556,7 @@ mod tests {
         );
 
         let started = Instant::now();
-        let mut collector = CellInspectorCollector::new(&simulation);
+        let mut collector = CellInspectorCollector::new(&simulation, InspectorProfile::Technical);
         assert!(!collector.hud_data(0, started).details_visible);
         assert!(collector.toggle_details());
         assert!(collector.hud_data(0, started).details_visible);
@@ -1353,7 +1597,10 @@ mod tests {
         assert_eq!(sample.temperature.to_bits(), 164.25_f32.to_bits());
         assert_eq!(sample.pressure.to_bits(), 83.5_f32.to_bits());
         assert_eq!(sample.flags, wood_flags);
-        assert_eq!(sample.cell_activity, ACTIVITY_ALL_BITS);
+        assert_eq!(
+            sample.profile_field,
+            InspectorProfileField::CellActivity(ACTIVITY_ALL_BITS)
+        );
         assert_eq!(sample.chunk_state, CHUNK_STATE_RUNNABLE);
         assert_eq!((sample.simulation_tick, sample.diagnostic_sequence), (0, 1));
         assert_eq!(

@@ -72,7 +72,9 @@ use experiment::{
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
 };
-use inspector::{CellCoordinate, CellInspectorCollector, InspectorHudData, ScreenRect};
+use inspector::{
+    CellCoordinate, CellInspectorCollector, InspectorHudData, InspectorProfile, ScreenRect,
+};
 use observatory::ObservatoryCollector;
 use phase_cycle::{
     PhaseCycleHudData, PhaseCycleScene, PhaseCycleState, TE3_CHUNK_SIZE, TE3_TITLE, TE3_TPS,
@@ -466,12 +468,8 @@ impl App {
         };
         // The hidden experiment worker also routes through Gallery mode, so
         // the interactive Inspector must be gated on the worker being absent.
-        let cell_inspector = if cell_inspector_is_enabled(self.demo_mode, self.experiment.is_some())
-        {
-            Some(CellInspectorCollector::new(&simulation))
-        } else {
-            None
-        };
+        let cell_inspector = cell_inspector_profile(self.demo_mode, self.experiment.is_some())
+            .map(|profile| CellInspectorCollector::new(&simulation, profile));
 
         match self.demo_mode {
             DemoMode::None => {
@@ -2502,7 +2500,18 @@ fn fast_forward_is_enabled(mode: DemoMode) -> bool {
 }
 
 fn cell_inspector_is_enabled(mode: DemoMode, experiment_worker: bool) -> bool {
-    matches!(mode, DemoMode::Gallery | DemoMode::Sandbox) && !experiment_worker
+    cell_inspector_profile(mode, experiment_worker).is_some()
+}
+
+fn cell_inspector_profile(mode: DemoMode, experiment_worker: bool) -> Option<InspectorProfile> {
+    if experiment_worker {
+        return None;
+    }
+    match mode {
+        DemoMode::Gallery => Some(InspectorProfile::Technical),
+        DemoMode::Sandbox => Some(InspectorProfile::SandboxPhase),
+        _ => None,
+    }
 }
 
 impl ApplicationHandler for App {
@@ -3480,10 +3489,12 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        cell_inspector_is_enabled, demo_mode_from_args, experiment_worker_from_args,
-        fast_forward_is_enabled, mode_for_launch, should_toggle_candidate_diagnostics,
-        should_toggle_gallery_inspector, smoke_frames_from_args, DemoMode, DemoState,
+        cell_inspector_is_enabled, cell_inspector_profile, demo_mode_from_args,
+        experiment_worker_from_args, fast_forward_is_enabled, mode_for_launch,
+        should_toggle_candidate_diagnostics, should_toggle_gallery_inspector,
+        smoke_frames_from_args, DemoMode, DemoState,
     };
+    use crate::inspector::InspectorProfile;
     use powdergame_core::{WorldConfig, ACTIVITY_MATTER};
     use powdergame_gpu::{ActivityCensusReport, Simulation};
     use powdergame_scenarios::{reset_and_stage_scenario, ScenarioId};
@@ -3584,6 +3595,15 @@ mod tests {
         assert!(!cell_inspector_is_enabled(DemoMode::None, false));
         assert!(cell_inspector_is_enabled(DemoMode::Sandbox, false));
         assert!(!cell_inspector_is_enabled(DemoMode::Sandbox, true));
+        assert_eq!(
+            cell_inspector_profile(DemoMode::Gallery, false),
+            Some(InspectorProfile::Technical)
+        );
+        assert_eq!(
+            cell_inspector_profile(DemoMode::Sandbox, false),
+            Some(InspectorProfile::SandboxPhase)
+        );
+        assert_eq!(cell_inspector_profile(DemoMode::Sandbox, true), None);
         for character in ["i", "I"] {
             assert!(should_toggle_gallery_inspector(
                 DemoMode::Gallery,

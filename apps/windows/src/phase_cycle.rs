@@ -6,6 +6,8 @@ use powdergame_core::{
 };
 use powdergame_gpu::{GpuError, Simulation};
 
+use crate::inspector::phase_progress_display;
+
 pub(crate) const TE3_TITLE: &str = "Powdergame TE-3 Water / Steam Phase Cycle";
 pub(crate) const TE3_WORLD_WIDTH: u32 = 256;
 pub(crate) const TE3_WORLD_HEIGHT: u32 = 192;
@@ -353,9 +355,9 @@ fn sample_cells(scene: PhaseCycleScene) -> [(&'static str, (u32, u32)); 3] {
             ("Cold lid", (128, 75)),
         ],
         PhaseCycleScene::SurfaceVersusBuried => [
-            ("Surface Water", SCENE2_SURFACE),
-            ("Buried Water", SCENE2_BURIED),
-            ("Exposed-after-open result", SCENE2_BURIED),
+            ("Surface source probe", SCENE2_SURFACE),
+            ("Buried source probe", SCENE2_BURIED),
+            ("Buried source after opening", SCENE2_BURIED),
         ],
         PhaseCycleScene::ColdLidVersusFreeAir => [
             ("Lid Steam", SCENE3_LID),
@@ -371,18 +373,7 @@ fn sample_cells(scene: PhaseCycleScene) -> [(&'static str, (u32, u32)); 3] {
 }
 
 fn progress_meaning(material: u32, phase_energy: f32) -> String {
-    match material {
-        MATERIAL_WATER if phase_energy > 0.0 => {
-            format!("boiling {:.1}%", 100.0 * phase_energy / LV)
-        }
-        MATERIAL_WATER if phase_energy < 0.0 => {
-            format!("freezing {:.1}%", 100.0 * -phase_energy / 80.0)
-        }
-        MATERIAL_STEAM => format!("condensing {:.1}%", 100.0 * (LV - phase_energy) / LV),
-        MATERIAL_ICE => format!("melting {:.1}%", 100.0 * (phase_energy + 80.0) / 80.0),
-        MATERIAL_EMPTY => "no foreground phase".to_string(),
-        _ => "canonical / no phase progress".to_string(),
-    }
+    phase_progress_display(material, phase_energy)
 }
 
 fn stage_scene(simulation: &mut Simulation, scene: PhaseCycleScene) -> Result<(), GpuError> {
@@ -457,7 +448,15 @@ fn stage_scene(simulation: &mut Simulation, scene: PhaseCycleScene) -> Result<()
         }
         PhaseCycleScene::ColdLidVersusFreeAir => {
             // Lane A: one motionless canonical Steam Cell directly under a
-            // positive-conductance cold Stone lid.
+            // positive-conductance cold Stone lid. The isolated Stone block
+            // behind the contact face supplies enough finite heat capacity
+            // for completion and post-plateau cooling without a scripted or
+            // infinite-temperature sink.
+            for y in 94..=100 {
+                for x in 56..=64 {
+                    put(x, y, MATERIAL_STONE, 20.0, 0.0);
+                }
+            }
             for y in 101..=103 {
                 for x in 59..=61 {
                     if (x, y) == SCENE3_LID {
@@ -840,6 +839,104 @@ mod tests {
     }
 
     #[test]
+    fn latent_plateau_and_free_air_condensation_complete_through_real_ticks() {
+        let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
+        let mut state = PhaseCycleState::new(&mut simulation).unwrap();
+        state
+            .select_scene(&mut simulation, PhaseCycleScene::ColdLidVersusFreeAir)
+            .unwrap();
+        simulation
+            .world
+            .write_temperature(
+                &simulation.context.queue,
+                i64::from(SCENE3_LID.0),
+                i64::from(SCENE3_LID.1),
+                100.0,
+            )
+            .unwrap();
+
+        let mut lid_partial_tick = None;
+        let mut lid_completion = None;
+        let mut lid_below_plateau = None;
+        let mut free_air_partial_tick = None;
+        let mut free_air_completion = None;
+        let mut last_lid_partial_energy = LV;
+
+        for tick in 1_u64..=2_400 {
+            state.tick(&mut simulation, false).unwrap();
+            let lid_material = material(&simulation, SCENE3_LID);
+            let lid_temperature = temperature(&simulation, SCENE3_LID);
+            let lid_energy = energy(&simulation, SCENE3_LID);
+            if lid_material == MATERIAL_STEAM && lid_energy < LV {
+                lid_partial_tick.get_or_insert(tick);
+                assert!(
+                    (lid_temperature - 100.0).abs() <= 0.05,
+                    "latent plateau drifted to {lid_temperature} C at tick {tick}"
+                );
+                assert!(lid_energy <= last_lid_partial_energy + 1.0e-4);
+                assert!(lid_energy > 0.0);
+                last_lid_partial_energy = lid_energy;
+            }
+            if lid_material == MATERIAL_WATER && lid_completion.is_none() {
+                assert!(
+                    (lid_temperature - 100.0).abs() <= 0.25,
+                    "completion temperature was {lid_temperature} C at tick {tick}"
+                );
+                assert_eq!(lid_energy, 0.0);
+                lid_completion = Some((tick, lid_temperature));
+            }
+            if lid_material == MATERIAL_WATER
+                && lid_completion.is_some()
+                && lid_temperature < 99.5
+                && lid_below_plateau.is_none()
+            {
+                lid_below_plateau = Some((tick, lid_temperature));
+            }
+
+            let free_material = material(&simulation, SCENE3_FREE_AIR);
+            let free_energy = energy(&simulation, SCENE3_FREE_AIR);
+            if free_material == MATERIAL_STEAM && free_energy < LV {
+                free_air_partial_tick.get_or_insert(tick);
+            }
+            if free_air_completion.is_none() {
+                let materials = simulation
+                    .world
+                    .read_material_all(&simulation.context.device, &simulation.context.queue)
+                    .unwrap();
+                'region: for y in 102..=132 {
+                    for x in 124..=132 {
+                        if materials[(y * TE3_WORLD_WIDTH + x) as usize] == MATERIAL_WATER {
+                            free_air_completion = Some((tick, x, y));
+                            break 'region;
+                        }
+                    }
+                }
+            }
+
+            if lid_below_plateau.is_some() && free_air_completion.is_some() {
+                break;
+            }
+        }
+
+        let lid_partial_tick = lid_partial_tick.expect("lid Steam must enter latent progress");
+        let (lid_completion_tick, lid_completion_temperature) =
+            lid_completion.expect("lid Steam must complete to Water");
+        let (lid_below_tick, lid_below_temperature) =
+            lid_below_plateau.expect("Water must cool below the plateau after completion");
+        let free_air_partial_tick =
+            free_air_partial_tick.expect("actual Air cooling must initiate sparse condensation");
+        let (free_air_completion_tick, free_x, free_y) =
+            free_air_completion.expect("actual Air cooling must complete condensation");
+        println!(
+            "[te3 plateau] lid partial={lid_partial_tick}, complete={lid_completion_tick} T={lid_completion_temperature:.6}, below={lid_below_tick} T={lid_below_temperature:.6}; free partial={free_air_partial_tick}, complete={free_air_completion_tick} at ({free_x},{free_y})"
+        );
+        assert!(lid_partial_tick < lid_completion_tick);
+        assert!(lid_completion_tick < lid_below_tick);
+        assert!(free_air_partial_tick < free_air_completion_tick);
+        assert_eq!(fresh(&state).family_count, 11);
+    }
+
+    #[test]
     fn scene_four_reverses_both_directions_and_holds_then_wakes_no_sink() {
         let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
         let mut state = PhaseCycleState::new(&mut simulation).unwrap();
@@ -921,7 +1018,7 @@ mod tests {
         assert!(fresh(&state)
             .rows
             .iter()
-            .all(|row| !matches!(row.label, "Surface Water" | "Buried Water")));
+            .all(|row| !matches!(row.label, "Surface source probe" | "Buried source probe")));
     }
 
     #[test]

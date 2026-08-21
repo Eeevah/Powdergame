@@ -10,6 +10,38 @@ Before designing or implementing anything:
 4. Reuse the useful mechanism, not accidental baggage. External code must not override Powdergame’s source of truth, GPU-authoritative world, One Cell = Max One Matter, local-rule architecture, product intent, evidence boundaries, or current Gate scope.
 5. In implementation plans and final reports, state what was found, what was reused or adapted, what was rejected and why, and what truly had to be created.
 
+## Lesson Promotion Gate
+
+A substantial task is not closed merely because code, evidence, or a checkpoint exists. Before final closure, classify the reusable learning:
+
+```text
+LESSON_PROMOTION:
+REQUIRED | PROJECT_ONLY | NONE — <reason>
+```
+
+Use `REQUIRED` when any of the following occurred:
+
+- the user directly found a defect, misleading presentation, missing entrypoint, or stale/hidden state;
+- an architecture or proof was blocked by a counterexample;
+- named evidence was invalidated, interrupted, or found not to exercise its claim;
+- the same class of rework repeated;
+- the task lost at least about 15 minutes to an avoidable process or validation mistake;
+- source, provenance, artifact, quantity, or user-trust boundaries were at risk;
+- the user explicitly asks for a durable rule.
+
+For `REQUIRED` or `PROJECT_ONLY`:
+
+1. Separate the observation, user/engineering loss, proximate cause, systemic cause, and failed guard.
+2. Append a project-specific rule to `docs/development/LESSONS_LEDGER.md` when it changes Powdergame practice.
+3. Promote cross-project knowledge to `personal-infra-wiki` using `wiki/workflows/lesson-promotion-gate.md`.
+4. Add or name a machine guard—test, audit, schema, prompt contract, or explicit `NOT_ESTABLISHED` state—when feasible.
+5. Preserve evidence IDs and supersession history; do not rewrite a failed attempt into a success.
+6. State the promotion result in the final report.
+
+A dirty local Wiki checkout protects the user’s edits; it does not cancel promotion. Use a clean branch from verified `origin/main` or a remote branch/PR and leave the dirty checkout untouched.
+
+Do not promote raw logs, blame, unverified guesses, temporary experiments, or trivial edits. The detailed workflow is `docs/development/DEVELOPMENT_LEARNING_LOOP.md`.
+
 # Powdergame agent instructions
 
 <!-- BEGIN managed: ballast-project-memory -->

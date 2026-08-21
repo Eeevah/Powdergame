@@ -28,6 +28,12 @@ const SCENE4_BOILING: (u32, u32) = (60, 108);
 const SCENE4_CONDENSATION: (u32, u32) = (128, 108);
 const SCENE4_NO_SINK: (u32, u32) = (196, 108);
 const SCENE4_RESTORED_FACE: (u32, u32) = (196, 107);
+const SCENE1_X_MIN: u32 = 104;
+const SCENE1_X_MAX: u32 = 151;
+const SCENE1_WATER_TOP: u32 = 128;
+const SCENE1_WATER_BOTTOM: u32 = 133;
+const SCENE1_HEATER_Y: u32 = 134;
+const SCENE1_LID_Y: u32 = 92;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PhaseCycleScene {
@@ -59,7 +65,7 @@ impl PhaseCycleScene {
 
     pub(crate) fn name(self) -> &'static str {
         match self {
-            Self::OpenBeaker => "Open beaker cycle",
+            Self::OpenBeaker => "Open beaker - finite one-shot cycle",
             Self::SurfaceVersusBuried => "Surface versus buried Water",
             Self::ColdLidVersusFreeAir => "Cold lid versus free Air",
             Self::ReversalAndNoSink => "Reversal and no-sink controls",
@@ -68,7 +74,9 @@ impl PhaseCycleScene {
 
     pub(crate) fn description(self) -> &'static str {
         match self {
-            Self::OpenBeaker => "Heat, 1:1 Steam rise, cooling, condensation, and return.",
+            Self::OpenBeaker => {
+                "Finite heat drives one boil/rise/condense/fall sequence; R replays it."
+            }
             Self::SurfaceVersusBuried => "Equal H; only gas-facing Water may complete boiling.",
             Self::ColdLidVersusFreeAir => {
                 "A real cold sink competes with sparse radius-2 nucleation."
@@ -350,9 +358,9 @@ fn collect_sample(
 fn sample_cells(scene: PhaseCycleScene) -> [(&'static str, (u32, u32)); 3] {
     match scene {
         PhaseCycleScene::OpenBeaker => [
-            ("Beaker surface", (128, 125)),
-            ("Rising route", (128, 105)),
-            ("Cold lid", (128, 75)),
+            ("Beaker surface probe", (128, SCENE1_WATER_TOP)),
+            ("Rising-route probe", (128, 108)),
+            ("Cold-lid probe", (128, SCENE1_LID_Y + 1)),
         ],
         PhaseCycleScene::SurfaceVersusBuried => [
             ("Surface source probe", SCENE2_SURFACE),
@@ -398,21 +406,24 @@ fn stage_scene(simulation: &mut Simulation, scene: PhaseCycleScene) -> Result<()
     }
     match scene {
         PhaseCycleScene::OpenBeaker => {
-            for y in 110..160 {
-                put(72, y, MATERIAL_STONE, 20.0, 0.0);
-                put(184, y, MATERIAL_STONE, 20.0, 0.0);
+            // A deliberately shallow vessel keeps the finite Stone heater's
+            // energy large enough to drive a visible one-shot phase cycle.
+            // The old 3,885-Cell fill diluted that finite reservoir and
+            // equilibrated below boiling, so waiting longer could never make
+            // Steam. All identity changes here still come from production
+            // phase, thermal, and movement passes.
+            for y in SCENE1_LID_Y..=SCENE1_HEATER_Y {
+                put(SCENE1_X_MIN - 1, y, MATERIAL_STONE, 20.0, 0.0);
+                put(SCENE1_X_MAX + 1, y, MATERIAL_STONE, 20.0, 0.0);
             }
-            for x in 72..=184 {
-                put(x, 160, MATERIAL_STONE, 20.0, 0.0);
-                put(x, 74, MATERIAL_STONE, -20.0, 0.0);
+            for x in (SCENE1_X_MIN - 1)..=(SCENE1_X_MAX + 1) {
+                put(x, SCENE1_LID_Y, MATERIAL_STONE, -20.0, 0.0);
+                put(x, SCENE1_HEATER_Y, MATERIAL_STONE, 800.0, 0.0);
             }
-            for y in 125..160 {
-                for x in 73..184 {
+            for y in SCENE1_WATER_TOP..=SCENE1_WATER_BOTTOM {
+                for x in SCENE1_X_MIN..=SCENE1_X_MAX {
                     put(x, y, MATERIAL_WATER, 96.0, 0.0);
                 }
-            }
-            for x in 96..160 {
-                put(x, 161, MATERIAL_STONE, 800.0, 0.0);
             }
         }
         PhaseCycleScene::SurfaceVersusBuried => {
@@ -727,6 +738,106 @@ mod tests {
         assert!(
             crate::inspector::INSPECTOR_SAMPLE_INTERVAL >= std::time::Duration::from_millis(100)
         );
+    }
+
+    #[test]
+    fn scene_one_finite_heater_drives_real_boil_rise_condense_and_fall() {
+        let mut simulation = pollster::block_on(Simulation::new(config())).unwrap();
+        let mut state = PhaseCycleState::new(&mut simulation).unwrap();
+        let initial_family = fresh(&state).family_count;
+        assert_eq!(initial_family, 288);
+
+        let mut boiling_progress = None;
+        let mut steam_identity = None;
+        let mut risen_steam = None;
+        let mut condensation_progress = None;
+        let mut condensed_water = None;
+        let mut falling_water = None;
+
+        for tick in 1_u64..=3_600 {
+            state.tick(&mut simulation, false).unwrap();
+            if !tick.is_multiple_of(SAMPLE_INTERVAL) {
+                continue;
+            }
+
+            let materials = simulation
+                .world
+                .read_material_all(&simulation.context.device, &simulation.context.queue)
+                .unwrap();
+            let phase = simulation
+                .world
+                .read_phase_energy_all(&simulation.context.device, &simulation.context.queue)
+                .unwrap();
+            let index = |x: u32, y: u32| (y * TE3_WORLD_WIDTH + x) as usize;
+            let family = materials
+                .iter()
+                .filter(|&&m| matches!(m, MATERIAL_WATER | MATERIAL_STEAM | MATERIAL_ICE))
+                .count();
+            assert_eq!(family, initial_family, "family drift at tick {tick}");
+
+            if boiling_progress.is_none()
+                && (SCENE1_X_MIN..=SCENE1_X_MAX).any(|x| {
+                    let i = index(x, SCENE1_WATER_TOP);
+                    materials[i] == MATERIAL_WATER && phase[i] > 0.0
+                })
+            {
+                boiling_progress = Some(tick);
+            }
+            if steam_identity.is_none() && materials.contains(&MATERIAL_STEAM) {
+                steam_identity = Some(tick);
+            }
+            if risen_steam.is_none()
+                && (1..SCENE1_WATER_TOP).any(|y| {
+                    (SCENE1_X_MIN..=SCENE1_X_MAX).any(|x| materials[index(x, y)] == MATERIAL_STEAM)
+                })
+            {
+                risen_steam = Some(tick);
+            }
+            if condensation_progress.is_none()
+                && (1..SCENE1_WATER_TOP).any(|y| {
+                    (SCENE1_X_MIN..=SCENE1_X_MAX).any(|x| {
+                        let i = index(x, y);
+                        materials[i] == MATERIAL_STEAM && phase[i] > 0.0 && phase[i] < LV
+                    })
+                })
+            {
+                condensation_progress = Some(tick);
+            }
+            if condensed_water.is_none()
+                && (1..(SCENE1_WATER_TOP - 2)).any(|y| {
+                    (SCENE1_X_MIN..=SCENE1_X_MAX).any(|x| materials[index(x, y)] == MATERIAL_WATER)
+                })
+            {
+                condensed_water = Some(tick);
+            }
+            if condensed_water.is_some()
+                && falling_water.is_none()
+                && ((SCENE1_WATER_TOP - 2)..SCENE1_WATER_TOP).any(|y| {
+                    (SCENE1_X_MIN..=SCENE1_X_MAX).any(|x| materials[index(x, y)] == MATERIAL_WATER)
+                })
+            {
+                falling_water = Some(tick);
+            }
+            if falling_water.is_some() {
+                break;
+            }
+        }
+
+        println!(
+            "[te3 scene1] boiling={boiling_progress:?} steam={steam_identity:?} rise={risen_steam:?} condensation={condensation_progress:?} water_above={condensed_water:?} fall={falling_water:?}; family={initial_family}"
+        );
+        let boiling_progress = boiling_progress.expect("surface Water must gain boiling energy");
+        let steam_identity = steam_identity.expect("boiling must complete 1:1 to Steam");
+        let risen_steam = risen_steam.expect("Steam must rise through ordinary GAS movement");
+        let condensation_progress =
+            condensation_progress.expect("risen Steam must begin real condensation progress");
+        let condensed_water = condensed_water.expect("risen Steam must condense to Water");
+        let falling_water = falling_water.expect("condensed Water must fall toward the vessel");
+        assert!(boiling_progress <= steam_identity);
+        assert!(steam_identity <= risen_steam);
+        assert!(risen_steam <= condensation_progress);
+        assert!(condensation_progress <= condensed_water);
+        assert!(condensed_water <= falling_water);
     }
 
     #[test]

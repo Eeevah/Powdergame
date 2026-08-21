@@ -271,6 +271,28 @@ ADR-0010 PROPOSED / COMPARISON EVIDENCE INCOMPLETE / CRITICAL 0 / HIGH 11 /
 RUNTIME NOT STARTED`. Review SHA-256:
 `c424c8336d3b34784f6a3ffbb37421ceca8888608c198da45793774b49ffb579`.
 
+### TE-3Q / TE-5Q — conservative phase packets
+
+D-023 preserves all blocked TE-5 candidates and supersedes only the whole-Cell
+quantity constraint.
+
+- [x] freeze explicit units, quantity-scaled H, orthogonal merge and spatial pressure law;
+- [x] syntax/import/fixture-list check the standard-library-only proof before freeze;
+- [x] execute `TE3Q-PHASE-PACKETS-REFERENCE-V1` exactly once;
+- [x] complete 100,000 algebra trials, 10,000 grids and deterministic replay;
+- [x] record mathematical PASS and GPU/visual/product unknown boundaries;
+- [x] complete fresh-context independent review;
+- [ ] close every independent-review High finding (`8` open);
+- [ ] obtain user architecture acceptance of ADR-0011;
+- [ ] authorize and produce source-bound runtime/G5 evidence.
+
+Frozen script/result SHA-256 are
+`c938c6e3ce7074abc6d5144c708f85a17be349bb84f962238e568c17d55ed03c` /
+`a0181d4ca0ed63eb92cac5cd04098ff438546903c8dc6853e8b0b5d5ab208ed7`.
+Current stop is **TE-3Q / TE-5Q DESIGN BLOCKED / ADR-0011 PROPOSED / CRITICAL
+0 / HIGH 8 / RUNTIME NOT STARTED**. The mathematical receipt remains narrow;
+the old G5 evidence is not rebound to this future source.
+
 ## TE-4 — Ignition kinetics
 
 Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
@@ -312,6 +334,9 @@ TE-5D runtime  NOT STARTED
 TE-5X architecture comparison  DESIGN BLOCKED / CRITICAL 0 / HIGH 11
 ADR-0010  PROPOSED / NO MODEL RECOMMENDED
 TE-5X runtime  NOT STARTED
+TE-3Q / TE-5Q packet design  DESIGN BLOCKED / CRITICAL 0 / HIGH 8
+ADR-0011  PROPOSED / ARCHITECTURE REVISION REQUIRED
+TE-3Q / TE-5Q runtime  NOT STARTED
 Full TE-5  NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4  NOT STARTED

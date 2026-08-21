@@ -679,3 +679,27 @@ Invalidated by: A later explicit user supersession, a failed locked
 grid/time/conservation property, an unresolved Critical/High independent-review
 finding, or future source-bound implementation evidence contradicting an
 invariant. Failure does not revive TE-5B/C/D/X or rewrite their evidence.
+
+### D-023 evaluation receipt — 2026-08-21
+
+The new standard-library script passed syntax/import/fixture-list prechecks and
+was frozen at SHA-256
+`c938c6e3ce7074abc6d5144c708f85a17be349bb84f962238e568c17d55ed03c`.
+Its only model process completed with mathematical PASS: 100,000 algebra
+trials, 10,000 bounded grids, 14 fixture functions and in-process deterministic
+replay. Result SHA-256 is
+`a0181d4ca0ed63eb92cac5cd04098ff438546903c8dc6853e8b0b5d5ab208ed7`.
+
+Fresh independent review then found that the frozen model did not execute
+several named obligations and recorded Critical `0`, High `8`, Medium `1`, Low
+`0`. Review SHA-256 is
+`40ff5a240851048d77d2afa27004856c69bdb67b6fae6d6b3398df57c6913146`.
+Blocking findings cover reduced/constant fixtures, local greedy merge
+stranding, movable Steam/2 resetting spatial pressure, rupture-eligible
+pressure after source removal, unfrozen f32/generic-pressure transaction
+details, incomplete writer/edit/reset closure and phase-pressure sleep binding.
+
+Final D-023 stop is **TE-3Q / TE-5Q DESIGN BLOCKED / ADR-0011 PROPOSED /
+ARCHITECTURE REVISION REQUIRED / RUNTIME NOT STARTED**. The script and result
+are immutable and cannot be patched or rerun. Another evidence identity or
+architecture revision requires a new direct user decision.

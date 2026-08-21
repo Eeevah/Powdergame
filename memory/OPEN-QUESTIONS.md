@@ -395,3 +395,13 @@ activity/sleep equivalence, readback/editor hygiene, GPU feasibility,
 performance, visuals and direct user acceptance. ADR-0011 must remain
 **PROPOSED — USER ARCHITECTURE REVIEW PENDING**. Any unresolved Critical/High
 finding stops **TE-3Q / TE-5Q DESIGN BLOCKED** and runtime remains not started.
+
+### 2026-08-21 proof and independent-review update — candidate blocked
+
+The one-shot process returned mathematical PASS, but fresh review found
+Critical `0` / High `8` / Medium `1`. Named cold-lid/beaker/chunk/sleep/editor
+fixtures were reduced or constant, local greedy merge can strand pairable
+Steam/1 packets, and the spatial pressure law can reset on Steam/2 movement or
+remain at Wood threshold after its source disappears. Q-013 remains open only
+for a new direct user decision on architecture revision and a new evidence
+identity. ADR-0011 remains Proposed / DESIGN BLOCKED; runtime is not started.

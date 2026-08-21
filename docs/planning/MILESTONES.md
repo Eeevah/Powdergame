@@ -284,6 +284,18 @@ exact matching, shared chamber, conservative field를 같은 기준으로
 없다. 기존 G5 evidence는 계속 source-bound이며 TE-3/TE-5 runtime은
 시작되지 않았다.
 
+D-023의 [`TE3Q_CONSERVATIVE_PHASE_PACKETS`](TE3Q_CONSERVATIVE_PHASE_PACKETS.md)는
+이 역사적 Gate를 다시 쓰지 않고, 실제 두 Steam half-packet spawn으로
+headspace를 소비하며 units-2 Steam의 별도 phase pressure로 confinement를
+표현하는 새 Proposed 후보다. 새 reference math PASS는 G5 runtime PASS가
+아니다. 동일 source에서 split/merge, pressure, Wood rupture, opening과
+relief를 새로 검증하고 사용자 승인을 받기 전까지 Gate는 미충족이다.
+
+동결 reference는 축소 수학 모델에서 PASS했지만 fresh review는 Critical
+`0` / High `8`을 기록했다. 이동 가능한 Steam/2의 spatial pressure reset,
+source 제거 뒤 threshold `80` 잔류, greedy local merge stranding과 fixture
+overclaim 때문에 ADR-0011은 Proposed / DESIGN BLOCKED다.
+
 ### User validation
 
 전용 `boiler_explosion()` 없이 작은 Rule chain으로 압력 사고가 납득되는지 확인한다.

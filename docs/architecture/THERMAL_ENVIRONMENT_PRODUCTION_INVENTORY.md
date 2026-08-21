@@ -587,3 +587,33 @@ failed during NetworkX oracle bootstrap before any candidate, fixture,
 generated state or grid ran. No memory was allocated in production, no pass
 exists in source and no candidate is recommended. TE-5X is DESIGN BLOCKED by
 incomplete comparison evidence.
+
+## 14. Proposed TE-3Q / TE-5Q conservative packet projection
+
+D-023 and [`ADR-0011`](decisions/ADR-0011-conservative-phase-packets.md)
+supersede only the whole-Cell quantity constraint. The proposed state adds
+`phase_units` and `phase_pressure` Current/Next pairs alongside the accepted
+`phase_energy` pair. Each pair is 8 bytes per Cell: 524,288 B at 256² and
+33,554,432 B at 2048². The total increment over TE-2 is therefore 1,572,864 B
+and 100,663,296 B / 96 MiB respectively.
+
+The static 50-pass/100-query projection adds ten named passes to TE-3D's 40:
+unit movement reconcile; a second normalization/identity pass; quantity split
+commit; five merge proposal/claim/commit/reconcile passes; phase pressure; and
+phase-pressure activity. Proposal/claim is fully overwritten between
+expansion, merge and Smoke. The base activity pass remains unchanged because
+it already binds eight storage buffers. Representative maxima are eight
+storage bindings for enthalpy normalization, identity/proposal, split commit,
+merge commits/reconcile and packed-table rupture. No extra full-world scratch
+is proposed.
+
+Tracked arithmetic including two 50-pass profiler buffers (1,600 B) is
+5,771,504 B at 256² and 369,127,280 B at 2048². These figures are static; no
+buffer or pass exists in runtime. The one-shot standard-library reference
+reported mathematical PASS, not WGSL/device/memory/performance feasibility.
+
+Fresh review recorded Critical `0` / High `8` / Medium `1`. The 50-pass table
+is not source-closed: phase pressure needs a fourth RO `chunk_state` binding,
+and movement/relief/merge/writer transactions remain incomplete even though
+the eight-storage ceiling is not itself exceeded. No runtime state or pass was
+allocated. Final projection disposition is **DESIGN BLOCKED**.

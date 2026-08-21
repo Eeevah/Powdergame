@@ -57,3 +57,8 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   BLOCKED — UNRESOLVED CRITICAL 0 / HIGH 11**. The combined proof completed no
   candidate evaluation, and A/B/C each retain independent architecture blockers;
   there is no Recommendation or Retained fallback.
+- [`TE3Q_CONSERVATIVE_PHASE_PACKETS_DESIGN.md`](TE3Q_CONSERVATIVE_PHASE_PACKETS_DESIGN.md)
+  — D-023 fresh-context packet review. Current disposition: **TE-3Q / TE-5Q
+  DESIGN BLOCKED — UNRESOLVED CRITICAL 0 / HIGH 8 / MEDIUM 1**. The reduced
+  proof under-models named fixtures; local contraction and spatial pressure
+  retain independent causal/source-integration blockers.

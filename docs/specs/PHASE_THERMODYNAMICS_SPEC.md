@@ -2,16 +2,24 @@
 
 - **Status:** ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION
 - **ADR:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
-- **Decision:** D-018
+- **Decision:** D-018; whole-Cell quantity clause superseded by D-023 candidate
 - **Runtime:** NOT STARTED
 - **Proposed completion bridge:** [`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md), D-019 design only
-- **Normative architecture:** Hybrid A+C — 1:1 Water-equivalent quantity with dedicated phase enthalpy
+- **Normative architecture:** accepted local phase enthalpy; proposed quantity
+  amendment in [`CONSERVATIVE_PHASE_PACKETS_SPEC`](CONSERVATIVE_PHASE_PACKETS_SPEC.md)
 
 This specification defines the user-accepted core plus locked amendments.
 The amended reference proof passed its only run and the fresh independent v2
 review closed with unresolved Critical `0` / High `0`; `MUST`, `MUST NOT`,
 `SHOULD` and `MAY` are therefore future atomic-implementation authority. No
 Rust or WGSL implementation is authorized by this file.
+
+D-023 supersedes §§1–3 only where they require every phase Cell to equal one
+whole quantity or forbid an explicit phase-unit pair. The accepted local-H,
+strict initiation, real sink, radius-two nucleation and TE-2 ownership rules
+remain inherited by the proposed packet specification. Until ADR-0011 receives
+user acceptance and separate runtime authority, this file remains the accepted
+but inactive TE-3D baseline and production remains unchanged.
 
 ## 1. Scope and exclusions
 

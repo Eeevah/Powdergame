@@ -6,6 +6,8 @@
 - **Decision:** D-018
 - **Design source:** docs-only work descended from TE-2 closure `fd97e8b...`
 - **Runtime status:** TE-3 NOT STARTED
+- **D-023 supersession:** one-Cell/one-whole-quantity only; see
+  [`ADR-0011`](ADR-0011-conservative-phase-packets.md), Proposed
 - **Atomic bridge attempts:** [`ADR-0007`](ADR-0007-phase-volume-pressure-bridge.md) token REJECTED / DESIGN BLOCKED; [`ADR-0008`](ADR-0008-local-vapor-capacity-pressure.md) local capacity law PROPOSED / DESIGN BLOCKED
 - **Supersedes at implementation only:** current Water `matter_yield = 2` and
   blocked-expansion-pressure behavior; no runtime source is changed here
@@ -424,3 +426,13 @@ matching, shared chamber capacity and a conservative Vapor field without
 accepting any model. Its only combined reference process failed before any
 candidate evaluation, so TE-5X is DESIGN BLOCKED by incomplete evidence. This
 again leaves the atomic activation rule unchanged and runtime not started.
+
+D-023 explicitly supersedes this ADR's one-phase-Cell/one-whole-quantity and
+`phase_energy`-only persistent-state choices for the proposed conservative
+phase-packet path. It does not revoke the accepted TE-2-local enthalpy,
+initiation/sink/nucleation, Atmosphere/Vacuum, no-mixed-Matter or atomic
+activation rules. [`ADR-0011`](ADR-0011-conservative-phase-packets.md) adds
+explicit integer phase units and a separate spatial phase-pressure pair, and
+reinterprets visible boiling expansion as two half-quantity Steam packets.
+ADR-0011 remains **PROPOSED — USER ARCHITECTURE REVIEW PENDING**; its reference
+PASS is mathematical only and no runtime is authorized.

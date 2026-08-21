@@ -138,6 +138,8 @@ docs/
 │  ├─ TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md
 │  ├─ TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md
 │  ├─ TE5_PERSISTENT_VAPOR_EXTENT.md
+│  ├─ TE5_PRESSURE_VOLUME_ARCHITECTURE_RESET.md
+│  ├─ TE3Q_CONSERVATIVE_PHASE_PACKETS.md
 │  └─ STATUS.md
 ├─ architecture/
 │  ├─ ARCHITECTURE.md
@@ -152,7 +154,8 @@ docs/
 │  ├─ PHASE_THERMODYNAMICS_SPEC.md
 │  ├─ PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md
 │  ├─ LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md
-│  └─ PERSISTENT_VAPOR_EXTENT_SPEC.md
+│  ├─ PERSISTENT_VAPOR_EXTENT_SPEC.md
+│  └─ CONSERVATIVE_PHASE_PACKETS_SPEC.md
 ├─ development/
 │  ├─ QUICKSTART.md
 │  ├─ DEVELOPMENT.md
@@ -163,6 +166,7 @@ docs/
 │  ├─ PHASE_VOLUME_PRESSURE_BRIDGE_VALIDATION.md
 │  ├─ LOCAL_VAPOR_CAPACITY_PRESSURE_VALIDATION.md
 │  ├─ PERSISTENT_VAPOR_EXTENT_VALIDATION.md
+│  ├─ CONSERVATIVE_PHASE_PACKETS_VALIDATION.md
 │  ├─ PERFORMANCE.md
 │  ├─ DEVELOPMENT_LEARNING_LOOP.md
 │  ├─ LESSONS_LEDGER.md
@@ -239,7 +243,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. TE-3D는 [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**이며 ADR-0006은 **ACCEPTED FOR FUTURE ATOMIC IMPLEMENTATION**이다. D-019 [`TE-5B`](planning/TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md), D-020 [`TE-5C`](planning/TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md), D-021 [`TE-5D`](planning/TE5_PERSISTENT_VAPOR_EXTENT.md)는 각각 REJECTED / DESIGN BLOCKED다. D-022 [`TE-5X`](planning/TE5_PRESSURE_VOLUME_ARCHITECTURE_RESET.md)는 세 모델을 동결했지만 유일한 통합 process가 후보 평가 전 oracle bootstrap에서 종료됐고 fresh review도 Critical 0 / High 11로 세 모델 모두를 부적격 판정했다. ADR-0010은 **PROPOSED / DESIGN BLOCKED**이고 추천 모델이 없다. 모든 TE-3/TE-5 runtime은 **NOT STARTED**이고 기존 증거는 source-bound다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. TE-3D는 [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**이며 D-023은 그중 whole-Cell quantity clause만 supersede한다. TE-5B/C/D/X는 모두 DESIGN BLOCKED history로 보존된다. 새 [`TE-3Q / TE-5Q`](planning/TE3Q_CONSERVATIVE_PHASE_PACKETS.md)는 reference math PASS를 얻었지만 fresh review가 Critical 0 / High 8을 기록해 **DESIGN BLOCKED**다. ADR-0011은 Proposed / architecture revision required이며 모든 TE-3/TE-5 runtime은 **NOT STARTED**다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

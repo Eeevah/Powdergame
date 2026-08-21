@@ -189,20 +189,21 @@ They are not official performance evidence. Do not prune them without a separate
 ## 현재 설계 작업
 
 **TE-5B/TE-5C/TE-5D REJECTED / DESIGN BLOCKED; TE-5X DESIGN BLOCKED;
-TE-3Q / TE-5Q CONSERVATIVE PHASE PACKET DESIGN PROGRAM AUTHORIZED / RUNTIME
-NOT STARTED.** D-023 preserves the failed TE-5X identity without rerun and
-explicitly supersedes only the whole-Cell/whole-quantity constraint. The new
-docs/reference candidate uses explicit half-unit Steam packets, real local
-spawn/merge, and a separate reversible phase-pressure component. No candidate
-or runtime implementation is accepted yet.
+TE-3Q / TE-5Q DESIGN BLOCKED / RUNTIME NOT STARTED.** D-023 preserves the
+failed TE-5X identity without rerun and supersedes only the whole-Cell/whole-
+quantity constraint. The new proof returned mathematical PASS, but fresh
+review found Critical `0` / High `8` / Medium `1`: named fixtures were
+under-modeled, local pairing can strand packets, and spatial pressure can be
+reset by movement or remain rupture-eligible after relief. ADR-0011 remains
+Proposed / architecture revision required; no runtime is accepted.
 
 ## 다음 행동
 
 1. preserve all blocked candidates and their source-bound receipts;
 2. preserve the TE-5X frozen script and failed receipt without rerun;
-3. predeclare and execute `TE3Q-PHASE-PACKETS-REFERENCE-V1` exactly once;
-4. obtain a fresh-context independent review of ADR-0011 and its evidence;
-5. keep TE-3/TE-5 runtime **NOT STARTED** pending user architecture review.
+3. preserve `TE3Q-PHASE-PACKETS-REFERENCE-V1` and its result without rerun;
+4. preserve the fresh Critical 0 / High 8 review and exact counterexamples;
+5. require a new direct user decision before revision or another evidence identity.
 
 ## 아직 별도 결정인 것
 

@@ -21,6 +21,8 @@ architecture. Its normative contract is split across:
   for the rejected/blocked token attempt;
 - [`TE5_LOCAL_VAPOR_CAPACITY_PRESSURE`](TE5_LOCAL_VAPOR_CAPACITY_PRESSURE.md)
   for the D-020 replacement and its one-shot DESIGN BLOCKED result.
+- [`TE3Q_CONSERVATIVE_PHASE_PACKETS`](TE3Q_CONSERVATIVE_PHASE_PACKETS.md) for
+  D-023's proposed half-unit quantity amendment and new reference identity.
 
 D-018 accepts Hybrid A+C, its constants, memory cost, no-sink metastability
 and atomic TE-5 activation constraint. The v1 ADR text is not accepted
@@ -240,3 +242,11 @@ depth-six matching cannot settle every canonical persistent state that has a
 complete assignment. The eight-source alternating-chain counterexample makes
 TE-5D **DESIGN BLOCKED** on wider matching scope. The accepted TE-3 phase
 architecture remains unchanged and still cannot activate alone.
+
+D-022's three-model comparison subsequently completed no candidate evaluation
+and is preserved DESIGN BLOCKED. D-023 now supersedes only this page's
+one-Cell/one-whole-quantity statement. The proposed ADR-0011 path keeps one
+foreground Matter per Cell but represents Water/Ice as two units, expanded
+Steam as one unit and compressed Steam as two units. Its new reference process
+passed mathematical conservation/grid checks; independent and user
+architecture review remain required, so TE-3Q/TE-5Q runtime is not started.

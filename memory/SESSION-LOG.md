@@ -480,3 +480,30 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Historical G5 Water pressure evidence remains source-bound. Water phase
   expansion/pressure is disabled; TE-5 Pressure redesign is deferred/not
   started. TE-4 and G9-B/C/D/E remain not started.
+
+## 2026-08-21 · TE-3 direct-review surface remediation
+
+- Started from clean synchronized branch source
+  `6a7598a4fe6bcec98a73bf83356accba436cc646`; preserved the user-dirty Wiki
+  checkout and verified connected `origin/main`
+  `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3` read-only.
+- Candidate-only source `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`
+  restages Scenes 2–4 so their surface/buried/reveal, cold-lid/free-Air/K=0,
+  reversal and no-sink labels execute the claimed production behavior.
+- Replaced the one-cell candidate sample with three fixed, named,
+  generation-safe rows per scene. Reset and scene changes invalidate old
+  results; `N`, `F` and `I` retain their existing control meanings.
+- Actual semantic checkpoints passed: Scene 2 surface completion/buried hold/
+  tick-24 reveal, Scene 3 lid-first and sparse free-Air onset at tick 63 with
+  K=0 hold, and Scene 4 bidirectional reversal plus tick-31 no-sink hold and
+  tick-32 cooling-face wake.
+- Final affected Windows suite: 170 passed, 0 failed, 1 unrelated ignored;
+  phase semantic module: 6 passed. Formatting, affected all-target check,
+  affected clippy, strict audit and diff checks passed.
+- Workspace FULL count remained zero. Production physics and its source-bound
+  FULL remain at `41467219819c5d0cb3eab8ae22b652449da20480` and were not rebound.
+- Exactly one release build and one 60-frame bounded launch completed. The
+  canonical EXE is 10,095,104 bytes with SHA-256
+  `F15B8B1198443935CB233A0FA526256563F400A0775ECC246542BB195938F966`.
+- TE-3 remains revised candidate / user review pending. Pressure redesign,
+  TE-4 and G9-B/C/D/E remain not started.

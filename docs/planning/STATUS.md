@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING** at `4146721...`; pressure coupling deferred; all TE-5 replacement attempts remain blocked history |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; TE-3 production physics remains `4146721...`; **REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING** at `c2f4f2b...`; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -33,6 +33,7 @@
 - TE-3D accepted architecture / TE-5B design baseline: `d7500e219af6f670be05f830b50c232d2bb53077`
 - TE-5C replacement-design baseline: `6a1c83fad702d18f2d24365a4fc747ab74225f5c`
 - TE-3 pressure-decoupled runtime source: `41467219819c5d0cb3eab8ae22b652449da20480`
+- TE-3 direct-review surface candidate: `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`
 - Shared `main`: 이 상태로 승격되지 않음
 
 ---

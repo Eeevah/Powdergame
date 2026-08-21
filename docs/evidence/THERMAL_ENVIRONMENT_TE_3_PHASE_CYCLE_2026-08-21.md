@@ -141,3 +141,11 @@ states `Pressure coupling: DEFERRED / NOT ACTIVE IN THIS TE-3 CANDIDATE`.
 `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is deferred/not started. TE-4,
 G9-B/C/D/E, official capture, PR, main merge and user acceptance claim counts
 are zero.
+
+## Direct-review surface remediation
+
+Production physics and this receipt remain bound to `4146721...`. Candidate
+source `c2f4f2bb16b00801a72ff6e4a54726cc69674bad` revises only Windows Scene
+2–4 staging and fixed multi-sample diagnostics. It has its own targeted receipt:
+[`TE3_DIRECT_REVIEW_SURFACE_REMEDIATION_2026-08-21`](TE3_DIRECT_REVIEW_SURFACE_REMEDIATION_2026-08-21.md).
+No new FULL was run or claimed.

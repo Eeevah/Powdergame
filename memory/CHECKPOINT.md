@@ -1,40 +1,45 @@
-# Checkpoint — TE-3 phase-cycle candidate ready for user review — 2026-08-21
+# Checkpoint — revised TE-3 review candidate ready — 2026-08-21 18:17 KST
 
 ## Repository coordinate
 
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- Task baseline: `b5a3405bffba5f757f966e44d0cae0077f57d285`
-- Wiki read-only fallback: `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3`
-- Runtime source: `41467219819c5d0cb3eab8ae22b652449da20480`
+- HEAD before docs closure: `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`
+- Working tree: expected docs/memory closure files only
+- Wiki remote fallback: `b8c22c1dc477f7d08f35b54e11ca95c6ad10d4c3`; local Wiki remains user-dirty and untouched
 
-## Current truth
+## The story so far
 
-D-024 is implemented as a pressure-decoupled ADR-0006 candidate. One family
-Cell is one Water-equivalent quantity; transitions are 1:1. Water produces no
-second Steam, expansion proposal or blocked pressure. ADR-0011 and TE-5B/C/D/X
-remain blocked history. Historical G5 evidence is source-bound. TE-5 Pressure
-redesign is DEFERRED / NOT STARTED.
+D-024 production physics remains unchanged at `4146721...`. Direct review
+found that candidate Scenes 2–4 did not reliably exercise their labels and the
+HUD sampled one often-empty Cell. Candidate-only source `c2f4f2b...` now stages
+honest surface/buried/reveal, lid/free-Air/K=0, reversal/no-sink controls and
+three generation-safe fixed diagnostic rows per scene. No Engine/Core/WGSL,
+phase rule, Air coefficient or pressure code changed.
 
-## Scope and boundary
+## Valid evidence
 
-- Persistent TE-3 state is exactly the phase-energy Current/Next pair: 32 MiB
-  at 2048 squared. No packets, units, phase pressure/volume or new scratch.
-- The graph is 40 passes / 80 queries and every pass is at most 8 storage
-  bindings.
-- Candidate routes are `run_powdergame.bat phase-cycle` and `te3`; no-argument
-  Sandbox is unchanged. Candidate starts paused and labels pressure deferred.
+- `docs/evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md` — F01–F15 and final-source FULL remain valid while production physics stays at `41467219819c5d0cb3eab8ae22b652449da20480`.
+- `docs/evidence/TE3_DIRECT_REVIEW_SURFACE_REMEDIATION_2026-08-21.md` — valid for candidate source `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`, current Scene 2–4 geometry, diagnostic schema and RTX 5090/DX12 artifact.
+- Windows binary suite: 170 passed / 1 unrelated ignored; phase semantic tests: 6 passed. Valid while the three `apps/windows` candidate files are unchanged.
+- Canonical EXE SHA-256 `F15B8B1198443935CB233A0FA526256563F400A0775ECC246542BB195938F966`, 10,095,104 bytes.
 
-## Validation boundary
+## Decided
 
-- Actual TE3-F01–F15 fixtures and targeted suites pass.
-- Final-source canonical FULL passes at `4146721...`.
-- Release build, bounded launch and bounded measurement counts are each one.
-- EXE SHA-256 is
-  `99745D13A7F5D7323EB5961A3A462A965C446C10CDA4CA9AF04495B0537C87BE`.
-- G8/G8-C, TE-4, G9-B/C/D/E and official capture counts remain zero.
+- D-024 — one-Cell/one-quantity pressure-decoupled TE-3 remains active; Water phase pressure is disabled.
+- TE-3 production physics remains `4146721...`; this remediation is candidate presentation/staging only.
+- Workspace FULL count is 0 for this remediation; the prior production FULL is not rebound.
+
+## Waiting on the user
+
+Direct review of the revised four-scene candidate. No acceptance is claimed.
 
 ## Next first action
 
-Run `run_powdergame.bat phase-cycle` for direct user review. Do not claim user
-acceptance or start TE-5/TE-4/G9-B work without a new direct decision.
+Run `run_powdergame.bat phase-cycle` and review the fixed Scene 2–4 rows and causal checkpoints.
+
+## Tried
+
+- Four orthogonal blockers alone allowed legal diagonal movement; the final controls close the full relevant movement stencil.
+- A broad free-Air Steam island vacated the fixed centre; the final nine-Cell row cools through downward Air faces that GAS movement never targets.
+- Eight-tick-only observation could not prove sparse onset; the final semantic test samples each tick through the first free-Air partial event.

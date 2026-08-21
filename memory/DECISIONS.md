@@ -593,3 +593,31 @@ Invalidated by: A later explicit user supersession, a failed locked reference
 property, unresolved Critical/High comparative finding or source-bound future
 evidence contradicting a common invariant. Failure does not revive TE-5B/C/D,
 rewrite D-018 or authorize runtime.
+
+### D-022 evaluation receipt — 2026-08-21
+
+The pre-registered combined process was started exactly once and exited before
+any A/B/C evaluation. Its NetworkX 3.6.1 guard raised `AttributeError` because
+the temporary `networkx` path resolved as a namespace module without
+`__version__`. Candidate evaluations, generated states, grids and deterministic
+replay are all zero/not run. The task's one-shot rule forbids a repair rerun.
+
+Frozen script SHA-256 is
+`0079246918a91faa606d531cb76591af0363dfb3a66d4b88882fc04e33efd8d5`.
+The parseable post-exit failure receipt SHA-256 is
+`097f340c265d9e43a23e281a776905add97e6b05c18dedd79d48807558efc116`;
+it is not script-emitted proof evidence. Because eligibility and ranking were
+not exercised, the provisional B/A/C ordering is void, no candidate is
+Recommended/Retained fallback/Rejected by evidence, and **TE-5X is DESIGN
+BLOCKED**. ADR-0010 remains **PROPOSED / COMPARISON EVIDENCE INCOMPLETE** and
+runtime remains not started.
+
+Fresh comparative review independently verified the zero-count evidence
+boundary and recorded Critical `0`, High `11`, Medium `0`; review SHA-256 is
+`c424c8336d3b34784f6a3ffbb37421ceca8888608c198da45793774b49ffb579`.
+It found the frozen fixture matrix non-executable/author-favoring, A's
+production matching and inherited extent integration incomplete, B's
+narrow-neck/component/reduction/pressure ownership incomplete, C's
+condensation sink blocked, and all candidates' activity/edge/Air/H contracts
+open. Final D-022 stop remains **TE-5X DESIGN BLOCKED / NO RECOMMENDATION / NO
+RETAINED FALLBACK / RUNTIME NOT STARTED**.

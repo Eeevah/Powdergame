@@ -52,3 +52,8 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   pressure candidate. Current disposition: **TE-5C DESIGN BLOCKED —
   UNRESOLVED CRITICAL 0 / HIGH 6**. The locked sharing law fails an open-
   capacity witness, and five additional architecture/evidence blockers remain.
+- [`TE5_PRESSURE_VOLUME_MODEL_COMPARISON.md`](TE5_PRESSURE_VOLUME_MODEL_COMPARISON.md)
+  — D-022 fresh-context comparison review. Current disposition: **TE-5X DESIGN
+  BLOCKED — UNRESOLVED CRITICAL 0 / HIGH 11**. The combined proof completed no
+  candidate evaluation, and A/B/C each retain independent architecture blockers;
+  there is no Recommendation or Retained fallback.

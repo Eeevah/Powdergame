@@ -44,6 +44,10 @@ Research 문서의 수치·아키타입·규칙·Material 후보는 다음 중 �
 
 [`2026-08-20-thermal-environment-reuse-survey.md`](2026-08-20-thermal-environment-reuse-survey.md)는 TE-0R의 내부 재사용·외부 prior-art 조사다. 정확한 source/version/license와 채택 경계를 기록하며, 외부 코드는 복사·번역·vendoring하지 않았다. 채택된 구조의 권위는 ADR-0005와 `THERMAL_ENVIRONMENT_SPEC.md`에 있다.
 
+## 2026-08-21 Pressure-volume algorithm survey
+
+[`2026-08-21-pressure-volume-algorithm-survey.md`](2026-08-21-pressure-volume-algorithm-survey.md)는 TE-5X의 exact matching, GPU connected components, conservative scalar transport 및 wgpu 26 경계를 primary/upstream identity로 기록한다. 외부 구현은 production repository에 복사·번역·vendoring하지 않았고 runtime dependency도 추가하지 않았다.
+
 ## Derived outputs
 
 원자료를 현재 Powdergame 세계 문법에 맞게 압축한 결과는 `derived/`에 둔다. 이 문서들도 여전히 구현 계약이 아니다.

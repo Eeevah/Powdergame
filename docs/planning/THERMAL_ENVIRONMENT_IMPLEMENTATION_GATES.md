@@ -1,7 +1,7 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 accepted; TE-3D architecture accepted; TE-5B/TE-5C/TE-5D design blocked; all TE-3/TE-5 runtime not started
-- **Architecture:** D-013 through D-021 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007, ADR-0008 and ADR-0009
+- **Status:** TE-2 accepted; TE-3D architecture accepted; TE-5B/TE-5C/TE-5D/TE-5X design blocked; all TE-3/TE-5 runtime not started
+- **Architecture:** D-013 through D-022 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007 through ADR-0010
 - **Rule:** no task may silently include the physics of a later gate
 
 ## TE-0R — Reuse and prior-art survey
@@ -249,6 +249,28 @@ fixed GPU graph may also require user authorization for a full-world search
 scratch. Fresh review ended at Critical `0` / High `6` / Medium `2`, SHA-256
 `73adaf56bea1589d425d89ba9430a7f50f3d0b9cf50f5b8fdc2155f263968ed6`.
 
+### TE-5X — docs-only three-model architecture reset
+
+D-022 compares exact persistent matching, connected shared-chamber capacity
+and a conservative Vapor-volume Environment scalar under one fixture matrix.
+
+- [x] preserve TE-5B/C/D blocked history and forbid another fixed depth;
+- [x] record primary-source algorithm/library identities and copied-code zero;
+- [x] freeze A/B/C formulas, costs, fixtures, seed and selection criteria;
+- [x] start exactly one combined reference process;
+- [ ] complete any candidate evaluation (`0` completed);
+- [ ] complete 50,000 generated states and 10,000 grids (`0` completed);
+- [ ] obtain evidence-supported eligibility/ranking;
+- [x] complete fresh comparative review;
+- [ ] close fresh comparative-review High blockers (`11` open).
+
+The only process exited at the NetworkX 3.6.1 version guard because the
+temporary path resolved a namespace module without `__version__`. The task's
+one-shot rule forbids repair/rerun. Current stop: `TE-5X DESIGN BLOCKED /
+ADR-0010 PROPOSED / COMPARISON EVIDENCE INCOMPLETE / CRITICAL 0 / HIGH 11 /
+RUNTIME NOT STARTED`. Review SHA-256:
+`c424c8336d3b34784f6a3ffbb37421ceca8888608c198da45793774b49ffb579`.
+
 ## TE-4 — Ignition kinetics
 
 Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
@@ -287,6 +309,9 @@ TE-5C runtime  NOT STARTED
 TE-5D persistent extent design  DESIGN BLOCKED / CRITICAL 0 / HIGH 6
 ADR-0009  PROPOSED / ARCHITECTURE REVISION REQUIRED
 TE-5D runtime  NOT STARTED
+TE-5X architecture comparison  DESIGN BLOCKED / CRITICAL 0 / HIGH 11
+ADR-0010  PROPOSED / NO MODEL RECOMMENDED
+TE-5X runtime  NOT STARTED
 Full TE-5  NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4  NOT STARTED

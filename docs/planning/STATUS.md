@@ -164,10 +164,13 @@ Medium `2`; review SHA-256 is
 
 D-022 preserves all three blocked designs and authorizes a docs/reference-only
 TE-5X comparison of exact persistent-extent matching, shared gas-chamber
-capacity and a conservative Vapor-volume Environment field. No model is
-accepted or implemented. The comparison must use one pre-registered combined
-execution, primary-source prior-art identities, the same fixture matrix and a
-fresh-context review before any recommendation can be recorded.
+capacity and a conservative Vapor-volume Environment field. The only combined
+process exited at the NetworkX version guard before candidate evaluation, so
+all A/B/C and fixture counts are zero. The failure receipt is parseable but is
+not proof evidence; the one-shot rule forbids a rerun. No model is accepted,
+ranked or recommended and TE-5X is DESIGN BLOCKED. Fresh comparative review
+ended at Critical `0` / High `11` / Medium `0`; review SHA-256 is
+`c424c8336d3b34784f6a3ffbb37421ceca8888608c198da45793774b49ffb579`.
 
 ---
 
@@ -185,19 +188,19 @@ They are not official performance evidence. Do not prune them without a separate
 
 ## 현재 설계 작업
 
-**TE-5B/TE-5C/TE-5D REJECTED / DESIGN BLOCKED; TE-5X ARCHITECTURE COMPARISON
-AUTHORIZED / RUNTIME NOT STARTED.** D-022 authorizes exactly three comparative
-reference models and accepts none. The fixed-depth matching contract remains
-disproved; persistent ownership and 1:1 family quantity remain available for
-comparison.
+**TE-5B/TE-5C/TE-5D REJECTED / DESIGN BLOCKED; TE-5X DESIGN BLOCKED /
+RUNTIME NOT STARTED.** D-022's frozen comparison produced incomplete evidence
+because its only process failed before any model ran. ADR-0010 remains
+Proposed and no recommendation is available. Independent review additionally
+made A, B and C ineligible on their frozen architecture contracts.
 
 ## 다음 행동
 
 1. preserve all blocked candidates and their source-bound receipts;
-2. compare exactly A exact matching, B shared chamber and C conservative field;
-3. execute one combined pre-registered reference comparison and fresh review;
+2. preserve the TE-5X frozen script and failed one-shot receipt without rerun;
+3. complete fresh comparative review of the frozen design/evidence failure;
 4. keep TE-3/TE-5 runtime **NOT STARTED** and the current G5 Water path active;
-5. return the comparison for explicit user model selection or report DESIGN BLOCKED.
+5. request a new user decision before any new evidence identity or implementation.
 
 ## 아직 별도 결정인 것
 

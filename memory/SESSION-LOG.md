@@ -411,3 +411,27 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   docs/reference comparison candidates. No model or runtime is accepted.
 - Session ID:
   `20260821T042119391Z-te5x-pressure-volume-architecture-reset-f5b14657`.
+
+## 2026-08-21 · TE-5X one-shot reference process failed before evaluation
+
+- Frozen A/B/C formulas, PVX-F01–F15, seed `0x54453558`, 50,000 generated
+  states, 10,000 grids and selection criteria before execution.
+- Started exactly one proof process. It exited at the NetworkX 3.6.1 version
+  guard because the resolved namespace module lacked `__version__`.
+- Candidate, fixture, generated-state and grid execution counts are all zero.
+  The one-shot contract prohibited a patch/retry.
+- Script/result SHA-256:
+  `0079246918a91faa606d531cb76591af0363dfb3a66d4b88882fc04e33efd8d5` /
+  `097f340c265d9e43a23e281a776905add97e6b05c18dedd79d48807558efc116`.
+- The result JSON is a parseable failure receipt, not proof evidence. TE-5X is
+  DESIGN BLOCKED with no recommendation; fresh review remains pending.
+
+## 2026-08-21 · TE-5X independent comparison review
+
+- Fresh review changed only
+  `docs/adversarial-reviews/TE5_PRESSURE_VOLUME_MODEL_COMPARISON.md`.
+- Final counts: Critical `0`, High `11`, Medium `0`.
+- Review SHA-256:
+  `c424c8336d3b34784f6a3ffbb37421ceca8888608c198da45793774b49ffb579`.
+- A/B/C are all ineligible; no Recommendation or Retained fallback remains.
+- Proof rerun, Cargo, WGSL/GPU, build, launch and runtime counts remained zero.

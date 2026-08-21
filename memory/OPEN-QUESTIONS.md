@@ -348,3 +348,22 @@ proof limitations and fresh comparative-review findings. No candidate is
 accepted in advance. Any unresolved Critical/High makes TE-5X **DESIGN
 BLOCKED**; otherwise the maximum disposition is **ARCHITECTURE COMPARISON
 COMPLETE / USER MODEL SELECTION PENDING**. Runtime remains not started.
+
+### 2026-08-21 one-shot execution update — TE-5X blocked
+
+The only combined process failed at the NetworkX oracle-version guard before
+candidate evaluation. A/B/C cases, 50,000 generated states, 10,000 multi-tick
+grids and the common fixture matrix all completed zero. The failure JSON parses
+and is hashed, but explicitly records incomplete evidence and is not a proof
+PASS. Repair/rerun is forbidden inside D-022's one-shot scope.
+
+Q-012 therefore remains open for a new user decision: authorize a new evidence
+identity and corrected oracle environment, revise the comparison scope, or
+leave all three models unselected. No implementation and no fourth candidate
+is authorized. ADR-0010 remains Proposed / DESIGN BLOCKED and runtime remains
+not started.
+
+Fresh review closes no model-selection item: Critical `0` / High `11` /
+Medium `0`. A, B and C are all ineligible under the frozen criteria; there is
+no Recommendation or Retained fallback. Q-012 stays open only for a new direct
+user decision, not for continuation under the failed D-022 evidence identity.

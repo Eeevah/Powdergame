@@ -717,3 +717,13 @@ cannot repair a legal eight-source alternating persistent matching, so a
 complete capacity assignment may coexist with rupture-capable false pressure.
 TE-5D is DESIGN BLOCKED pending wider matching scope. TE-3 runtime remains not
 started and no rule above is weakened.
+
+## 16. D-022 TE-5X comparison outcome
+
+Proposed [`ADR-0010`](../architecture/decisions/ADR-0010-pressure-volume-model-selection.md)
+compares exact persistent matching, shared connected chamber capacity and a
+conservative Vapor-volume Environment field. The one permitted combined
+process exited at its NetworkX oracle-version guard before evaluating any
+candidate or fixture. No model is eligible or recommended by that incomplete
+receipt. TE-5X is DESIGN BLOCKED; PH-INV-019 and PH-INV-022 remain closed gates
+and TE-3 runtime remains not started.

@@ -34,6 +34,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260821-1139-te5b-blocked-te5c-authorized.md`](checkpoints/20260821-1139-te5b-blocked-te5c-authorized.md) | TE-5B blocked return point before D-020 authorized TE-5C | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260821-1245-te5c-blocked-te5d-authorized.md`](checkpoints/20260821-1245-te5c-blocked-te5d-authorized.md) | TE-5C blocked return point before D-021 authorized TE-5D persistent state | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260821-1323-te5d-blocked-te5x-authorized.md`](checkpoints/20260821-1323-te5d-blocked-te5x-authorized.md) | TE-5D fixed-depth blocker return point before D-022 comparative reset | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260821-1339-te5x-authorized-before-proof-failure.md`](checkpoints/20260821-1339-te5x-authorized-before-proof-failure.md) | D-022 authorization return point before the one-shot oracle bootstrap failure | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 
@@ -71,6 +72,10 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/specs/PERSISTENT_VAPOR_EXTENT_SPEC.md`](../docs/specs/PERSISTENT_VAPOR_EXTENT_SPEC.md) | Exact failed link, movement, matching and phase-pressure candidate | Before interpreting the TE-5D result |
 | [`docs/development/PERSISTENT_VAPOR_EXTENT_VALIDATION.md`](../docs/development/PERSISTENT_VAPOR_EXTENT_VALIDATION.md) | Frozen one-shot proof contract and DESIGN BLOCKED receipt | Before making any TE-5D evidence claim |
 | [`docs/adversarial-reviews/TE5_PERSISTENT_VAPOR_EXTENT_DESIGN.md`](../docs/adversarial-reviews/TE5_PERSISTENT_VAPOR_EXTENT_DESIGN.md) | Fresh review; Critical 0 / High 6 / Medium 2 and TE-5D DESIGN BLOCKED | Before a wider matching replacement decision |
+| [`docs/planning/TE5_PRESSURE_VOLUME_ARCHITECTURE_RESET.md`](../docs/planning/TE5_PRESSURE_VOLUME_ARCHITECTURE_RESET.md) | D-022 three-model comparison and failed one-shot evidence router | Before any new pressure-volume model-selection decision |
+| [`docs/architecture/decisions/ADR-0010-pressure-volume-model-selection.md`](../docs/architecture/decisions/ADR-0010-pressure-volume-model-selection.md) | Proposed A/B/C comparison, resource projections and evidence-incomplete stop | Before revising or selecting a TE-5X model |
+| [`docs/development/PRESSURE_VOLUME_MODEL_COMPARISON_VALIDATION.md`](../docs/development/PRESSURE_VOLUME_MODEL_COMPARISON_VALIDATION.md) | Frozen combined proof contract and pre-evaluation failure receipt | Before making any TE-5X evidence claim |
+| [`docs/adversarial-reviews/TE5_PRESSURE_VOLUME_MODEL_COMPARISON.md`](../docs/adversarial-reviews/TE5_PRESSURE_VOLUME_MODEL_COMPARISON.md) | Fresh review; Critical 0 / High 11 and TE-5X DESIGN BLOCKED with no ranking | Before any new TE-5 pressure-volume comparison decision |
 
 ## Authority and evidence boundaries
 

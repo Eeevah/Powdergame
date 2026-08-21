@@ -276,6 +276,14 @@ false rupture-capable pressure를 허용한다. 따라서 ADR-0009도 Proposed /
 DESIGN BLOCKED이며, G5 causal chain은 wider matching scope가 별도로 승인·
 검증되기 전까지 미래 source에 결합되지 않는다.
 
+D-022의 [`TE5_PRESSURE_VOLUME_ARCHITECTURE_RESET`](TE5_PRESSURE_VOLUME_ARCHITECTURE_RESET.md)은
+exact matching, shared chamber, conservative field를 같은 기준으로
+비교하지만 G5 Gate를 다시 쓰지 않는다. 유일한 통합 reference process가
+후보 평가 전에 oracle bootstrap에서 종료되어 A/B/C eligibility를
+입증하지 못했다. ADR-0010은 Proposed / DESIGN BLOCKED이고 추천 모델은
+없다. 기존 G5 evidence는 계속 source-bound이며 TE-3/TE-5 runtime은
+시작되지 않았다.
+
 ### User validation
 
 전용 `boiler_explosion()` 없이 작은 Rule chain으로 압력 사고가 납득되는지 확인한다.

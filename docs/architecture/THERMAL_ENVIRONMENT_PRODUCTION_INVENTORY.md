@@ -3,8 +3,8 @@
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
-- **Scope:** implemented TE-1/TE-2 graph plus accepted TE-3D and blocked TE-5B/TE-5C/TE-5D static projections
-- **Runtime status:** TE-2 accepted; TE-3D architecture accepted; TE-5B, TE-5C and TE-5D design blocked; all TE-3/TE-5 runtime not started
+- **Scope:** implemented TE-1/TE-2 graph plus accepted TE-3D and blocked TE-5B/TE-5C/TE-5D/TE-5X static projections
+- **Runtime status:** TE-2 accepted; TE-3D architecture accepted; TE-5B through TE-5X design blocked; all TE-3/TE-5 runtime not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
 Section 8 is the current implemented TE-2 34-pass delta and supersedes that
@@ -566,3 +566,24 @@ unbounded/far larger fixed dispatch budget or a source-proven global search
 lifetime. Proposal and claim can represent frontier/predecessor roles after
 Smoke, but no fixed pass bound or exact convergence protocol has been proven.
 No additional scratch allocation is authorized.
+
+## 13. Proposed but evidence-blocked TE-5X comparison projections
+
+D-022 and [`ADR-0010`](decisions/ADR-0010-pressure-volume-model-selection.md)
+compare three non-runtime layouts. Candidate A retains the TE-5D 16-byte-per-
+Cell Current/Next state (64 MiB at 2048²), reuses proposal/claim for exact
+frontier/predecessor work and has the finite but prohibitive pass bound
+`47 + N*(2N+3)`. Candidate B uses one dedicated pressure pair plus two
+temporary `vec4<u32>` grouping buffers: 40 bytes per Cell, 160 MiB at 2048²,
+with a conservative 188-pass/376-query CCL/radix/reduction projection.
+Candidate C uses Vapor-volume and pressure Current/Next pairs, 16 bytes per
+Cell (64 MiB), with a projected 46 passes/92 queries but an unresolved
+condensation ownership failure. All representative passes are at or below
+eight storage bindings; base activity remains separate because it is already
+at eight.
+
+These are arithmetic and architecture comparisons only. The one-shot process
+failed during NetworkX oracle bootstrap before any candidate, fixture,
+generated state or grid ran. No memory was allocated in production, no pass
+exists in source and no candidate is recommended. TE-5X is DESIGN BLOCKED by
+incomplete comparison evidence.

@@ -417,3 +417,10 @@ Its frozen depth-six matching candidate is DESIGN BLOCKED by a legal
 eight-source persistent alternating chain. This does not alter the accepted
 phase-energy/1:1 architecture. It means the required atomic TE-3/TE-5 bridge
 still has no approved implementation authority.
+
+D-022 then authorizes proposed
+[`ADR-0010`](ADR-0010-pressure-volume-model-selection.md), comparing exact
+matching, shared chamber capacity and a conservative Vapor field without
+accepting any model. Its only combined reference process failed before any
+candidate evaluation, so TE-5X is DESIGN BLOCKED by incomplete evidence. This
+again leaves the atomic activation rule unchanged and runtime not started.

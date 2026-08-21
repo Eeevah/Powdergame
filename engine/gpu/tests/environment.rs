@@ -28,17 +28,19 @@ fn allocation_and_profiler_contracts_are_exact() {
     assert_eq!(small_report.air_energy_current_bytes, 262_144);
     assert_eq!(small_report.air_energy_next_bytes, 262_144);
     assert_eq!(small_report.environment_receiver_claim_bytes, 262_144);
-    assert_eq!(small_report.total_requested_world_bytes, 3_407_872);
+    assert_eq!(small_report.phase_energy_current_bytes, 262_144);
+    assert_eq!(small_report.phase_energy_next_bytes, 262_144);
+    assert_eq!(small_report.total_requested_world_bytes, 3_932_160);
 
     let reference = WorldConfig::reference();
     let reference_layout = WorldLayout::new(2048 * 2048).unwrap();
     let reference_report = AllocationReport::from_layout(reference, &reference_layout);
-    assert_eq!(reference_report.total_requested_world_bytes, 218_103_808);
+    assert_eq!(reference_report.total_requested_world_bytes, 251_658_240);
 
-    assert_eq!(PASS_COUNT, 34);
+    assert_eq!(PASS_COUNT, 40);
     assert_eq!(PASS_NAMES.len(), PASS_COUNT);
     assert_eq!(PASS_NAMES[0], "activity_wake");
-    assert_eq!(PASS_NAMES[33], "activity_reduce");
+    assert_eq!(PASS_NAMES[39], "activity_reduce");
     for required in [
         "environment_reconcile_movement",
         "expansion_environment_receiver_claim",
@@ -51,6 +53,10 @@ fn allocation_and_profiler_contracts_are_exact() {
         "thermal_stability_scale",
         "unified_thermal_commit",
         "environment_activity_propose",
+        "phase_energy_reconcile_movement",
+        "phase_context_propose",
+        "phase_thermodynamics",
+        "phase_activity_propose",
     ] {
         assert!(
             PASS_NAMES.contains(&required),
@@ -66,7 +72,7 @@ fn tracked_no_profiler_total_is_exact_at_256_squared() {
     let report = sim.tracked_memory_report(None);
     assert_eq!(report.environment_state_bytes, 1_048_576);
     assert_eq!(report.environment_receiver_claim_bytes, 262_144);
-    assert_eq!(report.total_tracked_gpu_bytes, 4_197_040);
+    assert_eq!(report.total_tracked_gpu_bytes, 4_721_328);
 }
 
 #[test]

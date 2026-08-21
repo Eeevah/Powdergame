@@ -20,6 +20,7 @@ use crate::observatory::{
     ActivityMetrics, IntegrityMetrics, ObservatoryMetrics, PressureObservatoryMetrics,
     ACTIVITY_PANEL_NAMES,
 };
+use crate::phase_cycle::PhaseCycleHudData;
 use crate::sandbox::{
     SandboxHudData, SandboxPaletteGroup, SandboxThermalFeedbackState, SandboxTool, SANDBOX_PALETTE,
     SANDBOX_PALETTE_GROUP_LABEL_Y, SANDBOX_PALETTE_ROW_Y, SANDBOX_PRESET_FIRST_ROW_Y,
@@ -4553,6 +4554,189 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.index_capacity = (self.batch.indices.len() * 3) / 2;
             self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("te2_text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// TE-3 candidate HUD backed by production Material, Temperature, and
+    /// phase-energy buffers. The normal 24-byte Inspector contract is unchanged.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_phase_cycle_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        data: &PhaseCycleHudData,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+        self.batch.clear();
+        let white_uv = self.atlas.solid_white_uv;
+        let title = [0.96, 0.98, 1.0, 1.0];
+        let header = [0.42, 0.88, 1.0, 1.0];
+        let label = [0.68, 0.75, 0.84, 1.0];
+        let value = [0.96, 0.97, 0.99, 1.0];
+        let accent = [1.0, 0.68, 0.28, 1.0];
+        let card = [0.04, 0.06, 0.09, 0.94];
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            18.0,
+            22,
+            "TE-3 WATER / STEAM PHASE CYCLE",
+            title,
+        );
+        self.batch.draw_text_right(
+            &self.atlas,
+            sw - 22.0,
+            24.0,
+            14,
+            &format!(
+                "{} | x{} | SIM TICK {}",
+                if data.playing { "PLAYING" } else { "PAUSED" },
+                data.fast,
+                data.simulation_tick
+            ),
+            header,
+        );
+        self.batch
+            .draw_rect(18.0, 70.0, 390.0, 210.0, card, white_uv);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            88.0,
+            17,
+            &format!("SCENE {}/4", data.scene.number()),
+            header,
+        );
+        self.batch
+            .draw_text(&self.atlas, 32.0, 120.0, 14, data.scene.name(), value);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            150.0,
+            12,
+            data.scene.description(),
+            label,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            194.0,
+            12,
+            "1-4 scene | SPACE play | N step | F speed | R reset",
+            value,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            224.0,
+            12,
+            "Pressure coupling: DEFERRED / NOT ACTIVE",
+            accent,
+        );
+        let x = sw - 390.0;
+        self.batch.draw_rect(x, 70.0, 372.0, 260.0, card, white_uv);
+        self.batch.draw_text(
+            &self.atlas,
+            x + 16.0,
+            88.0,
+            16,
+            "PERSISTENT SUMMARY",
+            header,
+        );
+        if let Some(sample) = &data.sample {
+            let material = match sample.selected_material {
+                4 => "Water",
+                6 => "Steam",
+                8 => "Ice",
+                0 => "EMPTY",
+                _ => "Other",
+            };
+            for (row, text) in [
+                format!("Sample tick: {}", sample.sample_tick),
+                format!("Selected: {material}"),
+                format!("Temperature: {:.3} C", sample.selected_temperature),
+                format!("Phase energy: {:.3}", sample.selected_phase_energy),
+                format!("Family total: {}", sample.family_count),
+                format!(
+                    "Water {} | Steam {} | Ice {}",
+                    sample.water_count, sample.steam_count, sample.ice_count
+                ),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                self.batch.draw_text(
+                    &self.atlas,
+                    x + 16.0,
+                    124.0 + row as f32 * 30.0,
+                    13,
+                    &text,
+                    if row == 3 { accent } else { value },
+                );
+            }
+        } else {
+            self.batch.draw_text(
+                &self.atlas,
+                x + 16.0,
+                130.0,
+                13,
+                "Sampling production GPU state...",
+                accent,
+            );
+        }
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            sh - 31.0,
+            13,
+            "1:1 phase quantity | No extra Steam | No Water phase pressure",
+            label,
+        );
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te3_text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te3_text_index_buffer"),
                 size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,

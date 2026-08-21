@@ -1289,6 +1289,7 @@ impl Renderer {
 pub enum HudData<'a> {
     Thermal(&'a crate::observatory::ObservatoryMetrics, u64),
     ThermalEnvironment(&'a crate::thermal_environment::ThermalEnvironmentHudData),
+    PhaseCycle(&'a crate::phase_cycle::PhaseCycleHudData),
     Pressure(&'a crate::observatory::PressureObservatoryMetrics, u64),
     ParallelIntegrity(&'a crate::observatory::IntegrityMetrics, u64),
     Activity(&'a crate::observatory::ActivityMetrics, u64),
@@ -1629,6 +1630,16 @@ impl Renderer {
                 }
                 HudData::ThermalEnvironment(data) => {
                     tr.render_thermal_environment_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        data,
+                    );
+                }
+                HudData::PhaseCycle(data) => {
+                    tr.render_phase_cycle_hud(
                         &self.device,
                         &self.queue,
                         &mut render_pass,

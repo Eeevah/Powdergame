@@ -277,6 +277,9 @@ pub fn stage_calibration_fixture(sim: &mut Simulation) -> Result<(), FixtureErro
     let queue = &sim.context.queue;
     queue.write_buffer(&sim.world.material_current, 0, &material_bytes);
     queue.write_buffer(&sim.world.material_next, 0, &material_bytes);
+    sim.world
+        .stage_phase_energy_for_materials(queue, &fixture.materials)
+        .map_err(|error| FixtureError::InvalidWorld(error.to_string()))?;
     queue.write_buffer(&sim.world.temperature_current, 0, &temperature_bytes);
     queue.write_buffer(&sim.world.temperature_next, 0, &temperature_bytes);
     queue.write_buffer(&sim.world.flags_current, 0, &flag_bytes);

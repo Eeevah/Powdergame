@@ -418,15 +418,13 @@ fn ignition_heat_wakes_sleep_candidate_wood() {
 //
 // Each positive fixture is a SEALED chamber inside Stone with one uniform
 // temperature over the ENTIRE world (ring included), so there is no
-// temperature gradient anywhere. Activity can therefore only come from the
-// phase rule: the phase pass self-marks the transition tick in the activity
-// buffer (THERMAL), so the chunk that performed phase work is never
-// observed as stable. The detector also checks the phase condition directly
-// (defensive — 1:1 transitions resolve within one tick).
+// temperature gradient anywhere. D-018/D-024 intentionally removed the old
+// threshold-only activity tail: without a gas face or real cooling work these
+// states are stalled and may sleep.
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
-fn uniform_water_above_boil_threshold_reports_thermal_active() {
+fn buried_uniform_superheated_water_without_work_can_sleep() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
     fill_rect(&sim, 20, 20, 43, 43, MATERIAL_WATER); // sealed chamber
@@ -434,14 +432,13 @@ fn uniform_water_above_boil_threshold_reports_thermal_active() {
 
     sim.tick().expect("tick 1 (boil)");
 
-    // Zero gradient; the phase transition itself marks the tick.
+    // Zero gradient and no gas face: no runnable latent work.
     let mask = chunk_activity(&sim)[0];
-    assert_ne!(mask & ACTIVITY_THERMAL, 0);
-    assert_eq!(chunk_stable(&sim)[0], 0);
+    assert_eq!(mask & ACTIVITY_THERMAL, 0);
 }
 
 #[test]
-fn uniform_steam_below_condense_threshold_reports_thermal_active() {
+fn uniform_no_sink_steam_without_work_can_sleep() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 64).unwrap());
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE);
     fill_rect(&sim, 20, 20, 43, 43, MATERIAL_STEAM); // sealed chamber
@@ -450,8 +447,7 @@ fn uniform_steam_below_condense_threshold_reports_thermal_active() {
     sim.tick().expect("tick 1 (condense)");
 
     let mask = chunk_activity(&sim)[0];
-    assert_ne!(mask & ACTIVITY_THERMAL, 0);
-    assert_eq!(chunk_stable(&sim)[0], 0);
+    assert_eq!(mask & ACTIVITY_THERMAL, 0);
 }
 
 #[test]

@@ -296,26 +296,6 @@ fn pressure_frontier(x: i32, y: i32, mat: u32, p: f32) -> bool {
     return false;
 }
 
-// A cell whose own Material + Temperature satisfies a phase rule has
-// pending phase work — it must never be observed as stable. In the current
-// 1:1 write-self semantics such a cell always transforms within the same
-// tick (hysteresis keeps the post-transition state stable), so this check
-// is defensive; the phase pass itself marks the actual transition tick in
-// `cell_activity` (THERMAL), which is the observable signal.
-fn phase_candidate(mat: u32, t: f32) -> bool {
-    if (mat == EMPTY || mat >= TABLE_LEN) {
-        return false;
-    }
-    let desc = tables.phase[mat];
-    if (desc.below_target != NO_PHASE_TARGET && t < desc.below_threshold) {
-        return true;
-    }
-    if (desc.above_target != NO_PHASE_TARGET && t > desc.above_threshold) {
-        return true;
-    }
-    return false;
-}
-
 @compute
 @workgroup_size(64)
 fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -339,7 +319,7 @@ fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
                 mask = mask | ACTIVITY_MATTER;
             }
         }
-        if (thermal_frontier(x, y, mat, t, flags) || phase_candidate(mat, t)) {
+        if (thermal_frontier(x, y, mat, t, flags)) {
             mask = mask | ACTIVITY_THERMAL;
         }
         if (pressure_frontier(x, y, mat, pressure_current[index])) {
@@ -350,12 +330,5 @@ fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
     }
 
-    // Preserve ONLY the current-tick phase-transition marker (THERMAL,
-    // cleared+re-set by the phase pass earlier in this tick) and overwrite
-    // every other bit from this tick's detector result. Any MATTER /
-    // PRESSURE / REACTION bit left over from a previous tick must not
-    // survive: a frontier that actually disappeared must clear, so the
-    // chunk can return to stable and its stable counter can resume.
-    let phase_marker = cell_activity[index] & ACTIVITY_THERMAL;
-    cell_activity[index] = mask | phase_marker;
+    cell_activity[index] = mask;
 }

@@ -70,6 +70,10 @@ fn upload_fixture(simulation: &Simulation, fixture: &ScenarioFixture) -> Result<
     );
     simulation
         .world
+        .stage_phase_energy_for_materials(queue, &fixture.materials)
+        .map_err(|error| ScenarioError::Gpu(error.to_string()))?;
+    simulation
+        .world
         .stage_environment_for_materials(
             queue,
             &fixture.materials,

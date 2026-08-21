@@ -35,7 +35,7 @@
 use wgpu::util::DeviceExt;
 
 use powdergame_core::{
-    chunk_count, environment_image_from_materials, initial_material_ids,
+    canonical_phase_energy, chunk_count, environment_image_from_materials, initial_material_ids,
     is_valid_cell_material_value, standard_air_state, vacuum_air_state, Domain,
     EmptyEnvironmentSeed, EnvironmentImage, WorldConfig, WorldLayout, FLAGS_ELEM_SIZE,
     MATERIAL_ELEM_SIZE, MATERIAL_EMPTY, PRESSURE_ELEM_SIZE, PRESSURE_REFERENCE,
@@ -70,6 +70,8 @@ pub struct AllocationReport {
     pub material_next_bytes: u64,
     pub temperature_current_bytes: u64,
     pub temperature_next_bytes: u64,
+    pub phase_energy_current_bytes: u64,
+    pub phase_energy_next_bytes: u64,
     pub pressure_current_bytes: u64,
     pub pressure_next_bytes: u64,
     pub flags_current_bytes: u64,
@@ -94,6 +96,8 @@ impl AllocationReport {
             material_next_bytes: layout.material_bytes,
             temperature_current_bytes: layout.temperature_bytes,
             temperature_next_bytes: layout.temperature_bytes,
+            phase_energy_current_bytes: layout.temperature_bytes,
+            phase_energy_next_bytes: layout.temperature_bytes,
             pressure_current_bytes: layout.pressure_bytes,
             pressure_next_bytes: layout.pressure_bytes,
             flags_current_bytes: layout.flags_bytes,
@@ -103,7 +107,7 @@ impl AllocationReport {
             air_energy_current_bytes: layout.material_bytes,
             air_energy_next_bytes: layout.material_bytes,
             environment_receiver_claim_bytes: layout.material_bytes,
-            total_requested_world_bytes: layout.total_world_bytes + 5 * layout.material_bytes,
+            total_requested_world_bytes: layout.total_world_bytes + 7 * layout.material_bytes,
             activity_scratch_bytes: layout.material_bytes
                 + 6 * (chunk_count(config.width, config.height, config.chunk_size) as u64) * 4,
         }
@@ -135,6 +139,16 @@ impl std::fmt::Display for AllocationReport {
             out,
             "temperature next bytes:  {}",
             self.temperature_next_bytes
+        );
+        let _ = writeln!(
+            out,
+            "phase energy cur bytes:  {}",
+            self.phase_energy_current_bytes
+        );
+        let _ = writeln!(
+            out,
+            "phase energy next bytes: {}",
+            self.phase_energy_next_bytes
         );
         let _ = writeln!(
             out,
@@ -190,6 +204,8 @@ pub struct GpuWorld {
     pub material_next: wgpu::Buffer,
     pub temperature_current: wgpu::Buffer,
     pub temperature_next: wgpu::Buffer,
+    pub phase_energy_current: wgpu::Buffer,
+    pub phase_energy_next: wgpu::Buffer,
     pub pressure_current: wgpu::Buffer,
     pub pressure_next: wgpu::Buffer,
     pub flags_current: wgpu::Buffer,
@@ -299,6 +315,22 @@ impl GpuWorld {
         let temperature_next = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("world/temperature/next"),
             contents: &reference_temperature_bytes,
+            usage: world_usage(),
+        });
+        let phase_values: Vec<f32> = initial_ids
+            .iter()
+            .copied()
+            .map(canonical_phase_energy)
+            .collect();
+        let phase_bytes = f32_bytes(&phase_values);
+        let phase_energy_current = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/phase-energy/current"),
+            contents: &phase_bytes,
+            usage: world_usage(),
+        });
+        let phase_energy_next = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("world/phase-energy/next"),
+            contents: &phase_bytes,
             usage: world_usage(),
         });
         let pressure_current = create_zeroed_buffer(
@@ -439,6 +471,8 @@ impl GpuWorld {
             material_next,
             temperature_current,
             temperature_next,
+            phase_energy_current,
+            phase_energy_next,
             pressure_current,
             pressure_next,
             flags_current,
@@ -481,6 +515,14 @@ impl GpuWorld {
         let temperature_bytes = f32_bytes(&reference_temperatures);
         queue.write_buffer(&self.temperature_current, 0, &temperature_bytes);
         queue.write_buffer(&self.temperature_next, 0, &temperature_bytes);
+        let phase_values: Vec<f32> = initial_ids
+            .iter()
+            .copied()
+            .map(canonical_phase_energy)
+            .collect();
+        let phase_bytes = f32_bytes(&phase_values);
+        queue.write_buffer(&self.phase_energy_current, 0, &phase_bytes);
+        queue.write_buffer(&self.phase_energy_next, 0, &phase_bytes);
         let zero_cells = vec![0u8; self.layout.material_bytes as usize];
         queue.write_buffer(&self.pressure_current, 0, &zero_cells);
         queue.write_buffer(&self.pressure_next, 0, &zero_cells);
@@ -545,6 +587,37 @@ impl GpuWorld {
         let image = environment_image_from_materials(materials, empty_seed)
             .map_err(|error| GpuError::Other(format!("Environment staging failed: {error}")))?;
         self.stage_environment_image(queue, &image)
+    }
+
+    /// Canonically stages both phase-energy halves for an authoritative
+    /// Material image. Invalid staging fails before either buffer is written.
+    pub fn stage_phase_energy_for_materials(
+        &self,
+        queue: &wgpu::Queue,
+        materials: &[u32],
+    ) -> Result<(), GpuError> {
+        if materials.len() as u64 != self.layout.cell_count {
+            return Err(GpuError::Other(format!(
+                "phase-energy staging Material length {} does not match cell count {}",
+                materials.len(),
+                self.layout.cell_count
+            )));
+        }
+        if let Some(&invalid) = materials
+            .iter()
+            .find(|&&material| !is_valid_cell_material_value(material))
+        {
+            return Err(GpuError::InvalidMaterialValue(invalid));
+        }
+        let values: Vec<f32> = materials
+            .iter()
+            .copied()
+            .map(canonical_phase_energy)
+            .collect();
+        let bytes = f32_bytes(&values);
+        queue.write_buffer(&self.phase_energy_current, 0, &bytes);
+        queue.write_buffer(&self.phase_energy_next, 0, &bytes);
+        Ok(())
     }
 
     fn stage_environment_image(
@@ -819,6 +892,63 @@ impl GpuWorld {
         Ok(cells)
     }
 
+    pub fn read_phase_energy_cell(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+    ) -> Result<f32, GpuError> {
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let bytes = read_back_bytes(device, queue, &self.phase_energy_current, index * 4, 4)?;
+        Ok(f32::from_ne_bytes(bytes[..4].try_into().unwrap()))
+    }
+
+    pub fn read_phase_energy_all(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<f32>, GpuError> {
+        let bytes = read_back_bytes(
+            device,
+            queue,
+            &self.phase_energy_current,
+            0,
+            self.layout.temperature_bytes,
+        )?;
+        Ok(bytes
+            .chunks_exact(4)
+            .map(|chunk| f32::from_ne_bytes(chunk.try_into().unwrap()))
+            .collect())
+    }
+
+    pub fn write_phase_energy(
+        &self,
+        queue: &wgpu::Queue,
+        x: i64,
+        y: i64,
+        material: u32,
+        value: f32,
+    ) -> Result<(), GpuError> {
+        if !powdergame_core::valid_phase_energy(material, value) {
+            return Err(GpuError::Other(format!(
+                "invalid phase energy {value} for material {material}"
+            )));
+        }
+        let index = self
+            .domain
+            .index(x, y)
+            .ok_or(GpuError::CoordinateOutOfBounds { x, y })?;
+        let bytes = value.to_ne_bytes();
+        queue.write_buffer(&self.phase_energy_current, index * 4, &bytes);
+        queue.write_buffer(&self.phase_energy_next, index * 4, &bytes);
+        self.mark_edit_wake_for_cell(queue, x, y);
+        Ok(())
+    }
+
     /// Marks the chunk containing `(x, y)` with an edit wake trigger, resetting
     /// its stable ticks. The GPU `activity_wake` pass automatically propagates the
     /// wake to all 8 neighbor chunks via its safety halo evaluation.
@@ -870,6 +1000,9 @@ impl GpuWorld {
         let bytes = value.to_ne_bytes();
         queue.write_buffer(&self.material_current, offset, &bytes);
         queue.write_buffer(&self.material_next, offset, &bytes);
+        let phase = canonical_phase_energy(value).to_ne_bytes();
+        queue.write_buffer(&self.phase_energy_current, offset, &phase);
+        queue.write_buffer(&self.phase_energy_next, offset, &phase);
         // Matter-owned flags never survive an identity replacement.
         let zero_flags = 0u32.to_ne_bytes();
         let f_off = index * FLAGS_ELEM_SIZE;

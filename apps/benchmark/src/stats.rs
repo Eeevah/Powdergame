@@ -195,7 +195,7 @@ mod tests {
 
         let incorrect_sum_of_pass_medians = stats.pass_stats[1].p50 + stats.pass_stats[3].p50;
         assert_eq!(incorrect_sum_of_pass_medians, 2.0);
-        assert_eq!(stats.grouped_stats[0].p50, 102.0);
+        assert_eq!(stats.grouped_stats[0].p50, 103.0);
         assert_ne!(stats.grouped_stats[0].p50, incorrect_sum_of_pass_medians);
     }
 

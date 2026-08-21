@@ -310,6 +310,9 @@ pub(crate) fn stage_preset(
         .context
         .queue
         .write_buffer(&simulation.world.material_next, 0, &bytes);
+    simulation
+        .world
+        .stage_phase_energy_for_materials(&simulation.context.queue, &image.materials)?;
     simulation.world.stage_environment_for_materials(
         &simulation.context.queue,
         &image.materials,
@@ -405,6 +408,8 @@ pub(crate) struct SandboxEditController {
     flag_bind_group: wgpu::BindGroup,
     environment_pipeline: wgpu::ComputePipeline,
     environment_bind_group: wgpu::BindGroup,
+    phase_pipeline: wgpu::ComputePipeline,
+    phase_bind_group: wgpu::BindGroup,
     params_buffer: wgpu::Buffer,
     command_buffer: wgpu::Buffer,
     pending: BTreeMap<u32, SandboxEditKind>,
@@ -427,6 +432,10 @@ impl SandboxEditController {
         let environment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("powdergame-te1-sandbox-edit-environment-shader"),
             source: wgpu::ShaderSource::Wgsl(SANDBOX_EDIT_ENVIRONMENT_SHADER.into()),
+        });
+        let phase_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("powdergame-te3-sandbox-edit-phase-shader"),
+            source: wgpu::ShaderSource::Wgsl(SANDBOX_EDIT_PHASE_SHADER.into()),
         });
         let field_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("powdergame-g9a-sandbox-edit-field-bgl"),
@@ -466,6 +475,17 @@ impl SandboxEditController {
                     storage_entry(7, false),
                 ],
             });
+        let phase_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("powdergame-te3-sandbox-edit-phase-bgl"),
+            entries: &[
+                uniform_entry(0, EDIT_PARAMS_BYTES),
+                storage_entry(1, true),
+                storage_entry(2, true),
+                storage_entry(3, true),
+                storage_entry(4, false),
+                storage_entry(5, false),
+            ],
+        });
         let field_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("powdergame-g9a-sandbox-edit-field-pl"),
@@ -481,6 +501,12 @@ impl SandboxEditController {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("powdergame-te1-sandbox-edit-environment-pl"),
                 bind_group_layouts: &[&environment_layout],
+                push_constant_ranges: &[],
+            });
+        let phase_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("powdergame-te3-sandbox-edit-phase-pl"),
+                bind_group_layouts: &[&phase_layout],
                 push_constant_ranges: &[],
             });
         let field_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -508,6 +534,14 @@ impl SandboxEditController {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 cache: None,
             });
+        let phase_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("powdergame-te3-sandbox-edit-phase-pipeline"),
+            layout: Some(&phase_pipeline_layout),
+            module: &phase_shader,
+            entry_point: Some("apply_phase_energy"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
         let params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("powdergame-g9a-sandbox-edit-params"),
             size: EDIT_PARAMS_BYTES,
@@ -627,6 +661,36 @@ impl SandboxEditController {
                 },
             ],
         });
+        let phase_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("powdergame-te3-sandbox-edit-phase-bg"),
+            layout: &phase_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: params_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: command_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: world.material_current.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: world.material_next.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: world.phase_energy_current.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: world.phase_energy_next.as_entire_binding(),
+                },
+            ],
+        });
         Ok(Self {
             field_pipeline,
             field_bind_group,
@@ -634,6 +698,8 @@ impl SandboxEditController {
             flag_bind_group,
             environment_pipeline,
             environment_bind_group,
+            phase_pipeline,
+            phase_bind_group,
             params_buffer,
             command_buffer,
             pending: BTreeMap::new(),
@@ -742,6 +808,17 @@ impl SandboxEditController {
             // Draw cannot clear Air under an existing Matter cell.
             pass.set_pipeline(&self.environment_pipeline);
             pass.set_bind_group(0, &self.environment_bind_group, &[]);
+            pass.dispatch_workgroups((count as u32).div_ceil(EDIT_WORKGROUP_SIZE), 1, 1);
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te3-sandbox-edit-phase-pass"),
+                timestamp_writes: None,
+            });
+            // Phase energy observes the same pre-edit occupancy as Environment
+            // and flags, so a rejected EMPTY-only Draw cannot alter owner state.
+            pass.set_pipeline(&self.phase_pipeline);
+            pass.set_bind_group(0, &self.phase_bind_group, &[]);
             pass.dispatch_workgroups((count as u32).div_ceil(EDIT_WORKGROUP_SIZE), 1, 1);
         }
         {
@@ -1143,6 +1220,59 @@ fn apply_fields(@builtin(global_invocation_id) gid: vec3<u32>) {
     let updated = clamp(finite_current + delta, TEMPERATURE_MIN, TEMPERATURE_MAX);
     temperature_current[index] = updated;
     temperature_next[index] = updated;
+}
+"#;
+
+const SANDBOX_EDIT_PHASE_SHADER: &str = r#"
+struct Params {
+    count: u32,
+    width: u32,
+    height: u32,
+    chunk_size: u32,
+};
+
+struct EditCommand {
+    cell_index: u32,
+    operation: u32,
+    value_bits: u32,
+    placement_temperature_bits: u32,
+};
+
+@group(0) @binding(0) var<uniform> params: Params;
+@group(0) @binding(1) var<storage, read> commands: array<EditCommand>;
+@group(0) @binding(2) var<storage, read> material_current: array<u32>;
+@group(0) @binding(3) var<storage, read> material_next: array<u32>;
+@group(0) @binding(4) var<storage, read_write> phase_energy_current: array<f32>;
+@group(0) @binding(5) var<storage, read_write> phase_energy_next: array<f32>;
+
+const EMPTY: u32 = 0u;
+const WATER: u32 = 4u;
+const STEAM: u32 = 6u;
+const ICE: u32 = 8u;
+
+fn canonical_phase_energy(material: u32) -> f32 {
+    if (material == ICE) { return -80.0; }
+    if (material == STEAM) { return 480.0; }
+    return 0.0;
+}
+
+@compute @workgroup_size(64)
+fn apply_phase_energy(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= params.count) { return; }
+    let command = commands[gid.x];
+    let cell_count = params.width * params.height;
+    if (command.cell_index >= cell_count) { return; }
+    let index = command.cell_index;
+
+    if (command.operation == 0u) {
+        if (material_current[index] != EMPTY || material_next[index] != EMPTY) { return; }
+        let energy = canonical_phase_energy(command.value_bits);
+        phase_energy_current[index] = energy;
+        phase_energy_next[index] = energy;
+    } else if (command.operation == 1u) {
+        phase_energy_current[index] = 0.0;
+        phase_energy_next[index] = 0.0;
+    }
 }
 "#;
 

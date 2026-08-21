@@ -78,10 +78,15 @@ pub use movement::{
     MoveTarget,
 };
 pub use phase::{
-    is_phase_candidate, phase_descriptor_table, select_phase_effect, select_phase_transition,
-    PhaseEffect, PhaseGpuDescriptor, PhaseTransition, TemperatureCondition, ICE_MELT_ABOVE,
-    MAX_PHASE_MATTER_YIELD, NO_PHASE_TARGET, PHASE_IDENTITY_MATTER_YIELD, STEAM_CONDENSE_BELOW,
-    WATER_BOIL_ABOVE, WATER_BOIL_BLOCKED_PRESSURE, WATER_BOIL_MATTER_YIELD, WATER_FREEZE_BELOW,
+    canonical_phase_energy, is_phase_candidate, normalize_phase_enthalpy, phase_descriptor_table,
+    phase_enthalpy, select_phase_effect, select_phase_transition, sensible_enthalpy,
+    valid_phase_energy, PhaseContext, PhaseEffect, PhaseGpuDescriptor, PhaseNormalization,
+    PhaseTransition, PhaseTransitionKind, TemperatureCondition, CONDENSATION_MIN_DELTA_C,
+    CONDENSATION_SURFACE_MAX_C, FREE_AIR_NUCLEATION_MAX_C, ICE_MELT_ABOVE, LATENT_FUSION,
+    LATENT_VAPORIZATION, MAX_PHASE_MATTER_YIELD, NO_PHASE_TARGET, NUCLEATION_RADIUS,
+    PHASE_H_ABS_TOL, PHASE_H_REL_TOL, PHASE_IDENTITY_MATTER_YIELD, STEAM_CONDENSE_BELOW, T_BOIL,
+    T_MELT, WATER_BOIL_ABOVE, WATER_BOIL_BLOCKED_PRESSURE, WATER_BOIL_MATTER_YIELD,
+    WATER_FREEZE_BELOW,
 };
 pub use pressure::{
     is_pressure_medium, pressure_step, sanitize_pressure, PressureNeighbor,

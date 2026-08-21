@@ -33,6 +33,10 @@ fn all_production_wgsl_parses_without_a_gpu() {
             include_str!("../src/environment_reconcile_movement.wgsl"),
         ),
         (
+            "phase_energy_reconcile_movement.wgsl",
+            include_str!("../src/phase_energy_reconcile_movement.wgsl"),
+        ),
+        (
             "air_flow_scale.wgsl",
             include_str!("../src/air_flow_scale.wgsl"),
         ),
@@ -51,6 +55,14 @@ fn all_production_wgsl_parses_without_a_gpu() {
         (
             "phase_transition.wgsl",
             include_str!("../src/phase_transition.wgsl"),
+        ),
+        (
+            "phase_context_propose.wgsl",
+            include_str!("../src/phase_context_propose.wgsl"),
+        ),
+        (
+            "phase_energy_hygiene_identity.wgsl",
+            include_str!("../src/phase_energy_hygiene_identity.wgsl"),
         ),
         ("decay.wgsl", include_str!("../src/decay.wgsl")),
         ("combustion.wgsl", include_str!("../src/combustion.wgsl")),
@@ -92,6 +104,10 @@ fn all_production_wgsl_parses_without_a_gpu() {
         (
             "activity_propose.wgsl",
             include_str!("../src/activity_propose.wgsl"),
+        ),
+        (
+            "phase_activity_propose.wgsl",
+            include_str!("../src/phase_activity_propose.wgsl"),
         ),
         (
             "activity_reduce.wgsl",
@@ -143,6 +159,43 @@ fn te2_passes_stay_within_the_eight_storage_binding_limit() {
         (
             "environment_activity_propose.wgsl",
             include_str!("../src/environment_activity_propose.wgsl"),
+        ),
+    ] {
+        let module = naga::front::wgsl::parse_str(source).unwrap();
+        let storage_bindings = module
+            .global_variables
+            .iter()
+            .filter(|(_, variable)| matches!(variable.space, naga::AddressSpace::Storage { .. }))
+            .count();
+        assert!(
+            storage_bindings <= 8,
+            "{name} declares {storage_bindings} storage bindings"
+        );
+    }
+}
+
+#[test]
+fn te3_passes_stay_within_the_eight_storage_binding_limit() {
+    for (name, source) in [
+        (
+            "phase_energy_reconcile_movement.wgsl",
+            include_str!("../src/phase_energy_reconcile_movement.wgsl"),
+        ),
+        (
+            "phase_context_propose.wgsl",
+            include_str!("../src/phase_context_propose.wgsl"),
+        ),
+        (
+            "phase_transition.wgsl",
+            include_str!("../src/phase_transition.wgsl"),
+        ),
+        (
+            "phase_energy_hygiene_identity.wgsl",
+            include_str!("../src/phase_energy_hygiene_identity.wgsl"),
+        ),
+        (
+            "phase_activity_propose.wgsl",
+            include_str!("../src/phase_activity_propose.wgsl"),
         ),
     ] {
         let module = naga::front::wgsl::parse_str(source).unwrap();

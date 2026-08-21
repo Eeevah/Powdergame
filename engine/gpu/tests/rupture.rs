@@ -7,8 +7,7 @@
 
 use powdergame_core::{
     vacuum_air_state, WorldConfig, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_STEAM,
-    MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD, PRESSURE_REFERENCE, WATER_BOIL_BLOCKED_PRESSURE,
-    WOOD_RUPTURE_THRESHOLD,
+    MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD, PRESSURE_REFERENCE, WOOD_RUPTURE_THRESHOLD,
 };
 use powdergame_gpu::Simulation;
 
@@ -80,7 +79,7 @@ fn wood_survives_sub_threshold_pressure() {
 fn wood_ruptures_from_threshold_exceeding_neighbor_pressure() {
     let mut sim = eight_by_eight();
     block_water_motion_except_top_wall(&sim, MATERIAL_WOOD);
-    set_p(&sim, 3, 3, WATER_BOIL_BLOCKED_PRESSURE);
+    set_p(&sim, 3, 3, WOOD_RUPTURE_THRESHOLD + 20.0);
 
     sim.tick().expect("tick");
 
@@ -127,7 +126,7 @@ fn rupture_crosses_64_cell_chunk_boundary() {
     for (x, y) in [(62, 8), (62, 9), (63, 9), (64, 9)] {
         set(&sim, x, y, MATERIAL_STONE);
     }
-    set_p(&sim, 63, 8, WATER_BOIL_BLOCKED_PRESSURE);
+    set_p(&sim, 63, 8, WOOD_RUPTURE_THRESHOLD + 20.0);
 
     sim.tick().expect("tick");
 
@@ -139,6 +138,7 @@ fn rupture_crosses_64_cell_chunk_boundary() {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 pressure chain; D-024 active Water boiling has zero pressure"]
 fn blocked_boiling_ruptures_weak_wall_then_vents_on_following_tick() {
     let mut sim = eight_by_eight();
     // One weak top wall; every other 8-neighbor is occupied so G5-B cannot
@@ -419,6 +419,7 @@ fn test_c_d_initial_thermal_matter_symmetry() {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 multi-boiler receipt; source-bound and not claimed by D-024"]
 fn two_by_two_multi_boiler_stress_lab_relative_ordering_contract() {
     let mut sim = two_hundred_fifty_six();
     stage_test_2x2_world(&sim);

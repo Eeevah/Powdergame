@@ -46,6 +46,7 @@ mod g8c_measurement;
 mod gallery;
 mod inspector;
 mod observatory;
+mod phase_cycle;
 mod renderer;
 mod sandbox;
 mod text_renderer;
@@ -73,6 +74,10 @@ use gallery::{
 };
 use inspector::{CellCoordinate, CellInspectorCollector, InspectorHudData, ScreenRect};
 use observatory::ObservatoryCollector;
+use phase_cycle::{
+    PhaseCycleHudData, PhaseCycleScene, PhaseCycleState, TE3_CHUNK_SIZE, TE3_TITLE, TE3_TPS,
+    TE3_WORLD_HEIGHT, TE3_WORLD_WIDTH,
+};
 use powdergame_core::{
     WorldConfig, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_OIL, MATERIAL_SAND, MATERIAL_SMOKE,
     MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD,
@@ -124,6 +129,7 @@ enum DemoMode {
     Density,
     Thermal,
     ThermalEnvironment,
+    PhaseCycle,
     Pressure,
     ParallelIntegrity,
     Activity,
@@ -142,6 +148,7 @@ impl DemoMode {
             DemoMode::Density => DENSITY_DEMO_TPS,
             DemoMode::Thermal => THERMAL_DEMO_TPS,
             DemoMode::ThermalEnvironment => TE2_TPS,
+            DemoMode::PhaseCycle => TE3_TPS,
             DemoMode::Pressure => PRESSURE_DEMO_TPS,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TPS,
             DemoMode::Activity => ACTIVITY_DEMO_TPS,
@@ -194,7 +201,7 @@ impl DemoState {
             reset_pending: false,
             fast: 1,
             rate_ticks: 0,
-            rate_started: None,
+            rate_started: start_playing.then(Instant::now),
             gallery,
         }
     }
@@ -323,6 +330,7 @@ struct App {
     gallery_provenance: Option<RuntimeProvenance>,
     sandbox: Option<SandboxRuntime>,
     thermal_environment: Option<ThermalEnvironmentState>,
+    phase_cycle: Option<PhaseCycleState>,
     experiment: Option<ExperimentWorkerConfig>,
     cursor_position: Option<PhysicalPosition<f64>>,
     fatal_error: Option<String>,
@@ -347,6 +355,7 @@ impl App {
             gallery_provenance: None,
             sandbox: None,
             thermal_environment: None,
+            phase_cycle: None,
             experiment,
             cursor_position: None,
             fatal_error: None,
@@ -359,6 +368,7 @@ impl App {
             DemoMode::Density => DENSITY_DEMO_TITLE,
             DemoMode::Thermal => THERMAL_DEMO_TITLE,
             DemoMode::ThermalEnvironment => TE2_TITLE,
+            DemoMode::PhaseCycle => TE3_TITLE,
             DemoMode::Pressure => PRESSURE_DEMO_TITLE,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TITLE,
             DemoMode::Activity => ACTIVITY_DEMO_TITLE,
@@ -370,6 +380,7 @@ impl App {
         // so they get a 1600×900 window; the G2/G3 fixtures keep 1280×720.
         let (window_w, window_h) = if self.demo_mode == DemoMode::Thermal
             || self.demo_mode == DemoMode::ThermalEnvironment
+            || self.demo_mode == DemoMode::PhaseCycle
             || self.demo_mode == DemoMode::Pressure
             || self.demo_mode == DemoMode::ParallelIntegrity
             || self.demo_mode == DemoMode::Activity
@@ -419,6 +430,7 @@ impl App {
             let (w, h) = match self.demo_mode {
                 DemoMode::Thermal => (320, 192),
                 DemoMode::ThermalEnvironment => (TE2_WORLD_WIDTH, TE2_WORLD_HEIGHT),
+                DemoMode::PhaseCycle => (TE3_WORLD_WIDTH, TE3_WORLD_HEIGHT),
                 DemoMode::Pressure => (256, 256),
                 DemoMode::ParallelIntegrity => (256, 256),
                 DemoMode::Activity => (256, 256),
@@ -429,6 +441,7 @@ impl App {
             let chunk_size = match self.demo_mode {
                 DemoMode::Sandbox => SANDBOX_CHUNK_SIZE,
                 DemoMode::ThermalEnvironment => TE2_CHUNK_SIZE,
+                DemoMode::PhaseCycle => TE3_CHUNK_SIZE,
                 _ => 64,
             };
             WorldConfig::new(w, h, chunk_size).expect("demo world config")
@@ -484,6 +497,9 @@ impl App {
             DemoMode::ThermalEnvironment => {
                 println!("[powdergame][te2] candidate staging uses bounded production GPU state");
             }
+            DemoMode::PhaseCycle => {
+                println!("[powdergame][te3] candidate staging uses production phase/thermal/movement state");
+            }
             DemoMode::Pressure => {
                 stage_pressure_demo(&simulation)?;
                 println!("[powdergame] pressure demo: 2x2 multi-boiler lab staged (Standard vs Extreme Overdrive)");
@@ -533,6 +549,11 @@ impl App {
         } else {
             None
         };
+        let phase_cycle = if self.demo_mode == DemoMode::PhaseCycle {
+            Some(PhaseCycleState::new(&mut simulation)?)
+        } else {
+            None
+        };
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
             material_buffer: &simulation.world.material_current,
@@ -545,6 +566,7 @@ impl App {
                 DemoMode::Density => PresentationPalette::Lab,
                 DemoMode::Thermal | DemoMode::Pressure => PresentationPalette::ThermalLab,
                 DemoMode::ThermalEnvironment => PresentationPalette::ThermalEnvironment,
+                DemoMode::PhaseCycle => PresentationPalette::ThermalEnvironment,
                 DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
                 DemoMode::Activity => PresentationPalette::Activity,
                 DemoMode::Gallery => PresentationPalette::Gallery,
@@ -661,6 +683,7 @@ impl App {
             self.renderer = Some(renderer);
             self.observatory_collector = observatory_collector;
             self.thermal_environment = thermal_environment;
+            self.phase_cycle = phase_cycle;
             event_loop.exit();
             return Ok(());
         }
@@ -700,6 +723,9 @@ impl App {
                     "[powdergame][te2] scene 1/4 Direct / Atmosphere / Vacuum | boundary Sealed | fixed bounded Environment samples"
                 );
             }
+            if self.demo_mode == DemoMode::PhaseCycle {
+                println!("[powdergame][te3] scene 1/4 Open beaker cycle | Pressure coupling DEFERRED / NOT ACTIVE IN THIS TE-3 CANDIDATE");
+            }
             self.demo = Some(demo);
             println!(
                 "[powdergame] window + world view ready; demo {}",
@@ -720,6 +746,7 @@ impl App {
         self.observatory_collector = observatory_collector;
         self.sandbox = sandbox;
         self.thermal_environment = thermal_environment;
+        self.phase_cycle = phase_cycle;
         Ok(())
     }
 
@@ -878,6 +905,40 @@ impl App {
             }
             Err(error) => {
                 eprintln!("[powdergame][te2] scene staging failed: {error}");
+                self.fatal_error = Some(error.to_string());
+            }
+        }
+        window.set_title(&demo.title());
+        window.request_redraw();
+    }
+
+    fn select_phase_cycle_scene(&mut self, number: u8, window: &Window) {
+        if self.demo_mode != DemoMode::PhaseCycle {
+            return;
+        }
+        let Some(scene) = PhaseCycleScene::from_number(number) else {
+            return;
+        };
+        let (Some(simulation), Some(candidate), Some(demo)) = (
+            self.simulation.as_mut(),
+            self.phase_cycle.as_mut(),
+            self.demo.as_mut(),
+        ) else {
+            return;
+        };
+        demo.playing = false;
+        demo.pending_steps = 0;
+        match candidate.select_scene(simulation, scene) {
+            Ok(()) => {
+                demo.commit_pristine_reset();
+                println!(
+                    "[powdergame][te3] scene {}/4 {} staged | PAUSED",
+                    scene.number(),
+                    scene.name()
+                );
+            }
+            Err(error) => {
+                eprintln!("[powdergame][te3] scene staging failed: {error}");
                 self.fatal_error = Some(error.to_string());
             }
         }
@@ -2091,6 +2152,9 @@ fn reset_demo_world(
         DemoMode::ThermalEnvironment => Err(GpuError::Other(
             "TE-2 candidate resets are owned by ThermalEnvironmentState".to_string(),
         )),
+        DemoMode::PhaseCycle => Err(GpuError::Other(
+            "TE-3 candidate resets are owned by PhaseCycleState".to_string(),
+        )),
         DemoMode::Pressure => stage_pressure_demo(simulation),
         DemoMode::ParallelIntegrity => stage_parallel_integrity_demo(simulation),
         DemoMode::Activity | DemoMode::Gallery => unreachable!("handled above"),
@@ -2109,6 +2173,7 @@ fn step_demo(
     collector: &mut Option<ObservatoryCollector>,
     cell_inspector: &mut Option<CellInspectorCollector>,
     thermal_environment: &mut Option<ThermalEnvironmentState>,
+    phase_cycle: &mut Option<PhaseCycleState>,
     mode: DemoMode,
 ) {
     if demo.reset_pending {
@@ -2116,6 +2181,8 @@ fn step_demo(
         demo.pending_steps = 0;
         let gallery_scenario = demo.gallery.as_ref().and_then(GalleryState::reset_target);
         let reset_result = if let Some(candidate) = thermal_environment.as_mut() {
+            candidate.reset(simulation)
+        } else if let Some(candidate) = phase_cycle.as_mut() {
             candidate.reset(simulation)
         } else {
             reset_demo_world(simulation, mode, gallery_scenario)
@@ -2169,6 +2236,8 @@ fn step_demo(
         // sample from that committed tick.
         let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
             candidate.single_step(simulation)
+        } else if let Some(candidate) = phase_cycle.as_mut() {
+            candidate.tick(simulation, true)
         } else {
             simulation.tick()
         };
@@ -2208,6 +2277,8 @@ fn step_demo(
             for _ in 0..demo.fast {
                 let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
                     candidate.tick_playing(simulation)
+                } else if let Some(candidate) = phase_cycle.as_mut() {
+                    candidate.tick(simulation, false)
                 } else {
                     simulation.tick()
                 };
@@ -2410,6 +2481,7 @@ fn fast_forward_is_enabled(mode: DemoMode) -> bool {
     matches!(
         mode,
         DemoMode::ThermalEnvironment
+            | DemoMode::PhaseCycle
             | DemoMode::ParallelIntegrity
             | DemoMode::Activity
             | DemoMode::Gallery
@@ -2509,6 +2581,13 @@ impl ApplicationHandler for App {
                         self.select_thermal_environment_scene(number, &window);
                     }
                     Key::Character(ref c)
+                        if self.demo_mode == DemoMode::PhaseCycle
+                            && matches!(c.as_str(), "1" | "2" | "3" | "4") =>
+                    {
+                        let number = c.as_bytes()[0] - b'0';
+                        self.select_phase_cycle_scene(number, &window);
+                    }
+                    Key::Character(ref c)
                         if self.demo_mode == DemoMode::Sandbox
                             && sandbox_key_action(c).is_some() =>
                     {
@@ -2593,6 +2672,7 @@ impl ApplicationHandler for App {
                             &mut self.observatory_collector,
                             &mut self.cell_inspector,
                             &mut self.thermal_environment,
+                            &mut self.phase_cycle,
                             self.demo_mode,
                         );
                         if refresh_title {
@@ -2724,6 +2804,21 @@ impl ApplicationHandler for App {
                     } else {
                         None
                     };
+                let phase_cycle_hud: Option<PhaseCycleHudData> =
+                    if self.demo_mode == DemoMode::PhaseCycle {
+                        match (
+                            self.phase_cycle.as_ref(),
+                            self.demo.as_ref(),
+                            self.simulation.as_ref(),
+                        ) {
+                            (Some(candidate), Some(demo), Some(simulation)) => Some(
+                                candidate.hud_data(demo.playing, demo.fast, simulation.tick_count),
+                            ),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
                 if let Some(renderer) = &mut self.renderer {
                     let hud_data = match self.demo_mode {
                         DemoMode::Thermal => self.observatory_collector.as_ref().map(|c| {
@@ -2735,6 +2830,9 @@ impl ApplicationHandler for App {
                         DemoMode::ThermalEnvironment => thermal_environment_hud
                             .as_ref()
                             .map(renderer::HudData::ThermalEnvironment),
+                        DemoMode::PhaseCycle => {
+                            phase_cycle_hud.as_ref().map(renderer::HudData::PhaseCycle)
+                        }
                         DemoMode::Pressure => self.observatory_collector.as_ref().map(|c| {
                             renderer::HudData::Pressure(
                                 c.pressure_metrics(),
@@ -2775,6 +2873,28 @@ impl ApplicationHandler for App {
                 self.frames_rendered += 1;
                 if let Some(smoke) = self.smoke_frames {
                     if self.frames_rendered >= smoke {
+                        if self.demo_mode == DemoMode::PhaseCycle {
+                            let throughput = self
+                                .demo
+                                .as_ref()
+                                .and_then(|demo| {
+                                    demo.rate_started.map(|start| {
+                                        let seconds = start.elapsed().as_secs_f64();
+                                        if seconds > 0.0 {
+                                            demo.rate_ticks as f64 / seconds
+                                        } else {
+                                            0.0
+                                        }
+                                    })
+                                })
+                                .unwrap_or(0.0);
+                            let summary = self.phase_cycle.as_ref().map_or_else(
+                                || "sample=unavailable".to_string(),
+                                PhaseCycleState::measurement_summary,
+                            );
+                            println!("[powdergame][te3][bounded-measurement] frames={} ticks={} wall_tps={:.2} {}",
+                                self.frames_rendered, self.simulation.as_ref().map_or(0, |s| s.tick_count), throughput, summary);
+                        }
                         println!(
                             "[powdergame] smoke run complete after {} frames; exiting",
                             self.frames_rendered
@@ -2900,6 +3020,7 @@ where
             "--density-demo" => return Some(DemoMode::Density),
             "--thermal-demo" => return Some(DemoMode::Thermal),
             "--thermal-environment-candidate" => return Some(DemoMode::ThermalEnvironment),
+            "--phase-cycle-candidate" => return Some(DemoMode::PhaseCycle),
             "--pressure-demo" => return Some(DemoMode::Pressure),
             "--parallel-integrity-demo" => return Some(DemoMode::ParallelIntegrity),
             "--activity-demo" => return Some(DemoMode::Activity),
@@ -3299,6 +3420,11 @@ fn main() {
             "[powdergame] TE-2 passive Thermal Environment candidate: 256x192, four scenes, 60 TPS. \
              Starts PAUSED (1-4 scene | SPACE play | N step | F speed | R reset | ESC quit)"
         ),
+        DemoMode::PhaseCycle => println!(
+            "[powdergame] TE-3 Water / Steam Phase Cycle candidate: 256x192, four scenes, 60 TPS. \
+             Starts PAUSED (1-4 scene | SPACE play | N step | F speed | R reset | ESC quit). \
+             Pressure coupling: DEFERRED / NOT ACTIVE IN THIS TE-3 CANDIDATE"
+        ),
         DemoMode::Pressure => println!(
             "[powdergame] pressure demo: 128×128 twin boilers, 60 TPS. \
              LEFT Wood relief plug should rupture/vent; RIGHT Stone control stays sealed. \
@@ -3428,6 +3554,7 @@ mod tests {
                 "--thermal-environment-candidate",
                 DemoMode::ThermalEnvironment,
             ),
+            ("--phase-cycle-candidate", DemoMode::PhaseCycle),
             ("--pressure-demo", DemoMode::Pressure),
             ("--parallel-integrity-demo", DemoMode::ParallelIntegrity),
             ("--activity-demo", DemoMode::Activity),

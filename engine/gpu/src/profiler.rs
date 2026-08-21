@@ -12,7 +12,7 @@
 use crate::context::{GpuContext, GpuError};
 
 /// Total number of distinct compute passes in a single simulation tick.
-pub const PASS_COUNT: usize = 34;
+pub const PASS_COUNT: usize = 40;
 
 /// Total number of timestamp queries per tick (start + end per pass).
 pub const QUERY_COUNT: u32 = (PASS_COUNT as u32) * 2;
@@ -25,11 +25,13 @@ pub const PASS_NAMES: [&str; PASS_COUNT] = [
     "movement_commit",
     "material_flag_hygiene_movement",
     "environment_reconcile_movement",
+    "phase_energy_reconcile_movement",
     "air_flow_scale",
     "air_transport_commit",
     "thermal_stability_scale",
     "unified_thermal_commit",
-    "phase_transition",
+    "phase_context_propose",
+    "phase_thermodynamics",
     "expansion_claim",
     "expansion_environment_receiver_claim",
     "expansion_spawn_commit",
@@ -39,18 +41,22 @@ pub const PASS_NAMES: [&str; PASS_COUNT] = [
     "environment_reconcile_expansion",
     "decay",
     "material_flag_hygiene_decay",
+    "phase_energy_hygiene_decay",
     "environment_reconcile_decay",
     "combustion",
     "smoke_claim",
     "smoke_environment_receiver_claim",
     "smoke_commit",
     "material_flag_hygiene_combustion",
+    "phase_energy_hygiene_combustion",
     "environment_reconcile_smoke",
     "pressure",
     "rupture",
     "material_flag_hygiene_rupture",
+    "phase_energy_hygiene_rupture",
     "environment_reconcile_rupture",
     "activity_propose",
+    "phase_activity_propose",
     "environment_activity_propose",
     "activity_reduce",
 ];
@@ -104,29 +110,32 @@ impl ProfiledTickReport {
             matter_movement_ms: self.passes[1].duration_ms
                 + self.passes[3].duration_ms
                 + self.passes[4].duration_ms
-                + self.passes[5].duration_ms,
+                + self.passes[5].duration_ms
+                + self.passes[6].duration_ms,
             ownership_claim_ms: self.passes[2].duration_ms
-                + self.passes[11].duration_ms
-                + self.passes[12].duration_ms
-                + self.passes[22].duration_ms
-                + self.passes[23].duration_ms,
-            thermal_ms: [6usize, 7, 8, 9]
+                + self.passes[13].duration_ms
+                + self.passes[14].duration_ms
+                + self.passes[25].duration_ms
+                + self.passes[26].duration_ms,
+            thermal_ms: [7usize, 8, 9, 10, 11]
                 .into_iter()
                 .map(|index| self.passes[index].duration_ms)
                 .sum(),
-            reaction_phase_ms: [10usize, 13, 14, 16, 17, 18, 19, 20, 21, 24, 25, 26]
+            reaction_phase_ms: [12usize, 15, 16, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30]
                 .into_iter()
                 .map(|index| self.passes[index].duration_ms)
                 .sum(),
-            pressure_structure_ms: self.passes[15].duration_ms
-                + self.passes[27].duration_ms
-                + self.passes[28].duration_ms
-                + self.passes[29].duration_ms
-                + self.passes[30].duration_ms,
-            active_sleep_ms: self.passes[0].duration_ms
+            pressure_structure_ms: self.passes[17].duration_ms
                 + self.passes[31].duration_ms
                 + self.passes[32].duration_ms
-                + self.passes[33].duration_ms,
+                + self.passes[33].duration_ms
+                + self.passes[34].duration_ms
+                + self.passes[35].duration_ms,
+            active_sleep_ms: self.passes[0].duration_ms
+                + self.passes[36].duration_ms
+                + self.passes[37].duration_ms
+                + self.passes[38].duration_ms
+                + self.passes[39].duration_ms,
         }
     }
 }

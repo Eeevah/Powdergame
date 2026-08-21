@@ -120,9 +120,24 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
             expected_readwrite_bindings: &["temperature_next", "air_energy_next"],
         },
         PassContract {
+            name: "phase_energy_reconcile_movement.wgsl",
+            source: include_str!("../src/phase_energy_reconcile_movement.wgsl"),
+            expected_readwrite_bindings: &["phase_energy_next"],
+        },
+        PassContract {
+            name: "phase_context_propose.wgsl",
+            source: include_str!("../src/phase_context_propose.wgsl"),
+            expected_readwrite_bindings: &["context_out"],
+        },
+        PassContract {
             name: "phase_transition.wgsl",
             source: include_str!("../src/phase_transition.wgsl"),
-            expected_readwrite_bindings: &["material_next", "proposal", "cell_activity"],
+            expected_readwrite_bindings: &[
+                "material_next",
+                "temperature_next",
+                "phase_energy_next",
+                "proposal",
+            ],
         },
         PassContract {
             name: "expansion_claim.wgsl",
@@ -207,6 +222,16 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
                 "chunk_changed_this_tick",
                 "chunk_stable_ticks",
             ],
+        },
+        PassContract {
+            name: "phase_energy_hygiene_identity.wgsl",
+            source: include_str!("../src/phase_energy_hygiene_identity.wgsl"),
+            expected_readwrite_bindings: &["phase_energy_next"],
+        },
+        PassContract {
+            name: "phase_activity_propose.wgsl",
+            source: include_str!("../src/phase_activity_propose.wgsl"),
+            expected_readwrite_bindings: &["cell_activity"],
         },
         PassContract {
             name: "environment_activity_propose.wgsl",
@@ -424,6 +449,7 @@ fn test_movement_repeated_contention_long_run_preserves_world_integrity() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 contention fixture; D-024 active TE-3 is 1:1"]
 fn test_expansion_contention_many_boiling_sources_one_empty_target() {
     let mut sim = make_sim(WorldConfig::new(16, 16, 16).unwrap());
 
@@ -481,6 +507,7 @@ fn test_expansion_contention_many_boiling_sources_one_empty_target() {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 scratch fixture; generic expansion remains covered separately"]
 fn test_expansion_scratch_reuse_after_movement() {
     let mut sim = make_sim(WorldConfig::new(32, 32, 16).unwrap());
 
@@ -556,6 +583,7 @@ fn test_smoke_spawn_contention_multiple_burning_sources_one_empty_target() {
 }
 
 #[test]
+#[ignore = "historical Water-yield-2 setup; active Smoke ownership tests remain separate"]
 fn test_smoke_scratch_reuse_after_movement_and_expansion() {
     let mut sim = make_sim(WorldConfig::new(32, 32, 16).unwrap());
 

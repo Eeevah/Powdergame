@@ -441,6 +441,8 @@ function Invoke-DevelopmentAudit {
             thermal = "--thermal-demo"
             "thermal-environment" = "--thermal-environment-candidate"
             te2 = "--thermal-environment-candidate"
+            "phase-cycle" = "--phase-cycle-candidate"
+            te3 = "--phase-cycle-candidate"
             pressure = "--pressure-demo"
             "parallel-integrity" = "--parallel-integrity-demo"
             activity = "--activity-demo"
@@ -487,6 +489,7 @@ function Invoke-DevelopmentAudit {
             "normal/gallery = G8-B Benchmark Gallery",
             "sandbox/play = G9-A first playable Sandbox",
             "thermal-environment/te2 = TE-2 passive Thermal Environment candidate",
+            "phase-cycle/te3 = TE-3 Water / Steam Phase Cycle candidate",
             "runtime/g0 = technical empty G0 baseline"
         )
         $declaredUsageTerms = @($contract.usage_required_terms | ForEach-Object { [string]$_ })
@@ -559,6 +562,18 @@ function Invoke-DevelopmentAudit {
                 name = "thermal-environment-bounded-launch"
                 args = $declaredThermalEnvironmentSmokeProbeArgs
                 expected_args = "--thermal-environment-candidate --smoke-frames 3"
+            })
+        }
+        $requiredPhaseCycleSmokeProbeArgs = @("phase-cycle", "--smoke-frames", "3")
+        $declaredPhaseCycleSmokeProbeArgs = @($contract.phase_cycle_smoke_probe_args | ForEach-Object { [string]$_ })
+        if ($declaredPhaseCycleSmokeProbeArgs.Count -ne $requiredPhaseCycleSmokeProbeArgs.Count -or
+            ($declaredPhaseCycleSmokeProbeArgs -join "`0") -cne ($requiredPhaseCycleSmokeProbeArgs -join "`0")) {
+            $errors.Add("Canonical launcher TE-3 bounded launch probe must remain phase-cycle --smoke-frames 3")
+        } else {
+            $successCases.Add([pscustomobject]@{
+                name = "phase-cycle-bounded-launch"
+                args = $declaredPhaseCycleSmokeProbeArgs
+                expected_args = "--phase-cycle-candidate --smoke-frames 3"
             })
         }
 

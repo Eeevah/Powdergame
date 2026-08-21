@@ -72,6 +72,7 @@ fn seal_eight(sim: &Simulation, x: i64, y: i64) {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 fixture; D-024 active TE-3 is 1:1 and pressure-decoupled"]
 fn boiling_with_space_spawns_second_steam_without_pressure() {
     let mut sim = eight_by_eight();
     clear_region(&sim, 1, 1, 6, 6);
@@ -181,6 +182,7 @@ fn receiver_without_whole_parcel_headroom_blocks_without_clamping_or_deletion() 
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 fixture; D-024 active TE-3 is 1:1 and pressure-decoupled"]
 fn fully_confined_boiling_generates_pressure_instead_of_extra_matter() {
     let mut sim = eight_by_eight();
     clear_region(&sim, 1, 1, 6, 6);
@@ -206,6 +208,7 @@ fn fully_confined_boiling_generates_pressure_instead_of_extra_matter() {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 fixture; D-024 active TE-3 is 1:1 and pressure-decoupled"]
 fn competing_expansions_have_one_winner_and_loser_becomes_pressure() {
     let mut sim = eight_by_eight();
     clear_region(&sim, 1, 1, 6, 6);
@@ -252,6 +255,7 @@ fn competing_expansions_have_one_winner_and_loser_becomes_pressure() {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 fixture; D-024 active TE-3 is 1:1 and pressure-decoupled"]
 fn expansion_can_cross_a_64_cell_chunk_boundary() {
     let mut sim = make_sim(WorldConfig::new(16, 128, 64).unwrap());
     clear_region(&sim, 5, 61, 11, 67);

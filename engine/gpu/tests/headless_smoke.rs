@@ -36,7 +36,7 @@ fn headless_simulation_lifecycle_without_window() {
     assert_eq!(simulation.world.layout.total_world_bytes, 134_217_728);
     assert_eq!(
         simulation.world.allocation.total_requested_world_bytes,
-        218_103_808
+        251_658_240
     );
 
     // --- Headless lifecycle: multiple ticks, no window ---

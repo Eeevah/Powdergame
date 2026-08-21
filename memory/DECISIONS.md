@@ -322,6 +322,10 @@ does not rewrite this acceptance.
 
 ## D-018 · Accept Hybrid A+C with locked TE-3D amendments — 2026-08-21 (source: direct user architecture disposition)
 
+Supersession note: D-024 supersedes only this decision's atomic TE-3/TE-5
+activation requirement. The accepted one-Cell/one-quantity phase-energy model
+and its locked thermodynamic amendments remain active.
+
 Decision: Accept the Hybrid A+C core for future atomic implementation: one
 Ice/Water/Steam Cell equals one Water-equivalent quantity; every family phase
 transition is 1:1; `phase_energy_current/next` are the only added persistent
@@ -624,6 +628,10 @@ RETAINED FALLBACK / RUNTIME NOT STARTED**.
 
 ## D-023 · Supersede whole-Cell phase quantity and authorize conservative phase packets — 2026-08-21 (source: direct user architecture authorization)
 
+Supersession note: D-024 rejects this candidate as the active phase
+representation. Its design, proof receipt and blockers remain preserved
+history.
+
 Decision: Preserve D-019 through D-022 and ADR-0007 through ADR-0010 as
 immutable blocked-design history. TE-5X remains **DESIGN BLOCKED** with proof
 process attempted/completed `1 / 0`, A/B/C evaluations `0 / 0 / 0`, and no
@@ -703,3 +711,46 @@ Final D-023 stop is **TE-3Q / TE-5Q DESIGN BLOCKED / ADR-0011 PROPOSED /
 ARCHITECTURE REVISION REQUIRED / RUNTIME NOT STARTED**. The script and result
 are immutable and cannot be patched or rerun. Another evidence identity or
 architecture revision requires a new direct user decision.
+
+## D-024 · Authorize pressure-decoupled standalone TE-3 phase enthalpy — 2026-08-21 (source: direct user architecture authorization)
+
+Decision: Reject ADR-0011's phase-packet model as the active phase
+representation and preserve ADR-0007 through ADR-0011, TE-5B/C/D/X and the
+packet attempts as blocked history. Their concrete counterexamples and frozen
+evidence identities are not rewritten or rebound.
+
+Supersession: D-024 supersedes D-018 only where it required atomic TE-3/TE-5
+activation, and supersedes D-023's phase-unit representation. Restore ADR-0006
+as the active TE-3 quantity contract: one Ice/Water/Steam foreground Cell is
+one Water-equivalent quantity; every family transition is 1:1; Water boiling
+has `matter_yield = 1`, `blocked_pressure = 0`, creates no second Steam and
+does not enter the expansion proposal/spawn/blocked-pressure path.
+
+Runtime authorization: Implement standalone TE-3 with exactly
+`phase_energy_current` and `phase_energy_next` as persistent f32 Cell fields,
+using accepted local-enthalpy repartition after TE-2 Q transfer. Preserve the
+D-018 real-sink/work predicate, buried-ready-Water behavior, no-sink Steam
+metastability, radius-two free-air nucleation and matching activity rules.
+Produce one source-bound user-testable phase-cycle candidate, complete the
+specified targeted validation, run exactly one final-source canonical FULL,
+one release build, one bounded launch check and one bounded measurement, then
+record docs/memory closure and push only the named feature branch.
+
+Evidence boundary: Historical G5 Water expansion/pressure/rupture receipts
+remain valid only for their historical source. The active TE-3 source makes no
+claim to the old Water heat -> extra Steam -> blocked expansion pressure ->
+rupture chain and does not remove the generic pressure or rupture systems.
+Register `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` as a known deferred product
+follow-up. TE-5 Pressure redesign is **DEFERRED / NOT STARTED**.
+
+Excluded: phase units or packets, phase quantity/pressure fields, owner links,
+volume tokens, matching, CCL, Vapor Environment fields, Air-pressure force,
+TE-4, G9-B/C/D/E, optimization, PR, tag and main merge. External simulation
+code copied, translated or vendored remains `0 files / 0 lines`.
+
+Stop rule: Success may reach **TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER
+REVIEW PENDING** only with source-bound runtime evidence and zero quantity gain
+or Water phase-pressure source. An unresolved invariant, H conservation,
+identity/Air partial-commit, GPU integration or validation blocker stops
+**TE-3 BLOCKED** with its smallest reproduction. Do not invent a pressure-
+volume replacement inside this task.

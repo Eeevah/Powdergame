@@ -405,3 +405,21 @@ Steam/1 packets, and the spatial pressure law can reset on Steam/2 movement or
 remain at Wood threshold after its source disappears. Q-013 remains open only
 for a new direct user decision on architecture revision and a new evidence
 identity. ADR-0011 remains Proposed / DESIGN BLOCKED; runtime is not started.
+
+### 2026-08-21 direct user disposition — closed by D-024
+
+D-024 rejects ADR-0011 as the active representation and preserves its frozen
+receipt and blockers as historical evidence. No further packet revision or new
+packet evidence identity is authorized. Q-013 is closed.
+
+## Q-014 · Water/Steam pressure-volume redesign — deferred 2026-08-21
+
+Owner: future direct user architecture decision after the pressure-decoupled
+TE-3 candidate is reviewed.
+
+D-024 intentionally removes Water boiling as a source of expansion Matter and
+blocked-expansion pressure. Historical G5 receipts remain source-bound; the
+active TE-3 source does not claim their Water-to-pressure causal chain. A
+future `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` must receive separate authority
+and must not be synthesized during TE-3 implementation. TE-5 Pressure redesign
+is **DEFERRED / NOT STARTED**.

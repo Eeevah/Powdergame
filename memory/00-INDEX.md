@@ -46,6 +46,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260822-1823-te3-direct-review-complete-disposition-pending.md`](checkpoints/20260822-1823-te3-direct-review-complete-disposition-pending.md) | All four TE-3 scenes consistent before whole-candidate user disposition | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-1933-te4d-v1-design-blocked.md`](checkpoints/20260822-1933-te4d-v1-design-blocked.md) | TE-4D v1 zero-completion and review-blocked return point before D-029 v2 authorization | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-1952-te4d-v2-authorized-before-review.md`](checkpoints/20260822-1952-te4d-v2-authorized-before-review.md) | D-029 selected v2 identity before its fresh review exposed three High blockers | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md`](checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md) | TE-4D v2 three-High blocked return point before D-030 v3 authorization | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

@@ -936,3 +936,59 @@ merge and PR remain unauthorized.
 Invalidated by: later explicit user supersession, a failed frozen v2 execution,
 an unresolved Critical/High v2 review finding, or a source audit disproving
 the 42-pass/no-new-state projection.
+
+## D-030 · Authorize TE-4D v3 transaction and oracle closure — 2026-08-22 (source: direct user architecture decision)
+
+Decision: Preserve TE-4D v1 and v2 as **DESIGN BLOCKED / IMMUTABLE**. Their
+scripts, manifests, result/failure receipts and hashes are historical narrow
+reference records only and may not be patched, rerun or relabelled as design
+approval. Authorize the distinct docs/reference-only identity
+`TE4-IGNITION-KINETICS-REFERENCE-V3` to close transaction receipts and the F08
+oracle without beginning runtime work.
+
+Retain integrated excess-temperature dose, cooling decay, previous-snapshot
+orthogonal `FLAME_EVENT` bonus, packed u6 exposure, exact Oil
+`48/2/50/6/1/2/4` and Wood `60/1/50/5/1/2/4` identities, chemical-Q cap
+accounting, consume-before-emission on the final fuel tick, and the positive
+non-Vacuum Air-face requirement. These tuples are **USER_SELECTED_AND_VALIDATED**;
+global or unique coefficient optimality is **NOT_CLAIMED**.
+
+Select the exact precondition lifetime `COMBUSTION_STAGE_SNAPSHOT`: the settled
+production state after movement, TE-2, TE-3 and decay hygiene/reconcile, and
+immediately before future ignition exposure and combustion. This snapshot
+authorizes the current stage's exposure, ignition, sustain, Heat,
+`FLAME_EVENT`, Smoke proposal and fuel increment. A downstream same-stage
+Smoke commit may occupy the sole qualifying Air face without rollback. At the
+next snapshot, absence of a qualifying face extinguishes before emission,
+produces no Heat/Flame/Smoke or fuel increment, and preserves prior fuel
+progress. Air is not consumed and this is not Oxygen simulation.
+
+V3 transaction evidence must use distinct mutation entrypoints that return
+only resulting state and optional semantic event IDs. A separate auditor must
+derive every required path receipt from immutable before/after state and an
+ownership specification. Counter provenance is
+`AUDITED_BEFORE_AFTER_STATE_DIFF`; a required path without an audited mutation
+cannot pass. The exact F07/F08 event lists must be compared against a frozen,
+standard-library, independently structured oracle generated before evidence
+freeze. Self-replay establishes determinism only.
+
+The source-audited projection remains two future logical passes: 42 passes,
+84 timestamp queries, 1,344 profiler bytes, zero new persistent bytes and zero
+new full-world scratch bytes. Post-Smoke settle copies Matter and Air into the
+authoritative current buffers before activity proposals, so a future ignition
+activity proposal can observe lost Air access and keep the next-stage
+extinguish runnable without another pass or state. Each projected pass remains
+within eight storage bindings.
+
+Evidence authorization: preflight and freeze the independent oracle,
+manifest and v3 reference; execute the v3 identity exactly once; then obtain a
+fresh-context review by a reviewer who authored none of those artifacts. Any
+failed campaign, exact-oracle mismatch, zero audited required path, or
+unresolved Critical/High finding stops **TE-4D v3 DESIGN BLOCKED**.
+
+Stop boundary: at most **TE-4D v3 TRANSACTION-CLOSED IGNITION DESIGN CANDIDATE /
+INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW PENDING**. ADR-0012 remains
+Proposed and TE-4 runtime remains **NOT STARTED**. Oxygen, Ash/new Matter,
+production FX, Pressure redesign, Rust/WGSL implementation, runtime state or
+passes, Cargo, build, launch, TE-5/TE-6, G9-B/C/D/E, optimization, Powdergame
+PR and `main` merge remain unauthorized.

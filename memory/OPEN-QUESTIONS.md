@@ -528,3 +528,16 @@ face after the early access check. H-003: F08's digest is a post-run self-replay
 not a manifest-frozen exact frontier. M-001: secondary-objective completeness
 is not established. D-029 therefore blocks v2. Q-017 remains open for a new
 user decision; the next identity may not patch or rerun v1/v2.
+
+### 2026-08-22 D-030 v3 authorization
+
+D-030 preserves v1/v2 as immutable blocked history and selects
+`COMBUSTION_STAGE_SNAPSHOT` for the distinct
+`TE4-IGNITION-KINETICS-REFERENCE-V3` identity. Same-stage Smoke may consume the
+sole qualifying Air face without rollback; the following snapshot must see
+the loss and extinguish before emission while preserving prior fuel progress.
+V3 must replace fixture-supplied counters with independently audited
+before/after mutation receipts and compare its complete F07/F08 event lists to
+a frozen independent oracle generated before evidence freeze. Exact Oil/Wood
+tuples remain user-selected identities; optimality is not claimed. Q-017 stays
+open for user review after the one completed v3 execution and fresh review.

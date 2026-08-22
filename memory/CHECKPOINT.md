@@ -1,18 +1,17 @@
-# Checkpoint — TE-4D v2 design blocked — 2026-08-22
+# Checkpoint — TE-4D v3 transaction/oracle closure authorized — 2026-08-22
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- Start SHA: `febfdd1476ec02e67f1108f6683af92878f7e9e0`
-- D-029 authorization SHA: `3ac5b70afbe2344ce70c4d4dfe4e79976b68b777`
-- Wiki authority: `origin/main` `1006d360b2d44b30cf85f5a5aa1915bb384bfc03`; dirty local checkout preserved read-only
+- Start SHA: `85745533c1cb9a9505826f5aaba5dd1ba085b627`
+- D-030 authorization SHA: pending first docs commit
+- Wiki authority: `origin/main` `9ed82115cf75b73aee034107008ea8cf83ed23af`; dirty local checkout preserved read-only
 - Runtime: unchanged / not started
 
 ## The story so far
-TE-4D v1 remains immutable zero-completion blocked history. D-029 authorized a
-separate manifest-bound v2 identity and selected exact coefficients, packed
-u6, non-Vacuum Air-face and chemical/final-tick policies. The v2 process
-completed once, but independent review found three High blockers.
+TE-4D v1/v2 remain immutable blocked history. D-030 authorizes a distinct v3
+identity that fixes combustion-stage snapshot semantics, mutation-derived
+transaction receipts and a frozen independent complete F07/F08 oracle.
 
 ## Valid evidence
 - V1 script/failure SHA-256: `886fe5b7...f82` / `6342bad5...c1bb`; attempts/completions `1/0`; model work `0/0/0`.
@@ -21,32 +20,31 @@ completed once, but independent review found three High blockers.
 - Frozen process reported 13 reference PASS and four expected production `NOT_ESTABLISHED`; it was not rerun.
 
 ## Decided
-- D-029 remains historical authorization and does not become acceptance.
-- Fresh review: Critical `0` / unresolved High `3` / Medium `1`.
-- Valid stop: **TE-4D v2 DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
-- PG-L035 records downstream same-tick precondition invalidation.
+- `COMBUSTION_STAGE_SNAPSHOT` is the exact Air precondition lifetime.
+- Same-stage self-Smoke does not roll back authorized work; the next snapshot extinguishes before emission.
+- Required path counts must be audited from before/after state mutations.
+- The F07/F08 oracle must be independently generated and frozen before evidence.
+- Exact coefficients are selected identities; optimality is not claimed.
 
 ## Waiting on the user
-A later decision must choose sole-Air-face semantics and authorize a new
-evidence identity that uses mutation-derived path counters and a frozen exact
-F08 oracle. V1/v2 may not be patched or rerun.
+The user must review the candidate only after the one completed v3 execution
+and fresh independent review. Runtime remains separately unauthorized.
 
 ## Current authorization
-Close docs/reference/memory only, validate, commit and push the named feature
-branch. No runtime, Cargo, build, launch, PR or main merge.
+Create/freeze v3 docs/reference artifacts, execute v3 exactly once, obtain a
+fresh-context review, validate docs/reference/memory only, commit and push the
+named feature branch. No runtime, Cargo, build, launch, PR or main merge.
 
 ## Blocker
-- H-001: positive counters do not prove distinct named transactions.
-- H-002: same-tick Smoke may remove the sole qualifying Air face after emission was authorized.
-- H-003: F08 digest is a post-run self-replay rather than a frozen frontier oracle.
-- M-001: coefficient secondary-objective completeness is not established.
+- None yet for v3. Any failed campaign, oracle mismatch, zero audited required
+  path, or unresolved Critical/High review finding blocks the design.
 
 ## Next first action
-Await a new user architecture decision. Do not start TE-4 implementation or
-another proof identity without explicit authorization.
+Commit D-030 authorization, then generate and inspect the independent oracle
+before freezing the v3 manifest and evidence script.
 
 ## Tried
-- Syntax/import/manifest preflight ran without evidence fixtures.
-- Exactly one v2 evidence process completed; result parse and scoped hash passed.
-- Fresh-context reviewer performed read-only static review and ran no evidence.
+- Wiki and Powdergame coordinates match the requested SHAs; dirty Wiki is untouched.
+- Immutable v1/v2 hashes match and neither identity was executed.
+- Live pass/binding audit supports 42/84/1,344 and post-Smoke Air visibility.
 - No Cargo, GPU, FULL, build or application launch was run.

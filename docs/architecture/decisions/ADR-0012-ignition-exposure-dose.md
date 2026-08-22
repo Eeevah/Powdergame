@@ -1,8 +1,8 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — V2 DESIGN BLOCKED / USER ARCHITECTURE REVIEW NOT REACHED**
+- Status: **PROPOSED — V3 TRANSACTION/ORACLE CLOSURE AUTHORIZED / EVIDENCE PENDING**
 - Date: 2026-08-22
-- Decision authority: D-028 and D-029
+- Decision authority: D-028, D-029 and D-030
 
 ## Context
 
@@ -22,9 +22,10 @@ passes each already bind eight storage buffers.
 
 ## Proposed decision
 
-D-029 selects the candidate below for the distinct
-`TE4-IGNITION-KINETICS-REFERENCE-V2` identity. It does not repair or continue
-the immutable v1 process and does not authorize runtime implementation.
+D-029 selected the candidate below for the now immutable blocked v2 identity.
+D-030 preserves v1/v2 unchanged and authorizes the distinct
+`TE4-IGNITION-KINETICS-REFERENCE-V3` transaction/oracle closure. It does not
+authorize runtime implementation.
 
 Propose under D-029 the following generic Material-driven rule:
 

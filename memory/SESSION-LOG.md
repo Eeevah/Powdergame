@@ -749,3 +749,26 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Local strict audit, Markdown link/fence/index, secret-pattern, scope and diff
   checks passed. The only workflow has `push`/`pull_request` triggers, so one
   final `[skip ci]` feature push is safe under D-036.
+
+## 2026-08-23 · TE-5R1 Steam-load relaxing pressure candidate
+
+- D-037 preserved TE-5R0/ADR-0013 as blocked immutable history and authorized
+  the separate post-phase Steam-load replacement. Fresh review closed with
+  Critical `0`, High `0`, Medium `0`, Low `0`.
+- Runtime source `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030` implements a
+  Steam-only target, `0.20` diffusion, `0.02` relaxation, total pressure only
+  for Air/rupture, opposing-face Wood rupture and sole-owner exact pressure
+  activity. It adds one pass and no persistent/full-world state.
+- F01–F21 pass. F21 opens Wood at tick `88`, preserves family `24` and shows
+  following-Tick Air use. Accepted TE-2/TE-3/TE-4 production suites pass.
+- Four earlier source FULL attempts found benchmark grouping, equilibrium
+  activity, historical expansion and stable-Steam sleep fixture issues. All
+  were repaired before the final source; one successful final-source FULL then
+  completed.
+- Canonical release build, 60-frame launch and bounded measurement each ran
+  once. The EXE is `10,187,776` bytes with SHA-256
+  `1FE11C518C30F71347442F77BD24D8FADEE9CE4956D6FB1008B222C472040F5D`.
+- TE-5R1 stops at **IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER
+  REVIEW PENDING**; ADR-0014 remains Proposed and Q-019 remains open.
+- Wiki `b9a36c7...` and its user-dirty checkout were preserved. Project
+  snapshot refresh and PG-L037 promotion remain deferred until 2026-09-01.

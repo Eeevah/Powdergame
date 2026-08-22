@@ -1,66 +1,69 @@
-# Checkpoint — TE-5R0 design blocked — 2026-08-23
+# Checkpoint — TE-5R1 automated candidate ready for direct review — 2026-08-23
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- TE-5R0 start/baseline: `769e687c04406016fe9d66c8496269b459f06d83`
-- Closure identity: this coherent docs/memory commit; resolve with `git rev-parse HEAD`
+- Start/remote baseline: `12b49dc07c8d875de55a048013a01090d38345a9`
+- Final runtime source: `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030`
+- Docs/checkpoint closure: this coherent docs/memory commit; resolve with `git rev-parse HEAD`
 - Verified Wiki `origin/main`: `b9a36c7712cda2ac5332e3083e0e5ff5b018fa91`
 - User-dirty Wiki preserved: `M wiki/workflows/index.md`; `?? wiki/workflows/codex-lm-studio.md`
 
 ## The story so far
-G9-A, TE-2, TE-3 and TE-4I are **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
-TE-5B/C/D/X/Q remain blocked immutable history. D-035 authorized the
-docs-only **LOCAL RELAXING PHASE-LOAD PRESSURE** re-entry candidate, but its
-fresh-context review found Critical `0`, High `3`, Medium `3`. TE-5R0 is
-therefore **DESIGN BLOCKED** and ADR-0013 is **PROPOSED — ARCHITECTURE REVISION
-REQUIRED**. TE-5 runtime is not started.
+G9-A, TE-2, TE-3 and TE-4I remain **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
+TE-5R0/ADR-0013 remains blocked immutable history. D-037 authorized the
+source-realizable TE-5R1 Steam-load relaxing pressure replacement. Its fresh
+review closed Critical/High at zero, runtime source `1ee28ac...` passed the
+complete local automated gate, and ADR-0014 remains **PROPOSED**.
+
+TE-5R1 is **IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW
+PENDING**. No Matter pressure force, Oxygen quantity, new persistent buffer,
+full-world scratch allocation, TE-6 or G9-B/C/D/E work was added.
 
 ## Valid evidence
-- Independent review:
-  `docs/adversarial-reviews/TE5R_PRESSURE_VACUUM_REENTRY_DESIGN.md`.
-- High blockers: unavailable pre-transition Water phase context; unavailable
-  and transactionally inconsistent fresh generic impulse; legacy base activity
-  that permanently wakes an exact nonuniform equilibrium.
-- The numerical 44-pass/88-query, <=8-binding projection is a frozen failed
-  projection, not semantic feasibility or runtime evidence.
-- Strict policy audit, Markdown links/fences, index coverage, changed-path
-  classification, secret-pattern scan and `git diff --check` pass locally.
-- Runtime/reference/Cargo/WGSL/Naga/GPU/FULL/build/launch counts are all zero.
+- Runtime receipt:
+  `docs/evidence/THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23.md`.
+- Fresh review:
+  `docs/adversarial-reviews/TE5R1_STEAM_LOAD_RELAXING_PRESSURE_SOURCE_GATE.md`.
+- Final source has 43 passes/86 queries, at most eight storage bindings, one
+  new pressure-activity pass and zero new persistent/full-world state.
+- Active F01–F21 assertions pass. F21 opens Wood at tick 88, preserves family
+  count 24, and real Air uses the opening on following ticks.
+- Final-source FULL passed exactly once on `1ee28ac...`. Earlier source
+  candidates produced four discovery failures that were fixed and are listed
+  in the receipt.
+- Release build `1/1`; bounded launch `1/1`; bounded measurement `1/1`.
+- Canonical EXE SHA-256:
+  `1FE11C518C30F71347442F77BD24D8FADEE9CE4956D6FB1008B222C472040F5D`,
+  size `10,187,776` bytes.
 
 ## Decided
-- Preserve one Cell/one Water-equivalent quantity, 1:1 transitions, accepted
-  phase energy, no extra Steam, authoritative Air and exact Vacuum.
-- Preserve ADR-0013 as blocked history; do not patch its formula/pass graph or
-  select another model under D-035.
-- PG-L037 records that binding arithmetic alone is insufficient: normative
-  input live ranges, fresh-event ownership and shared activity set/clear
-  ownership must also be source-realizable.
-- `LESSON_PROMOTION: REQUIRED`, but the Wiki promotion is deferred with the
-  project snapshot under D-036.
-- `.github/workflows/development-policy.yml` has only skip-compatible `push`
-  and `pull_request` triggers, so one final `[skip ci]` feature push is allowed.
+- Steam alone supplies `100 * phase_energy / 480`; Water target is zero.
+- Dynamic pressure is a dissipative local field; Air transport and rupture
+  read total pressure exactly once; Matter movement does not read pressure.
+- Dedicated pressure activity is the sole exact-update pressure-bit owner.
+- Historical Water-yield-two fixtures/evidence remain source-bound and are not
+  rebound to this candidate.
+- Wiki refresh and PG-L037 promotion remain deferred until 2026-09-01. No Wiki
+  remote work occurred.
 
-## Waiting on user
-Q-018 requires a new explicit architecture decision for the phase-context
-snapshot, generic-impulse transaction and activity ownership. The same decision
-must retain or supersede the remaining Vacuum, dissipation, moving-source and
-edge risks. No implementation or user-acceptance review is active.
-
-`WIKI_PROJECT_SNAPSHOT_REFRESH`: **DEFERRED UNTIL 2026-09-01 DUE TO GITHUB
-ACTIONS BUDGET CONSERVATION**. This includes PG-L037 Wiki promotion.
+## Waiting on the user
+Q-019 is open. Directly review the four `pressure-vacuum` scenes and decide
+whether to accept, revise or reject ADR-0014/TE-5R1. Automated evidence cannot
+make that decision.
 
 ## Next first action
-Do not implement TE-5. Await a new user architecture decision. On or after
-2026-09-01, refresh the Wiki project snapshot and promote PG-L037 through the
-normal clean publication path without touching the user-dirty checkout.
+Run `run_powdergame.bat pressure-vacuum`, inspect Scenes 1–4 and use the fixed
+diagnostics. Record only the user's direct disposition; do not start TE-6 or
+G9-B/C/D/E.
 
 ## Tried
-- Verified Powdergame/Wiki coordinates and preserved the dirty Wiki checkout.
-- Audited live pressure, Air, movement, phase, expansion, rupture, activity,
-  pass, binding, scratch, profiler and allocation sources.
-- Drafted ADR-0013/spec/validation/plan/inventory and obtained a fresh review.
-- Applied the D-035 stop rule without synthesizing a replacement.
-- Inspected all local workflow definitions; no unsupported trigger was found.
-- No Wiki remote operation, Powdergame PR/main merge or hosted Actions run was
-  created by this task.
+- Verified and preserved the dirty Wiki checkout; no Wiki remote operation.
+- Implemented Steam-load pressure, total-pressure Air/rupture coupling,
+  opposing-face rupture and sole-owner pressure activity.
+- Integrated canonical candidate routes `pressure-vacuum` and `te5`.
+- Repaired final-source integration findings in benchmark evidence grouping,
+  equilibrium sleep fixtures, historical expansion classification, historical
+  pressure diagnostics and the finite free-Air TE-3 candidate sink.
+- Passed targeted validation, one final-source FULL, one release build and one
+  bounded launch/measurement. G8/G8-C and official capture counts remain zero.

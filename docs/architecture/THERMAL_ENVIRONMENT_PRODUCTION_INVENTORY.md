@@ -789,4 +789,7 @@ growth is 32 bytes: 86 timestamps make each resolve/readback buffer 688 bytes,
 `302,018,192` bytes; the no-profiler total is unchanged. Production fixtures,
 candidate scenes and final validation are defined in
 [the validation contract](../development/STEAM_LOAD_RELAXING_PRESSURE_VALIDATION.md).
+Final runtime source `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030`
+passed the automated gate recorded in the
+[runtime evidence](../evidence/THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23.md).
 ADR-0014 remains **PROPOSED / USER REVIEW PENDING**.

@@ -4,7 +4,7 @@
 - **Date:** 2026-08-23
 - **Decision:** D-037
 - **Source baseline:** `12b49dc07c8d875de55a048013a01090d38345a9`
-- **Runtime state:** TE-5R1 implementation candidate; automated closure pending
+- **Runtime state:** TE-5R1 implementation candidate; automated validation pass; user review pending
 - **External implementation copied, translated or vendored:** `0 files / 0 lines`
 
 ## Context
@@ -184,5 +184,8 @@ The fresh-context source review reported unresolved Critical `0` / High `0`
 and authorized implementation. The implementation preserves the reviewed
 43-pass/86-query graph and eight-binding ceiling; its fixture contract is in
 the [validation document](../../development/STEAM_LOAD_RELAXING_PRESSURE_VALIDATION.md).
-ADR-0014 remains **PROPOSED**. Automated implementation success produces a
-user-review candidate; only direct user review may accept this ADR.
+Final runtime source `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030`
+passed the source-bound fixture matrix, one final-source FULL, one release
+build and one bounded candidate launch/measurement. The receipt is
+[TE-5R1 runtime evidence](../../evidence/THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23.md).
+ADR-0014 remains **PROPOSED**; only direct user review may accept it.

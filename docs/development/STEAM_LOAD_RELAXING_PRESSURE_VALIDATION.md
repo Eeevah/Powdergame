@@ -2,7 +2,7 @@
 
 - **Decision:** D-037
 - **Specification:** [Steam-load relaxing pressure](../specs/STEAM_LOAD_RELAXING_PRESSURE_SPEC.md)
-- **Status:** LOCAL AUTOMATED CANDIDATE VALIDATION
+- **Status:** AUTOMATED VALIDATION PASS / USER REVIEW PENDING
 - **User acceptance:** not claimed
 
 ## Evidence rule
@@ -84,3 +84,16 @@ the canonical FULL exactly once. Then build the canonical release executable
 and perform exactly one 60-frame bounded candidate launch, whose final line is
 the one bounded semantic/performance measurement. No G8/G8-C, official capture,
 Wiki remote, PR or user-acceptance action is part of this validation.
+
+## Final-source receipt
+
+Runtime source `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030` passed all active
+F01–F21 assertions and the canonical workspace FULL. The canonical release
+artifact and single bounded launch/measurement also passed. Detailed commands,
+discovery failures, fixture values, artifact hash and direct-review checklist
+are recorded in
+[THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23](../evidence/THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23.md).
+
+This receipt does not accept ADR-0014. Historical Water-yield-two fixtures
+remain ignored and source-bound; no active generic non-family yield-two
+Material is claimed.

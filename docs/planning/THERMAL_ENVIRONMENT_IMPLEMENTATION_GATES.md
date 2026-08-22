@@ -367,7 +367,7 @@ ADR-0011  REJECTED / DESIGN BLOCKED HISTORY
 TE-3Q / TE-5Q runtime  NOT STARTED
 TE-5R0 local relaxing pressure design  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / MEDIUM 3
 ADR-0013  PROPOSED / ARCHITECTURE REVISION REQUIRED
-TE-5R1 Steam-load relaxing pressure  IMPLEMENTATION CANDIDATE / USER REVIEW PENDING
+TE-5R1 Steam-load relaxing pressure  IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW PENDING
 ADR-0014  PROPOSED / USER REVIEW PENDING
 Full TE-5 Pressure/Vacuum runtime  NOT STARTED
 Air-pressure force  NOT STARTED
@@ -389,6 +389,11 @@ the eight-storage ceiling, no new persistent/full-world state, Steam-only
 targeting, no Matter pressure force and total-pressure coupling only to Air and
 rupture. Automated validation can produce only **IMPLEMENTATION CANDIDATE /
 USER REVIEW PENDING**; it cannot accept ADR-0014.
+
+Final source `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030` passed that
+automated gate, including one successful final-source FULL, one release build
+and one bounded launch/measurement. The source-bound receipt is
+[TE-5R1 runtime evidence](../evidence/THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23.md).
 
 ### D-030 v3 transaction/oracle closure
 

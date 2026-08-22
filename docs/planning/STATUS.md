@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2/TE-3/TE-4 USER ACCEPTED WITH KNOWN FOLLOW-UP**; ADR-0012 accepted; TE-5R0/ADR-0013 **DESIGN BLOCKED / IMMUTABLE**; TE-5R1/ADR-0014 **STEAM-LOAD RELAXING PRESSURE IMPLEMENTATION CANDIDATE / USER REVIEW PENDING** |
+| Thermal Environment / Ignition Causality | **TE-2/TE-3/TE-4 USER ACCEPTED WITH KNOWN FOLLOW-UP**; ADR-0012 accepted; TE-5R0/ADR-0013 **DESIGN BLOCKED / IMMUTABLE**; TE-5R1/ADR-0014 **STEAM-LOAD RELAXING PRESSURE IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW PENDING** |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -125,6 +125,12 @@ Air/rupture, opposing-face structural differential and a sole-owner exact-
 update pressure activity pass. It is 43 passes / 86 queries with no new
 persistent/full-world state. ADR-0014 and the candidate remain **USER REVIEW
 PENDING**.
+
+Final runtime source `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030`
+passed the source-bound F01–F21 matrix, one successful final-source FULL, one
+release build and one bounded launch/measurement. The immutable receipt is
+[TE-5R1 runtime evidence](../evidence/THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23.md).
+This advances no user or later-gate disposition.
 
 ---
 

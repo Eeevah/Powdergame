@@ -117,3 +117,10 @@ was therefore authorized under D-037 without changing this table. The candidate
 uses exactly 43 passes / 86 queries, adds no persistent or full-world scratch
 allocation, and is governed by the [runtime specification](../specs/STEAM_LOAD_RELAXING_PRESSURE_SPEC.md)
 and [validation matrix](../development/STEAM_LOAD_RELAXING_PRESSURE_VALIDATION.md).
+
+Final source `1ee28ac2003d3e2804dfce5fbf0fa25e583e3030` passed the complete
+automated gate, one final-source FULL, one canonical release build and one
+bounded launch/measurement. See the
+[runtime evidence](../evidence/THERMAL_ENVIRONMENT_TE_5R1_STEAM_LOAD_PRESSURE_2026-08-23.md).
+The stop remains **IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER
+REVIEW PENDING**; no automatic result accepts ADR-0014.

@@ -347,7 +347,8 @@ TE-3Q / TE-5Q runtime  NOT STARTED
 Full TE-5 Pressure redesign  DEFERRED / NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4D v1/v2  DESIGN BLOCKED / IMMUTABLE
-TE-4D v3  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / ADR-0012 PROPOSED
+TE-4D v3  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / IMMUTABLE
+TE-4D D-031 supplement  BLOCKED / CRITICAL 0 / HIGH 3 / ADR-0012 PROPOSED
 TE-4 runtime  NOT STARTED
 G9-B/C/D/E  NOT STARTED
 ```
@@ -366,3 +367,13 @@ Fresh review blocks v3 despite the completed process receipt. The three High
 findings are a hardcoded F15B next snapshot, an auditor that trusts semantic
 labels from the system under test, and F09 arithmetic not driven by a complete
 fuel/heat lifecycle. No runtime gate advances.
+
+### D-031 targeted transaction supplement
+
+The distinct supplement completed `1/1` and preserved all v1/v2/v3 artifacts.
+Its reduced lifecycle and snapshot receipts are valid only in their stated
+scope. Fresh review found Critical `0` / High `3` / Medium `2`: F15B has no
+Matter/Air settle before the next topology decision, transaction class remains
+caller-selected, and Air receiver topology/claim is absent. It therefore does
+not compose with v3 into architecture completion. ADR-0012 stays Proposed and
+no runtime gate advances.

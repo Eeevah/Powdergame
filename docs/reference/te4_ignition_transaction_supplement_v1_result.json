@@ -1,0 +1,208 @@
+{
+  "GPU_status": "NOT_ESTABLISHED",
+  "accepted_valid_transition_count": 1527,
+  "air_mass_energy_conservation": "PASS",
+  "attempts": 1,
+  "auditor_result": "PASS",
+  "completions": 1,
+  "counter_provenance": "INDEPENDENT_SPEC_BEFORE_AFTER_AUDIT",
+  "evidence_identity": "TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1",
+  "f15b_receipt": {
+    "air_after": [
+      1.5,
+      30.0
+    ],
+    "air_before": [
+      1.5,
+      30.0
+    ],
+    "air_conserved": true,
+    "fuel_preserved": true,
+    "stage_N": {
+      "clipped_q": 0.0,
+      "consumption": 0,
+      "deposited_q": 8.0,
+      "flame": 1,
+      "fuel_after": 11,
+      "gross_q": 8.0,
+      "heat": 1,
+      "smoke": 1
+    },
+    "stage_N_air_access_derived": true,
+    "stage_N_plus_1": {
+      "clipped_q": 0.0,
+      "consumption": 0,
+      "deposited_q": 0.0,
+      "flame": 0,
+      "gross_q": 0.0,
+      "heat": 0,
+      "smoke": 0
+    },
+    "stage_N_plus_1_air_access_derived": false,
+    "stage_N_plus_1_burning": false,
+    "target_material": "Smoke"
+  },
+  "final_tick_zero_emission": "PASS",
+  "independent_semantic_audit": "PASS",
+  "lifecycle_result": {
+    "Oil": {
+      "Q_closure": true,
+      "clipped_Q": 6485.0,
+      "deposited_Q": 2500.0,
+      "duration": 600,
+      "emitting_ticks": 599,
+      "final_stage": {
+        "clipped_q": 0.0,
+        "consumption": 1,
+        "deposited_q": 0.0,
+        "flame": 0,
+        "gross_q": 0.0,
+        "heat": 0,
+        "smoke": 0
+      },
+      "final_tick": 600,
+      "first_emitting_tick": 1,
+      "gross_Q": 8985.0,
+      "last_emitting_tick": 599,
+      "trace_sha256": "3f819e43400fa33f94dc2dd11a362a7973727ee4ffe850eff679482f82a30c2c"
+    },
+    "Wood": {
+      "Q_closure": true,
+      "clipped_Q": 5392.0,
+      "deposited_Q": 1800.0,
+      "duration": 900,
+      "emitting_ticks": 899,
+      "final_stage": {
+        "clipped_q": 0.0,
+        "consumption": 1,
+        "deposited_q": 0.0,
+        "flame": 0,
+        "gross_q": 0.0,
+        "heat": 0,
+        "smoke": 0
+      },
+      "final_tick": 900,
+      "first_emitting_tick": 1,
+      "gross_Q": 7192.0,
+      "last_emitting_tick": 899,
+      "trace_sha256": "6f92a747da4c9b21b0383fd96bffcfd2acbbd44a297a64e1e3f5b6812f3e3831"
+    },
+    "cap_controls": {
+      "above": {
+        "after": 1250.0,
+        "before": 1250.0,
+        "stage": {
+          "clipped_q": 15.0,
+          "consumption": 0,
+          "deposited_q": 0.0,
+          "flame": 1,
+          "gross_q": 15.0,
+          "heat": 1,
+          "smoke": 1
+        }
+      },
+      "at": {
+        "after": 1200.0,
+        "before": 1200.0,
+        "stage": {
+          "clipped_q": 15.0,
+          "consumption": 0,
+          "deposited_q": 0.0,
+          "flame": 1,
+          "gross_q": 15.0,
+          "heat": 1,
+          "smoke": 1
+        }
+      },
+      "below": {
+        "after": 1006.0,
+        "before": 1000.0,
+        "stage": {
+          "clipped_q": 0.0,
+          "consumption": 0,
+          "deposited_q": 15.0,
+          "flame": 1,
+          "gross_q": 15.0,
+          "heat": 1,
+          "smoke": 1
+        }
+      },
+      "crossing": {
+        "after": 1200.0,
+        "before": 1198.0,
+        "stage": {
+          "clipped_q": 10.0,
+          "consumption": 0,
+          "deposited_q": 5.0,
+          "flame": 1,
+          "gross_q": 15.0,
+          "heat": 1,
+          "smoke": 1
+        }
+      }
+    },
+    "final_tick_zero_emission": "PASS"
+  },
+  "limitations": [
+    "No v1/v2/v3 evidence was rerun.",
+    "No Rust, WGSL, GPU, runtime, build or application was executed.",
+    "This supplement closes only v3 H-001/H-002/H-003/M-001 at the reduced transaction-evidence layer."
+  ],
+  "manifest_sha256": "03549f3b618fbb58b8c360d071d6f345c1409f5d92061b71760db5d033918295",
+  "negative_control_rejections": "ALL_REQUIRED",
+  "oil_lifecycle": "PASS",
+  "product_status": "NOT_ESTABLISHED",
+  "rejected_negative_control_count": 38,
+  "result_hash_scope": "CANONICAL_JSON_WITH_RESULT_SHA256_EMPTY",
+  "result_sha256": "4cd620ff9a6ea2a058768855508d51560bba80c3921466a3988f48148790ba80",
+  "script_sha256": "6ee23ebc11d304ced739c85153ff210e6791899082d1b611840847362d557162",
+  "snapshot_bundle_sha256": "563989947a676421c75a84236d313e57da030ce4433ca0bd7324d054c07f8423",
+  "snapshot_record_count": 1565,
+  "snapshot_result": {
+    "status": "PASS",
+    "third_party_reaudit": {
+      "accepted": 1527,
+      "lifecycle": {
+        "Oil": {
+          "final_zero": true,
+          "gross": 8985.0,
+          "ticks": 600
+        },
+        "Wood": {
+          "final_zero": true,
+          "gross": 7192.0,
+          "ticks": 900
+        }
+      },
+      "records": 1565,
+      "rejected": 38,
+      "snapshot_sha256": "563989947a676421c75a84236d313e57da030ce4433ca0bd7324d054c07f8423"
+    }
+  },
+  "topology_derived_f15b": "PASS",
+  "topology_result": "PASS",
+  "unaudited_required_paths": 0,
+  "user_status": "PENDING",
+  "valid_transaction_classes": {
+    "active_burn": 1,
+    "air_displacement": 1,
+    "decay_replacement": 1,
+    "density_swap": 1,
+    "draw": 1,
+    "erase": 1,
+    "exposure_accumulation": 1,
+    "exposure_decay": 1,
+    "extinguish": 1,
+    "fuel_consumption": 1,
+    "generic_replacement": 1,
+    "ignition": 1,
+    "movement_into_empty": 1,
+    "preset_stage": 1,
+    "reignition": 1,
+    "reset": 1,
+    "rupture_replacement": 1,
+    "smoke_commit": 1,
+    "void_exit": 1
+  },
+  "wood_lifecycle": "PASS"
+}

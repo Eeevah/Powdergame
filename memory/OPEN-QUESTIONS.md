@@ -565,3 +565,16 @@ passing one-shot supplement and fresh review with no unresolved Critical/High
 may complete the architecture evidence composition, but cannot accept
 ADR-0012 or authorize runtime. Q-017 stays open for the user's architecture
 disposition after the supplement review.
+
+### 2026-08-22 D-031 supplement review — blocked
+
+The frozen supplement completed `1/1` and published 1,565 reduced-model
+before/after records, but fresh review found Critical `0` / High `3` / Medium
+`2`. F15B does not settle Matter/Air Current/Next before its next topology
+decision; the auditor selects semantic class from caller-provided `spec_id`;
+and Air displacement lacks receiver topology/claim semantics. Negative-control
+family coverage and the named third-party re-audit are also overstated.
+
+The supplement is **BLOCKED**, immutable and may not be patched or rerun.
+Q-017 remains open for a new direct user architecture decision. ADR-0012 stays
+Proposed and TE-4 runtime remains not started.

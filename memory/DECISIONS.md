@@ -1031,3 +1031,13 @@ Scope excludes Rust/WGSL/Cargo, production passes/buffers, build/launch,
 coefficient/model changes, Oxygen, Ash/new Matter, presentation, Pressure
 redesign, TE-5/TE-6, G9-B/C/D/E, optimization, PR and `main` merge. External
 implementation copied, translated or vendored remains `0 files / 0 lines`.
+
+### D-031 outcome — 2026-08-22
+
+The frozen supplement completed `1/1`, but fresh review found Critical `0` /
+unresolved High `3` / Medium `2`. F15B omitted the required Matter/Air settle;
+the auditor selected semantic class from caller-provided `spec_id`; and Air
+displacement lacked receiver topology/claim semantics. The result is **TE-4D
+TRANSACTION SUPPLEMENT BLOCKED**. Preserve the supplement as immutable history;
+do not patch or rerun it. ADR-0012 remains Proposed, runtime remains Not
+Started, and a new identity requires another explicit user decision.

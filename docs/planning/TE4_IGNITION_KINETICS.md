@@ -1,6 +1,6 @@
 # TE-4D Ignition Kinetics Plan
 
-Status: **V1/V2/V3 DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
+Status: **V1/V2/V3 AND D-031 SUPPLEMENT BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
 
 ## Reuse and exact inventory
 
@@ -145,3 +145,21 @@ patched or rerun and runtime remains unauthorized.
 `LESSON_PROMOTION: NONE` for v3: PG-L035 and the verified Wiki snapshot-
 precondition-lifetime workflow already encode the reusable same-stage
 invalidation rule. No new reusable failure was found.
+
+## D-031 targeted supplement result
+
+The frozen supplement ran exactly once and completed `1/1`. It published 1,565
+full reduced-model before/after records, continuous Oil/Wood lifecycles and
+cap controls. Its own auditor accepted 1,527 transitions and rejected 38; the
+snapshot self-re-audit reproduced Oil/Wood gross Q `8,985/7,192` and zero-
+emission final consumption ticks.
+
+Fresh review found Critical `0` / unresolved High `3` / Medium `2`. The F15B
+world is not settled between Smoke/Air mutation and the next Air decision;
+semantic classes remain caller-selected; and Air displacement does not prove
+receiver topology/claim. Negative-control family coverage and the named third-
+party audit are also overstated. The supplement is **BLOCKED**, immutable and
+not eligible for rerun. Runtime remains unauthorized.
+
+`LESSON_PROMOTION: NONE` because the Wiki Evidence/fixture integrity and
+Snapshot precondition lifetime contracts already cover these failures.

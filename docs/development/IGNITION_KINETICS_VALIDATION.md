@@ -1,6 +1,6 @@
 # Ignition Kinetics Validation Contract
 
-Status: **V2 PROCESS COMPLETED / REVIEW INVALIDATED BROAD PASS / DESIGN BLOCKED**.
+Status: **V1/V2/V3 AND D-031 SUPPLEMENT BLOCKED / PRODUCTION NOT ESTABLISHED**.
 
 ## Fixture matrix
 
@@ -153,3 +153,39 @@ derived F09 chemical/final-tick accounting. The stored delta summaries also
 lack before/after values for independent re-audit. Therefore the process
 receipt is preserved but its design disposition is **BLOCKED**; no rerun or
 repair is permitted under the v3 identity.
+
+## D-031 targeted supplement receipt
+
+- Identity: `TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1`
+- Manifest: `../reference/te4_ignition_transaction_supplement_v1_manifest.json`
+- Script: `../reference/te4_ignition_transaction_supplement_v1.py`
+- Snapshots: `../reference/te4_ignition_transaction_supplement_v1_snapshots.jsonl`
+- Result: `../reference/te4_ignition_transaction_supplement_v1_result.json`
+- Manifest/script/snapshot/result-file SHA-256:
+  `03549f3b...918295` / `6ee23ebc...d557162` /
+  `56398994...7f8423` / `54bc5281...146a2e`
+- Attempts/completions: `1/1`; snapshot records: `1,565`
+- Script audit: accepted `1,527`; rejected controls `38`; unaudited required
+  paths reported `0`
+- Lifecycle: Oil `599` emitting ticks / gross Q `8,985`; Wood `899` / `7,192`;
+  both final ticks consume with zero emission
+- GPU/product/user: `NOT_ESTABLISHED / NOT_ESTABLISHED / PENDING`
+
+The execution command was:
+
+```powershell
+& 'C:\Users\mdkap\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' `
+  docs/reference/te4_ignition_transaction_supplement_v1.py `
+  --manifest docs/reference/te4_ignition_transaction_supplement_v1_manifest.json `
+  --snapshots docs/reference/te4_ignition_transaction_supplement_v1_snapshots.jsonl `
+  --result docs/reference/te4_ignition_transaction_supplement_v1_result.json `
+  --failure docs/reference/te4_ignition_transaction_supplement_v1_failure.json
+```
+
+No failure file exists. The post-run snapshot self-re-audit reproduced 1,565
+records, 1,527 accepts, 38 rejects and Oil/Wood gross totals `8,985/7,192`.
+Fresh review nevertheless found Critical `0` / High `3` / Medium `2`: missing
+F15B settle, caller-classified semantic counters and topology-free Air receiver
+transfer. The reported all-family negative-control and third-party-audit labels
+are also overstated. Therefore the receipt is preserved but the supplement is
+**BLOCKED** and may not be patched or rerun.

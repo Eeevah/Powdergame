@@ -68,3 +68,8 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   DESIGN BLOCKED — UNRESOLVED CRITICAL 0 / HIGH 8 / MEDIUM 1**. The reduced
   proof under-models named fixtures; local contraction and spatial pressure
   retain independent causal/source-integration blockers.
+- [`TE4_IGNITION_TRANSACTION_SUPPLEMENT_V1.md`](TE4_IGNITION_TRANSACTION_SUPPLEMENT_V1.md)
+  — D-031 fresh-context supplement review. **Critical 0 / unresolved High 3 /
+  Medium 2**; missing F15B settle, caller-classified semantic counters and
+  topology-free Air receiver transfer block the supplement. Runtime remains
+  not started.

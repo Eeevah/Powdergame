@@ -1,6 +1,6 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — TARGETED TRANSACTION SUPPLEMENT AUTHORIZED / EVIDENCE PENDING**
+- Status: **PROPOSED — TRANSACTION SUPPLEMENT BLOCKED / USER REVISION REQUIRED**
 - Date: 2026-08-22
 - Decision authority: D-028, D-029, D-030 and D-031
 
@@ -238,3 +238,21 @@ transactions rather than one duration state machine. The published receipts
 also omit re-auditable before/after snapshots. V3 is **DESIGN BLOCKED**. Its
 `1/1` process receipt remains immutable narrow history and may not be patched
 or rerun.
+
+## D-031 targeted supplement disposition
+
+The distinct `TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1` process ran once and
+completed once without modifying or rerunning v1/v2/v3. It produced 1,565
+full reduced-model before/after snapshots, accepted 1,527 transitions, rejected
+38 controls, derived F15B Air access from topology, ran continuous 600/900-tick
+Oil/Wood lifecycles and reproduced gross Q `8,985/7,192` with zero-emission
+consumption ticks.
+
+Fresh review found Critical `0` / unresolved High `3` / Medium `2`. F15B omits
+the required Matter/Air settle and evaluates a Current/Next-inconsistent world;
+the auditor still selects semantic class from caller-provided `spec_id`; and
+Air displacement accepts topology-free receiver transfers. Negative-control
+coverage and the named third-party re-audit are also overstated. The supplement
+is **BLOCKED**, remains immutable and may not be patched or rerun. It does not
+compose with v3 into architecture completion. ADR-0012 remains Proposed and
+runtime remains unauthorized.

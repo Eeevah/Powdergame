@@ -1,0 +1,75 @@
+{
+  "schema": "powdergame.te4.ignition.transaction-supplement/1",
+  "evidence_identity": "TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1",
+  "counter_provenance": "INDEPENDENT_SPEC_BEFORE_AFTER_AUDIT",
+  "composition_boundary": {
+    "closes_only": ["v3-H-001", "v3-H-002", "v3-H-003", "v3-M-001"],
+    "immutable_v3_manifest_sha256": "09e2eb6259a2a26f825bcf4bc15fd4c0b0c3f814493de3e38be5e3350ff427b2",
+    "immutable_v3_result_sha256": "646ed8f5307464a1f191646c6ce2b815923b80426bc533d1560a55e106a6058c",
+    "forbidden_reexecutions": ["v3_random_sequences", "v3_random_grids", "F07", "F08", "coefficient_selection", "oracle_generation", "GPU_feasibility"]
+  },
+  "snapshot_schema": {
+    "format": "JSONL_CANONICAL_UTF8_LF",
+    "required_fields": ["evidence_identity", "fixture", "transaction_ordinal", "transaction_input", "before_state", "after_state", "affected_cell_indices", "audit_specification_id", "accepted", "derived_delta_summary", "record_sha256"],
+    "record_hash_scope": "CANONICAL_JSON_WITH_RECORD_SHA256_EMPTY",
+    "full_state_required": true
+  },
+  "tolerances": {"absolute_Q": 1e-9, "absolute_Air": 1e-9},
+  "flags": {"COMBUSTING": 1, "FLAME_EVENT": 2},
+  "coefficients": {
+    "Oil": {"budget": 48, "base_rate": 2, "bucket_width_C": 50, "max_rate": 6, "cooling_decay": 1, "flame_bonus": 2, "flame_bonus_cap": 4, "ignition_threshold_C": 200.0, "sustain_threshold_C": 150.0, "burn_duration": 600, "gross_Q": 15.0, "heat_capacity": 2.5},
+    "Wood": {"budget": 60, "base_rate": 1, "bucket_width_C": 50, "max_rate": 5, "cooling_decay": 1, "flame_bonus": 2, "flame_bonus_cap": 4, "ignition_threshold_C": 300.0, "sustain_threshold_C": 250.0, "burn_duration": 900, "gross_Q": 8.0, "heat_capacity": 2.0}
+  },
+  "combustion_stage": {"snapshot": "COMBUSTION_STAGE_SNAPSHOT", "temperature_cap_C": 1200.0, "empty_temperature_C": 20.0, "air_predicate": "ORTHOGONAL_IN_DOMAIN_EMPTY_AND_AIR_MASS_GT_ZERO", "same_stage_rollback": false},
+  "required_transaction_classes": [
+    "exposure_accumulation", "exposure_decay", "ignition", "active_burn", "extinguish", "reignition",
+    "movement_into_empty", "density_swap", "decay_replacement", "rupture_replacement", "fuel_consumption",
+    "void_exit", "generic_replacement", "draw", "erase", "preset_stage", "reset", "smoke_commit", "air_displacement"
+  ],
+  "audit_specifications": {
+    "exposure_accumulation": {"kind": "EXPOSURE_ACCUMULATION", "allowed_cell_fields": ["exposure"]},
+    "exposure_decay": {"kind": "EXPOSURE_DECAY", "allowed_cell_fields": ["exposure"]},
+    "ignition": {"kind": "IGNITION", "allowed_cell_fields": ["flags", "exposure", "fuel", "temperature"]},
+    "active_burn": {"kind": "ACTIVE_BURN", "allowed_cell_fields": ["flags", "fuel", "temperature"]},
+    "extinguish": {"kind": "EXTINGUISH", "allowed_cell_fields": ["flags", "exposure"]},
+    "reignition": {"kind": "REIGNITION", "allowed_cell_fields": ["flags", "exposure", "fuel", "temperature"]},
+    "movement_into_empty": {"kind": "MOVEMENT_INTO_EMPTY", "allowed_cell_fields": ["material", "temperature", "flags", "exposure", "fuel"]},
+    "density_swap": {"kind": "DENSITY_SWAP", "allowed_cell_fields": ["material", "temperature", "flags", "exposure", "fuel"]},
+    "decay_replacement": {"kind": "DECAY_REPLACEMENT", "allowed_cell_fields": ["material", "flags", "exposure", "fuel"]},
+    "rupture_replacement": {"kind": "RUPTURE_REPLACEMENT", "allowed_cell_fields": ["material", "flags", "exposure", "fuel"]},
+    "fuel_consumption": {"kind": "FUEL_CONSUMPTION", "allowed_cell_fields": ["material", "temperature", "flags", "exposure", "fuel"]},
+    "void_exit": {"kind": "VOID_EXIT", "allowed_cell_fields": ["material", "temperature", "flags", "exposure", "fuel"]},
+    "generic_replacement": {"kind": "GENERIC_REPLACEMENT", "allowed_cell_fields": ["material", "flags", "exposure", "fuel"]},
+    "draw": {"kind": "DRAW", "allowed_cell_fields": ["material", "temperature", "flags", "exposure", "fuel"]},
+    "erase": {"kind": "ERASE", "allowed_cell_fields": ["material", "temperature", "flags", "exposure", "fuel"]},
+    "preset_stage": {"kind": "PRESET_STAGE", "allowed_cell_fields": ["material", "temperature", "flags", "air_mass", "air_energy", "exposure", "fuel"]},
+    "reset": {"kind": "RESET", "allowed_cell_fields": ["material", "temperature", "flags", "air_mass", "air_energy", "exposure", "fuel"]},
+    "smoke_commit": {"kind": "SMOKE_COMMIT", "allowed_cell_fields": ["material", "temperature", "flags", "exposure", "fuel"]},
+    "air_displacement": {"kind": "AIR_DISPLACEMENT", "allowed_cell_fields": ["air_mass", "air_energy"]}
+  },
+  "audit_specification_hashes": {
+    "active_burn": "df3444edda94e64335bb25681e6864a6b3cd750450275a59316f1fe11c038acd",
+    "air_displacement": "7f23dd7b12279b3beb9fd06885574868507cbfa6cf2c85b00b9b542d99a476ef",
+    "decay_replacement": "ad2a8a2692a25781349cc29982a1ec3e92d1b2deef29031c46a3d7b495cb9faa",
+    "density_swap": "dca61824f1345f5b4af87036210486b3c937e9c1249b1e7cb922332719f60590",
+    "draw": "f367fa2d86781d329682d2a0e928124cecce4b57fae2d8ac38c3135b7f7ab6fd",
+    "erase": "39ed0f40269a4633213e2f6c58c9378ca1258c12dc4f73f645709374f90cde83",
+    "exposure_accumulation": "d4da535a5d5d3ee6d637710015965b5a17424364836f27396724b2d09423335b",
+    "exposure_decay": "348c965bb4677559c63e0206337d3446639123babcfd8bbed4721cc365e7490e",
+    "extinguish": "8f27cb85ee9926dcc4da7550f0b002c6773f691b978f472ca926d41d56161f28",
+    "fuel_consumption": "7d360a62c83c8425d846751aa7db5017fdd88307af285468ba7bc0147bea4c7e",
+    "generic_replacement": "02c86639b17fac6bd1ba0c9d9f731fb159f69f18ef130328a66ac4d14f67c1ab",
+    "ignition": "1b175785feff72694dffd1a8f673d46af8d1e5112d07ca9f0a4769441073351c",
+    "movement_into_empty": "d19eec436b9cd527866dc92e529ebf87fc176f3c2124d4d9e1bdff78e7c78cb6",
+    "preset_stage": "3ac99fd3053ea46f6edacfe84ed23fbde4b3d114e1c77c450f178f66b2ef8577",
+    "reignition": "15106bd06fa1ffb98aee6b57a3d2c38269c2c3f8ae0dd56059355abc2da602b6",
+    "reset": "99e80c10d46b583a7477f112d45a4326023a059418de25ba3dc2d573e9adf179",
+    "rupture_replacement": "eda1fcf1b7e812f137992493119d6740ef77d88a57290aabb0d27b736b8ad09e",
+    "smoke_commit": "57c508076246ae5dcaf21c7f53949f8e48fa3cacb7801b4794ad39a62cc6c594",
+    "void_exit": "44962f5ce4003e8cd50c64441ad5ae4988346a4d887ed4c16dc8d1b1fc5f8a4b"
+  },
+  "negative_control_families": ["wrong_cell", "duplicate_owner", "stale_exposure", "restored_fuel", "wrong_flag", "unpermitted_temperature", "missing_air", "duplicate_air", "ineligible_smoke_target", "current_next_mismatch", "replacement_retains_exposure", "removed_body_claimed_name", "semantic_string_only"],
+  "fixtures": ["F15B_SUPPLEMENT", "SEMANTIC_TRANSACTION_MATRIX", "OIL_FULL_LIFECYCLE", "WOOD_FULL_LIFECYCLE", "CAP_CONTROLS"],
+  "required_results": {"attempts": 1, "completions": 1, "topology_derived_f15b": "PASS", "independent_semantic_audit": "PASS", "oil_lifecycle": "PASS", "wood_lifecycle": "PASS", "final_tick_zero_emission": "PASS", "air_mass_energy_conservation": "PASS", "unaudited_required_paths": 0},
+  "expected_status": {"GPU": "NOT_ESTABLISHED", "product": "NOT_ESTABLISHED", "user": "PENDING"}
+}

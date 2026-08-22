@@ -1,6 +1,6 @@
 # Ignition Kinetics Specification
 
-Status: **PROPOSED / V3 DESIGN BLOCKED / PRODUCTION NOT ESTABLISHED** under D-030 and ADR-0012. This document
+Status: **PROPOSED / V3 AND D-031 SUPPLEMENT BLOCKED / PRODUCTION NOT ESTABLISHED** under D-030/D-031 and ADR-0012. This document
 defines the candidate contract; it is not active production behavior.
 
 ## State and ownership
@@ -121,3 +121,14 @@ review invalidated the broad transaction-closed claim. F15B does not derive its
 next snapshot; the auditor accepts SUT-provided semantic labels; and F09 does
 not derive heat/final-tick behavior from one lifecycle. These unresolved High
 findings block the design without changing the normative target above.
+
+## D-031 supplement evidence boundary
+
+The frozen supplement establishes continuous reduced-model Oil/Wood lifecycle
+and cap arithmetic, topology-derived Air access in its Current state, and full
+before/after snapshot publication. It does **not** establish the normative
+transaction as a whole: its F15B next-stage world lacks the required Matter/Air
+settle, semantic transaction classes remain caller-selected, and Environment
+receiver topology/claim semantics are absent. These are evidence blockers, not
+changes to the candidate rule. Runtime, GPU, product and user behavior remain
+unestablished.

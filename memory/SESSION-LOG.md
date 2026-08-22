@@ -627,3 +627,20 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Wiki remained user-dirty and untouched. Lesson promotion is NONE because
   PG-L035 and the verified Wiki workflow already cover the reusable pattern.
 - Runtime/Cargo/GPU/FULL/build/launch counts remain zero.
+
+## 2026-08-22 · TE-4D targeted transaction supplement blocked
+
+- D-031 authorization commit `a88da7e...` preserved v1/v2/v3 and authorized
+  only `TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1`.
+- Manifest/script SHA-256 `03549f3b...918295` / `6ee23ebc...d557162` were frozen
+  after syntax/import/manifest inventory preflight.
+- Exactly one supplement process completed `1/1`, publishing 1,565 snapshots;
+  snapshot/result-file hashes are `56398994...7f8423` / `54bc5281...146a2e`.
+- Same-script snapshot re-audit reproduced 1,527 accepts, 38 rejects and
+  Oil/Wood gross Q `8,985/7,192`; no failure file exists.
+- Fresh read-only review found Critical 0 / High 3 / Medium 2: missing F15B
+  settle, caller-classified semantics and topology-free Air receiver transfer.
+  Negative-control coverage and third-party-audit labels are also overstated.
+- Supplement is BLOCKED and immutable. ADR-0012 remains Proposed; runtime is
+  not started. Lesson promotion is NONE.
+- Rust/WGSL/Cargo/GPU/FULL/build/launch/application counts remain zero.

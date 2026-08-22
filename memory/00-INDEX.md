@@ -49,6 +49,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md`](checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md) | TE-4D v2 three-High blocked return point before D-030 v3 authorization | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md`](checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md) | D-030 v3 authorization return point before the one-shot process and review blockers | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-2049-te4d-v3-blocked-before-supplement.md`](checkpoints/20260822-2049-te4d-v3-blocked-before-supplement.md) | V3 three-High blocked return point before D-031 targeted supplement authorization | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260822-2120-te4d-supplement-authorized-before-blocked-review.md`](checkpoints/20260822-2120-te4d-supplement-authorized-before-blocked-review.md) | D-031 authorized return point before the frozen supplement and blocking fresh review | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 
@@ -80,6 +81,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/development/IGNITION_KINETICS_VALIDATION.md`](../docs/development/IGNITION_KINETICS_VALIDATION.md) | Immutable v1 failure plus manifest-bound v2 13-PASS/4-deferred receipt | Before interpreting or extending TE-4 evidence |
 | [`docs/planning/TE4_IGNITION_KINETICS.md`](../docs/planning/TE4_IGNITION_KINETICS.md) | Exact live reuse and packed/dedicated pass-memory projections | Before revising TE-4 resource scope |
 | [`docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN.md`](../docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN.md) | Fresh review of the blocked TE-4D candidate | Before revising ADR-0012 |
+| [`docs/adversarial-reviews/TE4_IGNITION_TRANSACTION_SUPPLEMENT_V1.md`](../docs/adversarial-reviews/TE4_IGNITION_TRANSACTION_SUPPLEMENT_V1.md) | Fresh review blocking the D-031 transaction supplement | Before authorizing another TE-4D evidence identity |
 | [`docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V2.md`](../docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V2.md) | Fresh review of the D-029 manifest-bound revised candidate | Before user architecture disposition or runtime authorization |
 | [`docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V3.md`](../docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V3.md) | Fresh review of the D-030 transaction/oracle closure and its three High blockers | Before any later TE-4 evidence identity or runtime authorization |
 | [`docs/reference/te4_ignition_kinetics_v3_manifest.json`](../docs/reference/te4_ignition_kinetics_v3_manifest.json) | Immutable v3 identity, transaction specifications and oracle binding | When auditing the frozen v3 process |

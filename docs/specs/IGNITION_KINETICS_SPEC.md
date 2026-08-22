@@ -1,6 +1,6 @@
 # Ignition Kinetics Specification
 
-Status: **PROPOSED / V2 DESIGN BLOCKED / PRODUCTION NOT ESTABLISHED** under D-029 and ADR-0012. This document
+Status: **PROPOSED / V3 DESIGN BLOCKED / PRODUCTION NOT ESTABLISHED** under D-030 and ADR-0012. This document
 defines the candidate contract; it is not active production behavior.
 
 ## State and ownership
@@ -90,3 +90,34 @@ Independent review invalidated the broad `state_transition_result=PASS`
 interpretation: several path counters are not mutation-derived, sole-Air-face
 loss through same-tick Smoke is unspecified, and F08 has no frozen exact
 frontier oracle. These are design/evidence blockers, not runtime bugs.
+
+## D-030 v3 normative clarification
+
+`COMBUSTION_STAGE_SNAPSHOT` is the only Air-access decision point. It is the
+settled production state after movement, TE-2, TE-3 and decay reconciliation,
+and before exposure/combustion. A qualifying face is orthogonal, in-domain,
+EMPTY and has positive Air mass. Current-stage exposure, ignition, sustain,
+Heat, Flame, Smoke proposal and fuel increment use only that snapshot.
+Downstream same-stage Smoke cannot roll them back. The next snapshot without a
+qualifying face clears burning before emission, emits zero and preserves prior
+fuel progress.
+
+Reference transaction receipts are valid only when an independent auditor
+derives a nonzero state delta from immutable before/after snapshots under the
+manifest-hashed ownership specification. Transactions may return state and
+semantic event IDs, never counters. Air displacement must conserve both mass
+and energy. F15B fixes the sole-Air self-Smoke two-stage order. The frozen
+independent oracle supplies complete F07, 9x9 F08, near-budget and symmetric-
+tie event frontiers; the evidence model must compare exact events, not merely
+a digest or self-replay.
+
+The exact Oil/Wood tuples are normative user-selected identities. Validation
+of their identity, rate profile, timing and u6 representation does not claim
+optimality. GPU, product and user status remain unestablished until later
+authorized runtime work and direct review.
+
+The v3 frozen process reported those reduced contracts as PASS, but fresh
+review invalidated the broad transaction-closed claim. F15B does not derive its
+next snapshot; the auditor accepts SUT-provided semantic labels; and F09 does
+not derive heat/final-tick behavior from one lifecycle. These unresolved High
+findings block the design without changing the normative target above.

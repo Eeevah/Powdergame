@@ -541,3 +541,18 @@ before/after mutation receipts and compare its complete F07/F08 event lists to
 a frozen independent oracle generated before evidence freeze. Exact Oil/Wood
 tuples remain user-selected identities; optimality is not claimed. Q-017 stays
 open for user review after the one completed v3 execution and fresh review.
+
+### 2026-08-22 v3 independent review — design blocked
+
+The frozen v3 process completed `1/1` and reported 13 reference PASS, four
+expected production `NOT_ESTABLISHED`, zero failures/zero audited paths, and
+exact independent F07/F08 matches. Fresh review found Critical `0` /
+unresolved High `3` / Medium `1` / Low `1`. F15B hardcodes its next-stage Air
+predicate; the auditor trusts SUT-provided transaction names/events and omits
+semantic ownership branches; and F09 reports literal chemical-Q/final-tick
+values instead of deriving them from one duration state machine. Published
+receipts also omit independently re-auditable before/after values.
+
+TE-4D v3 is **DESIGN BLOCKED**. Its manifest/oracle/script/result remain
+immutable and may not be repaired or rerun. Q-017 remains open for a future
+user decision; runtime remains not started.

@@ -60,6 +60,7 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
 - [`TE3Q_CONSERVATIVE_PHASE_PACKETS_DESIGN.md`](TE3Q_CONSERVATIVE_PHASE_PACKETS_DESIGN.md)
 - [`TE4_IGNITION_KINETICS_DESIGN.md`](TE4_IGNITION_KINETICS_DESIGN.md)
 - [`TE4_IGNITION_KINETICS_DESIGN_V2.md`](TE4_IGNITION_KINETICS_DESIGN_V2.md)
+- [`TE4_IGNITION_KINETICS_DESIGN_V3.md`](TE4_IGNITION_KINETICS_DESIGN_V3.md)
   — D-029 fresh-context review. **Critical 0 / unresolved High 3 / Medium 1**;
   positive path counters, same-tick Smoke/Air-face loss and post-run F08 digest
   block the v2 design. Runtime remains not started.

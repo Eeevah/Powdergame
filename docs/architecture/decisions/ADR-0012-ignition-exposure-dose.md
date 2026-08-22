@@ -1,6 +1,6 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — V3 TRANSACTION/ORACLE CLOSURE AUTHORIZED / EVIDENCE PENDING**
+- Status: **PROPOSED — V3 DESIGN BLOCKED / USER ARCHITECTURE REVIEW NOT REACHED**
 - Date: 2026-08-22
 - Decision authority: D-028, D-029 and D-030
 
@@ -191,3 +191,50 @@ Positive path counters do not establish distinct transactions; same-tick Smoke
 can occupy the sole Air face after the early check; and F08's digest is a self-
 replay rather than a frozen oracle. V2 is **DESIGN BLOCKED**. The result remains
 immutable narrow history and may not be repaired or rerun under this identity.
+
+## D-030 v3 transaction and oracle closure
+
+D-030 preserves v1/v2 as immutable blocked history and selects
+`COMBUSTION_STAGE_SNAPSHOT`: the settled state after movement, TE-2, TE-3 and
+decay hygiene/reconcile, immediately before `ignition_exposure_propose` and
+combustion. An orthogonal in-domain EMPTY Cell with positive Air mass at this
+snapshot authorizes the complete current combustion stage. A downstream
+same-stage Smoke commit may occupy the sole face without rolling back Heat,
+`FLAME_EVENT`, Smoke proposal or fuel progress. At the next snapshot, absent
+Air access extinguishes before emission, emits zero and preserves already
+consumed fuel progress. Air is neither consumed nor interpreted as Oxygen.
+
+The v3 reference defines 18 distinct mutation entrypoints and a separate
+auditor. Transactions return state and semantic event IDs only. The auditor
+derives changed Cells/fields, ownership transfer/clear, conservation, event
+order and path execution from immutable before/after states under manifest-
+hashed specifications. Required counter provenance is
+`AUDITED_BEFORE_AFTER_STATE_DIFF`; no required zero-mutation path can pass.
+
+An independent standard-library exhaustive generator was run before evidence
+freeze and its complete human-readable coordinate frontiers were frozen. The
+evidence program imports neither generator nor its helpers and compares its
+own tick simulation against every exact frozen event list. Self-replay is
+reported only as determinism. The one v3 execution completed `1/1`: 100,000
+single-Cell sequences, 10,000 bounded grids, 13 reference-required PASS, four
+production-deferred `NOT_ESTABLISHED`, failures `0`, unexpected
+`NOT_ESTABLISHED` `0`, zero audited required paths `0`, exact F07/F08 matches
+and the normative F15B sole-Air self-Smoke trace PASS.
+
+Oil `48/2/50/6/1/2/4` and Wood `60/1/50/5/1/2/4` are
+`USER_SELECTED_AND_VALIDATED`; coefficient optimality is `NOT_CLAIMED`.
+Runtime remains not started. The live source supports the 42-pass/84-query/
+1,344-byte projection: Smoke reconcile is followed by authoritative Matter
+and Air settle copies before activity proposal, so a six-storage-binding
+`ignition_activity_propose` can observe next-stage Air loss. The proposed
+exposure pass likewise uses six storage bindings; no new persistent or
+full-world scratch state is projected.
+
+Fresh independent review found Critical `0` / unresolved High `3` / Medium
+`1` / Low `1`. F15B hardcodes the next Air snapshot instead of deriving it;
+the auditor trusts caller/transaction-supplied semantic identity; and F09's
+chemical-Q/final-tick result is literal arithmetic plus separate unconditional
+transactions rather than one duration state machine. The published receipts
+also omit re-auditable before/after snapshots. V3 is **DESIGN BLOCKED**. Its
+`1/1` process receipt remains immutable narrow history and may not be patched
+or rerun.

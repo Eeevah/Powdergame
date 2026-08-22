@@ -657,3 +657,22 @@ is not source-closed: phase pressure needs a fourth RO `chunk_state` binding,
 and movement/relief/merge/writer transactions remain incomplete even though
 the eight-storage ceiling is not itself exceeded. No runtime state or pass was
 allocated. Final projection disposition is **DESIGN BLOCKED**.
+
+## 15. TE-4D v3 source-feasibility projection
+
+D-030 adds no production code. The projected `ignition_exposure_propose`
+occupies future pass 24 and reads the settled post-decay
+`COMBUSTION_STAGE_SNAPSHOT`; combustion shifts to 25 and fully overwrites
+proposal with Smoke requests. Smoke reconciliation remains before the existing
+Matter/temperature/flags/phase-energy/Air settle copies. Pressure/rupture then
+settle before base, phase and Environment activity. A projected
+`ignition_activity_propose` at 40 therefore reads authoritative post-Smoke
+Matter/Air and augments `cell_activity` before reduction at 41.
+
+Both projected TE-4 passes need six storage bindings (uniform tables excluded)
+and remain under the eight-storage ceiling. Total projection is 42 passes, 84
+timestamp queries and 1,344 profiler query bytes. Proposal scratch is fully
+written for exposure context, consumed by combustion, then fully overwritten
+for Smoke. New persistent and full-world scratch allocation are both zero.
+This is static source feasibility only; no binding, Naga, GPU, wake, profiler
+or performance evidence was run.

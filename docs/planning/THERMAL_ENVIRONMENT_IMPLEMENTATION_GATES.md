@@ -346,7 +346,23 @@ ADR-0011  REJECTED / DESIGN BLOCKED HISTORY
 TE-3Q / TE-5Q runtime  NOT STARTED
 Full TE-5 Pressure redesign  DEFERRED / NOT STARTED
 Air-pressure force  NOT STARTED
-TE-4D  DESIGN BLOCKED / REFERENCE COMPLETIONS 0 / CRITICAL 0 / HIGH 2 / ADR-0012 PROPOSED
+TE-4D v1/v2  DESIGN BLOCKED / IMMUTABLE
+TE-4D v3  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / ADR-0012 PROPOSED
 TE-4 runtime  NOT STARTED
 G9-B/C/D/E  NOT STARTED
 ```
+
+### D-030 v3 transaction/oracle closure
+
+The distinct v3 identity completed once with 13 reference PASS, four expected
+production `NOT_ESTABLISHED`, zero failures and zero audited required paths.
+F07/F08 matched the frozen independent complete event oracle and F15B
+established the two-stage sole-Air self-Smoke reference transaction. The live
+source audit supports 42 passes, 84 queries, 1,344 profiler bytes, at most
+eight storage bindings and no new persistent or scratch state. Runtime gates
+remain unchecked; ADR-0012 remains Proposed and user review is required.
+
+Fresh review blocks v3 despite the completed process receipt. The three High
+findings are a hardcoded F15B next snapshot, an auditor that trusts semantic
+labels from the system under test, and F09 arithmetic not driven by a complete
+fuel/heat lifecycle. No runtime gate advances.

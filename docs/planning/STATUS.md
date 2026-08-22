@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2 DESIGN BLOCKED / IMMUTABLE**; **TE-4D v3 TRANSACTION/ORACLE CLOSURE AUTHORIZED / ADR-0012 PROPOSED**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 DESIGN BLOCKED / IMMUTABLE / ADR-0012 PROPOSED**; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -56,6 +56,13 @@ coefficient claim to user-selected identity validation without optimality.
 The source-audited future projection remains 42 passes / 84 queries / 1,344
 profiler bytes / zero persistent or scratch bytes. Evidence and independent
 review are pending; TE-4 runtime remains **NOT STARTED**.
+
+The one v3 process completed `1/1` and reported the locked `13/4/0/0/0`
+aggregate plus exact frozen-oracle matches. Fresh-context review nevertheless
+found Critical `0` / unresolved High `3` / Medium `1` / Low `1`: F15B's next
+Air snapshot is hardcoded, the auditor trusts SUT semantic labels, and F09 is
+not one duration-driven chemical-heat/final-tick state machine. V3 is therefore
+**DESIGN BLOCKED**; its files are immutable and TE-4 runtime is **NOT STARTED**.
 
 ---
 

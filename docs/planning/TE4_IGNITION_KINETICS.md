@@ -1,6 +1,6 @@
 # TE-4D Ignition Kinetics Plan
 
-Status: **V2 DESIGN BLOCKED / RUNTIME NOT STARTED**.
+Status: **V1/V2/V3 DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
 
 ## Reuse and exact inventory
 
@@ -114,16 +114,34 @@ world-state deltas are zero; profiler buffers total 1,344 bytes.
 41 activity_reduce
 ```
 
-## Required next decision
+## Historical v2 decision boundary
 
-Do not implement. A new user decision must resolve sole-Air-face/Smoke timing,
-authorize a new evidence identity with mutation-derived counters and a frozen
-F08 oracle, and decide how much coefficient tie completeness is required.
+V2 ended by requiring a later user decision on sole-Air timing, receipt
+provenance and an independent oracle. D-030 supplied that decision without
+repairing v2.
 
-## Lesson promotion
+## D-030 v3 closure program
 
-`LESSON_PROMOTION: REQUIRED — DEFERRED / NOT AUTHORIZED FOR WIKI WRITE`.
-PG-L034 remains the coefficient-selection guard. New PG-L035 records the
-same-tick downstream precondition-invalidation pattern exposed by H-002. The
-verified Wiki checkout is user-dirty and this task authorizes Powdergame
-publication only, so no Wiki edit or PR is created.
+D-030 resolves the v2 ambiguity with `COMBUSTION_STAGE_SNAPSHOT`, mutation-
+derived audited receipts and a pre-evidence frozen independent exact frontier
+oracle. It narrows the coefficient statement to
+`USER_SELECTED_AND_VALIDATED / NOT_CLAIMED optimality`. V1/v2 remain immutable
+blocked history.
+
+The one v3 process completed successfully with the locked `13/4/0/0/0`
+reference/deferred/fail/unexpected/zero-path aggregate and exact F07/F08/F15B
+results. The live-source feasibility projection remains the 42-pass list above,
+84 queries, 1,344 query bytes, six storage bindings in each new logical pass,
+zero persistent bytes and zero scratch bytes. Post-Smoke settle makes the next-
+stage Air loss visible to ignition activity before reduction.
+
+Fresh review found Critical `0` / unresolved High `3` / Medium `1` / Low `1`.
+F15B hardcodes rather than derives next-stage Air access, the auditor trusts
+SUT semantic names/events, and F09 does not derive chemical heat and the final
+consumption tick from one lifecycle. Therefore v3 is **DESIGN BLOCKED**. A
+future user decision is required before any new identity; v3 may not be
+patched or rerun and runtime remains unauthorized.
+
+`LESSON_PROMOTION: NONE` for v3: PG-L035 and the verified Wiki snapshot-
+precondition-lifetime workflow already encode the reusable same-stage
+invalidation rule. No new reusable failure was found.

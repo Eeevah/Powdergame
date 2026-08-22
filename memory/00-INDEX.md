@@ -47,6 +47,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260822-1933-te4d-v1-design-blocked.md`](checkpoints/20260822-1933-te4d-v1-design-blocked.md) | TE-4D v1 zero-completion and review-blocked return point before D-029 v2 authorization | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-1952-te4d-v2-authorized-before-review.md`](checkpoints/20260822-1952-te4d-v2-authorized-before-review.md) | D-029 selected v2 identity before its fresh review exposed three High blockers | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md`](checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md) | TE-4D v2 three-High blocked return point before D-030 v3 authorization | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md`](checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md) | D-030 v3 authorization return point before the one-shot process and review blockers | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 
@@ -79,6 +80,9 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`docs/planning/TE4_IGNITION_KINETICS.md`](../docs/planning/TE4_IGNITION_KINETICS.md) | Exact live reuse and packed/dedicated pass-memory projections | Before revising TE-4 resource scope |
 | [`docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN.md`](../docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN.md) | Fresh review of the blocked TE-4D candidate | Before revising ADR-0012 |
 | [`docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V2.md`](../docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V2.md) | Fresh review of the D-029 manifest-bound revised candidate | Before user architecture disposition or runtime authorization |
+| [`docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V3.md`](../docs/adversarial-reviews/TE4_IGNITION_KINETICS_DESIGN_V3.md) | Fresh review of the D-030 transaction/oracle closure and its three High blockers | Before any later TE-4 evidence identity or runtime authorization |
+| [`docs/reference/te4_ignition_kinetics_v3_manifest.json`](../docs/reference/te4_ignition_kinetics_v3_manifest.json) | Immutable v3 identity, transaction specifications and oracle binding | When auditing the frozen v3 process |
+| [`docs/reference/te4_ignition_kinetics_v3_result.json`](../docs/reference/te4_ignition_kinetics_v3_result.json) | Immutable one-completion v3 narrow process receipt | Historical process facts only; not design approval |
 | [`docs/planning/TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md`](../docs/planning/TE5_PHASE_VOLUME_PRESSURE_BRIDGE.md) | D-019 TE-5B option audit, reference receipt and finite-capacity DESIGN BLOCKED router | Before any revised phase-volume bridge decision or runtime proposal |
 | [`docs/architecture/decisions/ADR-0007-phase-volume-pressure-bridge.md`](../docs/architecture/decisions/ADR-0007-phase-volume-pressure-bridge.md) | Proposed exclusive token and unresolved vacancy-conservation counterexample | Before revising or replacing the atomic TE-3/TE-5B bridge |
 | [`docs/specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md`](../docs/specs/PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md) | Evaluated mode/arbitration contract plus unsatisfied finite-capacity invariant | Before any TE-5B redesign or structural fixture |

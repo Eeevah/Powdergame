@@ -1,0 +1,951 @@
+{
+  "F07_exact_oracle_match": true,
+  "F08_exact_oracle_match": true,
+  "arithmetic_result": "PASS",
+  "attempts": 1,
+  "bounded_grid_runs": 10000,
+  "coefficient_optimality": "NOT_CLAIMED",
+  "completions": 1,
+  "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+  "deterministic_replay": {
+    "correctness_role": "DETERMINISM_ONLY",
+    "status": "MATCH"
+  },
+  "evidence_identity": "TE4-IGNITION-KINETICS-REFERENCE-V3",
+  "fail": 0,
+  "fixture_result": "PASS_REFERENCE_REQUIRED_ONLY",
+  "fixture_results": {
+    "TE4-F01": {
+      "audit_receipts": [],
+      "audited_path_counts": {},
+      "class": "PRODUCTION_DEFERRED",
+      "metrics": {},
+      "status": "NOT_ESTABLISHED"
+    },
+    "TE4-F02": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXPOSURE_UPDATED"
+          ],
+          "path_executed": true,
+          "transaction": "exposure_step",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].flags",
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "IGNITED"
+          ],
+          "path_executed": true,
+          "transaction": "ignition",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "exposure_step": 1,
+        "ignition": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "budgets_representable": true,
+        "packed_u6_max": 63
+      },
+      "status": "PASS"
+    },
+    "TE4-F03": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXPOSURE_UPDATED"
+          ],
+          "path_executed": true,
+          "transaction": "exposure_step",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "exposure_step": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "after": 5,
+        "cooling_decay": 1
+      },
+      "status": "PASS"
+    },
+    "TE4-F04": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].flags",
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "IGNITED"
+          ],
+          "path_executed": true,
+          "transaction": "ignition",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "ignition": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "first_tick_ignition": false,
+        "selected_budget": 48
+      },
+      "status": "PASS"
+    },
+    "TE4-F05": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXPOSURE_UPDATED"
+          ],
+          "path_executed": true,
+          "transaction": "exposure_step",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "exposure_step": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "reversal": "10_TO_9"
+      },
+      "status": "PASS"
+    },
+    "TE4-F06": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXPOSURE_UPDATED"
+          ],
+          "path_executed": true,
+          "transaction": "exposure_step",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "exposure_step": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "after": 58,
+        "previous_snapshot_flames": 1
+      },
+      "status": "PASS"
+    },
+    "TE4-F07": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXPOSURE_UPDATED"
+          ],
+          "path_executed": true,
+          "transaction": "exposure_step",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].flags",
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "IGNITED"
+          ],
+          "path_executed": true,
+          "transaction": "ignition",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "exposure_step": 1,
+        "ignition": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "events": [
+          {
+            "cells": [
+              [
+                1,
+                0
+              ]
+            ],
+            "tick": 20
+          },
+          {
+            "cells": [
+              [
+                2,
+                0
+              ]
+            ],
+            "tick": 40
+          },
+          {
+            "cells": [
+              [
+                3,
+                0
+              ]
+            ],
+            "tick": 60
+          },
+          {
+            "cells": [
+              [
+                4,
+                0
+              ]
+            ],
+            "tick": 80
+          }
+        ],
+        "exact_oracle_match": true
+      },
+      "status": "PASS"
+    },
+    "TE4-F08": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXPOSURE_UPDATED"
+          ],
+          "path_executed": true,
+          "transaction": "exposure_step",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].flags",
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "IGNITED"
+          ],
+          "path_executed": true,
+          "transaction": "ignition",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "exposure_step": 1,
+        "ignition": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "all_case_matches": {
+          "TE4-F07-LINE": true,
+          "TE4-F08-GRID": true,
+          "TE4-F08-NEAR-BUDGET-56": true,
+          "TE4-F08-NEAR-BUDGET-59": true,
+          "TE4-F08-SYMMETRIC-TIE": true
+        },
+        "digest": "072d8e25d36e8120f9fa99fcac6eae3b91885538f57affa40d6d2e4f7124f423",
+        "event_count": 80,
+        "first_mismatch": null
+      },
+      "status": "PASS"
+    },
+    "TE4-F09": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].temperature",
+            "current[0].flags",
+            "current[0].fuel"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "BURN_EMITTED",
+            "HEAT",
+            "FLAME_EVENT",
+            "SMOKE_PROPOSED",
+            "FUEL_INCREMENTED"
+          ],
+          "path_executed": true,
+          "transaction": "active_burning_tick",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].flags",
+            "current[0].fuel"
+          ],
+          "cleared_ownership": [
+            "flags",
+            "exposure",
+            "fuel"
+          ],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "FUEL_CONSUMED"
+          ],
+          "path_executed": true,
+          "transaction": "fuel_consumption",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "active_burning_tick": 1,
+        "fuel_consumption": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "cap_C": 1200,
+        "final_tick_emission": 0,
+        "gross_Q": {
+          "Oil": 8985,
+          "Wood": 7192
+        }
+      },
+      "status": "PASS"
+    },
+    "TE4-F10": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].flags",
+            "current[0].exposure"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXTINGUISHED"
+          ],
+          "path_executed": true,
+          "transaction": "extinguish",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].flags"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "REIGNITED"
+          ],
+          "path_executed": true,
+          "transaction": "reignition",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "extinguish": 1,
+        "reignition": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "fuel_preserved": 7
+      },
+      "status": "PASS"
+    },
+    "TE4-F11": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0,
+            1
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].exposure",
+            "current[0].fuel",
+            "current[1].material",
+            "current[1].temperature",
+            "current[1].exposure",
+            "current[1].fuel"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {
+            "matter_owned_tuple_multiset": true
+          },
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "MOVED_INTO_EMPTY"
+          ],
+          "path_executed": true,
+          "transaction": "movement_into_empty",
+          "transferred_ownership": [
+            "Matter-owned identity/flags/exposure/fuel"
+          ]
+        },
+        {
+          "changed_cell_indices": [
+            1,
+            2
+          ],
+          "changed_fields": [
+            "current[1].material",
+            "current[1].temperature",
+            "current[1].exposure",
+            "current[1].fuel",
+            "current[2].material",
+            "current[2].temperature",
+            "current[2].exposure",
+            "current[2].fuel"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {
+            "matter_owned_tuple_multiset": true
+          },
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "DENSITY_SWAPPED"
+          ],
+          "path_executed": true,
+          "transaction": "density_swap",
+          "transferred_ownership": [
+            "Matter-owned identity/flags/exposure/fuel"
+          ]
+        }
+      ],
+      "audited_path_counts": {
+        "density_swap": 1,
+        "movement_into_empty": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "moved_exposure": 17,
+        "moved_fuel": 4
+      },
+      "status": "PASS"
+    },
+    "TE4-F12": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].flags",
+            "current[0].exposure",
+            "current[0].fuel"
+          ],
+          "cleared_ownership": [
+            "flags",
+            "exposure",
+            "fuel"
+          ],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "DECAY_REPLACED"
+          ],
+          "path_executed": true,
+          "transaction": "decay_replacement",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].flags",
+            "current[0].exposure",
+            "current[0].fuel"
+          ],
+          "cleared_ownership": [
+            "flags",
+            "exposure",
+            "fuel"
+          ],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "RUPTURE_REPLACED"
+          ],
+          "path_executed": true,
+          "transaction": "rupture_replacement",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].flags",
+            "current[0].exposure",
+            "current[0].fuel"
+          ],
+          "cleared_ownership": [
+            "flags",
+            "exposure",
+            "fuel"
+          ],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "VOID_EXIT"
+          ],
+          "path_executed": true,
+          "transaction": "void_exit",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].flags",
+            "current[0].exposure",
+            "current[0].fuel"
+          ],
+          "cleared_ownership": [
+            "flags",
+            "exposure",
+            "fuel"
+          ],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "GENERIC_REPLACED"
+          ],
+          "path_executed": true,
+          "transaction": "generic_identity_replacement",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "decay_replacement": 1,
+        "generic_identity_replacement": 1,
+        "rupture_replacement": 1,
+        "void_exit": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "distinct_entrypoints": 4,
+        "ownership_cleared": true
+      },
+      "status": "PASS"
+    },
+    "TE4-F13": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].temperature",
+            "next[0].material",
+            "next[0].temperature"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {
+            "current_next_match": true
+          },
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "DRAW_COMMITTED"
+          ],
+          "path_executed": true,
+          "transaction": "draw",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].temperature",
+            "next[0].material",
+            "next[0].temperature"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {
+            "current_next_match": true
+          },
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "ERASE_COMMITTED"
+          ],
+          "path_executed": true,
+          "transaction": "erase",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0,
+            1
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].temperature",
+            "current[0].exposure",
+            "current[1].air_mass",
+            "current[1].air_energy",
+            "next[0].material",
+            "next[0].temperature",
+            "next[0].exposure",
+            "next[1].air_mass",
+            "next[1].air_energy"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {
+            "current_next_match": true
+          },
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "PRESET_STAGED"
+          ],
+          "path_executed": true,
+          "transaction": "preset_stage",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            0,
+            1
+          ],
+          "changed_fields": [
+            "current[0].material",
+            "current[0].temperature",
+            "current[0].exposure",
+            "current[1].air_mass",
+            "current[1].air_energy",
+            "next[0].material",
+            "next[0].temperature",
+            "next[0].exposure",
+            "next[1].air_mass",
+            "next[1].air_energy"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {
+            "baseline_restored": true
+          },
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "RESET_COMMITTED"
+          ],
+          "path_executed": true,
+          "transaction": "reset",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "draw": 1,
+        "erase": 1,
+        "preset_stage": 1,
+        "reset": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "current_next_exact": true,
+        "reset_exact": true
+      },
+      "status": "PASS"
+    },
+    "TE4-F14": {
+      "audit_receipts": [],
+      "audited_path_counts": {},
+      "class": "PRODUCTION_DEFERRED",
+      "metrics": {},
+      "status": "NOT_ESTABLISHED"
+    },
+    "TE4-F15": {
+      "audit_receipts": [
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].temperature",
+            "current[0].flags",
+            "current[0].fuel"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "BURN_EMITTED",
+            "HEAT",
+            "FLAME_EVENT",
+            "SMOKE_PROPOSED",
+            "FUEL_INCREMENTED"
+          ],
+          "path_executed": true,
+          "transaction": "active_burning_tick",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            1
+          ],
+          "changed_fields": [
+            "current[1].material",
+            "current[1].temperature"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "SMOKE_COMMITTED"
+          ],
+          "path_executed": true,
+          "transaction": "smoke_commit",
+          "transferred_ownership": []
+        },
+        {
+          "changed_cell_indices": [
+            1,
+            2
+          ],
+          "changed_fields": [
+            "current[1].air_mass",
+            "current[1].air_energy",
+            "current[2].air_mass",
+            "current[2].air_energy"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {
+            "air_energy": true,
+            "air_mass": true
+          },
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "AIR_DISPLACED"
+          ],
+          "path_executed": true,
+          "transaction": "environment_air_displacement",
+          "transferred_ownership": [
+            "air_mass",
+            "air_energy"
+          ]
+        },
+        {
+          "changed_cell_indices": [
+            0
+          ],
+          "changed_fields": [
+            "current[0].flags"
+          ],
+          "cleared_ownership": [],
+          "conserved_values": {},
+          "counter_provenance": "AUDITED_BEFORE_AFTER_STATE_DIFF",
+          "duplicated_values": [],
+          "event_ordering": [
+            "EXTINGUISHED"
+          ],
+          "path_executed": true,
+          "transaction": "extinguish",
+          "transferred_ownership": []
+        }
+      ],
+      "audited_path_counts": {
+        "active_burning_tick": 1,
+        "environment_air_displacement": 1,
+        "extinguish": 1,
+        "smoke_commit": 1
+      },
+      "class": "REFERENCE_REQUIRED",
+      "metrics": {
+        "TE4-F15B": {
+          "Air_mass_conserved": true,
+          "fuel_progress_preserved": 13,
+          "stage_N": {
+            "air_access_snapshot": true,
+            "flame": 1,
+            "fuel_increment": 1,
+            "heat": 1,
+            "rollback": false,
+            "smoke": 1
+          },
+          "stage_N_plus_1": {
+            "air_access_snapshot": false,
+            "extinguished": true,
+            "flame": 0,
+            "fuel_increment": 0,
+            "heat": 0,
+            "smoke": 0
+          },
+          "target_material": "Smoke"
+        }
+      },
+      "status": "PASS"
+    },
+    "TE4-F16": {
+      "audit_receipts": [],
+      "audited_path_counts": {},
+      "class": "PRODUCTION_DEFERRED",
+      "metrics": {},
+      "status": "NOT_ESTABLISHED"
+    },
+    "TE4-F17": {
+      "audit_receipts": [],
+      "audited_path_counts": {},
+      "class": "PRODUCTION_DEFERRED",
+      "metrics": {},
+      "status": "NOT_ESTABLISHED"
+    }
+  },
+  "gpu_status": "NOT_ESTABLISHED",
+  "limitations": [
+    "No Rust, WGSL, GPU, runtime, build or application was executed.",
+    "Projected bindings, pass order, races, wake behavior and profiler allocation are source-audited design claims, not runtime evidence.",
+    "The independent oracle establishes only the frozen reduced propagation fixtures.",
+    "Four production-deferred fixtures remain NOT_ESTABLISHED and user architecture review is pending."
+  ],
+  "manifest_sha256": "09e2eb6259a2a26f825bcf4bc15fd4c0b0c3f814493de3e38be5e3350ff427b2",
+  "oracle_result": "PASS_EXACT_FROZEN_EVENT_LIST",
+  "oracle_sha256": "b32f5bdf1696b2ec777ed35d98ab6f2550968ed29d3ab07a0a881cefc9d953b1",
+  "product_status": "NOT_ESTABLISHED",
+  "production_deferred_not_established": 4,
+  "random_campaign_digest": "983e4277829c60a44b9837068cc681aa12261797b3986c841d9c4d25201541ef",
+  "random_coverage": {
+    "cooling": 34424,
+    "grid_checks": 160170,
+    "heating": 65576,
+    "near_budget": 7264,
+    "previous_flame": 80049
+  },
+  "reference_required_pass": 13,
+  "result_hash_scope": "CANONICAL_JSON_WITH_RESULT_SHA256_EMPTY",
+  "result_sha256": "a1438126a7193a7b44934c34a215c06d11b1022aefe2697dc63a45298e1646d7",
+  "script_sha256": "b835ccc8e8f365e642848e37d1b28f01d6d62f665846f432a1c6cdd385320689",
+  "selected_identity_result": "USER_SELECTED_AND_VALIDATED",
+  "single_cell_sequences": 100000,
+  "sole_air_face_snapshot_fixture": true,
+  "state_transition_result": "PASS_REFERENCE_MODEL_ONLY",
+  "unexpected_not_established": 0,
+  "user_status": "PENDING",
+  "zero_audited_required_paths": 0
+}

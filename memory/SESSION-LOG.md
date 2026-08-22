@@ -609,3 +609,21 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   is required but not authorized in this Powdergame-only task; dirty local Wiki
   remains unchanged.
 - Runtime/Cargo/GPU/FULL/build/launch counts remain zero.
+
+## 2026-08-22 · TE-4D v3 transaction/oracle closure blocked by fresh review
+
+- D-030 authorization commit `aae47f8...` selected
+  `COMBUSTION_STAGE_SNAPSHOT`, mutation-derived receipts, independent exact
+  oracle and the distinct `TE4-IGNITION-KINETICS-REFERENCE-V3` identity.
+- Oracle generator/data SHA-256 are `b4d85fa7...2417` / `b32f5bdf...53b1`;
+  manifest/script are `09e2eb62...27b2` / `b835ccc8...0689`.
+- Exactly one process completed 100,000 sequences and 10,000 grids, reporting
+  13 reference PASS, four deferred, zero fail/unexpected/zero-path, exact
+  F07/F08 and F15B. Result file/payload hashes are `646ed8f5...058c` /
+  `a1438126...46d7`; no failure file exists.
+- Fresh read-only review found Critical 0 / unresolved High 3 / Medium 1 / Low
+  1: hardcoded F15B next snapshot, SUT-trusted semantic audit labels and
+  non-lifecycle F09 accounting. V3 is DESIGN BLOCKED and immutable.
+- Wiki remained user-dirty and untouched. Lesson promotion is NONE because
+  PG-L035 and the verified Wiki workflow already cover the reusable pattern.
+- Runtime/Cargo/GPU/FULL/build/launch counts remain zero.

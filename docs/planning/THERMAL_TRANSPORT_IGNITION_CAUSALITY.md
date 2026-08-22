@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D v1/v2 DESIGN BLOCKED / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
+Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D v1/v2/v3 DESIGN BLOCKED / IMMUTABLE / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -104,6 +104,18 @@ candidates disagreed with the preregistered selection identity. Therefore the
 candidate is **DESIGN BLOCKED**, not accepted, and TE-4 runtime remains not
 started. The detailed fixture/evidence boundary is in
 [`IGNITION_KINETICS_VALIDATION`](../development/IGNITION_KINETICS_VALIDATION.md).
+
+D-030 fixes the v3 precondition lifetime as the settled
+`COMBUSTION_STAGE_SNAPSHOT`. Same-stage Smoke cannot retroactively revoke an
+authorized burn; the following snapshot must extinguish before emission if
+Air access is gone. The one v3 reduced reference execution passed mutation-
+audited transaction paths and exact independent F07/F08 frontiers. This does
+not start or establish TE-4 runtime.
+
+Fresh review rejected the v3 transaction-closed interpretation with three
+unresolved High findings: asserted F15B next-snapshot Air, SUT-trusted semantic
+receipts and non-lifecycle F09 accounting. The frozen receipt remains narrow
+history; TE-4 runtime is still not started.
 
 The project must evaluate a causal ignition gate beyond one-frame threshold crossing. Candidate grammar:
 

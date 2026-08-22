@@ -107,3 +107,49 @@ rather than mutation-derived proof; F08 compares a post-run digest only with
 the same implementation's replay; and F15 omits Smoke occupying the sole Air
 face later in the same tick. The reported 13 PASS remains historical process
 output, not accepted design evidence. See the v2 adversarial review.
+
+## D-030 v3 frozen receipt
+
+The independent oracle preflight ran before evidence freeze. Generator and
+oracle JSON SHA-256 are respectively
+`b4d85fa782e1bddcae3d200de1296765c82a336998aa02d4cfe0721a02392417`
+and `b32f5bdf1696b2ec777ed35d98ab6f2550968ed29d3ab07a0a881cefc9d953b1`.
+The manifest SHA-256 is
+`09e2eb6259a2a26f825bcf4bc15fd4c0b0c3f814493de3e38be5e3350ff427b2`
+and the frozen evidence script SHA-256 is
+`b835ccc8e8f365e642848e37d1b28f01d6d62f665846f432a1c6cdd385320689`.
+
+The evidence command ran exactly once:
+
+```powershell
+& 'C:\Users\mdkap\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' `
+  docs/reference/te4_ignition_kinetics_v3_reference.py `
+  --manifest docs/reference/te4_ignition_kinetics_v3_manifest.json `
+  --oracle docs/reference/te4_ignition_kinetics_v3_f08_oracle.json `
+  --result docs/reference/te4_ignition_kinetics_v3_result.json `
+  --failure docs/reference/te4_ignition_kinetics_v3_failure.json
+```
+
+Result: attempts/completions `1/1`; 100,000 sequences; 10,000 grids; required
+PASS `13`; deferred `NOT_ESTABLISHED` `4`; failures/unexpected
+`NOT_ESTABLISHED`/zero audited paths `0/0/0`; exact F07/F08 oracle matches and
+F15B true. Scoped result hash is
+`a1438126a7193a7b44934c34a215c06d11b1022aefe2697dc63a45298e1646d7`;
+result-file SHA-256 is
+`646ed8f5307464a1f191646c6ce2b815923b80426bc533d1560a55e106a6058c`.
+No failure file exists.
+
+F07 events are exactly ticks `20/40/60/80` at Cells `1/2/3/4`. Primary F08
+has 80 ignition events in 31 frontiers, completes at tick 173 and has digest
+`072d8e25d36e8120f9fa99fcac6eae3b91885538f57affa40d6d2e4f7124f423`.
+Every required path count is derived from accepted auditor receipts. This is a
+reduced reference result only: no Rust, WGSL, GPU, wake, profiler allocation,
+product behavior or user acceptance is established.
+
+Fresh-context static review ran no evidence and found Critical `0` / unresolved
+High `3` / Medium `1` / Low `1`. The exact blockers are topology-derived F15B
+next-snapshot Air, auditor-independent semantic classification, and lifecycle-
+derived F09 chemical/final-tick accounting. The stored delta summaries also
+lack before/after values for independent re-audit. Therefore the process
+receipt is preserved but its design disposition is **BLOCKED**; no rerun or
+repair is permitted under the v3 identity.

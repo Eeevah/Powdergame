@@ -1,0 +1,22 @@
+{
+  "schema": "TE4-IGNITION-KINETICS-REFERENCE-FAILURE-V1",
+  "attempts": 1,
+  "completions": 0,
+  "command": "C:\\Users\\mdkap\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe docs/reference/te4_ignition_kinetics_reference.py --run --output docs/reference/te4_ignition_kinetics_result.json",
+  "script_sha256": "886fe5b7d1f59c2d53856f079067936fcc60bb8b4a6d742fd934256696470f82",
+  "result_json_created": false,
+  "failure_stage": "coefficient_sweep",
+  "evaluated_sequence_trials": 0,
+  "evaluated_grid_trials": 0,
+  "evaluated_fixtures": 0,
+  "exception": "AssertionError: frozen selected coefficient mismatch: Oil.bucket_width",
+  "smallest_reproduction": "The sweep has a metric tie: Oil budget=48, base_rate=2, bucket_width=25, max_rate=4 and the preregistered bucket_width=50, max_rate=6 both produce threshold/high/flame/half-decay metrics 24/12/12/24. Lexicographic tie-breaking selects bucket_width=25 before the frozen expected bucket_width=50.",
+  "mathematical_reference_result": "NOT_ESTABLISHED",
+  "state_representation_result": "NOT_ESTABLISHED",
+  "coefficient_result": "INVALID_SELECTION_IDENTITY",
+  "fixture_result": "NOT_EXECUTED",
+  "gpu_feasibility": "UNKNOWN_NOT_EXECUTED",
+  "visual_product_result": "UNKNOWN_NOT_EXECUTED",
+  "user_approval": "PENDING",
+  "rerun_authorized": false
+}

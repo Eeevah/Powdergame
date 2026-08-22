@@ -1,4 +1,4 @@
-# Checkpoint — TE-4D ignition-kinetics design authorized — 2026-08-22
+# Checkpoint — TE-4D ignition-kinetics design blocked — 2026-08-22
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
@@ -6,7 +6,8 @@
 - Session baseline: `1b0fb2c0328eba6a9cbeb824b30727ecc46675bd`
 - Production physics: `41467219819c5d0cb3eab8ae22b652449da20480`
 - Scene 1 app source: `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`
-- Working tree: D-028 docs/memory authorization closure in progress; runtime unchanged
+- Authorization commit: `42cca5e383a8ab64a70c6156baf020b07337f55e`
+- Working tree: blocked design/reference/review closure in progress; runtime unchanged
 
 ## The story so far
 The user directly accepted the complete pressure-decoupled TE-3 Water/Steam
@@ -30,8 +31,9 @@ phase pressure. The pressure-volume redesign remains deferred.
 - `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains deferred/not started.
 
 ## Waiting on the user
-None during the authorized TE-4D design program. Architecture acceptance,
-Vacuum policy, implementation, TE-5 and G9-B each require a later user decision.
+A new TE-4 reference evidence identity, coefficient tie rule, representation,
+chemical-heat/final-tick rule and Vacuum policy require a later user decision.
+Implementation, TE-5 and G9-B remain separately gated.
 
 ## Current authorization
 - D-028 authorizes TE-4D docs/reference design only.
@@ -42,9 +44,18 @@ Vacuum policy, implementation, TE-5 and G9-B each require a later user decision.
 - ADR-0012 must remain Proposed; TE-4 runtime, Vacuum policy, Oxygen, Ash, FX,
   Pressure redesign, TE-5/TE-6 and G9-B/C/D/E remain unauthorized/not started.
 
+## Blocker
+- Frozen script SHA-256: `886fe5b7d1f59c2d53856f079067936fcc60bb8b4a6d742fd934256696470f82`.
+- Only execution: attempt 1 / completion 0; sequences/grids/fixtures all 0.
+- Exact failure: `frozen selected coefficient mismatch: Oil.bucket_width`.
+- Cause: equal-metric Oil tuples and an undeclared secondary tie preference.
+- The script cannot be patched or rerun under D-028.
+- Fresh review: Critical 0 / unresolved High 2 / Medium 0. The second High is
+  named-fixture execution/aggregation overclaim in the immutable script.
+
 ## Next first action
-Complete the exact descriptor/flags/pass/writer inventory, predeclare and freeze
-the reference model, execute it exactly once, then run the independent review.
+Finish the fresh-context independent review and docs-only validation, then stop
+TE-4D DESIGN BLOCKED. Await a new user decision for another evidence identity.
 
 ## Tried
 - Reused the source-bound runtime, artifact and direct-review receipts; no Cargo, GPU, FULL, build, launch or candidate rerun was needed for this docs-only acceptance.

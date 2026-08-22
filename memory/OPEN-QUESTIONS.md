@@ -492,3 +492,19 @@ ARCHITECTURE REVIEW PENDING** and TE-4 runtime is **NOT STARTED**. Any
 unresolved Critical/High proof or review finding instead stops **TE-4D DESIGN
 BLOCKED**. This question does not reopen TE-2 transport, TE-3 phase semantics,
 the deferred Water/Steam Pressure redesign, G8 evidence or G9-A acceptance.
+
+### 2026-08-22 frozen reference update — design blocked
+
+The only process completed zero sequences, grids and fixtures. Equal-metric
+Oil candidates made the sweep's lexicographic selection disagree with the
+preregistered bucket width, so the frozen assertion stopped before model
+coverage. Repair/rerun is forbidden under D-028. Q-017 remains open for a new
+user decision authorizing a new evidence identity and resolving coefficient
+tie identity, plus the representation, heat and Vacuum choices above.
+
+Fresh independent review ended at Critical `0` / unresolved High `2`. H-001
+is the zero-completion/tie blocker. H-002 is the frozen script's ability to
+label ownership fixtures without executing them and to emit top-level PASS
+despite required `NOT_ESTABLISHED` items. Chemical-Q cap accounting and packed
+descriptor validation findings were resolved in the design response; they do
+not establish runtime or reference evidence.

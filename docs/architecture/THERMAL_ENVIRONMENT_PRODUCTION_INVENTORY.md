@@ -3,7 +3,7 @@
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
-- **Scope:** implemented TE-1/TE-2/pressure-decoupled TE-3 graph plus blocked TE-5 and packet history
+- **Scope:** implemented TE-1/TE-2/pressure-decoupled TE-3 graph plus blocked TE-4D/TE-5/packet history
 - **Runtime status:** TE-2 and TE-3 user accepted with known follow-up; TE-3 production physics `41467219819c5d0cb3eab8ae22b652449da20480`; Pressure redesign deferred/not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
@@ -81,6 +81,18 @@ reconstruction.
 | activity reduce | 1 | 3 | 4 | 1 |
 
 The device requests wgpu default limits. The real RTX 5090/DX12 path rejected a nine-storage-buffer Sandbox edit group; the durable ceiling is eight. Combustion already moves its descriptor table to uniform storage, and activity combines phase/conductivity tables to remain within the ceiling.
+
+### TE-4D audited projection (not implemented)
+
+Live combustion and activity each use eight storage bindings. The combustion
+descriptor is serialized as 16 × 32 bytes (512 bytes), with a 20-byte Rust
+logical descriptor and 12 WGSL padding bytes. Flags bits 2..3 and 28..31 are
+unowned, but the current Oil/Wood hygiene mask `0x0000FFF3` would clear them.
+Packed u6 exposure projects 0 bytes, 0 passes and an unchanged 40-pass/80-query
+graph. A dedicated u32 Current/Next pair adds 524,288 bytes at 256² or 32 MiB
+at 2048² and conservatively projects at least 42 passes/84 queries because both
+movement commit and combustion are already at the storage ceiling. ADR-0012 is
+blocked before evidence completion; none of these projections is runtime fact.
 
 A spawn Environment reconcile uses exactly eight storage bindings: pre/post
 material, the original Matter claim, one new receiver claim, two Air Current

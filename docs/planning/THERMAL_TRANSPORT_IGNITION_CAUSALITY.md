@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3D ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**; **TE-3 RUNTIME NOT STARTED**; **TE-5 BRIDGE DESIGN REQUIRED / NOT STARTED**
+Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D DESIGN BLOCKED / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -83,6 +83,15 @@ has no Air transport, Air thermal exchange or Air-pressure coupling.
 
 ## 4. Ignition exposure or dose requirement
 
+D-028 and [`ADR-0012`](../architecture/decisions/ADR-0012-ignition-exposure-dose.md)
+select integrated excess-temperature dose, cooling decay and a bounded
+previous-snapshot flame bonus as the design candidate. The frozen one-shot
+reference attempt completed zero trials because equal-metric Oil coefficient
+candidates disagreed with the preregistered selection identity. Therefore the
+candidate is **DESIGN BLOCKED**, not accepted, and TE-4 runtime remains not
+started. The detailed fixture/evidence boundary is in
+[`IGNITION_KINETICS_VALIDATION`](../development/IGNITION_KINETICS_VALIDATION.md).
+
 The project must evaluate a causal ignition gate beyond one-frame threshold crossing. Candidate grammar:
 
 ```text
@@ -153,6 +162,6 @@ The architecture selection, design contract and TE-1 state/occupancy
 foundation are complete. Current state:
 
 - Thermal Environment is **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP** at candidate source `0977281...`; the production-physics source remains `fb7e568...` and all prior evidence boundaries remain intact;
-- D-018 and accepted ADR-0006 now specify Hybrid A+C with locked amendments; TE-3D is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**, TE-3 runtime is **NOT STARTED**, and the TE-5 pressure-volume bridge is **DESIGN REQUIRED / NOT STARTED**; any later phase implementation must remain inactive behind the current G5 Water path until a separately authorized TE-5 replacement can activate it atomically;
+- D-024/D-027 supersede the old atomic TE-3/TE-5 constraint: pressure-decoupled TE-3 is **USER ACCEPTED WITH KNOWN FOLLOW-UP** and Water/Steam Pressure redesign remains separately deferred/not started;
 - G9-B emergence validation remains blocked on this prerequisite;
 - G9-A Inspector continuity is **USER ACCEPTED** and G9-A overall is **USER ACCEPTED WITH KNOWN FOLLOW-UP**; this does not advance G9-B.

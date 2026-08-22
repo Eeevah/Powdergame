@@ -56,3 +56,11 @@ creation does not change this provenance boundary. `NO_REGION_WIDE_INSTANT_COMBU
 and semantic-event presentation are not part of the TE-2 runtime diff or TE-3D
 design. No Oxygen, Ash, new Matter, final FX, CFD or optimization is authorized
 here.
+## TE-4D reuse note — 2026-08-22
+
+The TE-4D source audit reused the repository's generic combustion descriptor,
+flags, previous-tick flame event, TE-2 temperature, movement ownership, Smoke
+scratch transaction and activity/profiler design. Existing external surveys
+answer the prior-art boundary; no new broad survey was needed. Cinder remains
+`REFERENCE_FIXTURE` only. No Noita/TPT/community constants, formulas or runtime
+code were copied, translated or vendored (`0 files / 0 lines`).

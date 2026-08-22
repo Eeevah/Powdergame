@@ -571,3 +571,23 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   blocked TE-5 or packet design is revived and TE-4/G9-B/C/D/E remain gated.
 - This docs/memory-only closure reran no Cargo, GPU, FULL, build, application
   launch or candidate validation.
+
+## 2026-08-22 · TE-4D ignition-kinetics design lock
+
+- D-028 authorized docs/reference design only at baseline `1b0fb2c...`; the
+  authorization commit is `42cca5e...`.
+- Live inventory confirmed immediate threshold ignition, Oil/Wood
+  `200/150/6/600` and `300/250/4/900`, flags ownership, a 512-byte descriptor
+  table, eight-storage combustion/activity passes and 40 passes/80 queries.
+- The frozen standard-library script SHA-256 is `886fe5b7...`. Syntax, imports,
+  fixture list and output-path preflight passed with the bundled Python.
+- Its only model process stopped before any sequence/grid/fixture execution:
+  equal-metric Oil candidates selected bucket width 25 instead of frozen 50.
+  Attempts/completions are `1/0`; mathematical and fixture results are not
+  established. Failure receipt SHA-256 is `6342bad5...`; rerun is forbidden.
+- PG-L034 records the missing selection-identity/tie-policy preflight guard.
+- Fresh independent review initially found Critical 0 / High 3 / Medium 1.
+  Design amendments resolved chemical-Q cap/capacity accounting and packed
+  descriptor validation; final unresolved counts are Critical 0 / High 2 /
+  Medium 0. The second High is named-fixture execution/aggregation overclaim.
+- Rust/WGSL/Cargo/runtime allocation, GPU/FULL, build and launch counts remain 0.

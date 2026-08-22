@@ -292,7 +292,13 @@ the old G5 evidence is not rebound to this future source.
 
 Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
 
-Stop: `IGNITION CAUSALITY USER-TESTABLE CANDIDATE / TE-5 NOT STARTED`.
+D-028 produced ADR-0012 and a frozen reference identity, but the only process
+stopped before executing any sequence/grid/fixture because the coefficient
+sweep's equal-metric tie selected a different Oil tuple than the preregistered
+tuple. Current stop: `TE-4D DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT
+STARTED`. A new user-authorized evidence identity and Vacuum-policy decision
+are required before implementation. Fresh review ended at Critical `0` /
+unresolved High `2` (zero completion and named-fixture aggregation/execution).
 
 ## TE-5 — Pressure and Vacuum coupling
 
@@ -334,6 +340,7 @@ ADR-0011  REJECTED / DESIGN BLOCKED HISTORY
 TE-3Q / TE-5Q runtime  NOT STARTED
 Full TE-5 Pressure redesign  DEFERRED / NOT STARTED
 Air-pressure force  NOT STARTED
-TE-4  NOT STARTED
+TE-4D  DESIGN BLOCKED / REFERENCE COMPLETIONS 0 / CRITICAL 0 / HIGH 2 / ADR-0012 PROPOSED
+TE-4 runtime  NOT STARTED
 G9-B/C/D/E  NOT STARTED
 ```

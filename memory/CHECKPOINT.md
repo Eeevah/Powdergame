@@ -5,7 +5,7 @@
 - Branch: `feature/m0-g9-first-playable`
 - Start SHA: `6d14da0f5a6be45eb96e8a62289807f93a7ed534`
 - D-031 authorization SHA: `a88da7e237ef9f69bf93e593cd25c2b056a1c515`
-- Closure SHA: pending final docs/reference commit
+- Evidence closure SHA: `548df8b59000fa6327dde5daaf7559cd287826cf`
 
 ## Current truth
 TE-4D v1/v2/v3 and the D-031 targeted transaction supplement are **DESIGN

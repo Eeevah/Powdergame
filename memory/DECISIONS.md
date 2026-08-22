@@ -1041,3 +1041,52 @@ displacement lacked receiver topology/claim semantics. The result is **TE-4D
 TRANSACTION SUPPLEMENT BLOCKED**. Preserve the supplement as immutable history;
 do not patch or rerun it. ADR-0012 remains Proposed, runtime remains Not
 Started, and a new identity requires another explicit user decision.
+
+## D-032 · Reset TE-4 evidence to implementation-first production paths — 2026-08-23 (source: direct user architecture authorization)
+
+Decision: Preserve TE-4D v1/v2/v3 and the D-031 transaction supplement as
+**DESIGN BLOCKED / IMMUTABLE HISTORY**. Do not patch, rerun, relabel or compose
+their Python scripts, manifests, or receipts into architecture approval.
+Repeated synthetic models weakened or omitted production settle, claim,
+receiver, ownership or lifecycle semantics; another synthetic identity would
+duplicate the actual engine rather than increase confidence.
+
+Authorize **TE-4I IMPLEMENTATION-FIRST EVIDENCE CANDIDATE**. Implement the
+locked ignition semantics in actual Core APIs, production WGSL, the real
+Current/Next pass graph, packed-u6 Matter flags, Smoke claim/receiver/commit,
+Environment whole-parcel reconcile, activity/wake and canonical Windows
+candidate paths. Evidence must come from actual production state and bounded
+readback, not a new reference model or semantic auditor.
+
+Lock Oil at `48/2/50/6/1/2/4` and Wood at `60/1/50/5/1/2/4` for
+budget/base/bucket/max/decay/flame-bonus/flame-cap. Exposure owns flags bits
+2..3 and 28..31 (`0xF000000C`), remains canonical `0..63`, and composes with
+combustion/fuel ownership as `0xF000FFFF`. Select
+`COMBUSTION_STAGE_SNAPSHOT` and `NON_VACUUM_AIR_FACE_REQUIRED`: only an
+orthogonal in-domain EMPTY Cell with positive settled Air mass qualifies;
+Air is not consumed or rate-scaled and no Oxygen quantity exists.
+
+Lock Core gross chemical Q at Oil `15` and Wood `8`; compile GPU delta-T from
+the live Material heat capacity; preserve the `1200 C` cap accounting and
+consume-before-emission final tick. Oil emits on ticks 1..599 and consumes on
+600; Wood emits on 1..899 and consumes on 900. Extinguish preserves finite
+fuel progress. The projected resource contract is 42 passes, 84 timestamp
+queries, 1,344 profiler bytes, zero new persistent state, zero new full-world
+scratch and the unchanged 512-byte combustion table; any ninth storage binding
+or additional state is an architecture blocker.
+
+ADR-0012 remains **PROPOSED — IMPLEMENTATION EVIDENCE AUTHORIZED / NOT
+ACCEPTED**. A successful implementation and automated validation do not accept
+the ADR or claim user approval. This authorization includes one final-source
+FULL, one release build, one bounded candidate launch, one bounded candidate
+measurement, one local Desktop shortcut and docs/memory closure on
+`feature/m0-g9-first-playable`.
+
+Scope excludes Oxygen quantity/consumption/diffusion, Ash/new Matter, final
+Fire/Smoke presentation, Pressure redesign, TE-5/TE-6, G9-B/C/D/E, Save/Load,
+Rewind, optimization, PR, main merge, tag and force push. External copied,
+translated or vendored implementation remains `0 files / 0 lines`.
+
+Invalidated by: a production Core/GPU invariant failure, a pass exceeding eight
+storage bindings, required new persistent/full-world state, failed final-source
+validation, or later explicit user supersession.

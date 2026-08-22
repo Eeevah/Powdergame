@@ -1,6 +1,6 @@
 # TE-4D Ignition Kinetics Plan
 
-Status: **V1/V2/V3 AND D-031 SUPPLEMENT BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
+Status: **TE-4I IMPLEMENTATION-FIRST EVIDENCE AUTHORIZED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
 
 ## Reuse and exact inventory
 
@@ -163,3 +163,12 @@ not eligible for rerun. Runtime remains unauthorized.
 
 `LESSON_PROMOTION: NONE` because the Wiki Evidence/fixture integrity and
 Snapshot precondition lifetime contracts already cover these failures.
+
+## D-032 implementation-first gate
+
+D-032 preserves all failed synthetic evidence byte-for-byte and authorizes the
+42-pass production candidate described above. The remaining questions must be
+answered by actual Core transitions, WGSL, Current/Next settle, Smoke receiver
+transactions, bounded GPU readback and the canonical candidate. No new Python
+reference identity or synthetic semantic auditor is permitted. ADR-0012 stays
+Proposed until direct user review.

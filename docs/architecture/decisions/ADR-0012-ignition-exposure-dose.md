@@ -1,6 +1,6 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — TRANSACTION SUPPLEMENT BLOCKED / USER REVISION REQUIRED**
+- Status: **PROPOSED — IMPLEMENTATION EVIDENCE AUTHORIZED / NOT ACCEPTED**
 - Date: 2026-08-22
 - Decision authority: D-028, D-029, D-030 and D-031
 
@@ -256,3 +256,13 @@ coverage and the named third-party re-audit are also overstated. The supplement
 is **BLOCKED**, remains immutable and may not be patched or rerun. It does not
 compose with v3 into architecture completion. ADR-0012 remains Proposed and
 runtime remains unauthorized.
+
+## D-032 implementation-first evidence amendment
+
+D-032 preserves every v1/v2/v3/supplement artifact as blocked immutable
+history and ends the synthetic-reference loop. The proposed semantics may now
+be implemented in actual Core and production GPU paths and exposed through one
+canonical user-testable candidate. Evidence must inspect authoritative buffers,
+real pass ordering, Smoke/Environment transactions, settle boundaries and full
+fuel lifecycles. This authorization does not mark this ADR Accepted; final user
+architecture/product review remains required.

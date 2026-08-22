@@ -50,6 +50,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md`](checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md) | D-030 v3 authorization return point before the one-shot process and review blockers | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-2049-te4d-v3-blocked-before-supplement.md`](checkpoints/20260822-2049-te4d-v3-blocked-before-supplement.md) | V3 three-High blocked return point before D-031 targeted supplement authorization | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-2120-te4d-supplement-authorized-before-blocked-review.md`](checkpoints/20260822-2120-te4d-supplement-authorized-before-blocked-review.md) | D-031 authorized return point before the frozen supplement and blocking fresh review | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260823-0008-te4d-supplement-blocked-before-te4i.md`](checkpoints/20260823-0008-te4d-supplement-blocked-before-te4i.md) | D-031 supplement blocked return point before D-032 implementation-first authorization | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

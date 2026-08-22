@@ -578,3 +578,11 @@ family coverage and the named third-party re-audit are also overstated.
 The supplement is **BLOCKED**, immutable and may not be patched or rerun.
 Q-017 remains open for a new direct user architecture decision. ADR-0012 stays
 Proposed and TE-4 runtime remains not started.
+
+### 2026-08-23 D-032 implementation-first authorization
+
+D-032 ends the synthetic-reference loop and authorizes the locked ADR-0012
+semantics as a production implementation/evidence candidate. Q-017 now waits
+for direct user architecture/product review of the actual Core/GPU candidate,
+not another Python identity. ADR-0012 remains Proposed and is not automatically
+accepted by successful automated validation.

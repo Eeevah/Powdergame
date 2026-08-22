@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 SUPPLEMENT BLOCKED / IMMUTABLE**; **ADR-0012 PROPOSED / USER REVISION REQUIRED**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; **D-032 TE-4I IMPLEMENTATION-FIRST EVIDENCE AUTHORIZED / ADR-0012 PROPOSED**; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -71,6 +71,12 @@ oracle or coefficients. The one process completed `1/1`, but fresh review found
 Critical `0` / High `3` / Medium `2`: missing F15B settle, caller-classified
 semantic counters and topology-free Air receiver transfer. The supplement is
 **BLOCKED** and immutable; runtime remains **NOT STARTED**.
+
+D-032 ends further synthetic reference repair and authorizes the locked
+ignition semantics as an implementation-first production candidate. ADR-0012
+is **PROPOSED — IMPLEMENTATION EVIDENCE AUTHORIZED / NOT ACCEPTED**. Runtime
+implementation and source-bound validation are now authorized; user acceptance
+is not claimed.
 
 ---
 

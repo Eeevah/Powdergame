@@ -48,6 +48,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260822-1952-te4d-v2-authorized-before-review.md`](checkpoints/20260822-1952-te4d-v2-authorized-before-review.md) | D-029 selected v2 identity before its fresh review exposed three High blockers | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md`](checkpoints/20260822-2016-te4d-v2-blocked-before-v3.md) | TE-4D v2 three-High blocked return point before D-030 v3 authorization | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md`](checkpoints/20260822-2020-te4d-v3-authorized-before-evidence.md) | D-030 v3 authorization return point before the one-shot process and review blockers | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260822-2049-te4d-v3-blocked-before-supplement.md`](checkpoints/20260822-2049-te4d-v3-blocked-before-supplement.md) | V3 three-High blocked return point before D-031 targeted supplement authorization | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

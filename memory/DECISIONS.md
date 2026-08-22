@@ -992,3 +992,42 @@ Proposed and TE-4 runtime remains **NOT STARTED**. Oxygen, Ash/new Matter,
 production FX, Pressure redesign, Rust/WGSL implementation, runtime state or
 passes, Cargo, build, launch, TE-5/TE-6, G9-B/C/D/E, optimization, Powdergame
 PR and `main` merge remain unauthorized.
+
+## D-031 · Authorize the targeted TE-4 ignition transaction supplement — 2026-08-22 (source: direct user architecture decision)
+
+Decision: Preserve TE-4D v1/v2/v3 as **DESIGN BLOCKED / IMMUTABLE** and do
+not patch, rerun or relabel any of their files. V3 remains usable only for its
+exact user-selected coefficient identity/rate profile, packed-u6 arithmetic,
+independent exact F07/F08 match, deterministic replay and static 42-pass
+feasibility projection. It does not establish topology-derived F15B,
+independent transaction semantics, the complete fuel lifecycle or re-auditable
+mutation receipts.
+
+Authorize the distinct docs/reference-only identity
+`TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1`. This is a bounded composition
+supplement for only v3 H-001/H-002/H-003/M-001, not a v4 broad proof. It may
+execute exactly once after a non-executing freeze and may not rerun v3's
+100,000 sequences, 10,000 grids, F07/F08, coefficient selection, oracle
+generation or GPU feasibility work.
+
+The supplement must derive both Air-access snapshots from one shared pure
+orthogonal topology predicate; audit semantics independently from immutable
+before/after state and manifest specifications without trusting SUT names or
+events; reject at least one invalid mutation for every transaction class; run
+Oil/Wood through one continuous duration-driven fuel/heat state machine; and
+publish canonical hashed before/after JSONL snapshots sufficient for a third
+party to recompute the important totals without executing the SUT. Counter
+provenance is `INDEPENDENT_SPEC_BEFORE_AFTER_AUDIT`.
+
+Evidence authorization: freeze manifest/script/schema/tolerances, execute the
+supplement exactly once, independently re-audit its published snapshots, then
+obtain a fresh-context review by a reviewer who authored none of its artifacts.
+Any unresolved Critical/High finding stops **TE-4D TRANSACTION SUPPLEMENT
+BLOCKED**. Zero unresolved Critical/High may compose with the explicitly narrow
+v3 results to reach **TE-4D ARCHITECTURE EVIDENCE COMPLETE / USER ARCHITECTURE
+REVIEW PENDING**. ADR-0012 remains Proposed; runtime is not authorized.
+
+Scope excludes Rust/WGSL/Cargo, production passes/buffers, build/launch,
+coefficient/model changes, Oxygen, Ash/new Matter, presentation, Pressure
+redesign, TE-5/TE-6, G9-B/C/D/E, optimization, PR and `main` merge. External
+implementation copied, translated or vendored remains `0 files / 0 lines`.

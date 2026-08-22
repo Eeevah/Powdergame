@@ -1,8 +1,8 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — V3 DESIGN BLOCKED / USER ARCHITECTURE REVIEW NOT REACHED**
+- Status: **PROPOSED — TARGETED TRANSACTION SUPPLEMENT AUTHORIZED / EVIDENCE PENDING**
 - Date: 2026-08-22
-- Decision authority: D-028, D-029 and D-030
+- Decision authority: D-028, D-029, D-030 and D-031
 
 ## Context
 

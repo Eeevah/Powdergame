@@ -1,54 +1,34 @@
-# Checkpoint — TE-4D v3 design blocked — 2026-08-22
+# Checkpoint — TE-4 targeted transaction supplement authorized — 2026-08-22 20:49 KST
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- Start SHA: `85745533c1cb9a9505826f5aaba5dd1ba085b627`
-- D-030 authorization SHA: `aae47f8b5e1c88ff3459e544231bc1f09a2eae30`
-- Design/checkpoint SHA: this docs/reference closure commit (`git rev-parse HEAD`)
-- Wiki authority: `origin/main` `9ed82115cf75b73aee034107008ea8cf83ed23af`; dirty local checkout preserved read-only
-- Runtime: unchanged / not started
+- HEAD: `6d14da0f5a6be45eb96e8a62289807f93a7ed534`
+- Working tree: expected D-031 docs/memory authorization files
 
 ## The story so far
-TE-4D v1/v2 remain immutable blocked history. The D-030 v3 identity completed
-once, but fresh review found three High blockers in its transaction closure.
+TE-4D v1/v2/v3 remain immutable blocked history. D-031 authorizes a distinct
+transaction-only supplement for the four v3 review gaps without rerunning any
+broad v3 evidence.
 
 ## Valid evidence
-- V1 script/failure SHA-256: `886fe5b7...f82` / `6342bad5...c1bb`; attempts/completions `1/0`; model work `0/0/0`.
-- V2 manifest/script/result-file SHA-256: `9b763c1c...53ba` / `c01e2869...a769` / `24ebd797...f151`.
-- V2 scoped result payload SHA-256: `717f4ef7...132c`; attempts/completions `1/1`; 100,000 sequences; 10,000 grids.
-- Frozen process reported 13 reference PASS and four expected production `NOT_ESTABLISHED`; it was not rerun.
-- V3 generator/oracle/manifest/script/result-file SHA-256: `b4d85fa7...2417` / `b32f5bdf...53b1` / `09e2eb62...27b2` / `b835ccc8...0689` / `646ed8f5...058c`.
-- V3 scoped result hash `a1438126...46d7`; attempts/completions `1/1`; 100,000 sequences; 10,000 grids; reported `13/4/0/0/0`.
+- V3 exact coefficients, packed-u6 arithmetic, independent F07/F08 oracle match and deterministic replay — valid only under immutable v3 hashes.
+- Static 42-pass/84-query/1,344-byte projection — source feasibility only; no runtime evidence.
+- Wiki `origin/main` `048f61e8ba541851017ea7a8e95d882f0f261f3a` — verified read-only while the local checkout remains user-dirty.
 
 ## Decided
-- D-030 snapshot/coefficient target remains the proposed architecture.
-- V3 process facts remain immutable narrow history, not approval.
-- Fresh review: Critical `0` / unresolved High `3` / Medium `1` / Low `1`.
-- Stop state: **TE-4D v3 DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
+- D-031 — authorize `TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1` only.
+- V1/v2/v3 remain immutable; runtime remains not started.
+- Required counter provenance is `INDEPENDENT_SPEC_BEFORE_AFTER_AUDIT`.
 
 ## Waiting on the user
-A future user decision is required before any new evidence identity or runtime
-work. V3 may not be patched or rerun.
-
-## Current authorization
-Close docs/reference/memory only, validate, commit and push the named feature
-branch. No runtime, Cargo, build, launch, PR or main merge.
-
-## Blocker
-- H-001: F15B next-stage Air access is hardcoded rather than topology-derived.
-- H-002: auditor trusts SUT-provided semantic names/events and lacks key ownership branches.
-- H-003: F09 chemical-Q/final-tick values are not lifecycle-derived.
-- M-001: result receipts omit re-auditable before/after snapshots.
+No user decision is currently required during authorized supplement execution.
 
 ## Next first action
-Await a new user decision. Do not repair/rerun v3 or begin TE-4 runtime.
+Freeze the supplement manifest/script/schema after non-executing preflight,
+then execute the supplement exactly once.
 
 ## Tried
-- Wiki and Powdergame coordinates match the requested SHAs; dirty Wiki is untouched.
-- Immutable v1/v2 hashes match and neither identity was executed.
-- Live pass/binding audit supports 42/84/1,344 and post-Smoke Air visibility.
-- Independent oracle was generated before freeze; exact complete event lists were inspected.
-- Exactly one v3 evidence process completed; result parse/scoped hash passed.
-- Fresh reviewer authored none of the artifacts and ran no evidence.
-- No Cargo, GPU, FULL, build or application launch was run.
+- Wiki and Powdergame coordinates match D-031 preflight; dirty Wiki is untouched.
+- Immutable v3 hashes match exactly; no v3 artifact was executed.
+- Required v3 review blockers and production transaction/pass ownership were re-read.

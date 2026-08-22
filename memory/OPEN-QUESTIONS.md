@@ -556,3 +556,12 @@ receipts also omit independently re-auditable before/after values.
 TE-4D v3 is **DESIGN BLOCKED**. Its manifest/oracle/script/result remain
 immutable and may not be repaired or rerun. Q-017 remains open for a future
 user decision; runtime remains not started.
+
+### 2026-08-22 D-031 targeted supplement authorization
+
+D-031 authorizes only `TE4-IGNITION-TRANSACTION-SUPPLEMENT-V1` to address the
+v3 H-001/H-002/H-003/M-001 gaps without modifying or rerunning v1/v2/v3. A
+passing one-shot supplement and fresh review with no unresolved Critical/High
+may complete the architecture evidence composition, but cannot accept
+ADR-0012 or authorize runtime. Q-017 stays open for the user's architecture
+disposition after the supplement review.

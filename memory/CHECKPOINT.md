@@ -6,7 +6,7 @@
 - Session baseline: `1b0fb2c0328eba6a9cbeb824b30727ecc46675bd`
 - Production physics: `41467219819c5d0cb3eab8ae22b652449da20480`
 - Scene 1 app source: `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`
-- Authorization commit: `42cca5e383a8ab64a70c6156baf020b07337f55e`
+- Authorization commit: `42cca5e73da542188d06b8e26d7e4a2934375a9a`
 - Working tree: blocked design/reference/review closure in progress; runtime unchanged
 
 ## The story so far

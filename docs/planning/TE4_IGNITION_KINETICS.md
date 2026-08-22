@@ -180,7 +180,7 @@ Final runtime source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
 implements the projected 42-pass graph, locked coefficients, packed-u6 state,
 binary Air-face rule, finite chemical heat, activity/wake integration, four
 candidate scenes, and fixed diagnostics. The graph is 84 queries/1,344 bytes;
-both new passes use six storage bindings; new persistent and scratch state are
+both new passes use five storage bindings; new persistent and scratch state are
 zero. See the
 [`source-bound evidence`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
 

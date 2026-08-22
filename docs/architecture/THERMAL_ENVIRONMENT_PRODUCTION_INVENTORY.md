@@ -688,9 +688,9 @@ three activity proposals are 37..39, ignition activity is 40, and reduction is
 41. There are 84 timestamp queries and two 672-byte resolve buffers, or 1,344
 profiler bytes.
 
-`ignition_exposure_propose` and `ignition_activity_propose` each use five
+`ignition_exposure_propose` and `ignition_activity_propose` each use four
 read-only storage bindings plus one read-write binding, with params and the
-existing combustion table as uniforms: six storage bindings each. Combustion
+existing combustion table as uniforms: five storage bindings each. Combustion
 remains at eight. The Section 2 binding table continues to cover every reused
 pass; no pass exceeds eight storage bindings.
 

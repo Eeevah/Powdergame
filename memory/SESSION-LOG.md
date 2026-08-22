@@ -653,7 +653,7 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   access, finite chemical Q, post-Smoke activity, and the canonical candidate
   are implemented with zero new persistent/full-world scratch state.
 - Final graph is 42 passes / 84 queries / 1,344 profiler bytes. Both new passes
-  use six storage bindings; the 512-byte descriptor table is unchanged.
+  use five storage bindings; the 512-byte descriptor table is unchanged.
 - Targeted Core/GPU/scenario/Windows suites, all-target check, clippy, strict
   audit, formatting and diff checks passed.
 - FULL attempt 1 exposed missing benchmark grouping; attempt 2 exposed a buried

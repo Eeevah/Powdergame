@@ -45,8 +45,8 @@ ticks `1..599` and Wood ticks `1..899` emitting, for gross totals `8,985` and
 The final graph has 42 timestamped passes and 84 queries. Two profiler resolve
 buffers total 1,344 bytes. New persistent state and new full-world scratch are
 both zero bytes; the existing proposal scratch and 512-byte combustion table
-are reused. The two new passes each bind five read-only storage buffers and one
-read-write storage buffer, plus two uniforms, for six storage bindings. All
+are reused. The two new passes each bind four read-only storage buffers and one
+read-write storage buffer, plus two uniforms, for five storage bindings. All
 production passes remain at or below the established eight-storage ceiling.
 
 ```text

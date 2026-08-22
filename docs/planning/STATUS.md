@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D DOCS/REFERENCE DESIGN PROGRAM AUTHORIZED**; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -36,6 +36,10 @@
 - TE-3 direct-review surface candidate: `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`
 - TE-3 Sandbox phase-truth candidate: `89d2400d677dec7e39cba76234c18d8b2363a496`
 - Shared `main`: 이 상태로 승격되지 않음
+
+TE-4D is authorized by D-028 for ignition-kinetics docs/reference design only.
+ADR-0012, coefficients, storage representation, chemical-heat migration and
+Vacuum policy are not yet accepted; TE-4 runtime remains **NOT STARTED**.
 
 ---
 

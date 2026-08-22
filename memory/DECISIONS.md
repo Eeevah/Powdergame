@@ -852,3 +852,41 @@ Invalidated by: a later explicit user supersession or authenticated,
 source-bound evidence contradicting the accepted quantity, phase, review or
 artifact claims. A future pressure redesign is a new gated claim and does not
 rewrite this acceptance.
+
+## D-028 · Authorize the TE-4D ignition-kinetics design program — 2026-08-22 (source: direct user architecture authorization)
+
+Decision: Preserve G9-A, TE-2 and TE-3 as **USER ACCEPTED WITH KNOWN
+FOLLOW-UP** and preserve `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` as **KNOWN
+FOLLOW-UP / DEFERRED / NOT STARTED**. Authorize a docs/reference-only TE-4D
+design program for integrated thermal ignition dose, cooling decay,
+previous-snapshot orthogonal `FLAME_EVENT` bonus and finite energy-like
+chemical heat accounting.
+
+Required reuse boundary: Start from the current generic combustion descriptor,
+Matter-owned fuel progress, combustion flags, TE-2 authoritative temperature,
+Current/Next ownership, movement hygiene, Smoke proposal/claim transaction,
+activity/wake and profiler contracts. Compare the existing unowned flag bits
+against a dedicated Current/Next exposure pair, but do not add runtime state,
+passes or bindings in this task. Historical G4/G8/G5/TE receipts remain bound
+to their original sources.
+
+Evidence authorization: Predeclare coefficient windows and fixture geometry,
+preflight and freeze one standard-library reference model, execute that frozen
+model exactly once, and subject the proposed design to a fresh-context
+independent adversarial review. Six-bit packed exposure is eligible only if it
+passes the locked timing, ownership and no-wrap contracts. Any unresolved
+Critical or High finding stops **TE-4D DESIGN BLOCKED**.
+
+User-owned boundary: Vacuum combustion policy remains undecided. This decision
+does not authorize Oxygen/Air-mass consumption, Ash, flame/Smoke FX, Pressure
+redesign, Rust or WGSL implementation, Cargo changes, runtime allocation,
+build, launch, TE-5/TE-6, G9-B/C/D/E, Powdergame PR or `main` merge. External
+simulation implementation copied, translated or vendored remains `0 files / 0
+lines`.
+
+Stop rule: With a passing frozen reference result and zero unresolved
+Critical/High review findings, the maximum result is **TE-4D IGNITION KINETICS
+DESIGN CANDIDATE / INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW
+PENDING**, with ADR-0012 **PROPOSED** and TE-4 runtime **NOT STARTED**. A later
+explicit user decision is required before implementation or Vacuum-policy
+selection.

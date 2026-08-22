@@ -1,12 +1,12 @@
-# Checkpoint — TE-3 user accepted with known follow-up — 2026-08-22 18:23 KST
+# Checkpoint — TE-4D ignition-kinetics design authorized — 2026-08-22
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- Session baseline: `ab5b9d926735b1cbb8470054bdb0c51fd37c5f9c`
+- Session baseline: `1b0fb2c0328eba6a9cbeb824b30727ecc46675bd`
 - Production physics: `41467219819c5d0cb3eab8ae22b652449da20480`
 - Scene 1 app source: `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`
-- Working tree: TE-3 docs/memory acceptance closure in progress; runtime unchanged
+- Working tree: D-028 docs/memory authorization closure in progress; runtime unchanged
 
 ## The story so far
 The user directly accepted the complete pressure-decoupled TE-3 Water/Steam
@@ -30,10 +30,21 @@ phase pressure. The pressure-volume redesign remains deferred.
 - `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains deferred/not started.
 
 ## Waiting on the user
-None for TE-3. TE-5, TE-4 and G9-B each require a separate future authorization.
+None during the authorized TE-4D design program. Architecture acceptance,
+Vacuum policy, implementation, TE-5 and G9-B each require a later user decision.
+
+## Current authorization
+- D-028 authorizes TE-4D docs/reference design only.
+- Target: integrated excess-temperature dose, cooling decay, previous-snapshot
+  orthogonal flame bonus and finite energy-like chemical heat.
+- Required evidence: one preflighted/frozen reference execution and one
+  fresh-context independent review.
+- ADR-0012 must remain Proposed; TE-4 runtime, Vacuum policy, Oxygen, Ash, FX,
+  Pressure redesign, TE-5/TE-6 and G9-B/C/D/E remain unauthorized/not started.
 
 ## Next first action
-Do not start another gate implicitly; wait for the user's next explicitly scoped milestone decision.
+Complete the exact descriptor/flags/pass/writer inventory, predeclare and freeze
+the reference model, execute it exactly once, then run the independent review.
 
 ## Tried
 - Reused the source-bound runtime, artifact and direct-review receipts; no Cargo, GPU, FULL, build, launch or candidate rerun was needed for this docs-only acceptance.

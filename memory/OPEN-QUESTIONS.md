@@ -475,3 +475,20 @@ source remains `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`.
 
 Known follow-up: `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains deferred/not
 started. TE-5, TE-4 and G9-B/C/D/E still require separate user decisions.
+
+## Q-017 · TE-4D ignition-kinetics architecture review — open 2026-08-22
+
+Owner: user at the proposed ADR-0012 architecture-review boundary.
+
+D-028 authorizes a docs/reference-only comparison of packed six-bit ignition
+exposure and a dedicated u32 Current/Next pair, plus a predeclared one-shot
+coefficient/fixture reference execution and fresh-context independent review.
+The user must ultimately decide the state representation, dose budget/rates,
+cooling decay, previous-tick flame-bonus policy, energy-like chemical-heat
+migration, final-consumption-tick heat rule and Vacuum combustion policy.
+
+Until those decisions are accepted, ADR-0012 remains **PROPOSED — USER
+ARCHITECTURE REVIEW PENDING** and TE-4 runtime is **NOT STARTED**. Any
+unresolved Critical/High proof or review finding instead stops **TE-4D DESIGN
+BLOCKED**. This question does not reopen TE-2 transport, TE-3 phase semantics,
+the deferred Water/Steam Pressure redesign, G8 evidence or G9-A acceptance.

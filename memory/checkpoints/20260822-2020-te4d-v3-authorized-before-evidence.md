@@ -4,7 +4,7 @@
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
 - Start SHA: `85745533c1cb9a9505826f5aaba5dd1ba085b627`
-- D-030 authorization SHA: `aae47f8b0afab0c0521d5bf476229446bb5bd3ce`
+- D-030 authorization SHA: `aae47f8b5e1c88ff3459e544231bc1f09a2eae30`
 - Wiki authority: `origin/main` `9ed82115cf75b73aee034107008ea8cf83ed23af`; dirty local checkout preserved read-only
 - Runtime: unchanged / not started
 

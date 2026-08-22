@@ -1096,3 +1096,31 @@ Implementation record: final runtime source
 contract and passed source-bound production validation. This is execution of
 D-032, not a new decision: ADR-0012 remains Proposed and user architecture/
 product review remains pending.
+
+## D-033 · Require visible authoritative Scene 4 Smoke evidence — 2026-08-23 (source: direct user observation)
+
+Decision: Scene 4 is **REVISION REQUIRED** because the user observed source
+fuel `0 -> 1`, Air access `YES -> NO`, and burning `YES -> NO` without being
+able to see the claimed Smoke Matter. TE-4I remains **USER REVIEW IN PROGRESS**
+and ADR-0012 remains Proposed.
+
+Diagnose the exact candidate coordinates `(208,110) -> (209,110) ->
+(209,111)` from authoritative production Matter/Air Current and Next. If the
+target is not Smoke, treat it as a production transaction defect and repair the
+smallest demonstrated blocker. If the target is Smoke, leave production
+physics unchanged and remediate only candidate staging, fixed diagnostics, and
+candidate-only target presentation.
+
+The revised Scene 4 must show a fixed target row, receiver row, Smoke count,
+source fuel, target identity, receiver Air, and causal states READY, EMITTED,
+EXTINGUISHED, and DECAYED. Any target marker must derive from actual target
+Smoke and disappear otherwise; no duplicate Matter or fake animation is
+allowed.
+
+Scope: Scene 4 candidate surface, candidate-specific production-state tests,
+canonical EXE rebuild, one bounded launch, docs/checkpoint closure, and push on
+`feature/m0-g9-first-playable`. Coefficients, ignition semantics, Oxygen, Ash,
+Pressure, later gates, and user acceptance remain outside scope.
+
+Invalidated by: later explicit user supersession or authoritative candidate
+geometry proving that the required coordinates/contracts are different.

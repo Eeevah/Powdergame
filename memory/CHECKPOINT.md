@@ -1,42 +1,50 @@
-# Checkpoint — TE-4I production candidate ready for direct review — 2026-08-23
+# Checkpoint — TE-4I Scene 4 revised candidate awaits user re-review — 2026-08-23
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- Start: `a19753ba087309e4f2a4863915d57b67750f1ad2`
-- D-032: `ae8c04bc42f85c6a78d5960e08f3f4bcef1a28cd`
-- Final runtime: `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+- Start/docs baseline: `4ae570d104268f267ce59cc2c1f8816c803721bb`
+- Preserved production physics: `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+- Scene 4 observability source: `a7622bf2106a11e731a46018a4afe30d236b9304`
 - Docs/checkpoint commit: pending this closure commit
 
 ## Current product state
-TE-4D v1/v2/v3 and D-031 remain blocked immutable history. TE-4I is an
-implemented production candidate with automated validation PASS. ADR-0012 is
-still Proposed; direct user architecture/product review is pending.
+Scene 4's original review surface was revision-required because source-side
+fuel/Air/burning changes did not visibly prove Smoke creation. Exact candidate
+geometry now proves target `(209,110)` is authoritative Smoke at Tick 1 and
+receiver `(209,111)` receives the displaced Air. Production physics is
+unchanged. TE-4I is **REVISED IMPLEMENTATION CANDIDATE / SCENE 4 USER
+RE-REVIEW PENDING**. ADR-0012 remains Proposed and Q-017 remains open.
 
 ## Valid evidence
-- Source-bound receipt:
+- Original production evidence:
   `docs/evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md`.
-- Final-source FULL attempt 3 PASS; attempts 1/2 remain recorded invalid-source
-  failures.
-- One release build, one bounded launch, and one bounded measurement passed.
+- Scene 4 remediation receipt:
+  `docs/evidence/TE4_SCENE4_SMOKE_OBSERVABILITY_REMEDIATION_2026-08-23.md`.
+- Windows package `183 passed / 1 ignored`; production F08 and targeted
+  Environment receiver/settle controls passed.
+- Production runtime FULL remains the existing valid PASS at `8d9e8cb...`;
+  remediation FULL count is zero because no Engine/Core/WGSL changed.
 - Canonical EXE SHA-256:
-  `27D92287931421560027EF4D554DA26BBB50C5DE1565D75E52D1BC406A2A6081`.
-- Wiki authority `57d7e2bdbab5b9cbc46a4448fd881e7493e12f74`; dirty local Wiki untouched.
+  `EABC00C3F803800EEFA9DD935DD15F3AEDEB507EEBD638364088E2BD324D6297`;
+  size `10,147,328` bytes.
+- Wiki authority `bf3d2b1d585492f470b92f09342935a497093379`; dirty local Wiki untouched.
 
-## Locked implementation
-- Oil `48/2/50/6/1/2/4`; Wood `60/1/50/5/1/2/4`.
-- Packed u6 flag mask `0xF000000C`; combustion mask `0xF000FFFF`.
-- Binary `COMBUSTION_STAGE_SNAPSHOT` Air access; no Oxygen quantity.
-- Chemical Q Oil/Wood `15/8`; final consumption tick emits zero.
-- 42 passes / 84 queries / 1,344 profiler bytes.
-- New persistent state `0`; new full-world scratch `0`; max storage bindings `8`.
+## Revised Scene 4 surface
+- Fixed source, `Self-Smoke target`, and `Air receiver` rows.
+- Persistent Smoke count, source fuel, target Material, and receiver Air.
+- `READY`, `EMITTED`, `EXTINGUISHED`, `DECAYED` causal states.
+- Camera focus keeps `(208,110) -> (209,110) -> (209,111)` left of the card.
+- Outline exists only while sampled target Material is Smoke.
+- No fake/duplicate/enlarged Smoke and no production Inspector change.
 
-## Waiting on the user
-Use the Desktop shortcut or `run_powdergame.bat ignition-kinetics` and apply
-the twelve-item checklist in `docs/planning/TE4_IGNITION_KINETICS.md`. The user
-must accept, revise, or reject ADR-0012/TE-4I; automation cannot close Q-017.
+## Exactly one next action
+The user re-reviews Scene 4: open the existing TE-4 shortcut, press `4`, press
+`N` once to observe `EMITTED`/Smoke count one/target outline/receiver Air, then
+press `N` again to observe `EXTINGUISHED` with fuel one and no second Smoke.
+Only the user may then accept, revise, or reject TE-4I/ADR-0012.
 
 ## Boundaries
-No Oxygen, Ash, Pressure redesign, TE-5/TE-6, G9-B/C/D/E, optimization, PR, or
-main merge started. Lesson promotion is NONE because existing PG-L034/PG-L035
-and Wiki contracts already cover the reusable failure classes.
+No coefficient, ignition predicate, Engine/Core/WGSL, Oxygen, Ash, Pressure,
+TE-5/TE-6, G9-B/C/D/E, optimization, PR, or main work started. No user
+acceptance is claimed.

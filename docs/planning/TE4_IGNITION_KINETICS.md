@@ -194,9 +194,15 @@ Direct user review remains:
 6. Connected fuel burns from a surface/frontier rather than all at once.
 7. Atmosphere and positive LowPressure permit ignition.
 8. Exact Vacuum does not permit ignition or sustain.
-9. Sole-Air self-Smoke emits once and extinguishes on the next tick.
+9. In Scene 4, press `N` once and verify the fixed `(209,110)` target row is
+   exactly Smoke, Smoke count is `1`, receiver `(209,111)` holds the displaced
+   Air, and the candidate-only outline surrounds that real target. Press `N`
+   again and verify the source is extinguished with fuel unchanged and no
+   second Smoke. Source Air loss alone is not creation evidence.
 10. Fuel is finite and the consumption tick emits nothing.
 11. No Ash, Oxygen quantity, or Pressure behavior is implied.
 12. Reset is exact.
 
 Successful automation leaves ADR-0012 Proposed and TE-4I user review pending.
+The Scene 4 observability remediation and its exact state receipt are recorded
+in [`TE4 Scene 4 remediation`](../evidence/TE4_SCENE4_SMOKE_OBSERVABILITY_REMEDIATION_2026-08-23.md).

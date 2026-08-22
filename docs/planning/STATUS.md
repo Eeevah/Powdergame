@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; **TE-4I IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW PENDING** at `8d9e8cb...`; **ADR-0012 PROPOSED**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; TE-4I production physics `8d9e8cb...` unchanged; **REVISED IMPLEMENTATION CANDIDATE / SCENE 4 USER RE-REVIEW PENDING** at `a7622bf...`; **ADR-0012 PROPOSED**; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -36,6 +36,7 @@
 - TE-3 direct-review surface candidate: `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`
 - TE-3 Sandbox phase-truth candidate: `89d2400d677dec7e39cba76234c18d8b2363a496`
 - TE-4I final runtime source: `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+- TE-4I Scene 4 observability source: `a7622bf2106a11e731a46018a4afe30d236b9304`
 - Shared `main`: 이 상태로 승격되지 않음
 
 TE-4D v1's only frozen reference process completed zero trials after an
@@ -80,6 +81,14 @@ PENDING**. Final source `8d9e8cb...` passes F01..F17 production fixtures and
 the canonical FULL after two recorded invalid-source attempts. The canonical
 candidate and artifact are available, but user acceptance is not claimed. See
 [`TE-4I evidence`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+
+The direct user review found that Scene 4's source-side changes did not make
+the one-cell Smoke target visible. D-033 preserves the production physics and
+requires direct target/receiver evidence. Candidate source `a7622bf...` now
+shows fixed target and receiver rows, Smoke count and a target-identity-driven
+outline. Exact actual-state tests pass; Scene 4 user re-review remains pending.
+See the
+[`Scene 4 remediation receipt`](../evidence/TE4_SCENE4_SMOKE_OBSERVABILITY_REMEDIATION_2026-08-23.md).
 
 ---
 

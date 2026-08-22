@@ -667,3 +667,19 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   Oxygen, Ash, Pressure, TE-5/TE-6, G9-B/C/D/E, PR, or main work occurred.
 - Lesson promotion is NONE; existing PG-L034/PG-L035 and Wiki contracts cover
   the reusable failure classes.
+
+## 2026-08-23 · TE-4I Scene 4 authoritative Smoke observability remediation
+
+- User observation changed Scene 4 to REVISION REQUIRED under D-033 while
+  keeping TE-4I in user review and ADR-0012 Proposed.
+- Exact candidate geometry proved Tick 1 target `(209,110)` is authoritative
+  Smoke with count one and settled target/receiver Air; Tick 2 extinguishes
+  with fuel one and no second emission. Production physics stayed unchanged.
+- Candidate source `a7622bf...` adds target/receiver rows, causal summary,
+  identity-driven outline, and camera focus. Windows `183/1`, production F08,
+  receiver/settle controls, check, clippy, audit, fmt and diff checks passed.
+- FULL remained zero. One release build and one 60-frame candidate launch
+  completed; the automatic launch opened default Scene 1 and is not presented
+  as Scene 4 visual proof. EXE SHA-256 is `EABC00C3...D6297`, size `10,147,328`.
+- PG-L036 was adopted. Verified Wiki `bf3d2b1...` already carries the general
+  source/target/receiver evidence rule; the dirty local Wiki was untouched.

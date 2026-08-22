@@ -595,3 +595,19 @@ four-scene candidate, fixed diagnostics, launcher routes, and Desktop shortcut
 are available. Q-017 now asks only for direct user architecture/product review
 of the twelve-item checklist in `docs/planning/TE4_IGNITION_KINETICS.md`.
 Automated PASS does not close Q-017 or accept ADR-0012.
+
+### 2026-08-23 Scene 4 direct-observation revision and remediation
+
+The user observed the source fuel/Air/burning changes but could not see actual
+Smoke Matter, so Scene 4 is **REVISION REQUIRED** and TE-4I remains **USER
+REVIEW IN PROGRESS**. D-033 required direct authoritative reads at source
+`(208,110)`, target `(209,110)`, and receiver `(209,111)`.
+
+The exact candidate geometry proved that Tick 1 target Matter is Smoke, Smoke
+count is one, target Air is Vacuum, and the receiver holds the displaced Air;
+Tick 2 extinguishes without another emission. The defect was candidate
+observability, not production claim/receiver/commit physics. Candidate source
+`a7622bf2106a11e731a46018a4afe30d236b9304` adds fixed target/receiver rows,
+causal states, a real-target outline, and a Scene 4 camera focus. Q-017 remains
+open only for the user's Scene 4 re-review and later whole-candidate
+architecture/product disposition. ADR-0012 remains Proposed.

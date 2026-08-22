@@ -1,7 +1,7 @@
 # Ignition Kinetics Validation Contract
 
 Status: **V1/V2/V3 AND D-031 SUPPLEMENT BLOCKED / D-032 PRODUCTION EVIDENCE
-PASS / USER REVIEW PENDING**.
+PASS / D-034 USER ACCEPTED WITH KNOWN FOLLOW-UP**.
 
 ## Fixture matrix
 
@@ -208,5 +208,24 @@ and bounded measurement completed. Full commands, counts, artifact identity,
 and limitations are in the
 [`source-bound evidence`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
 
-Automated status is **PASS_PRODUCTION_CANDIDATE**. ADR-0012 acceptance and user
-product disposition remain `PENDING`.
+The D-032 automated status is **PASS_PRODUCTION_CANDIDATE**. At that stage,
+ADR-0012 acceptance and user product disposition remained `PENDING`.
+
+## D-034 direct-review disposition
+
+The user observed Scenes 1–4 as **DIRECT OBSERVATION CONSISTENT**. The Scene 4
+authoritative transaction was observed as follows:
+
+- Tick 0: `READY`, burning Wood fuel `0`, target EMPTY/Air `1.000`, receiver
+  Air `0.000`, Smoke count `0`;
+- Tick 1: `EMITTED`, target exactly Smoke, Smoke count `1`, fuel `1`, target
+  Air `0.000`, receiver Air `1.000`, target-identity marker visible;
+- Tick 2: `EXTINGUISHED`, burning false, fuel `1`, gross Q `0`, no second
+  Smoke, original target still Smoke;
+- Tick 1184: `DECAYED`, target EMPTY, Smoke count `0`, Air access restored,
+  target/receiver Air approximately `0.499/0.501`, marker absent.
+
+This closes product review for the current implementation; it does not rerun
+or rebind the source-bound automated evidence. Oxygen, Ash, final presentation,
+Pressure coupling, TE-5/TE-6 and later G9 gates remain outside this validation
+identity.

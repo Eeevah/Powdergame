@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D v1/v2/v3/D-031 BLOCKED / IMMUTABLE**; **TE-4I IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW PENDING / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
+Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D v1/v2/v3/D-031 BLOCKED / IMMUTABLE**; **TE-4I USER ACCEPTED WITH KNOWN FOLLOW-UP / ADR-0012 ACCEPTED FOR CURRENT IMPLEMENTATION**; **TE-5 PRESSURE/VACUUM ARCHITECTURE DESIGN RE-ENTRY REQUIRED / NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -123,7 +123,12 @@ implements the locked dose, settled binary Air access, finite chemical heat,
 and post-Smoke activity semantics. F01..F17 and final-source FULL pass; the
 source-bound receipt is
 [`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
-ADR-0012 remains Proposed and direct user review is pending.
+Under D-032 this remained a production candidate pending direct review. D-034
+records Scenes 1–4 as directly consistent and accepts ADR-0012 for the current
+implementation. The accepted boundary retains packed-u6 exposure, exact
+Oil/Wood coefficients, `COMBUSTION_STAGE_SNAPSHOT`, binary positive-Air-face
+eligibility, finite chemical Q and the target/receiver transaction. Oxygen,
+Ash, final presentation and Pressure coupling remain absent or deferred.
 
 The project must evaluate a causal ignition gate beyond one-frame threshold crossing. Candidate grammar:
 

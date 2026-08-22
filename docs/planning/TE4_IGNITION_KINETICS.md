@@ -1,7 +1,7 @@
 # TE-4D Ignition Kinetics Plan
 
-Status: **TE-4I IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS /
-ADR-0012 PROPOSED / USER REVIEW PENDING**.
+Status: **TE-4I USER ACCEPTED WITH KNOWN FOLLOW-UP / ADR-0012 ACCEPTED FOR
+THE CURRENT TE-4 IGNITION-KINETICS IMPLEMENTATION**.
 
 ## Reuse and exact inventory
 
@@ -184,7 +184,7 @@ both new passes use five storage bindings; new persistent and scratch state are
 zero. See the
 [`source-bound evidence`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
 
-Direct user review remains:
+Direct user review checklist, completed by D-034:
 
 1. Short Heat spikes do not ignite Oil or Wood.
 2. Sustained Heat ignites Oil sooner than Wood.
@@ -203,6 +203,22 @@ Direct user review remains:
 11. No Ash, Oxygen quantity, or Pressure behavior is implied.
 12. Reset is exact.
 
-Successful automation leaves ADR-0012 Proposed and TE-4I user review pending.
+Before D-034, successful automation alone left ADR-0012 Proposed and TE-4I
+user review pending.
 The Scene 4 observability remediation and its exact state receipt are recorded
 in [`TE4 Scene 4 remediation`](../evidence/TE4_SCENE4_SMOKE_OBSERVABILITY_REMEDIATION_2026-08-23.md).
+
+## D-034 user-acceptance closure
+
+The user observed Scenes 1–4 as **DIRECT OBSERVATION CONSISTENT** and accepted
+TE-4I with known follow-up. Scene 4 directly established the complete
+`READY -> EMITTED -> EXTINGUISHED -> DECAYED` chain at ticks `0/1/2/1184`,
+including exact Smoke target identity, whole-parcel Air receiver transfer,
+next-snapshot extinguish, decay, marker removal and Air recovery.
+
+ADR-0012 is accepted only for the current production implementation. The
+blocked v1/v2/v3/D-031 histories remain immutable. Binary Air-policy refinement,
+Oxygen quantity, Ash, G9-D final flame/glow/burn/Smoke-source presentation and
+TE-5 Pressure coupling remain known non-blocking follow-ups. The next action is
+**TE-5 Pressure/Vacuum architecture re-entry authorization — DESIGN RE-ENTRY
+REQUIRED / NOT STARTED**; no prior TE-5 candidate resumes automatically.

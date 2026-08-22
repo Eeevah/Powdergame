@@ -1,7 +1,7 @@
 # Ignition Kinetics Specification
 
-Status: **PROPOSED / PRODUCTION CANDIDATE IMPLEMENTED / USER ARCHITECTURE
-REVIEW PENDING** under D-032 and ADR-0012. V1/v2/v3 and D-031 remain blocked
+Status: **ACCEPTED / PRODUCTION IMPLEMENTED / USER ACCEPTED WITH KNOWN
+FOLLOW-UP** under D-034 and ADR-0012. V1/v2/v3 and D-031 remain blocked
 immutable history.
 
 ## State and ownership
@@ -148,3 +148,25 @@ The implementation receipt is
 [`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
 Automated production evidence does not by itself accept ADR-0012 or establish
 user approval.
+
+## D-034 accepted implementation boundary
+
+Direct review accepts the production contract above at runtime source
+`8d9e8cbe3b6ac651335b5a728ef491abeae4772a` and Scene 4 observability source
+`a7622bf2106a11e731a46018a4afe30d236b9304`. The accepted representation is
+packed u6 exposure in flags bits 2..3 and 28..31. Oil remains
+`48/2/50/6/1/2/4`; Wood remains `60/1/50/5/1/2/4`.
+
+`COMBUSTION_STAGE_SNAPSHOT` authorizes a Tick from the settled pre-combustion
+state. A same-Tick Smoke transaction may remove the last qualifying Air face
+without rollback; the next snapshot extinguishes before Heat, Flame, Smoke,
+chemical-Q or fuel advancement. Oil emits for 599 ticks and consumes on Tick
+600; Wood emits for 899 and consumes on Tick 900. The final consumption Tick
+emits none of those outputs. Positive Atmosphere/LowPressure Air in an
+orthogonal EMPTY Cell qualifies; exact Vacuum and occupied GAS do not.
+
+The target/receiver transaction is authoritative and uses no new persistent
+state or full-world scratch. Oxygen quantity, consumption and diffusion are
+absent; Ash is absent; Pressure coupling is deferred to TE-5. The binary Air
+policy and final flame/glow/burn/Smoke-source presentation are non-blocking
+future work requiring their own decisions.

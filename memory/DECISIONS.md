@@ -1124,3 +1124,46 @@ Pressure, later gates, and user acceptance remain outside scope.
 
 Invalidated by: later explicit user supersession or authoritative candidate
 geometry proving that the required coordinates/contracts are different.
+
+## D-034 · Accept the implemented TE-4 ignition kinetics with known follow-up — 2026-08-23 (source: direct user review)
+
+Decision: Preserve TE-4D v1/v2/v3 and the D-031 supplement as **DESIGN
+BLOCKED / IMMUTABLE HISTORY**. Accept TE-4I runtime source
+`8d9e8cbe3b6ac651335b5a728ef491abeae4772a`, Scene 4 observability source
+`a7622bf2106a11e731a46018a4afe30d236b9304`, and Scene 4 docs closure
+`0b5c80e93e6693d86d7be6f2d74819da6143c358`. Scenes 1–4 are **DIRECT
+OBSERVATION CONSISTENT**. TE-4I is **USER ACCEPTED WITH KNOWN FOLLOW-UP** and
+ADR-0012 is **ACCEPTED FOR THE CURRENT TE-4 IGNITION-KINETICS IMPLEMENTATION**.
+
+The direct Scene 4 observation is authoritative: Tick 0 `READY` had burning
+Wood fuel `0`, EMPTY target `(209,110)` with Air `1.000`, receiver `(209,111)`
+Air `0.000`, and Smoke count `0`. Tick 1 `EMITTED` had target exactly Smoke,
+Smoke count `1`, fuel `1`, the already-authorized source still burning, target
+Air `0.000`, receiver Air `1.000`, and the target-identity marker visible.
+Tick 2 `EXTINGUISHED` had burning false, fuel `1`, gross Q `0`, no second
+Smoke, and the original target still Smoke. Tick 1184 `DECAYED` had target
+EMPTY, Smoke count `0`, restored source Air access, target/receiver Air about
+`0.499/0.501` with combined mass about `1.000`, and no target marker.
+
+Accepted semantics are packed u6 exposure in flags bits 2..3 and 28..31;
+Oil `48/2/50/6/1/2/4`; Wood `60/1/50/5/1/2/4`;
+`COMBUSTION_STAGE_SNAPSHOT`; positive Atmosphere/LowPressure EMPTY Air faces
+qualify while exact Vacuum and occupied GAS do not; no Oxygen quantity,
+consumption or diffusion; finite chemical Q; Oil 599 and Wood 899 emitting
+ticks followed by consumption on ticks 600 and 900; and no Heat, Flame, Smoke
+or Q on the final consumption Tick. Same-Tick Smoke may remove the last Air
+face without rolling back the authorized Tick; the next snapshot extinguishes.
+The target/receiver transaction is authoritative. No new persistent state or
+full-world scratch exists.
+
+Known non-blocking follow-ups: a binary Air-policy refinement requires a new
+decision; Oxygen quantity and Ash remain absent; final flame/glow/burn/Smoke-
+source presentation belongs to G9-D; Pressure coupling belongs to the deferred
+TE-5 program. The one next action is **TE-5 Pressure/Vacuum architecture
+re-entry authorization — DESIGN RE-ENTRY REQUIRED / NOT STARTED**. It must
+begin by reading every immutable TE-5B/C/D/X/Q counterexample and deciding
+which constraints may change; no prior candidate resumes automatically.
+
+Invalidated by: a later explicit user decision that supersedes the accepted
+current implementation semantics. Such a decision does not rewrite this
+source-bound acceptance record.

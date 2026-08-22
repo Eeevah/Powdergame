@@ -344,12 +344,13 @@ TE-5X runtime  NOT STARTED
 TE-3Q / TE-5Q packet design  DESIGN BLOCKED / CRITICAL 0 / HIGH 8
 ADR-0011  REJECTED / DESIGN BLOCKED HISTORY
 TE-3Q / TE-5Q runtime  NOT STARTED
-Full TE-5 Pressure redesign  DEFERRED / NOT STARTED
+Full TE-5 Pressure/Vacuum architecture  DESIGN RE-ENTRY REQUIRED / NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4D v1/v2  DESIGN BLOCKED / IMMUTABLE
 TE-4D v3  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / IMMUTABLE
-TE-4D D-031 supplement  BLOCKED / CRITICAL 0 / HIGH 3 / ADR-0012 PROPOSED
-TE-4I runtime  IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW PENDING
+TE-4D D-031 supplement  BLOCKED / CRITICAL 0 / HIGH 3 / IMMUTABLE
+TE-4I runtime  USER ACCEPTED WITH KNOWN FOLLOW-UP
+ADR-0012  ACCEPTED FOR CURRENT TE-4 IMPLEMENTATION
 G9-B/C/D/E  NOT STARTED
 ```
 
@@ -392,3 +393,17 @@ AUTOMATED VALIDATION PASS / USER REVIEW PENDING**. It does not accept ADR-0012,
 repair blocked v1/v2/v3/D-031 receipts, or start TE-5/TE-6. The source-bound
 receipt is
 [`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+
+### D-034 direct-review acceptance
+
+The user observed all four scenes as consistent. Scene 4 directly showed the
+authoritative target/receiver chain at ticks `0/1/2/1184`: READY EMPTY,
+EMITTED exact Smoke plus whole-parcel receiver Air, next-snapshot EXTINGUISHED
+without duplicate output, and DECAYED EMPTY with Air recovery. TE-4I is
+**USER ACCEPTED WITH KNOWN FOLLOW-UP** and ADR-0012 is accepted for this
+current implementation. No blocked synthetic receipt is repaired or rebound.
+
+The next action is only **TE-5 Pressure/Vacuum architecture re-entry
+authorization — DESIGN RE-ENTRY REQUIRED / NOT STARTED**. All TE-5B/C/D/X/Q
+counterexamples must be read before deciding which constraints may change;
+none resumes automatically.

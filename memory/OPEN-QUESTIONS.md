@@ -611,3 +611,17 @@ observability, not production claim/receiver/commit physics. Candidate source
 causal states, a real-target outline, and a Scene 4 camera focus. Q-017 remains
 open only for the user's Scene 4 re-review and later whole-candidate
 architecture/product disposition. ADR-0012 remains Proposed.
+
+### 2026-08-23 D-034 direct-review closure — closed
+
+The user observed Scenes 1–4 as **DIRECT OBSERVATION CONSISTENT** and accepted
+TE-4I as **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Scene 4 directly established
+`READY -> EMITTED -> EXTINGUISHED -> DECAYED` at ticks `0/1/2/1184`, including
+the exact Smoke target, whole-parcel Air receiver transfer, next-snapshot
+extinguish without a duplicate emission, later decay, target-marker removal
+and Air recovery.
+
+ADR-0012 is **ACCEPTED FOR THE CURRENT TE-4 IGNITION-KINETICS
+IMPLEMENTATION**. Q-017 is closed. Binary Air-policy refinement, Oxygen, Ash,
+G9-D final presentation and TE-5 Pressure coupling are known non-blocking
+follow-ups, not reasons to keep this question open.

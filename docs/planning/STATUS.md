@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; TE-4I production physics `8d9e8cb...` unchanged; **REVISED IMPLEMENTATION CANDIDATE / SCENE 4 USER RE-REVIEW PENDING** at `a7622bf...`; **ADR-0012 PROPOSED**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4I USER ACCEPTED WITH KNOWN FOLLOW-UP**; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; runtime `8d9e8cb...`, observability `a7622bf...`; **ADR-0012 ACCEPTED FOR CURRENT IMPLEMENTATION**; TE-5 Pressure/Vacuum architecture **DESIGN RE-ENTRY REQUIRED / NOT STARTED** |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -86,7 +86,10 @@ The direct user review found that Scene 4's source-side changes did not make
 the one-cell Smoke target visible. D-033 preserves the production physics and
 requires direct target/receiver evidence. Candidate source `a7622bf...` now
 shows fixed target and receiver rows, Smoke count and a target-identity-driven
-outline. Exact actual-state tests pass; Scene 4 user re-review remains pending.
+outline. Exact actual-state tests pass. D-034 records the user's direct
+`READY -> EMITTED -> EXTINGUISHED -> DECAYED` observation at ticks
+`0/1/2/1184`, accepts Scenes 1–4 as consistent, accepts TE-4I with known
+follow-up, accepts ADR-0012 for the current implementation, and closes Q-017.
 See the
 [`Scene 4 remediation receipt`](../evidence/TE4_SCENE4_SMOKE_OBSERVABILITY_REMEDIATION_2026-08-23.md).
 
@@ -275,9 +278,11 @@ pressure-volume architecture is selected or started.
 
 ## 다음 행동
 
-1. preserve all blocked TE-5/packet candidates and receipts without rerun;
-2. keep `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` deferred/not started;
-3. require a new direct decision before TE-5, TE-4 or G9-B work.
+1. authorize **TE-5 Pressure/Vacuum architecture re-entry** only through a new
+   direct decision;
+2. begin that decision by reading every immutable TE-5B/C/D/X/Q blocker and
+   deciding which architecture constraints may change;
+3. keep TE-5 implementation, TE-6 and G9-B/C/D/E **NOT STARTED**.
 
 ## 아직 별도 결정인 것
 

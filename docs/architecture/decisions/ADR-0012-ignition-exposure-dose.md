@@ -1,8 +1,8 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — IMPLEMENTATION EVIDENCE AUTHORIZED / NOT ACCEPTED**
+- Status: **ACCEPTED FOR THE CURRENT TE-4 IGNITION-KINETICS IMPLEMENTATION**
 - Date: 2026-08-22
-- Decision authority: D-028, D-029, D-030 and D-031
+- Decision authority: D-028, D-029, D-030, D-031, D-032 and D-034
 
 ## Context
 
@@ -278,7 +278,26 @@ storage bindings or fewer. Actual Core/GPU/Smoke/Environment/sleep/reset and
 TE-2/TE-3 fixtures passed on the final source. The source-bound receipt is
 [`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
 
-This evidence supersedes `RUNTIME NOT STARTED` only for TE-4I implementation
-status. It does not repair or reinterpret the blocked synthetic histories and
-does not accept this ADR. Status is now **PROPOSED — IMPLEMENTATION EVIDENCE
-AVAILABLE / USER ARCHITECTURE REVIEW PENDING**.
+At the D-032 stage, this evidence superseded `RUNTIME NOT STARTED` only for
+TE-4I implementation status. It did not repair or reinterpret the blocked
+synthetic histories and did not by itself accept this ADR; the status then was
+**PROPOSED — IMPLEMENTATION EVIDENCE AVAILABLE / USER ARCHITECTURE REVIEW
+PENDING**.
+
+## D-034 user-acceptance disposition
+
+The user directly observed all four candidate scenes as consistent and
+accepted the implemented TE-4I semantics with known follow-up. In Scene 4,
+Tick 0 was `READY`; Tick 1 directly showed target `(209,110)` as exactly one
+Smoke Cell and receiver `(209,111)` holding the displaced Air parcel; Tick 2
+showed next-snapshot extinguish without a second emission; and Tick 1184
+showed Smoke decay, target return to EMPTY, Air-access recovery, and conserved
+target-plus-receiver Air mass of approximately `1.000`.
+
+This accepts the current packed-u6 exposure, exact Oil/Wood coefficient
+identities, `COMBUSTION_STAGE_SNAPSHOT`, positive non-Vacuum EMPTY Air-face
+policy, finite chemical-Q lifecycle, consume-before-emission final tick, and
+authoritative target/receiver transaction. V1/v2/v3 and D-031 remain blocked
+immutable history. Oxygen quantity, Ash, final flame/glow/burn/Smoke-source
+presentation, and Pressure coupling remain absent or deferred. Any change to
+the binary Air policy or these accepted semantics requires a new decision.

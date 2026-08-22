@@ -308,7 +308,28 @@ Smoke, and an unfrozen F08 frontier oracle. TE-4D v2 is DESIGN BLOCKED.
 
 ## TE-5 — Pressure and Vacuum coupling
 
-After user decisions on edge reservoir and Vacuum combustion, integrate derived background pressure, Atmosphere refill/Vacuum vent, heated sealed Air, face differential and existing gauge overpressure without double counting. Revisit blocked spawn displacement only with a new accounted contract. On the same source, validate the replacement G5 boil/confinement/rupture/vent chain and atomically activate the verified TE-3 Water yield-1 path. Neither half may ship alone.
+D-035 authorizes a docs-only architecture re-entry around **LOCAL RELAXING
+PHASE-LOAD PRESSURE**. It preserves TE-5B/C/D/X/Q as blocked history while
+superseding their exact extent, assignment, matching, component-certificate and
+permanent sealed-pressure constraints. The design derives Air background from
+the accepted Environment, reuses `pressure_current/next` as a dissipative local
+dynamic field, uses a settled face-differential rupture snapshot, selects a
+sealed/no-flux default edge and keeps Vacuum combustion disabled.
+
+This gate authorizes no Rust/WGSL/runtime work. ADR-0013, canonical
+spec/validation, exact live-source pass/binding/state audit and fresh-context
+review were completed, and the review found unresolved Critical `0`, High `3`,
+Medium `3`. The projected pass cannot access the pre-transition Water context
+or documented fresh impulse, and unchanged base activity cannot sleep at an
+exact nonuniform equilibrium. **TE-5R0 DESIGN BLOCKED**. A later revision needs
+a new explicit user architecture decision and fresh review.
+Historical G5 evidence remains source-bound; a future implementation must
+produce a replacement boil/pressure/rupture/vent chain on its own source.
+
+Draft authorities: [`ADR-0013`](../architecture/decisions/ADR-0013-local-relaxing-phase-load-pressure.md),
+[`PRESSURE_VACUUM_COUPLING_SPEC`](../specs/PRESSURE_VACUUM_COUPLING_SPEC.md),
+[`PRESSURE_VACUUM_COUPLING_VALIDATION`](../development/PRESSURE_VACUUM_COUPLING_VALIDATION.md)
+and [`TE5R_PRESSURE_VACUUM_REENTRY`](TE5R_PRESSURE_VACUUM_REENTRY.md).
 
 Stop: `WATER/STEAM + PRESSURE USER-TESTABLE CANDIDATE / TE-6 NOT STARTED`.
 
@@ -344,7 +365,9 @@ TE-5X runtime  NOT STARTED
 TE-3Q / TE-5Q packet design  DESIGN BLOCKED / CRITICAL 0 / HIGH 8
 ADR-0011  REJECTED / DESIGN BLOCKED HISTORY
 TE-3Q / TE-5Q runtime  NOT STARTED
-Full TE-5 Pressure/Vacuum architecture  DESIGN RE-ENTRY REQUIRED / NOT STARTED
+TE-5R0 local relaxing pressure design  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / MEDIUM 3
+ADR-0013  PROPOSED / ARCHITECTURE REVISION REQUIRED
+Full TE-5 Pressure/Vacuum runtime  NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4D v1/v2  DESIGN BLOCKED / IMMUTABLE
 TE-4D v3  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / IMMUTABLE

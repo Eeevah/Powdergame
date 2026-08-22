@@ -709,3 +709,48 @@ Draw, Erase, presets, scenarios, reset, and generic identity replacement.
 Naga, binding, writer, allocation, profiler, runtime, and final-source FULL
 evidence are recorded in
 [`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+
+## 17. TE-5R0 blocked local relaxing pressure projection
+
+D-035 adds no production code or allocation. Proposed
+[`ADR-0013`](decisions/ADR-0013-local-relaxing-phase-load-pressure.md) reuses
+the current `pressure_current/next` pair as spatial dynamic pressure and derives
+Air background from `air_energy_current`; no Air-pressure or phase-pressure
+buffer exists.
+
+The live 42-pass graph has three binding constraints relevant to total
+pressure: Air transport commit and base activity already use eight storage
+bindings, while rupture also uses eight. The exact projected repair is
+source-local and bounded:
+
+- movement proposal adds pressure and Air energy, reaching eight;
+- Air scale adds pressure, reaching seven;
+- Air transport splits its mass and energy outputs into two passes, each eight;
+- local pressure adds phase energy, reaching six;
+- rupture removes its redundant movement-class read after the settled pressure
+  pass has enforced zero on blocked nodes, adds Air energy, and remains eight;
+- Environment activity adds pressure, reaching six;
+- a separate pressure-activity proposal uses five and leaves maxed base
+  activity unchanged.
+
+The reviewed projection was 44 timestamped passes / 88 queries. Profiler storage becomes
+two 704-byte buffers, 1,408 bytes total. No new persistent or full-world
+scratch allocation is projected, so no-profiler totals remain `4,721,328 B`
+at 256² and `302,016,816 B` at 2048²; with the projected profiler they become
+`4,722,736 B` and `302,018,224 B`.
+
+Proposal/claim retain their existing Air donor/receiver lifetime. Both split
+Air commits consume it before thermal stability and phase context fully
+overwrite the words for later lifetimes. Dynamic pressure remains spatial
+across Matter movement; phase load follows the already-settled Matter/
+phase-energy identity. Pressure settles before differential rupture, and the
+new pressure-activity proposal runs before the existing reduction.
+
+The independent review found Critical `0`, High `3`, Medium `3`. Despite the
+numeric binding counts, the projection cannot access the required
+pre-transition Water gas-facing snapshot, cannot represent the documented
+fresh generic-impulse transaction, and cannot make exact nonuniform equilibrium
+sleep while the maxed base activity pass remains unchanged. This section is a
+frozen failed static projection, not Naga, GPU, allocation, profiler, sleep,
+performance or product evidence. **TE-5R0 DESIGN BLOCKED**; implementation
+requires a new user architecture decision.

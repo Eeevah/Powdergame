@@ -625,3 +625,21 @@ ADR-0012 is **ACCEPTED FOR THE CURRENT TE-4 IGNITION-KINETICS
 IMPLEMENTATION**. Q-017 is closed. Binary Air-policy refinement, Oxygen, Ash,
 G9-D final presentation and TE-5 Pressure coupling are known non-blocking
 follow-ups, not reasons to keep this question open.
+
+## Q-018 · TE-5R0 architecture revision after independent-review blockers — open 2026-08-23
+
+Owner: user for a new architecture decision; no implementation owner exists.
+
+D-035's local relaxing phase-load candidate is **DESIGN BLOCKED** by Critical
+`0`, High `3`, Medium `3`. A future decision must define one source-realizable
+contract for: (1) the pre-transition Water gas-facing snapshot, (2) fresh
+generic-impulse timing/ownership, and (3) activity ownership that can sleep at
+exact nonuniform equilibrium. It must also explicitly retain or supersede the
+Medium risks: dissipation versus actual vent causality, moving-source pressure
+trail feedback, and pressure-only sealed-edge semantics while Matter may exit
+to Void.
+
+ADR-0013 remains **PROPOSED — ARCHITECTURE REVISION REQUIRED**. Runtime,
+reference proof, coefficient campaign and implementation are not authorized.
+D-036 separately defers the stale Wiki project snapshot refresh until
+2026-09-01 to conserve GitHub Actions; this does not close Q-018.

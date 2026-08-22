@@ -73,3 +73,9 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   Medium 2**; missing F15B settle, caller-classified semantic counters and
   topology-free Air receiver transfer block the supplement. Runtime remains
   not started.
+- [`TE5R_PRESSURE_VACUUM_REENTRY_DESIGN.md`](TE5R_PRESSURE_VACUUM_REENTRY_DESIGN.md)
+  — D-035 fresh-context source-feasibility review. Current disposition:
+  **TE-5R0 DESIGN BLOCKED — UNRESOLVED CRITICAL 0 / HIGH 3 / MEDIUM 3**.
+  Required phase-context and generic-impulse inputs are unavailable at the
+  projected pressure pass, and unchanged base activity prevents exact
+  nonuniform equilibrium from sleeping. Runtime remains not started.

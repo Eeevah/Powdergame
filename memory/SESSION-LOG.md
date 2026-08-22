@@ -711,3 +711,41 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Exactly one next action is **TE-5 Pressure/Vacuum architecture re-entry
   authorization — DESIGN RE-ENTRY REQUIRED / NOT STARTED**. No blocked
   TE-5B/C/D/X/Q candidate resumes automatically.
+
+## 2026-08-23 · TE-5R0 architecture re-entry authorization
+
+- D-035 preserves every TE-5B/C/D/X/Q candidate as blocked immutable history
+  and authorizes only the docs/memory candidate **LOCAL RELAXING PHASE-LOAD
+  PRESSURE**.
+- The old exact extent, exact-zero headspace, exact owner recovery,
+  matching/CCL certification and forever-sealed dynamic-pressure requirements
+  are superseded; TE-3 quantity/enthalpy and TE-2 Air/Vacuum authority remain.
+- Live source audit found a static 44-pass / 88-query route: Air mass and Air
+  energy commits split to avoid a ninth storage binding, and pressure activity
+  is a separate proposal pass. No new persistent/full-world scratch allocation
+  is projected.
+- ADR-0013/spec/validation/plan and fresh-context review remain pending. No
+  Rust, WGSL, Cargo, proof, GPU/FULL, build, launch or runtime work occurred.
+- D-036 then superseded the original Wiki publication and multi-commit/push
+  path for cost conservation. Wiki remote operations are deferred until
+  2026-09-01; the task will produce one coherent local commit and only one
+  `[skip ci]` feature push if local workflow-trigger inspection proves it safe.
+
+## 2026-08-23 · TE-5R0 independent-review stop
+
+- The fresh-context review completed against the dirty docs-only candidate and
+  reported Critical `0`, High `3`, Medium `3`.
+- High blockers are unavailable pre-transition phase context, an unavailable
+  and transactionally inconsistent fresh generic impulse, and base activity
+  that permanently wakes an exact nonuniform equilibrium.
+- Per D-035, TE-5R0 is **DESIGN BLOCKED** and ADR-0013 remains **PROPOSED —
+  ARCHITECTURE REVISION REQUIRED**. No replacement candidate was synthesized.
+- Runtime/reference/Cargo/WGSL/GPU/FULL/build/launch counts remain zero. Wiki
+  remote refresh remains deferred until 2026-09-01 under D-036.
+- PG-L037 promotes the new project lesson: binding-count arithmetic must be
+  accompanied by live-range, fresh-event transaction and shared activity
+  ownership proofs. `LESSON_PROMOTION: REQUIRED`; Wiki promotion is deferred
+  with the project snapshot under the GitHub Actions cost override.
+- Local strict audit, Markdown link/fence/index, secret-pattern, scope and diff
+  checks passed. The only workflow has `push`/`pull_request` triggers, so one
+  final `[skip ci]` feature push is safe under D-036.

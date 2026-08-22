@@ -1167,3 +1167,87 @@ which constraints may change; no prior candidate resumes automatically.
 Invalidated by: a later explicit user decision that supersedes the accepted
 current implementation semantics. Such a decision does not rewrite this
 source-bound acceptance record.
+
+## D-035 · Re-enter TE-5 with local relaxing phase-load pressure — 2026-08-23 (source: direct user architecture authorization)
+
+Decision: Preserve TE-5B/ADR-0007, TE-5C/ADR-0008, TE-5D/ADR-0009,
+TE-5X/ADR-0010 and TE-3Q/TE-5Q/ADR-0011 as **BLOCKED / IMMUTABLE HISTORY**.
+Their exact failure classes remain: a same-tick token does not preserve
+cross-tick capacity; local proportional assignment can discard reachable
+capacity and create false pressure; fixed-depth matching can report
+confinement despite a complete longer matching; TE-5X selected no bounded
+real-time model; and phase packets reopen successful TE-3 quantity while
+adding merge, movement and pressure-ownership failures.
+
+Supersede the old requirements that every Steam quantity own a distinct EMPTY
+extent, sufficient headspace imply exact zero dynamic pressure, phase pressure
+reverse exactly through owner recovery, pressure correctness require matching
+or connected-component certification, or generic dynamic pressure persist
+forever in a sealed region. Preserve one Cell as one Water-equivalent
+quantity, 1:1 Ice/Water/Steam transitions, accepted `phase_energy`, no extra
+Steam, One Cell = Max One foreground Matter, Air mass/energy authority, exact
+Vacuum `(0,0)`, local GPU-bounded execution, the eight-storage-binding ceiling
+and source-bound historical evidence.
+
+Authorize the docs/memory-only architecture candidate **LOCAL RELAXING
+PHASE-LOAD PRESSURE**, classed as **DERIVED AIR BACKGROUND + DISSIPATIVE LOCAL
+DYNAMIC PRESSURE**. It may reuse only `pressure_current/next` as bounded,
+non-negative spatial dynamic pressure, derive Air background from authoritative
+Air energy, use local diffusion plus phase-target relaxation, and combine the
+two exactly once for later Air, Matter and structure effects. It may not add a
+pressure/volume buffer, token, reservation, matching, CCL, conserved
+Vapor-volume field, phase packet or external implementation.
+
+The source-bound static feasibility target is 44 timestamped passes / 88
+queries: split the currently maxed Air transport commit into separate mass and
+energy writers, and add a dedicated pressure-activity proposal pass. Every
+projected pass must remain at or below eight storage bindings; proposal/claim
+remain existing scratch only. A discovered ninth binding, persistent field or
+unbounded iteration blocks TE-5R0 rather than authorizing a silent repair.
+
+ADR-0013 must remain **PROPOSED — ARCHITECTURE RE-ENTRY CANDIDATE / USER REVIEW
+PENDING**. A fresh-context review with any unresolved Critical/High finding
+sets **TE-5R0 DESIGN BLOCKED**. No Rust, WGSL, Cargo, allocation, proof script,
+GPU/FULL/build/launch, runtime, TE-6 or G9-B/C/D/E work is authorized.
+
+Invalidated by: a source audit that cannot realize the stated pass/binding/
+state boundary, a fresh review Critical/High blocker, or a later explicit user
+decision.
+
+## D-036 · Conserve GitHub Actions through 2026-09-01 — 2026-08-23 (source: direct user operational override)
+
+Decision: GitHub-hosted Actions usage is scarce until the monthly reset on
+2026-09-01. Continue the complete TE-5R0 architecture, source audit,
+independent review and validation locally without weakening their correctness
+requirements, but defer every Wiki clone/branch/push/PR/CI/poll/merge operation
+and preserve the user-dirty Wiki checkout unchanged.
+
+Do not push D-035 or design documents incrementally. Prefer one coherent local
+Powdergame commit named `docs: propose the TE-5 local relaxing pressure
+architecture [skip ci]`. Before pushing, inspect `.github/workflows/**`. Permit
+at most one feature-branch push only if every relevant hosted workflow is
+triggered through skip-compatible `push`/`pull_request` events. If any trigger
+or custom behavior makes skipping uncertain, keep the clean local commit and
+report the exact deferred push command. Create no PR, main merge, workflow
+dispatch, rerun, temporary remote branch or workflow-setting change.
+
+Record `WIKI_PROJECT_SNAPSHOT_REFRESH: DEFERRED UNTIL 2026-09-01 DUE TO GITHUB
+ACTIONS BUDGET CONSERVATION`. Until then, live Powdergame Git,
+`memory/CHECKPOINT.md` and source-bound evidence remain operational truth.
+
+Invalidated by: 2026-09-01 monthly reset or a later explicit user override.
+
+### D-035 outcome — 2026-08-23 independent review
+
+The fresh-context review found unresolved Critical `0`, High `3`, Medium `3`.
+The exact High blockers are: the projected pressure pass cannot access the
+required pre-transition TE-3 gas-facing context; its normative additive
+generic impulse is unavailable from the projected inputs and disagrees with
+the existing transaction order; and leaving base activity unchanged keeps an
+exact nonuniform relaxing-pressure equilibrium awake forever.
+
+Therefore **TE-5R0 DESIGN BLOCKED** and ADR-0013 remains **PROPOSED —
+ARCHITECTURE REVISION REQUIRED**. Preserve the reviewed formula, pass graph and
+witnesses as blocked history. Do not repair the pass graph, select another
+formula or begin implementation under D-035. A later revision requires a new
+explicit user architecture decision.

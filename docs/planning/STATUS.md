@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4I USER ACCEPTED WITH KNOWN FOLLOW-UP**; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; runtime `8d9e8cb...`, observability `a7622bf...`; **ADR-0012 ACCEPTED FOR CURRENT IMPLEMENTATION**; TE-5 Pressure/Vacuum architecture **DESIGN RE-ENTRY REQUIRED / NOT STARTED** |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4I USER ACCEPTED WITH KNOWN FOLLOW-UP**; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; runtime `8d9e8cb...`, observability `a7622bf...`; **ADR-0012 ACCEPTED FOR CURRENT IMPLEMENTATION**; TE-5R0 **LOCAL RELAXING PHASE-LOAD PRESSURE DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / RUNTIME NOT STARTED** |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -92,6 +92,29 @@ outline. Exact actual-state tests pass. D-034 records the user's direct
 follow-up, accepts ADR-0012 for the current implementation, and closes Q-017.
 See the
 [`Scene 4 remediation receipt`](../evidence/TE4_SCENE4_SMOKE_OBSERVABILITY_REMEDIATION_2026-08-23.md).
+
+D-035 preserves TE-5B/C/D/X/Q as blocked immutable history, supersedes their
+exact extent/zero-pressure/recovery/certification/permanent-sealed-pressure
+constraints, and authorizes a docs-only **LOCAL RELAXING PHASE-LOAD PRESSURE**
+candidate. The candidate derives Air background pressure, reuses the existing
+dynamic pressure pair, and may not add token, matching, CCL, phase packet,
+Vapor-volume field or runtime state. Independent review found three High
+source-contract contradictions: unavailable pre-transition phase context,
+unavailable/inconsistent fresh generic impulse, and legacy activity that
+cannot sleep at exact nonuniform equilibrium. ADR-0013 therefore remains
+**PROPOSED — DESIGN BLOCKED / ARCHITECTURE REVISION REQUIRED**; TE-5 runtime
+remains not started. Canonical blocked authorities are
+[`ADR-0013`](../architecture/decisions/ADR-0013-local-relaxing-phase-load-pressure.md),
+the [specification](../specs/PRESSURE_VACUUM_COUPLING_SPEC.md), the
+[validation contract](../development/PRESSURE_VACUUM_COUPLING_VALIDATION.md)
+and the [TE-5R0 plan](TE5R_PRESSURE_VACUUM_REENTRY.md).
+
+D-036 conserves GitHub Actions through 2026-09-01. TE-5R0 closes locally with
+no Wiki branch/PR/CI/merge and no intermediate Powdergame push. The stale Wiki
+project snapshot is temporarily acknowledged. At most one final `[skip ci]`
+feature push is allowed only after local workflow-trigger inspection proves
+that no relevant hosted workflow can run; otherwise the coherent commit stays
+local for deferred publication.
 
 ---
 

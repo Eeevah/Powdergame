@@ -741,8 +741,11 @@ fn build_fire_heat(builder: &mut FixtureBuilder) -> Result<(), ScenarioError> {
     builder.fill_material_ref(180, 226, 204, 222, MATERIAL_OIL)?;
     builder.fill_material_ref(14, 26, 144, 222, MATERIAL_STONE)?;
     builder.fill_temperature_ref(14, 26, 144, 222, 260.0)?;
-    builder.fill_temperature_ref(24, 42, 168, 202, 500.0)?;
-    builder.fill_flags_ref(24, 42, 168, 202, FLAG_COMBUSTING)?;
+    // The active Wood seed reaches the top fuel surface so the production
+    // binary-Air predicate has a real EMPTY face. The previous buried-only
+    // seed became correctly ineligible under TE-4I.
+    builder.fill_temperature_ref(24, 42, 154, 202, 500.0)?;
+    builder.fill_flags_ref(24, 42, 154, 202, FLAG_COMBUSTING)?;
     builder.fill_temperature_ref(32, 48, 205, 222, 180.0)?;
     builder.fill_flags_ref(32, 48, 205, 222, FLAG_COMBUSTING)?;
     builder.fill_material_ref(88, 168, 90, 118, MATERIAL_ICE)?;
@@ -1138,8 +1141,8 @@ mod tests {
 
     /// Pins the authored 256x256 Fire / Heat image without using the fixture
     /// builder's rectangle helpers. The hot Wood seed intentionally overlaps
-    /// 68 cells of the pre-existing Stone column; this test records that input
-    /// exactly for the first Harness candidate and does not retune it.
+    /// 96 cells of the pre-existing Stone column; this test records the TE-4I
+    /// Air-facing seed exactly.
     #[test]
     fn fire_heat_256_pins_authored_geometry_and_fields() {
         let config = WorldConfig::new(256, 256, 64).unwrap();
@@ -1175,7 +1178,7 @@ mod tests {
                 }
             };
             paint(14..26, 144..222, 260.0);
-            paint(24..42, 168..202, 500.0);
+            paint(24..42, 154..202, 500.0);
             paint(32..48, 205..222, 180.0);
             paint(88..168, 90..118, -20.0);
             paint(96..160, 120..144, -20.0);
@@ -1191,7 +1194,7 @@ mod tests {
                     }
                 }
             };
-            paint(24..42, 168..202);
+            paint(24..42, 154..202);
             paint(32..48, 205..222);
         }
         let expected_edit_wake = vec![0u32; 16];
@@ -1249,10 +1252,10 @@ mod tests {
                 .count()
         };
         assert_eq!(count_temperature(-20.0), 3_776);
-        assert_eq!(count_temperature(TEMPERATURE_REFERENCE), 60_008);
+        assert_eq!(count_temperature(TEMPERATURE_REFERENCE), 59_784);
         assert_eq!(count_temperature(180.0), 272);
-        assert_eq!(count_temperature(260.0), 868);
-        assert_eq!(count_temperature(500.0), 612);
+        assert_eq!(count_temperature(260.0), 840);
+        assert_eq!(count_temperature(500.0), 864);
         assert!(fixture
             .pressures()
             .iter()
@@ -1274,13 +1277,13 @@ mod tests {
                 .iter()
                 .filter(|&&flags| flags == FLAG_COMBUSTING)
                 .count(),
-            884
+            1_136
         );
-        assert_eq!(flagged_material_count(MATERIAL_WOOD), 544);
+        assert_eq!(flagged_material_count(MATERIAL_WOOD), 768);
         assert_eq!(flagged_material_count(MATERIAL_OIL), 272);
         // This is an authenticated authored overlap, not a desired material
         // behavior: production combustion clears these non-combustible bits.
-        assert_eq!(flagged_material_count(MATERIAL_STONE), 68);
+        assert_eq!(flagged_material_count(MATERIAL_STONE), 96);
         assert_eq!(
             (0..cell_count)
                 .filter(|&index| {

@@ -1,6 +1,6 @@
 # TE-4D Ignition Kinetics Plan
 
-Status: **DESIGN BLOCKED / RUNTIME NOT STARTED**.
+Status: **V2 EVIDENCE REPAIR AUTHORIZED / RUNTIME NOT STARTED**.
 
 ## Reuse and exact inventory
 
@@ -19,7 +19,9 @@ Status: **DESIGN BLOCKED / RUNTIME NOT STARTED**.
 
 ## Candidate layouts
 
-Packed u6 keeps 40/80 and adds 0 persistent/scratch bytes and 0 passes. It
+Packed u6 is selected by D-029 and adds zero persistent/scratch bytes. Source
+binding limits require two future logical passes, producing a conservative
+42-pass/84-query projection. It
 requires exact mask, movement, identity, authoring, activity and Inspector
 tests. Descriptor padding is proposed as three u32 words: dose budget; packed
 base/max/bucket metadata; packed decay/flame/cap metadata. ADR-0012 fixes their
@@ -41,13 +43,17 @@ existing combustion pass consumes it before overwriting `proposal` for Smoke.
 Identity-hygiene fusion, activity visibility and all binding rows remain
 unproven, so this is only a fallback estimate.
 
+## Selected v2 identity
+
+D-029 fixes Oil `48/2/50/6/1/2/4`, Wood `60/1/50/5/1/2/4`, packed u6,
+non-Vacuum orthogonal EMPTY Air-face access, Oil/Wood gross Q `15/8`, and the
+consume-before-emission final tick. A manifest-bound reference must execute 13
+required fixtures while four production fixtures remain `NOT_ESTABLISHED`.
+
 ## Required next decision
 
-Do not implement. A new user decision must authorize a new reference identity,
-resolve equal-metric coefficient tie semantics, choose packed or dedicated
-state, accept/revise dose and chemical-Q rules, decide final-tick behavior and
-select Air-independent or minimal-non-Vacuum combustion. Then all TE4-F01–F17
-must execute against their named layers before a user-testable candidate.
+Do not implement. After the exactly-once v2 reference and fresh independent
+review, the user must accept or revise ADR-0012 before runtime work.
 
 ## Lesson promotion
 

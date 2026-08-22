@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D DESIGN BLOCKED / ADR-0012 PROPOSED**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1 DESIGN BLOCKED**; **TE-4D v2 EVIDENCE REPAIR AUTHORIZED / ADR-0012 PROPOSED**; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -37,11 +37,13 @@
 - TE-3 Sandbox phase-truth candidate: `89d2400d677dec7e39cba76234c18d8b2363a496`
 - Shared `main`: 이 상태로 승격되지 않음
 
-TE-4D's only frozen reference process completed zero trials after an
+TE-4D v1's only frozen reference process completed zero trials after an
 equal-metric coefficient tie selected a different Oil tuple than the
-preregistered identity. ADR-0012, coefficients, storage representation,
-chemical-heat migration and Vacuum policy are not accepted; TE-4 runtime
-remains **NOT STARTED**. Fresh review: Critical `0` / unresolved High `2`.
+preregistered identity. It remains immutable blocked history. D-029 authorizes
+the separate `TE4-IGNITION-KINETICS-REFERENCE-V2` identity and selects exact
+coefficients, packed u6 exposure, non-Vacuum Air-face access, chemical-Q cap
+accounting and consume-before-emission. V2 evidence/review remain pending and
+TE-4 runtime remains **NOT STARTED**.
 
 ---
 

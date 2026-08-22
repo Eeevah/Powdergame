@@ -890,3 +890,49 @@ DESIGN CANDIDATE / INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW
 PENDING**, with ADR-0012 **PROPOSED** and TE-4 runtime **NOT STARTED**. A later
 explicit user decision is required before implementation or Vacuum-policy
 selection.
+
+## D-029 · Authorize TE-4D v2 evidence repair and select the candidate identity — 2026-08-22 (source: direct user architecture decision)
+
+Decision: Preserve TE-4D v1 as **DESIGN BLOCKED** and preserve its frozen
+script and failure receipt unchanged. Its only process completed no model work
+because coefficient identity and secondary tie policy were not fixed; its
+named-fixture aggregation could also overclaim unexecuted paths. Authorize a
+new docs/reference-only evidence identity,
+`TE4-IGNITION-KINETICS-REFERENCE-V2`, without continuing or repairing v1.
+
+Select integrated excess-temperature dose, cooling decay and previous-
+snapshot orthogonal flame bonus. Fix Oil as `48/2/50/6/1/2/4` and Wood as
+`60/1/50/5/1/2/4` for budget/base/bucket-width/max/decay/flame-bonus/flame-
+cap. Evidence validates these exact tuples and declared secondary objectives;
+it performs no coefficient search. Select canonical packed u6 exposure in
+flags bits 2..3 and 28..31. Dedicated Current/Next exposure remains an
+unselected fallback and cannot replace a failed packed candidate.
+
+Select `NON_VACUUM_AIR_FACE_REQUIRED`: Air access requires an in-domain
+orthogonal neighbour that is EMPTY with positive current Air mass. Vacuum,
+Void and occupied GAS Matter do not qualify. Air is not consumed or rate-
+scaled and no Oxygen quantity exists. Ignition and sustain require access.
+Loss while burning extinguishes before Heat, Flame or Smoke emission that
+tick, preserves fuel and clears exposure; an inaccessible unlit Cell decays
+exposure.
+
+Select Oil/Wood gross chemical Q `15/8`, derived GPU delta `Q/C`, finite
+gross/deposited/clipped accounting under the existing 1200 C cap, and consume-
+before-emission on duration tick 600/900. Emitting ticks remain 599/899 and
+maximum gross totals are `8,985/7,192`; the consumption tick emits zero.
+
+The source-audited future projection is two new logical passes, 42 passes/84
+queries, 1,344 profiler bytes, zero new persistent world bytes and zero new
+full-world scratch bytes. One manifest-bound standard-library reference
+execution and one fresh-context independent review are required. Any evidence
+failure or unresolved Critical/High finding stops **TE-4D v2 DESIGN BLOCKED**.
+
+Stop boundary: at most **TE-4D v2 REVISED IGNITION KINETICS DESIGN CANDIDATE /
+INDEPENDENT REVIEW PASS / USER ARCHITECTURE REVIEW PENDING**. ADR-0012 remains
+Proposed and TE-4 runtime remains **NOT STARTED**. Oxygen, Ash/new Matter,
+production FX, Pressure redesign, TE-5/TE-6, G9-B/C/D/E, optimization, main
+merge and PR remain unauthorized.
+
+Invalidated by: later explicit user supersession, a failed frozen v2 execution,
+an unresolved Critical/High v2 review finding, or a source audit disproving
+the 42-pass/no-new-state projection.

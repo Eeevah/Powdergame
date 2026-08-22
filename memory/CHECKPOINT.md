@@ -1,62 +1,43 @@
-# Checkpoint — TE-4D ignition-kinetics design blocked — 2026-08-22
+# Checkpoint — TE-4D v2 evidence repair authorized — 2026-08-22
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
-- Session baseline: `1b0fb2c0328eba6a9cbeb824b30727ecc46675bd`
-- Production physics: `41467219819c5d0cb3eab8ae22b652449da20480`
-- Scene 1 app source: `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`
-- Authorization commit: `42cca5e73da542188d06b8e26d7e4a2934375a9a`
-- Working tree: blocked design/reference/review closure in progress; runtime unchanged
+- Start SHA: `febfdd1476ec02e67f1108f6683af92878f7e9e0`
+- Wiki authority: `origin/main` `1006d360b2d44b30cf85f5a5aa1915bb384bfc03`; dirty local checkout preserved read-only
+- Runtime: unchanged
 
 ## The story so far
-The user directly accepted the complete pressure-decoupled TE-3 Water/Steam
-phase cycle after Scenes 1–4 were observed consistent. D-027 records **USER
-ACCEPTED WITH KNOWN FOLLOW-UP**. One phase-family Cell remains one Water-
-equivalent quantity, Water creates no extra Steam and Water boiling creates no
-phase pressure. The pressure-volume redesign remains deferred.
+TE-3 remains user accepted with known follow-up. TE-4D v1 is immutable blocked
+history. D-029 authorizes a separate v2 evidence identity with formerly open
+semantic choices fixed before execution.
 
 ## Valid evidence
-- `docs/evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md` — TE3-F01–F15 and final-source FULL; valid only for production source `41467219819c5d0cb3eab8ae22b652449da20480` and its recorded toolchain/profile/configuration.
-- `docs/evidence/TE3_DIRECT_REVIEW_SURFACE_REMEDIATION_2026-08-21.md` — Scenes 2–4 candidate staging and diagnostics at source `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`.
-- `docs/evidence/TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22.md` — 24-byte Sandbox phase profile and observability at source `89d2400d677dec7e39cba76234c18d8b2363a496`.
-- `docs/evidence/TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22.md` — actual Scene 1 ticks `72/320/320/336/552/584`, family `288`, source `e9f4a37...`, and direct user observation.
-- Canonical reviewed artifact SHA-256 `6F2EF0BF49FC39AF550B2CF958DCC5A2F551AAE65ACD9F1735D208519E8E1C0E`, size `10,097,664` bytes.
-- D-027 is a docs/memory-only human disposition and does not rebind or rerun any runtime evidence.
+- TE-3 production evidence remains source-bound to `41467219819c5d0cb3eab8ae22b652449da20480`.
+- v1 script/failure hashes are `886fe5b7...f82` / `6342bad5...c1bb`.
+- v1 attempts/completions are `1/0`; sequences/grids/fixtures are `0/0/0`.
 
 ## Decided
-- D-024 — pressure-decoupled one-Cell/one-quantity TE-3 is the active runtime model.
-- D-025/D-026 — Scenes 1–4 direct observation consistent; Q-015 closed.
-- D-027 — TE-3 **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
-- `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains deferred/not started.
+- D-029 selects exact Oil/Wood tuples, packed u6 exposure, non-Vacuum EMPTY Air-face access, finite chemical-Q accounting and consume-before-emission.
+- New evidence identity: `TE4-IGNITION-KINETICS-REFERENCE-V2`.
+- Future projection: 42 passes/84 queries, 1,344 profiler bytes, zero new persistent/scratch bytes.
 
 ## Waiting on the user
-A new TE-4 reference evidence identity, coefficient tie rule, representation,
-chemical-heat/final-tick rule and Vacuum policy require a later user decision.
-Implementation, TE-5 and G9-B remain separately gated.
+After a successful exactly-once v2 reference and zero-blocker fresh review,
+the user must accept or revise ADR-0012. Runtime remains separately gated.
 
 ## Current authorization
-- D-028 authorizes TE-4D docs/reference design only.
-- Target: integrated excess-temperature dose, cooling decay, previous-snapshot
-  orthogonal flame bonus and finite energy-like chemical heat.
-- Required evidence: one preflighted/frozen reference execution and one
-  fresh-context independent review.
-- ADR-0012 must remain Proposed; TE-4 runtime, Vacuum policy, Oxygen, Ash, FX,
-  Pressure redesign, TE-5/TE-6 and G9-B/C/D/E remain unauthorized/not started.
+Docs/reference only: freeze manifest/script, execute once, bind the result,
+conduct fresh-context review, validate, commit and push explicit paths.
 
 ## Blocker
-- Frozen script SHA-256: `886fe5b7d1f59c2d53856f079067936fcc60bb8b4a6d742fd934256696470f82`.
-- Only execution: attempt 1 / completion 0; sequences/grids/fixtures all 0.
-- Exact failure: `frozen selected coefficient mismatch: Oil.bucket_width`.
-- Cause: equal-metric Oil tuples and an undeclared secondary tie preference.
-- The script cannot be patched or rerun under D-028.
-- Fresh review: Critical 0 / unresolved High 2 / Medium 0. The second High is
-  named-fixture execution/aggregation overclaim in the immutable script.
+None yet for v2. Any execution failure, packed ownership failure, source
+binding/live-range contradiction or unresolved Critical/High finding blocks it.
 
 ## Next first action
-Finish the fresh-context independent review and docs-only validation, then stop
-TE-4D DESIGN BLOCKED. Await a new user decision for another evidence identity.
+Commit and push D-029 separately, then create the manifest before the script.
 
 ## Tried
-- Reused the source-bound runtime, artifact and direct-review receipts; no Cargo, GPU, FULL, build, launch or candidate rerun was needed for this docs-only acceptance.
-- Preserved all blocked TE-5B/C/D/X and phase-packet attempts as history rather than treating TE-3 acceptance as their repair or revival.
+- Verified Wiki origin/main without touching its dirty local checkout.
+- Verified clean synchronized Powdergame `febfdd147...` and started the session.
+- Read v1 failure and source/pass/binding ownership before selecting v2.

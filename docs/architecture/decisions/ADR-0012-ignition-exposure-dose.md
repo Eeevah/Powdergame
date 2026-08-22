@@ -1,8 +1,8 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — DESIGN BLOCKED / USER ARCHITECTURE REVIEW PENDING**
+- Status: **PROPOSED — V2 EVIDENCE REPAIR AUTHORIZED / USER ARCHITECTURE REVIEW PENDING**
 - Date: 2026-08-22
-- Decision authority: D-028
+- Decision authority: D-028 and D-029
 
 ## Context
 
@@ -21,6 +21,10 @@ the WGSL record has 12 explicit padding bytes. The combustion and base activity
 passes each already bind eight storage buffers.
 
 ## Proposed decision
+
+D-029 selects the candidate below for the distinct
+`TE4-IGNITION-KINETICS-REFERENCE-V2` identity. It does not repair or continue
+the immutable v1 process and does not authorize runtime implementation.
 
 Adopt, only after a new evidence authorization, a generic Material-driven rule:
 
@@ -43,7 +47,7 @@ The flame term never bypasses the target Cell's own threshold. It reads only
 `flags_current` and therefore cannot recurse through newly written same-tick
 flames. Connectivity alone has no ignition effect.
 
-The preferred storage candidate is a canonical u6 split across bits 2..3 and
+The selected storage candidate is a canonical u6 split across bits 2..3 and
 28..31. It adds zero persistent bytes and moves with existing Matter flags.
 Every identity replacement, EMPTY, Void, decay, rupture, consumption, Draw,
 Erase, preset and reset must clear it. The current `0x0000FFF3` combustible
@@ -51,7 +55,7 @@ hygiene mask would erase it and therefore must be deliberately revised in a
 future implementation. Reusing fuel progress is rejected because exposure
 reverses while fuel progress is irreversible consumed-fuel state.
 
-The preferred chemical accounting converts the Core Material property to a
+The selected chemical accounting converts the Core Material property to a
 gameplay energy-like gross source while keeping a prederived GPU delta:
 
 ```text
@@ -146,7 +150,20 @@ a top-level PASS while required items remain `NOT_ESTABLISHED`. Chemical-Q cap
 accounting and descriptor range validation findings were resolved in this
 document, but they do not repair or rerun the frozen reference.
 
-Vacuum policy is also intentionally undecided: preserve Air-independent
-combustion, or add a minimal non-Vacuum Air predicate. Neither means Oxygen.
-No runtime work may begin until the user selects a policy and authorizes a new
-reference identity that closes the coefficient-selection blocker.
+## D-029 selected v2 identity
+
+Oil is fixed at `48/2/50/6/1/2/4` and Wood at `60/1/50/5/1/2/4` for
+budget/base/bucket-width/max/decay/flame-bonus/flame-cap. Evidence validates
+these tuples without search. Equal-primary Oil `48/2/25/4/1/2/4` is disclosed
+and rejected by ordered secondary objectives; an unresolved tie blocks.
+
+The policy is `NON_VACUUM_AIR_FACE_REQUIRED`: an orthogonal in-domain EMPTY
+neighbour must have positive current Air mass. Vacuum, Void and occupied GAS
+Matter do not qualify. Air is not consumed or rate-scaled. Access loss
+extinguishes before emission, preserves fuel and clears exposure.
+
+The conservative future graph adds `ignition_exposure_propose` before
+combustion and `ignition_activity_propose` before activity reduction. It
+projects 42 passes/84 queries, 1,344 profiler bytes, no new persistent state
+and no new scratch. Proposal is consumed as context then fully overwritten for
+Smoke. This remains a feasibility projection only.

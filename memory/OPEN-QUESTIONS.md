@@ -508,3 +508,12 @@ label ownership fixtures without executing them and to emit top-level PASS
 despite required `NOT_ESTABLISHED` items. Chemical-Q cap accounting and packed
 descriptor validation findings were resolved in the design response; they do
 not establish runtime or reference evidence.
+
+### 2026-08-22 D-029 v2 authorization
+
+D-029 closes the v1 choice questions without repairing v1: exact Oil/Wood
+tuples, packed u6, `NON_VACUUM_AIR_FACE_REQUIRED`, gross Q `15/8`, cap
+accounting and consume-before-emission are selected for the distinct
+`TE4-IGNITION-KINETICS-REFERENCE-V2` identity. Q-017 remains open only for user
+review of the revised candidate after the one-shot v2 result and independent
+review. Runtime, GPU behavior and product acceptance remain unestablished.

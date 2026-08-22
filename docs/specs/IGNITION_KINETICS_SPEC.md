@@ -1,6 +1,6 @@
 # Ignition Kinetics Specification
 
-Status: **PROPOSED / DESIGN BLOCKED** under D-028 and ADR-0012. This document
+Status: **PROPOSED / V2 EVIDENCE REPAIR AUTHORIZED** under D-029 and ADR-0012. This document
 defines the candidate contract; it is not active production behavior.
 
 ## State and ownership
@@ -26,11 +26,11 @@ previous-snapshot flame events accumulate. Below threshold, exposure decreases
 by the configured positive decay to zero. A flame does not bypass the target's
 threshold, write its identity or inspect same-tick Next flags.
 
-The D-028 preregistered proposal was Oil budget/base/width/max/decay/flame
-`48/2/50/6/1/2` and Wood `60/1/50/5/1/2`, with flame cap `4`. These are
-**NOT SELECTED** because the one-shot evidence stopped on a sweep-selection
-identity mismatch. A new direct decision is required before any coefficient is
-normative.
+V1 selected nothing and remains immutable blocked history. D-029 selects for
+v2 Oil `48/2/50/6/1/2/4` and Wood `60/1/50/5/1/2/4` for
+budget/base/width/max/decay/flame/cap. Evidence identity
+`TE4-IGNITION-KINETICS-REFERENCE-V2` validates these exact values without a
+coefficient search.
 
 ## Chemical heat
 
@@ -51,6 +51,15 @@ base and bucket width; `base<=max<=255`; flame/cap u8 with `cap>=flame`;
 duration 1..4095; finite thresholds/Q/capacity/delta; non-negative Q; positive
 capacity; reserved bits zero. Non-combustible sentinel entries have all
 kinetics and source fields zero. Packing never truncates a larger integer.
+
+## Air-face access
+
+Ignition and burning sustain require an in-domain orthogonal neighbour whose
+foreground Material is EMPTY and current Air mass is positive. Exact Vacuum,
+Void and occupied GAS Matter do not qualify; positive LowPressure does. Air is
+not consumed and no Oxygen quantity or rate scaling exists. Loss of access
+extinguishes before Heat, Flame or Smoke emission that tick, preserves fuel,
+and leaves exposure zero. An inaccessible unlit Cell decays partial exposure.
 
 ## Invariants
 

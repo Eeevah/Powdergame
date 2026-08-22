@@ -37,10 +37,10 @@ fn allocation_and_profiler_contracts_are_exact() {
     let reference_report = AllocationReport::from_layout(reference, &reference_layout);
     assert_eq!(reference_report.total_requested_world_bytes, 251_658_240);
 
-    assert_eq!(PASS_COUNT, 40);
+    assert_eq!(PASS_COUNT, 42);
     assert_eq!(PASS_NAMES.len(), PASS_COUNT);
     assert_eq!(PASS_NAMES[0], "activity_wake");
-    assert_eq!(PASS_NAMES[39], "activity_reduce");
+    assert_eq!(PASS_NAMES[41], "activity_reduce");
     for required in [
         "environment_reconcile_movement",
         "expansion_environment_receiver_claim",
@@ -57,6 +57,8 @@ fn allocation_and_profiler_contracts_are_exact() {
         "phase_context_propose",
         "phase_thermodynamics",
         "phase_activity_propose",
+        "ignition_exposure_propose",
+        "ignition_activity_propose",
     ] {
         assert!(
             PASS_NAMES.contains(&required),

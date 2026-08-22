@@ -2,8 +2,8 @@
 //! DX12).
 //!
 //! Wood and Oil share ONE generic combustion grammar (`REACTION_SPEC` §11):
-//! Material-owned descriptor → ignition / sustain / heat / Smoke request /
-//! flame presentation event. No Oxygen requirement, no Fire Material —
+//! Material-owned descriptor → bounded exposure / Air-gated ignition and
+//! sustain / finite chemical heat / Smoke / flame event. No Oxygen quantity,
 //! flame is Matter + `COMBUSTING` + heat + `FLAME_EVENT`.
 //!
 //! Tick causal order (per tick): movement (Matter carries Temperature AND
@@ -18,17 +18,16 @@
 //! inherits combustion identity/state into the new Smoke.
 
 use powdergame_core::{
-    combustion_flag_mask, decay_age, decay_flag_mask, fuel_progress, vacuum_air_state,
-    with_decay_age, with_fuel_progress, AirState, WorldConfig, FLAG_COMBUSTING, FLAG_FLAME_EVENT,
-    MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_REGISTRY, MATERIAL_SMOKE, MATERIAL_STEAM,
-    MATERIAL_STONE, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
+    combustion_flag_mask, decay_age, decay_flag_mask, fuel_progress, ignition_exposure,
+    vacuum_air_state, with_decay_age, with_fuel_progress, with_ignition_exposure, AirState,
+    WorldConfig, FLAG_COMBUSTING, FLAG_FLAME_EVENT, MATERIAL_EMPTY, MATERIAL_OIL,
+    MATERIAL_REGISTRY, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WOOD,
+    TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::Simulation;
 
-/// A future-subsystem flag bit that combustion must never touch. Chosen
-/// OUTSIDE the combustion-owned bits (0..1 bools, 8..23 fuel progress) so
-/// it cannot collide with the fuel-progress field.
-const TEST_UNRELATED_FLAG: u32 = 1 << 28;
+/// Decay-owned state cannot survive on Oil/Wood after identity hygiene.
+const TEST_UNRELATED_FLAG: u32 = 1 << 27;
 
 /// Gameplay fuel life in active burn ticks (must match the core baseline).
 const COMBUSTION_WOOD_BURN_TICKS: u32 = 900;
@@ -116,6 +115,222 @@ fn seal_eight_at_temperature(sim: &Simulation, x: i64, y: i64, temperature: f32)
     }
 }
 
+/// Blocks movement and Smoke receiver commit while preserving exactly one
+/// orthogonal positive-Air EMPTY face above the fuel.
+fn seal_with_air_pocket(sim: &Simulation, x: i64, y: i64, temperature: f32) {
+    seal_eight_at_temperature(sim, x, y, temperature);
+    set(sim, x, y - 1, MATERIAL_EMPTY);
+    sim.world
+        .write_environment_cell_for_test(
+            &sim.context.queue,
+            x,
+            y - 1,
+            AirState {
+                mass: 1.0,
+                energy: temperature + 273.15,
+            },
+        )
+        .expect("stage isothermal positive-Air pocket");
+    set(sim, x, y - 2, MATERIAL_STONE);
+    set_t(sim, x, y - 2, temperature);
+}
+
+#[test]
+fn te4i_f01_f02_threshold_spikes_and_locked_ignition_ticks() {
+    for (material, temperature, expected_tick, rate) in [
+        (MATERIAL_OIL, 249.0, 24u32, 2u32),
+        (MATERIAL_OIL, 349.0, 12, 4),
+        (MATERIAL_WOOD, 349.0, 60, 1),
+        (MATERIAL_WOOD, 449.0, 20, 3),
+    ] {
+        let mut sim = eight_by_eight();
+        set(&sim, 3, 4, material);
+        set_t(&sim, 3, 4, temperature);
+        seal_with_air_pocket(&sim, 3, 4, temperature);
+        for tick in 1..=expected_tick {
+            sim.tick().expect("production tick");
+            let current = flags(&sim, 3, 4);
+            if tick < expected_tick {
+                assert_eq!(
+                    current & FLAG_COMBUSTING,
+                    0,
+                    "no early ignition at tick {tick}"
+                );
+                assert_eq!(
+                    ignition_exposure(current),
+                    tick * rate,
+                    "material {material} tick {tick} T {}",
+                    temp(&sim, 3, 4)
+                );
+            } else {
+                assert_ne!(current & FLAG_COMBUSTING, 0, "locked ignition tick");
+                assert_eq!(ignition_exposure(current), 0);
+                assert_eq!(fuel_progress(current), 1);
+            }
+        }
+    }
+
+    let mut cooling = eight_by_eight();
+    set(&cooling, 3, 4, MATERIAL_OIL);
+    set_t(&cooling, 3, 4, 249.0);
+    seal_with_air_pocket(&cooling, 3, 4, 249.0);
+    for expected in [2, 4, 6] {
+        cooling.tick().unwrap();
+        assert_eq!(ignition_exposure(flags(&cooling, 3, 4)), expected);
+    }
+    set(&cooling, 3, 3, MATERIAL_STONE); // remove the only Air face
+    for expected in [5, 4, 3] {
+        cooling.tick().unwrap();
+        assert_eq!(ignition_exposure(flags(&cooling, 3, 4)), expected);
+        assert_eq!(flags(&cooling, 3, 4) & FLAG_COMBUSTING, 0);
+    }
+}
+
+#[test]
+fn te4i_f03_f05_previous_flame_bonus_has_no_same_tick_chain() {
+    let mut sim = make_sim(WorldConfig::new(16, 16, 8).unwrap());
+    for x in 5..=7 {
+        set(&sim, x, 8, MATERIAL_WOOD);
+        set_t(&sim, x, 8, 325.0);
+        set(&sim, x, 9, MATERIAL_STONE);
+    }
+    set_flags(&sim, 5, 8, FLAG_COMBUSTING | FLAG_FLAME_EVENT);
+    set_flags(&sim, 6, 8, powdergame_core::with_ignition_exposure(0, 57));
+    set_flags(&sim, 7, 8, powdergame_core::with_ignition_exposure(0, 58));
+
+    sim.tick().unwrap();
+    assert_ne!(
+        flags(&sim, 6, 8) & FLAG_COMBUSTING,
+        0,
+        "previous flame adds two dose"
+    );
+    assert_eq!(
+        flags(&sim, 7, 8) & FLAG_COMBUSTING,
+        0,
+        "new flame is not recursively visible"
+    );
+    assert_eq!(ignition_exposure(flags(&sim, 7, 8)), 59);
+
+    sim.tick().unwrap();
+    assert_ne!(
+        flags(&sim, 7, 8) & FLAG_COMBUSTING,
+        0,
+        "previous-tick flame becomes visible"
+    );
+}
+
+#[test]
+fn te4i_f07_atmosphere_low_pressure_vacuum_and_occupied_gas() {
+    for (state, neighbor, eligible) in [
+        (
+            AirState {
+                mass: 1.0,
+                energy: 573.15,
+            },
+            MATERIAL_EMPTY,
+            true,
+        ),
+        (
+            AirState {
+                mass: 0.1,
+                energy: 57.315,
+            },
+            MATERIAL_EMPTY,
+            true,
+        ),
+        (vacuum_air_state(), MATERIAL_EMPTY, false),
+        (vacuum_air_state(), MATERIAL_STEAM, false),
+        (vacuum_air_state(), MATERIAL_SMOKE, false),
+    ] {
+        let mut sim = eight_by_eight();
+        set(&sim, 3, 4, MATERIAL_WOOD);
+        set_t(&sim, 3, 4, 300.0);
+        seal_eight_at_temperature(&sim, 3, 4, 300.0);
+        set(&sim, 3, 3, neighbor);
+        set(&sim, 3, 2, MATERIAL_STONE);
+        sim.world
+            .write_environment_cell_for_test(&sim.context.queue, 3, 3, state)
+            .unwrap();
+        sim.tick().unwrap();
+        assert_eq!(ignition_exposure(flags(&sim, 3, 4)) > 0, eligible);
+        let after = air(&sim, &[(3, 3)])[0];
+        assert_eq!(after.current, after.next);
+        if neighbor == MATERIAL_EMPTY && state.mass > 0.0 {
+            assert!(after.current.mass > 0.0);
+        }
+    }
+}
+
+#[test]
+fn te4i_f08_actual_sole_air_self_smoke_extinguishes_next_tick() {
+    let mut sim = make_sim(WorldConfig::new(16, 16, 8).unwrap());
+    let source = (8, 8);
+    set(&sim, source.0, source.1, MATERIAL_WOOD);
+    set_t(&sim, source.0, source.1, 500.0);
+    set_flags(
+        &sim,
+        source.0,
+        source.1,
+        FLAG_COMBUSTING | with_fuel_progress(0, 10),
+    );
+    for p in [(7, 8), (8, 7), (8, 9), (7, 7), (9, 7), (10, 7), (10, 8)] {
+        set(&sim, p.0, p.1, MATERIAL_STONE);
+    }
+    set(&sim, 9, 8, MATERIAL_EMPTY); // sole source Air face and lateral Smoke target
+    sim.world
+        .write_environment_cell_for_test(
+            &sim.context.queue,
+            9,
+            8,
+            AirState {
+                mass: 1.0,
+                energy: 293.15,
+            },
+        )
+        .unwrap();
+    set(&sim, 9, 9, MATERIAL_EMPTY); // receiver below Smoke: not a GAS move route
+    sim.world
+        .write_environment_cell_for_test(&sim.context.queue, 9, 9, vacuum_air_state())
+        .unwrap();
+    for p in [(10, 9), (9, 10)] {
+        set(&sim, p.0, p.1, MATERIAL_STONE);
+    }
+
+    sim.tick().unwrap();
+    assert_eq!(cell(&sim, 9, 8), MATERIAL_SMOKE);
+    let after_n = flags(&sim, source.0, source.1);
+    assert_ne!(after_n & FLAG_COMBUSTING, 0);
+    assert_eq!(fuel_progress(after_n), 11);
+    let settled = air(&sim, &[(9, 8), (9, 9)]);
+    assert_eq!(settled[0].current, settled[0].next);
+    assert_eq!(settled[1].current, settled[1].next);
+    assert_eq!(settled[0].current, vacuum_air_state());
+    assert!(
+        (settled[1].current.mass - 1.0).abs() < 1.0e-5,
+        "whole Air mass transfers losslessly"
+    );
+    assert!(settled[1].current.energy.is_finite() && settled[1].current.energy > 0.0);
+
+    let temperature_after_n = temp(&sim, source.0, source.1);
+    sim.tick().unwrap();
+    let after_n1 = flags(&sim, source.0, source.1);
+    assert_eq!(after_n1 & (FLAG_COMBUSTING | FLAG_FLAME_EVENT), 0);
+    assert_eq!(
+        fuel_progress(after_n1),
+        11,
+        "no-Air stage does not consume fuel"
+    );
+    assert!(
+        temp(&sim, source.0, source.1) <= temperature_after_n,
+        "no chemical heat on N+1"
+    );
+    assert_eq!(
+        count_material(&sim, MATERIAL_SMOKE),
+        1,
+        "no second Smoke emission"
+    );
+}
+
 /// Ticks `stride` ticks at a time and checks `pred` before each batch (and
 /// after the final one), up to `max_ticks` total. Returns the tick index at
 /// which the predicate first held (or `None`). GPU readbacks are cheap
@@ -151,10 +366,12 @@ fn tick_until(
 fn hot_oil_ignites() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 350.0); // >= Oil ignition 200
-    seal_eight(&sim, 3, 3);
+    set_t(&sim, 3, 3, 1_000.0);
+    seal_with_air_pocket(&sim, 3, 3, 1_000.0);
 
-    sim.tick().expect("tick");
+    for _ in 0..8 {
+        sim.tick().expect("tick");
+    }
 
     assert_ne!(
         flags(&sim, 3, 3) & FLAG_COMBUSTING,
@@ -177,10 +394,12 @@ fn hot_oil_ignites() {
 fn hot_wood_ignites() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
-    set_t(&sim, 3, 3, 350.0); // >= Wood ignition 300
-    seal_eight(&sim, 3, 3);
+    set_t(&sim, 3, 3, 1_000.0);
+    seal_with_air_pocket(&sim, 3, 3, 1_000.0);
 
-    sim.tick().expect("tick");
+    for _ in 0..12 {
+        sim.tick().expect("tick");
+    }
 
     assert_ne!(
         flags(&sim, 3, 3) & FLAG_COMBUSTING,
@@ -195,7 +414,7 @@ fn cold_oil_does_not_ignite() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
     set_t(&sim, 3, 3, 100.0); // below Oil ignition 200
-    seal_eight(&sim, 3, 3);
+    seal_with_air_pocket(&sim, 3, 3, 20.0);
 
     sim.tick().expect("tick");
 
@@ -229,7 +448,7 @@ fn burning_adds_heat() {
     set(&sim, 3, 3, MATERIAL_OIL);
     set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight(&sim, 3, 3);
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     sim.tick().expect("tick");
 
@@ -273,20 +492,22 @@ fn nonflammable_hot_material_does_not_combust() {
 }
 
 #[test]
-fn no_oxygen_requirement() {
-    // Fully sealed stone chamber: no air concept exists, yet a hot Wood
-    // ignites from its own thermal state alone (REACTION_SPEC §11).
+fn exact_vacuum_has_no_binary_air_access() {
+    // The model has no Oxygen quantity, but it does require at least one
+    // positive-Air EMPTY face. A fully occupied enclosure has none.
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 350.0);
     seal_eight(&sim, 3, 3); // complete enclosure, smoke also blocked
 
-    sim.tick().expect("tick");
+    for _ in 0..100 {
+        sim.tick().expect("tick");
+    }
 
-    assert_ne!(
+    assert_eq!(
         flags(&sim, 3, 3) & FLAG_COMBUSTING,
         0,
-        "sealed Wood ignites"
+        "sealed Wood must not ignite without a positive-Air EMPTY face"
     );
     assert_eq!(
         count_material(&sim, MATERIAL_SMOKE),
@@ -299,10 +520,12 @@ fn no_oxygen_requirement() {
 fn flame_event_emitted_on_ignition() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
-    set_t(&sim, 3, 3, 350.0);
-    seal_eight(&sim, 3, 3);
+    set_t(&sim, 3, 3, 1_000.0);
+    seal_with_air_pocket(&sim, 3, 3, 1_000.0);
 
-    sim.tick().expect("tick");
+    for _ in 0..8 {
+        sim.tick().expect("tick");
+    }
 
     assert_ne!(
         flags(&sim, 3, 3) & FLAG_FLAME_EVENT,
@@ -313,14 +536,13 @@ fn flame_event_emitted_on_ignition() {
 
 #[test]
 fn combustion_flag_ownership_clears_reserved_bits() {
-    // Bit 28 is reserved. TE-1 makes Matter flag ownership exact rather than
-    // preserving unknown state across an identity stage.
-    let unrelated = 1u32 << 28;
+    // A decay-owned bit cannot survive on Oil after identity hygiene.
+    let unrelated = TEST_UNRELATED_FLAG;
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_OIL);
     set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING | unrelated);
-    seal_eight(&sim, 3, 3);
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     sim.tick().expect("tick");
 
@@ -380,6 +602,8 @@ fn burning_matter_swap_carries_flags() {
     set(&sim, 2, 5, MATERIAL_STONE);
     set(&sim, 4, 5, MATERIAL_STONE);
     set(&sim, 3, 6, MATERIAL_STONE);
+    // Orthogonal Air face for the post-swap Oil at (3,5).
+    set(&sim, 4, 5, MATERIAL_EMPTY);
 
     sim.tick().expect("tick");
 
@@ -437,7 +661,7 @@ fn blocked_or_losing_burning_matter_keeps_flags() {
     set(&sim, 3, 3, MATERIAL_OIL);
     set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight(&sim, 3, 3); // fully blocked → no move
+    seal_with_air_pocket(&sim, 3, 3, 350.0); // blocked, with one Air face
 
     sim.tick().expect("tick");
 
@@ -714,7 +938,7 @@ fn flame_event_is_set_on_active_ticks_and_cleared_on_extinguish() {
     set(&active, 3, 3, MATERIAL_OIL);
     set_t(&active, 3, 3, 350.0);
     set_flags(&active, 3, 3, FLAG_COMBUSTING);
-    seal_eight(&active, 3, 3);
+    seal_with_air_pocket(&active, 3, 3, 350.0);
     active.tick().expect("tick");
     active.tick().expect("tick");
     assert_ne!(
@@ -749,7 +973,7 @@ fn thermal_heating_triggers_ignition() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, TEMPERATURE_REFERENCE);
-    // A hot 3×3 stone block around the Wood (8 neighbors, all 300).
+    // A hot stone block around the Wood, leaving one positive-Air face.
     for dx in -1..=1 {
         for dy in -1..=1 {
             if dx != 0 || dy != 0 {
@@ -758,6 +982,7 @@ fn thermal_heating_triggers_ignition() {
             }
         }
     }
+    set(&sim, 3, 2, MATERIAL_EMPTY);
 
     for _ in 0..100 {
         sim.tick().expect("tick");
@@ -807,7 +1032,7 @@ fn wood_eventually_burns_to_empty() {
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 350.0); // >= sustain 250, keeps burning
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight_at_temperature(&sim, 3, 3, 350.0); // no move, no smoke, stable heat bath
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     for _ in 0..=COMBUSTION_WOOD_BURN_TICKS {
         sim.tick().expect("tick");
@@ -833,7 +1058,7 @@ fn oil_eventually_burns_to_empty() {
     set(&sim, 3, 3, MATERIAL_OIL);
     set_t(&sim, 3, 3, 350.0); // >= sustain 150
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight_at_temperature(&sim, 3, 3, 350.0);
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     for _ in 0..=COMBUSTION_OIL_BURN_TICKS {
         sim.tick().expect("tick");
@@ -856,7 +1081,7 @@ fn exact_duration_boundary_is_not_off_by_one() {
     set(&before, 3, 3, MATERIAL_WOOD);
     set_t(&before, 3, 3, 350.0);
     set_flags(&before, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 898));
-    seal_eight(&before, 3, 3);
+    seal_with_air_pocket(&before, 3, 3, 350.0);
     before.tick().expect("tick");
     assert_eq!(
         cell(&before, 3, 3),
@@ -870,7 +1095,7 @@ fn exact_duration_boundary_is_not_off_by_one() {
     set(&exact, 3, 3, MATERIAL_WOOD);
     set_t(&exact, 3, 3, 350.0);
     set_flags(&exact, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 899));
-    seal_eight(&exact, 3, 3);
+    seal_with_air_pocket(&exact, 3, 3, 350.0);
     exact.tick().expect("tick");
     assert_eq!(
         cell(&exact, 3, 3),
@@ -889,7 +1114,7 @@ fn extinguished_wood_keeps_partial_fuel_progress() {
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 20.0); // below sustain 55 → extinguish
     set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 200));
-    seal_eight(&sim, 3, 3);
+    seal_with_air_pocket(&sim, 3, 3, 20.0);
 
     sim.tick().expect("tick");
 
@@ -916,8 +1141,13 @@ fn reignited_wood_continues_from_partial_progress() {
 
     // Reheat past the ignition threshold: reignition continues from the
     // remaining fuel (200 → 201), never restoring fuel.
-    set_t(&sim, 3, 3, 350.0);
-    sim.tick().expect("tick");
+    set_t(&sim, 3, 3, 500.0);
+    seal_with_air_pocket(&sim, 3, 3, 500.0);
+    let reignited = tick_until(&mut sim, 100, 1, |s| flags(s, 3, 3) & FLAG_COMBUSTING != 0);
+    assert!(
+        reignited.is_some(),
+        "reheated fuel must rebuild dose and reignite"
+    );
 
     let f = flags(&sim, 3, 3);
     assert_ne!(f & FLAG_COMBUSTING, 0, "reignited");
@@ -940,6 +1170,7 @@ fn burning_oil_carries_fuel_progress_when_moving() {
     set(&sim, 2, 5, MATERIAL_STONE);
     set(&sim, 4, 5, MATERIAL_STONE);
     set(&sim, 3, 6, MATERIAL_STONE);
+    set(&sim, 4, 5, MATERIAL_EMPTY);
     // (3,5) stays EMPTY → Oil falls one cell.
 
     sim.tick().expect("tick");
@@ -951,6 +1182,33 @@ fn burning_oil_carries_fuel_progress_when_moving() {
         fuel_progress(f),
         51,
         "fuel progress travels with Matter and keeps counting while burning"
+    );
+}
+
+#[test]
+fn packed_exposure_follows_unlit_oil_movement_without_residue() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 4, MATERIAL_OIL);
+    set_t(&sim, 3, 4, 20.0);
+    set_flags(&sim, 3, 4, with_ignition_exposure(0, 23));
+    for p in [(2, 4), (4, 4), (3, 3), (2, 5), (4, 5), (3, 6)] {
+        set(&sim, p.0, p.1, MATERIAL_STONE);
+    }
+    set(&sim, 3, 5, MATERIAL_EMPTY);
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 5), MATERIAL_OIL);
+    assert_eq!(
+        ignition_exposure(flags(&sim, 3, 5)),
+        22,
+        "movement carries dose before one cooling-decay step"
+    );
+    assert_eq!(cell(&sim, 3, 4), MATERIAL_EMPTY);
+    assert_eq!(
+        flags(&sim, 3, 4),
+        0,
+        "vacated source owns no packed residue"
     );
 }
 
@@ -969,6 +1227,7 @@ fn density_swap_carries_fuel_progress_with_identity() {
     set(&sim, 2, 5, MATERIAL_STONE);
     set(&sim, 4, 5, MATERIAL_STONE);
     set(&sim, 3, 6, MATERIAL_STONE);
+    set(&sim, 4, 5, MATERIAL_EMPTY);
 
     sim.tick().expect("tick");
 
@@ -994,12 +1253,40 @@ fn density_swap_carries_fuel_progress_with_identity() {
 }
 
 #[test]
+fn packed_exposure_follows_unlit_oil_density_swap_without_duplication() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 4, MATERIAL_OIL);
+    set_t(&sim, 3, 4, 20.0);
+    set_flags(&sim, 3, 4, with_ignition_exposure(0, 23));
+    set(&sim, 3, 5, MATERIAL_SMOKE);
+    for p in [(3, 3), (2, 4), (4, 4), (2, 5), (4, 5), (3, 6)] {
+        set(&sim, p.0, p.1, MATERIAL_STONE);
+    }
+
+    sim.tick().expect("tick");
+
+    assert_eq!(cell(&sim, 3, 5), MATERIAL_OIL);
+    assert_eq!(ignition_exposure(flags(&sim, 3, 5)), 22);
+    assert_eq!(cell(&sim, 3, 4), MATERIAL_SMOKE);
+    assert_eq!(
+        ignition_exposure(flags(&sim, 3, 4)),
+        0,
+        "displaced Smoke never inherits dose"
+    );
+}
+
+#[test]
 fn void_exit_clears_fuel_progress() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 7, MATERIAL_EMPTY); // open the bottom boundary
     set(&sim, 3, 7, MATERIAL_OIL);
     set_t(&sim, 3, 7, 350.0);
-    set_flags(&sim, 3, 7, with_fuel_progress(FLAG_COMBUSTING, 50));
+    set_flags(
+        &sim,
+        3,
+        7,
+        with_ignition_exposure(with_fuel_progress(FLAG_COMBUSTING, 50), 17),
+    );
     set(&sim, 3, 6, MATERIAL_STONE);
     set(&sim, 2, 7, MATERIAL_STONE);
     set(&sim, 4, 7, MATERIAL_STONE);
@@ -1008,6 +1295,7 @@ fn void_exit_clears_fuel_progress() {
 
     assert_eq!(cell(&sim, 3, 7), MATERIAL_EMPTY, "Oil exits through Void");
     assert_eq!(flags(&sim, 3, 7), 0, "Void exit clears fuel progress");
+    assert_eq!(ignition_exposure(flags(&sim, 3, 7)), 0);
     assert_eq!(temp(&sim, 3, 7), TEMPERATURE_REFERENCE);
     assert_eq!(count_material(&sim, MATERIAL_OIL), 0);
 }
@@ -1017,8 +1305,13 @@ fn edit_replacement_clears_fuel_progress() {
     let mut sim = eight_by_eight();
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 350.0);
-    set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 300));
-    seal_eight(&sim, 3, 3);
+    set_flags(
+        &sim,
+        3,
+        3,
+        with_ignition_exposure(with_fuel_progress(FLAG_COMBUSTING, 300), 17),
+    );
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     // Identity replacement resets the full Matter-owned flags word.
     set(&sim, 3, 3, MATERIAL_STONE);
@@ -1026,6 +1319,7 @@ fn edit_replacement_clears_fuel_progress() {
 
     assert_eq!(cell(&sim, 3, 3), MATERIAL_STONE);
     assert_eq!(fuel_progress(flags(&sim, 3, 3)), 0);
+    assert_eq!(ignition_exposure(flags(&sim, 3, 3)), 0);
     assert_eq!(flags(&sim, 3, 3) & FLAG_COMBUSTING, 0);
 }
 
@@ -1040,9 +1334,12 @@ fn nonflammable_stale_progress_is_removed() {
         &sim,
         3,
         3,
-        FLAG_COMBUSTING | FLAG_FLAME_EVENT | with_fuel_progress(0, 400),
+        with_ignition_exposure(
+            FLAG_COMBUSTING | FLAG_FLAME_EVENT | with_fuel_progress(0, 400),
+            17,
+        ),
     );
-    seal_eight(&sim, 3, 3);
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     sim.tick().expect("tick");
 
@@ -1065,7 +1362,7 @@ fn reserved_flags_are_cleared_during_progress_updates() {
         3,
         with_fuel_progress(FLAG_COMBUSTING, 10) | TEST_UNRELATED_FLAG,
     );
-    seal_eight(&sim, 3, 3);
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     sim.tick().expect("tick");
 
@@ -1106,15 +1403,15 @@ fn fuel_consumption_does_not_delete_neighbor_matter() {
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, with_fuel_progress(FLAG_COMBUSTING, 899));
-    seal_eight(&sim, 3, 3); // 8 Stone neighbors
-    assert_eq!(count_material(&sim, MATERIAL_STONE), 8);
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
+    let stone_before = count_material(&sim, MATERIAL_STONE);
 
     sim.tick().expect("tick"); // consumption tick
 
     assert_eq!(cell(&sim, 3, 3), MATERIAL_EMPTY);
     assert_eq!(
         count_material(&sim, MATERIAL_STONE),
-        8,
+        stone_before,
         "consuming a fuel cell never deletes neighbor Matter"
     );
     assert_eq!(count_material(&sim, MATERIAL_WOOD), 0);
@@ -1223,7 +1520,7 @@ fn long_run_combustion_remains_finite() {
     set(&sim, 3, 3, MATERIAL_WOOD);
     set_t(&sim, 3, 3, 350.0);
     set_flags(&sim, 3, 3, FLAG_COMBUSTING);
-    seal_eight_at_temperature(&sim, 3, 3, 350.0);
+    seal_with_air_pocket(&sim, 3, 3, 350.0);
 
     for _ in 0..200 {
         sim.tick().expect("tick");

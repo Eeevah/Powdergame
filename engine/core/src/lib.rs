@@ -30,12 +30,15 @@ pub use activity::{
 };
 pub use combustion::{
     combustion_descriptor, combustion_flag_mask, combustion_flags_next, combustion_step,
-    combustion_table, fuel_progress, pick_smoke_spawn, with_fuel_progress, CombustionDescriptor,
-    CombustionGpuDescriptor, CombustionResult, SmokeSpawnDirection, COMBUSTION_MAX_TEMPERATURE,
-    COMBUSTION_OIL_BURN_DURATION, COMBUSTION_OIL_HEAT_PER_TICK, COMBUSTION_OIL_IGNITION,
-    COMBUSTION_OIL_SUSTAIN, COMBUSTION_WOOD_BURN_DURATION, COMBUSTION_WOOD_HEAT_PER_TICK,
+    combustion_table, combustion_table_bytes, decode_ignition_context, encode_ignition_context,
+    fuel_progress, ignition_context, ignition_exposure, pick_smoke_spawn, with_fuel_progress,
+    with_ignition_exposure, CombustionDescriptor, CombustionGpuDescriptor, CombustionResult,
+    IgnitionContext, SmokeSpawnDirection, COMBUSTION_FLAG_MASK, COMBUSTION_MAX_TEMPERATURE,
+    COMBUSTION_OIL_BURN_DURATION, COMBUSTION_OIL_CHEMICAL_Q_PER_TICK, COMBUSTION_OIL_IGNITION,
+    COMBUSTION_OIL_SUSTAIN, COMBUSTION_WOOD_BURN_DURATION, COMBUSTION_WOOD_CHEMICAL_Q_PER_TICK,
     COMBUSTION_WOOD_IGNITION, COMBUSTION_WOOD_SUSTAIN, FLAG_COMBUSTING, FLAG_FLAME_EVENT,
-    FLAG_FUEL_PROGRESS_MASK, FLAG_FUEL_PROGRESS_SHIFT,
+    FLAG_FUEL_PROGRESS_MASK, FLAG_FUEL_PROGRESS_SHIFT, FLAG_IGNITION_EXPOSURE_HIGH_MASK,
+    FLAG_IGNITION_EXPOSURE_LOW_MASK, FLAG_IGNITION_EXPOSURE_MASK,
 };
 pub use decay::{
     decay_age, decay_descriptor, decay_flag_mask, decay_step, decay_table, with_decay_age,

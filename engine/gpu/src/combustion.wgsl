@@ -1,15 +1,18 @@
 // G4-C — Combustion pass (own WGSL module; no Rust string scanning).
 //
-// Reads this cell's Material + Temperature + flags, applies the generic
-// combustion rule (Material-owned descriptor table — no material-name
-// branches), and writes ONLY self slots:
+// Consumes the compact ignition context written to `proposal` from the exact
+// combustion-stage snapshot, applies the generic descriptor rule, and then
+// fully overwrites `proposal` with a Smoke request or zero. No material-name
+// branch and no second ignition-predicate implementation lives here.
+// Writes ONLY self slots:
 //   material_next[self], temperature_next[self], flags_next[self],
 //   proposal[self] (smoke spawn).
 // No Claim/Resolve, no atomics (REACTION_SPEC §9/§11).
 //
 // Rule (matches engine/core/src/combustion.rs):
-//   unlit + T >= ignition    → ignite (COMBUSTING + FLAME_EVENT)
-//   burning + T >= sustain   → keep burning, add heat_per_tick
+//   unlit + context ignite   → ignite (active burn tick 1)
+//   burning + Air + sustain → keep burning, add chemical_delta_t
+//   burning + no Air        → extinguish before emission
 //   burning + T  < sustain   → extinguish (COMBUSTING/FLAME_EVENT clear,
 //                              fuel progress PRESERVED)
 //   burning fuel progress    → +1 per active burning tick; reignition
@@ -21,9 +24,9 @@
 //                              (including stale fuel progress)
 //
 // Fire is NOT a Material: flame = Matter + COMBUSTING + heat + FLAME_EVENT
-// presentation signal. Only the combustion-owned bits (bool state + u16
-// fuel progress in bits 8..23) are set/cleared; unrelated future flag bits
-// are preserved.
+// presentation signal. Only the combustion-owned bits (two bool signals,
+// u12 fuel progress in bits 4..15, and u6 exposure in bits 2..3/28..31) are
+// set/cleared; decay ownership bits 16..27 are preserved.
 //
 // A burning source requests AT MOST ONE local 1-cell Smoke spawn into an
 // in-domain EMPTY cell (up → up-diagonal → lateral, parity ordered). The
@@ -53,11 +56,11 @@ struct CombDesc {
     is_combustible: u32,
     ignition: f32,
     sustain: f32,
-    heat_per_tick: f32,
+    chemical_delta_t: f32,
     burn_duration: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
+    budget_decay: u32,
+    thermal_rates: u32,
+    flame_rates: u32,
 };
 
 struct CombTable {
@@ -69,7 +72,11 @@ const FLAG_COMBUSTING: u32 = 1u;
 const FLAG_FLAME_EVENT: u32 = 2u;
 const FLAG_FUEL_PROGRESS_SHIFT: u32 = 4u;
 const FLAG_FUEL_PROGRESS_MASK: u32 = 0x0FFFu << 4u;
-const COMBUSTION_MASK: u32 = FLAG_COMBUSTING | FLAG_FLAME_EVENT | FLAG_FUEL_PROGRESS_MASK;
+const FLAG_EXPOSURE_MASK: u32 = 0xF000000Cu;
+const COMBUSTION_MASK: u32 = 0xF000FFFFu;
+const CONTEXT_EXPOSURE_MASK: u32 = 0x3Fu;
+const CONTEXT_IGNITE: u32 = 1u << 6u;
+const CONTEXT_AIR_ACCESS: u32 = 1u << 7u;
 const TEMPERATURE_REFERENCE: f32 = 20.0;
 const TEMPERATURE_MIN: f32 = -250.0;
 const TEMPERATURE_MAX: f32 = 2000.0;
@@ -103,6 +110,10 @@ fn fuel_progress(f: u32) -> u32 {
 
 fn with_fuel_progress(f: u32, p: u32) -> u32 {
     return (f & ~FLAG_FUEL_PROGRESS_MASK) | ((p & 0x0FFFu) << FLAG_FUEL_PROGRESS_SHIFT);
+}
+
+fn with_exposure(f:u32,e:u32)->u32 {
+    return (f & ~FLAG_EXPOSURE_MASK) | ((e & 3u) << 2u) | (((e >> 2u) & 15u) << 28u);
 }
 
 
@@ -171,6 +182,7 @@ fn combustion_main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let mat = material_current[index];
     let flags = flags_current[index];
+    let context = proposal[index];
 
     if (params.sleep_enabled != 0u) {
         let cx = (index % params.width) / params.chunk_size;
@@ -210,10 +222,9 @@ fn combustion_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
 
-    var burning = (flags & FLAG_COMBUSTING) != 0u;
-    if (!burning && t >= desc.ignition) {
-        burning = true;
-    }
+    let was_burning = (flags & FLAG_COMBUSTING) != 0u;
+    var burning = select((context & CONTEXT_IGNITE) != 0u,
+        (context & CONTEXT_AIR_ACCESS) != 0u, was_burning);
     if (burning && t < desc.sustain) {
         burning = false;
     }
@@ -235,11 +246,11 @@ fn combustion_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
 
-    // Add combustion heat, capped at the gameplay bound but never reducing
+    // Add finite descriptor-derived chemical heat, capped at the gameplay bound but never reducing
     // an already-hotter cell.
     var t_out = t;
     if (burning) {
-        t_out = min(t + desc.heat_per_tick, max(COMBUSTION_MAX_TEMPERATURE, t));
+        t_out = min(t + desc.chemical_delta_t, max(COMBUSTION_MAX_TEMPERATURE, t));
     }
 
     var next_flags = flags & ~COMBUSTION_MASK;
@@ -247,6 +258,9 @@ fn combustion_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         next_flags |= FLAG_COMBUSTING | FLAG_FLAME_EVENT;
     }
     next_flags = with_fuel_progress(next_flags, progress);
+    if (!burning) {
+        next_flags = with_exposure(next_flags, context & CONTEXT_EXPOSURE_MASK);
+    }
 
     temperature_next[index] = sanitize(t_out);
     flags_next[index] = next_flags;

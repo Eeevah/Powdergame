@@ -94,7 +94,7 @@ fn test_profiled_simulation_tick_produces_all_valid_pass_timings() {
         "the second resolved query set must follow the first on the GPU timeline"
     );
     assert_eq!(report.passes.len(), PASS_COUNT);
-    assert_eq!(PASS_COUNT, 40);
+    assert_eq!(PASS_COUNT, 42);
 
     for (i, pass) in report.passes.iter().enumerate() {
         assert_eq!(pass.name, PASS_NAMES[i]);
@@ -380,15 +380,15 @@ fn test_tracked_gpu_allocation_report_structure() {
     // Activity scratch: cell_activity (16 MB) + 6 chunk buffers (6 * 1024 * 4 = 24,576 bytes)
     assert_eq!(mem.activity_scratch_bytes, 4_194_304 * 4 + 1024 * 4 * 6);
 
-    // Profiler: 80 timestamps * 8 bytes * resolve+readback = 1,280 bytes.
-    assert_eq!(mem.profiler_bytes, 1_280);
+    // Profiler: 84 timestamps * 8 bytes * resolve+readback = 1,344 bytes.
+    assert_eq!(mem.profiler_bytes, 1_344);
 
     // Exact persistent inventory: TE-2 adds the Environment and wake uniforms
     // plus one combined thermal table without adding full-resolution scratch.
     // This assertion must fail if tracked_memory_report omits an allocation.
     assert_eq!(mem.uniforms_and_tables_bytes, 2_352);
 
-    assert_eq!(mem.total_tracked_gpu_bytes, 302_018_096);
+    assert_eq!(mem.total_tracked_gpu_bytes, 302_018_160);
 
     assert_eq!(
         mem.total_tracked_gpu_bytes,

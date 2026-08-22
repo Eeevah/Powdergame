@@ -11,6 +11,7 @@ use fontdue::{Font, FontSettings};
 use powdergame_gpu::GpuError;
 
 use crate::gallery::{GalleryHudData, GalleryTransition, GALLERY_CONTROLS};
+use crate::ignition_kinetics::{IgnitionDiagnosticState, IgnitionHudData};
 use crate::inspector::{
     activity_display, chunk_state_display, compact_sample_label, detail_panel_rect, field_display,
     flags_display, freshness_display, material_display_name, phase_energy_display,
@@ -4574,6 +4575,253 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.index_capacity = (self.batch.indices.len() * 3) / 2;
             self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("te2_text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// TE-4I candidate HUD backed only by production Material, Temperature,
+    /// flags and Environment readback.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_ignition_kinetics_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        data: &IgnitionHudData,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+        self.batch.clear();
+        let white = self.atlas.solid_white_uv;
+        let title = [0.96, 0.98, 1.0, 1.0];
+        let header = [1.0, 0.58, 0.20, 1.0];
+        let label = [0.68, 0.75, 0.84, 1.0];
+        let value = [0.96, 0.97, 0.99, 1.0];
+        let ok = [0.42, 0.88, 1.0, 1.0];
+        let card = [0.04, 0.06, 0.09, 0.94];
+        self.batch
+            .draw_text(&self.atlas, 22.0, 18.0, 22, "TE-4 IGNITION KINETICS", title);
+        self.batch.draw_text_right(
+            &self.atlas,
+            sw - 22.0,
+            24.0,
+            14,
+            &format!(
+                "{} | x{} | SIM TICK {}",
+                if data.playing { "PLAYING" } else { "PAUSED" },
+                data.fast,
+                data.simulation_tick
+            ),
+            ok,
+        );
+        self.batch.draw_rect(18.0, 70.0, 430.0, 270.0, card, white);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            88.0,
+            17,
+            &format!("SCENE {}/4", data.scene.number()),
+            header,
+        );
+        self.batch
+            .draw_text(&self.atlas, 32.0, 120.0, 14, data.scene.name(), value);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            150.0,
+            12,
+            data.scene.description(),
+            label,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            194.0,
+            12,
+            "1-4 scene | SPACE play | N step/sample | F speed | I rows | R reset",
+            value,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            224.0,
+            12,
+            "Air access: BINARY NON-VACUUM FACE",
+            header,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            250.0,
+            12,
+            "Oxygen quantity: NOT PRESENT | Ash: NOT IMPLEMENTED",
+            label,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            276.0,
+            12,
+            "Pressure coupling: NOT PART OF TE-4",
+            label,
+        );
+        let x = sw - 650.0;
+        self.batch.draw_rect(x, 70.0, 632.0, 540.0, card, white);
+        self.batch.draw_text(
+            &self.atlas,
+            x + 16.0,
+            88.0,
+            16,
+            "FIXED PRODUCTION DIAGNOSTICS",
+            ok,
+        );
+        match &data.diagnostic {
+            IgnitionDiagnosticState::Fresh(sample) => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    x + 16.0,
+                    120.0,
+                    12,
+                    &format!(
+                        "Fresh | sample {} | Oil {} Wood {} | burning {} | newly ignited {}",
+                        sample.sample_tick,
+                        sample.oil_count,
+                        sample.wood_count,
+                        sample.burning_count,
+                        sample.newly_ignited_count
+                    ),
+                    value,
+                );
+                if data.details_visible {
+                    for (i, row) in sample.rows.iter().enumerate() {
+                        let y = 154.0 + i as f32 * 105.0;
+                        let mat = match row.material {
+                            5 => "Oil",
+                            9 => "Wood",
+                            7 => "Smoke",
+                            0 => "EMPTY",
+                            1 => "Stone",
+                            _ => "Other",
+                        };
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y,
+                            13,
+                            &format!(
+                                "{} | Cell ({}, {}) | Fresh",
+                                row.label, row.cell.0, row.cell.1
+                            ),
+                            ok,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y + 27.0,
+                            12,
+                            &format!(
+                                "{mat} | T {:.2} C | exposure {}/63 | rate {} | flames {}",
+                                row.temperature,
+                                row.exposure,
+                                row.thermal_rate,
+                                row.previous_flames
+                            ),
+                            value,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y + 54.0,
+                            12,
+                            &format!(
+                                "Air {} | burning {} | fuel {}/{} | gross Q {:.1}",
+                                if row.air_access { "YES" } else { "NO" },
+                                if row.burning { "YES" } else { "NO" },
+                                row.fuel_progress,
+                                row.fuel_duration,
+                                row.gross_q_this_tick
+                            ),
+                            header,
+                        );
+                    }
+                } else {
+                    self.batch.draw_text(
+                        &self.atlas,
+                        x + 16.0,
+                        168.0,
+                        13,
+                        "Fixed diagnostic rows collapsed [I]",
+                        label,
+                    );
+                }
+            }
+            IgnitionDiagnosticState::Sampling {
+                generation,
+                sequence,
+                simulation_tick,
+            } => {
+                self.batch.draw_text(&self.atlas,x+16.0,130.0,13,&format!("Sampling | generation {generation} sequence {sequence} tick {simulation_tick}"),header);
+            }
+            IgnitionDiagnosticState::Failed {
+                generation,
+                sequence,
+                simulation_tick,
+                message,
+            } => {
+                self.batch.draw_text(&self.atlas,x+16.0,130.0,12,&format!("Failed | generation {generation} sequence {sequence} tick {simulation_tick} | {message}"),header);
+            }
+        }
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            sh - 31.0,
+            13,
+            "Packed u6 exposure | finite fuel | consume-before-emission | no Oxygen quantity",
+            label,
+        );
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te4_text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te4_text_index_buffer"),
                 size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,

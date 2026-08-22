@@ -180,6 +180,11 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
             expected_readwrite_bindings: &["material_next", "flags_next", "temperature_next"],
         },
         PassContract {
+            name: "ignition_exposure_propose.wgsl",
+            source: include_str!("../src/ignition_exposure_propose.wgsl"),
+            expected_readwrite_bindings: &["proposal"],
+        },
+        PassContract {
             name: "combustion.wgsl",
             source: include_str!("../src/combustion.wgsl"),
             expected_readwrite_bindings: &[
@@ -236,6 +241,11 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
         PassContract {
             name: "environment_activity_propose.wgsl",
             source: include_str!("../src/environment_activity_propose.wgsl"),
+            expected_readwrite_bindings: &["cell_activity"],
+        },
+        PassContract {
+            name: "ignition_activity_propose.wgsl",
+            source: include_str!("../src/ignition_activity_propose.wgsl"),
             expected_readwrite_bindings: &["cell_activity"],
         },
     ];

@@ -18,9 +18,15 @@
 //! §11; finite fuel = `burn_duration_ticks`).
 
 use crate::combustion::{
-    CombustionDescriptor, COMBUSTION_OIL_BURN_DURATION, COMBUSTION_OIL_HEAT_PER_TICK,
-    COMBUSTION_OIL_IGNITION, COMBUSTION_OIL_SUSTAIN, COMBUSTION_WOOD_BURN_DURATION,
-    COMBUSTION_WOOD_HEAT_PER_TICK, COMBUSTION_WOOD_IGNITION, COMBUSTION_WOOD_SUSTAIN,
+    CombustionDescriptor, COMBUSTION_OIL_BURN_DURATION, COMBUSTION_OIL_CHEMICAL_Q_PER_TICK,
+    COMBUSTION_OIL_COOLING_DECAY, COMBUSTION_OIL_FLAME_BONUS, COMBUSTION_OIL_FLAME_BONUS_CAP,
+    COMBUSTION_OIL_IGNITION, COMBUSTION_OIL_IGNITION_BUDGET, COMBUSTION_OIL_SUSTAIN,
+    COMBUSTION_OIL_THERMAL_BASE_RATE, COMBUSTION_OIL_THERMAL_BUCKET_WIDTH_C,
+    COMBUSTION_OIL_THERMAL_MAX_RATE, COMBUSTION_WOOD_BURN_DURATION,
+    COMBUSTION_WOOD_CHEMICAL_Q_PER_TICK, COMBUSTION_WOOD_COOLING_DECAY,
+    COMBUSTION_WOOD_FLAME_BONUS, COMBUSTION_WOOD_FLAME_BONUS_CAP, COMBUSTION_WOOD_IGNITION,
+    COMBUSTION_WOOD_IGNITION_BUDGET, COMBUSTION_WOOD_SUSTAIN, COMBUSTION_WOOD_THERMAL_BASE_RATE,
+    COMBUSTION_WOOD_THERMAL_BUCKET_WIDTH_C, COMBUSTION_WOOD_THERMAL_MAX_RATE,
 };
 use crate::decay::{DecayDescriptor, SMOKE_LIFETIME_TICKS};
 use crate::phase::{PhaseTransition, TemperatureCondition};
@@ -142,8 +148,8 @@ pub struct MaterialDescriptor {
     /// Generic combustion properties (ignition/sustain/heat + fuel life).
     ///
     /// `None` means this Matter never combusts. This is Material data —
-    /// the per-cell `flags` field stores only the combustion bits (bool
-    /// state + u12 fuel progress).
+    /// the per-cell `flags` field stores only the combustion bits (two bool
+    /// signals + packed u6 exposure + u12 fuel progress).
     pub combustion: Option<CombustionDescriptor>,
     /// Generic decay properties (finite lifetime + target material).
     ///
@@ -234,8 +240,15 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         combustion: Some(CombustionDescriptor {
             ignition_threshold: COMBUSTION_OIL_IGNITION,
             sustain_threshold: COMBUSTION_OIL_SUSTAIN,
-            heat_per_tick: COMBUSTION_OIL_HEAT_PER_TICK,
+            chemical_q_per_tick: COMBUSTION_OIL_CHEMICAL_Q_PER_TICK,
             burn_duration_ticks: COMBUSTION_OIL_BURN_DURATION,
+            ignition_budget: COMBUSTION_OIL_IGNITION_BUDGET,
+            thermal_base_rate: COMBUSTION_OIL_THERMAL_BASE_RATE,
+            thermal_bucket_width_c: COMBUSTION_OIL_THERMAL_BUCKET_WIDTH_C,
+            thermal_max_rate: COMBUSTION_OIL_THERMAL_MAX_RATE,
+            cooling_decay: COMBUSTION_OIL_COOLING_DECAY,
+            flame_bonus: COMBUSTION_OIL_FLAME_BONUS,
+            flame_bonus_cap: COMBUSTION_OIL_FLAME_BONUS_CAP,
         }),
         decay: None,
         rupture_threshold: None,
@@ -302,8 +315,15 @@ pub const MATERIAL_REGISTRY: &[MaterialDescriptor] = &[
         combustion: Some(CombustionDescriptor {
             ignition_threshold: COMBUSTION_WOOD_IGNITION,
             sustain_threshold: COMBUSTION_WOOD_SUSTAIN,
-            heat_per_tick: COMBUSTION_WOOD_HEAT_PER_TICK,
+            chemical_q_per_tick: COMBUSTION_WOOD_CHEMICAL_Q_PER_TICK,
             burn_duration_ticks: COMBUSTION_WOOD_BURN_DURATION,
+            ignition_budget: COMBUSTION_WOOD_IGNITION_BUDGET,
+            thermal_base_rate: COMBUSTION_WOOD_THERMAL_BASE_RATE,
+            thermal_bucket_width_c: COMBUSTION_WOOD_THERMAL_BUCKET_WIDTH_C,
+            thermal_max_rate: COMBUSTION_WOOD_THERMAL_MAX_RATE,
+            cooling_decay: COMBUSTION_WOOD_COOLING_DECAY,
+            flame_bonus: COMBUSTION_WOOD_FLAME_BONUS,
+            flame_bonus_cap: COMBUSTION_WOOD_FLAME_BONUS_CAP,
         }),
         decay: None,
         rupture_threshold: Some(crate::rupture::WOOD_RUPTURE_THRESHOLD),
@@ -572,7 +592,10 @@ mod tests {
         let combustion = wood.combustion.expect("Wood must be combustible");
         assert_eq!(combustion.ignition_threshold, COMBUSTION_WOOD_IGNITION);
         assert_eq!(combustion.sustain_threshold, COMBUSTION_WOOD_SUSTAIN);
-        assert_eq!(combustion.heat_per_tick, COMBUSTION_WOOD_HEAT_PER_TICK);
+        assert_eq!(
+            combustion.chemical_q_per_tick,
+            COMBUSTION_WOOD_CHEMICAL_Q_PER_TICK
+        );
         assert_eq!(
             combustion.burn_duration_ticks,
             COMBUSTION_WOOD_BURN_DURATION
@@ -585,7 +608,10 @@ mod tests {
         let combustion = oil.combustion.expect("Oil must be combustible");
         assert_eq!(combustion.ignition_threshold, COMBUSTION_OIL_IGNITION);
         assert_eq!(combustion.sustain_threshold, COMBUSTION_OIL_SUSTAIN);
-        assert_eq!(combustion.heat_per_tick, COMBUSTION_OIL_HEAT_PER_TICK);
+        assert_eq!(
+            combustion.chemical_q_per_tick,
+            COMBUSTION_OIL_CHEMICAL_Q_PER_TICK
+        );
         assert_eq!(combustion.burn_duration_ticks, COMBUSTION_OIL_BURN_DURATION);
     }
 

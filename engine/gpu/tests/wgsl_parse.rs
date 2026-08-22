@@ -65,6 +65,10 @@ fn all_production_wgsl_parses_without_a_gpu() {
             include_str!("../src/phase_energy_hygiene_identity.wgsl"),
         ),
         ("decay.wgsl", include_str!("../src/decay.wgsl")),
+        (
+            "ignition_exposure_propose.wgsl",
+            include_str!("../src/ignition_exposure_propose.wgsl"),
+        ),
         ("combustion.wgsl", include_str!("../src/combustion.wgsl")),
         ("smoke_claim.wgsl", include_str!("../src/smoke_claim.wgsl")),
         (
@@ -117,10 +121,40 @@ fn all_production_wgsl_parses_without_a_gpu() {
             "environment_activity_propose.wgsl",
             include_str!("../src/environment_activity_propose.wgsl"),
         ),
+        (
+            "ignition_activity_propose.wgsl",
+            include_str!("../src/ignition_activity_propose.wgsl"),
+        ),
     ];
 
     for (name, source) in shaders {
         parse(name, source);
+    }
+}
+
+#[test]
+fn te4i_passes_stay_within_the_eight_storage_binding_limit() {
+    for (name, source) in [
+        (
+            "ignition_exposure_propose.wgsl",
+            include_str!("../src/ignition_exposure_propose.wgsl"),
+        ),
+        ("combustion.wgsl", include_str!("../src/combustion.wgsl")),
+        (
+            "ignition_activity_propose.wgsl",
+            include_str!("../src/ignition_activity_propose.wgsl"),
+        ),
+    ] {
+        let module = naga::front::wgsl::parse_str(source).unwrap();
+        let storage_bindings = module
+            .global_variables
+            .iter()
+            .filter(|(_, variable)| matches!(variable.space, naga::AddressSpace::Storage { .. }))
+            .count();
+        assert!(
+            storage_bindings <= 8,
+            "{name} declares {storage_bindings} storage bindings"
+        );
     }
 }
 

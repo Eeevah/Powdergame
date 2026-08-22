@@ -12,7 +12,7 @@
 use crate::context::{GpuContext, GpuError};
 
 /// Total number of distinct compute passes in a single simulation tick.
-pub const PASS_COUNT: usize = 40;
+pub const PASS_COUNT: usize = 42;
 
 /// Total number of timestamp queries per tick (start + end per pass).
 pub const QUERY_COUNT: u32 = (PASS_COUNT as u32) * 2;
@@ -43,6 +43,7 @@ pub const PASS_NAMES: [&str; PASS_COUNT] = [
     "material_flag_hygiene_decay",
     "phase_energy_hygiene_decay",
     "environment_reconcile_decay",
+    "ignition_exposure_propose",
     "combustion",
     "smoke_claim",
     "smoke_environment_receiver_claim",
@@ -58,6 +59,7 @@ pub const PASS_NAMES: [&str; PASS_COUNT] = [
     "activity_propose",
     "phase_activity_propose",
     "environment_activity_propose",
+    "ignition_activity_propose",
     "activity_reduce",
 ];
 
@@ -115,27 +117,30 @@ impl ProfiledTickReport {
             ownership_claim_ms: self.passes[2].duration_ms
                 + self.passes[13].duration_ms
                 + self.passes[14].duration_ms
-                + self.passes[25].duration_ms
-                + self.passes[26].duration_ms,
+                + self.passes[26].duration_ms
+                + self.passes[27].duration_ms,
             thermal_ms: [7usize, 8, 9, 10, 11]
                 .into_iter()
                 .map(|index| self.passes[index].duration_ms)
                 .sum(),
-            reaction_phase_ms: [12usize, 15, 16, 18, 19, 20, 21, 22, 23, 24, 27, 28, 29, 30]
-                .into_iter()
-                .map(|index| self.passes[index].duration_ms)
-                .sum(),
+            reaction_phase_ms: [
+                12usize, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31,
+            ]
+            .into_iter()
+            .map(|index| self.passes[index].duration_ms)
+            .sum(),
             pressure_structure_ms: self.passes[17].duration_ms
-                + self.passes[31].duration_ms
                 + self.passes[32].duration_ms
                 + self.passes[33].duration_ms
                 + self.passes[34].duration_ms
-                + self.passes[35].duration_ms,
+                + self.passes[35].duration_ms
+                + self.passes[36].duration_ms,
             active_sleep_ms: self.passes[0].duration_ms
-                + self.passes[36].duration_ms
                 + self.passes[37].duration_ms
                 + self.passes[38].duration_ms
-                + self.passes[39].duration_ms,
+                + self.passes[39].duration_ms
+                + self.passes[40].duration_ms
+                + self.passes[41].duration_ms,
         }
     }
 }

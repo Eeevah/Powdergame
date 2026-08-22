@@ -9,7 +9,7 @@ struct Params {
 const OIL: u32 = 5u;
 const SMOKE: u32 = 7u;
 const WOOD: u32 = 9u;
-const COMBUSTION_MASK: u32 = 0x0000FFF3u;
+const COMBUSTION_MASK: u32 = 0xF000FFFFu;
 const DECAY_MASK: u32 = 0x0FFF0000u;
 @compute @workgroup_size(64)
 fn material_flag_hygiene_main(@builtin(global_invocation_id) gid: vec3<u32>) {

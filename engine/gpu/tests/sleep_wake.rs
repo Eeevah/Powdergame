@@ -10,11 +10,11 @@
 //! 7. Sleep ON (Sparse Work) and Sleep OFF (Always Active reference) produce semantically equivalent results.
 
 use powdergame_core::{
-    fuel_progress, with_fuel_progress, WorldConfig, CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING,
-    COMBUSTION_WOOD_BURN_DURATION, FLAG_COMBUSTING, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY,
-    MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
-    MATERIAL_WOOD, WAKE_REASON_NEIGHBOR_HALO, WAKE_REASON_NONE, WAKE_REASON_SELF_ACTIVITY,
-    WAKE_REASON_USER_EDIT,
+    fuel_progress, ignition_exposure, with_fuel_progress, with_ignition_exposure, WorldConfig,
+    CHUNK_STATE_RUNNABLE, CHUNK_STATE_SLEEPING, COMBUSTION_WOOD_BURN_DURATION, FLAG_COMBUSTING,
+    MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_SAND, MATERIAL_SMOKE,
+    MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, MATERIAL_WOOD, WAKE_REASON_NEIGHBOR_HALO,
+    WAKE_REASON_NONE, WAKE_REASON_SELF_ACTIVITY, WAKE_REASON_USER_EDIT,
 };
 use powdergame_gpu::Simulation;
 
@@ -477,6 +477,33 @@ fn test_scenario_h_combustion_and_decay_never_sleep_while_active() {
     }
 }
 
+#[test]
+fn test_ignition_exposure_decay_runs_to_zero_before_sleep() {
+    let mut sim = make_sim(WorldConfig::new(64, 64, 32).unwrap());
+    sim.set_sleep_threshold(2);
+    fill_box(&sim, 0, 0, 63, 63, MATERIAL_STONE);
+    fill_box_temp(&sim, 0, 0, 63, 63, 20.0);
+    set_mat(&sim, 16, 16, MATERIAL_WOOD);
+    set_flag(&sim, 16, 16, with_ignition_exposure(0, 3));
+    let target = 16 * 64 + 16;
+
+    for expected in [2, 1] {
+        sim.tick().expect("exposure decay tick");
+        assert_eq!(ignition_exposure(read_flags_vec(&sim)[target]), expected);
+        assert_eq!(read_states(&sim)[0], CHUNK_STATE_RUNNABLE);
+    }
+    sim.tick().expect("exposure reaches zero");
+    assert_eq!(ignition_exposure(read_flags_vec(&sim)[target]), 0);
+    for _ in 0..3 {
+        sim.tick().expect("stable zero");
+    }
+    assert_eq!(
+        read_states(&sim)[0],
+        CHUNK_STATE_SLEEPING,
+        "zero-dose equilibrium may sleep"
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Scenario I: Phase Transitions Wake
 // ─────────────────────────────────────────────────────────────────────────────
@@ -739,10 +766,12 @@ fn test_scenario_k_combustion_lifecycle_equivalence() {
         set_flag(sim, 16, 16, target_flags);
 
         // Smoke spawn blockers around (16, 16)
-        for (dx, dy) in [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0), (0, 1)] {
+        for (dx, dy) in [(0, -1), (-1, -1), (1, -1), (-1, 0), (1, 0)] {
             set_mat(sim, 16 + dx, 16 + dy, MATERIAL_BOUNDARY_BLOCK);
             set_temp(sim, 16 + dx, 16 + dy, 20.0);
         }
+        // Down is an orthogonal positive-Air face but not a Smoke target.
+        set_mat(sim, 16, 17, MATERIAL_EMPTY);
     };
 
     setup(&sim_sleep);
@@ -791,6 +820,9 @@ fn test_scenario_k_combustion_lifecycle_equivalence() {
         set_temp(&sim_sleep, 16 + dx, 16 + dy, ignition_t);
         set_temp(&sim_ref, 16 + dx, 16 + dy, ignition_t);
     }
+    let resume_flags = with_ignition_exposure(with_fuel_progress(0, 100), 55);
+    set_flag(&sim_sleep, 16, 16, resume_flags);
+    set_flag(&sim_ref, 16, 16, resume_flags);
 
     let remaining = (COMBUSTION_WOOD_BURN_DURATION - 100) as usize;
 

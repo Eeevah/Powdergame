@@ -44,6 +44,7 @@
 mod experiment;
 mod g8c_measurement;
 mod gallery;
+mod ignition_kinetics;
 mod inspector;
 mod observatory;
 mod phase_cycle;
@@ -71,6 +72,10 @@ use experiment::{
 };
 use gallery::{
     GalleryHudData, GalleryState, GalleryTransition, RuntimeProvenance, GALLERY_CONTROLS,
+};
+use ignition_kinetics::{
+    IgnitionHudData, IgnitionKineticsScene, IgnitionKineticsState, TE4_CHUNK_SIZE, TE4_TITLE,
+    TE4_TPS, TE4_WORLD_HEIGHT, TE4_WORLD_WIDTH,
 };
 use inspector::{
     CellCoordinate, CellInspectorCollector, InspectorHudData, InspectorProfile, ScreenRect,
@@ -132,6 +137,7 @@ enum DemoMode {
     Thermal,
     ThermalEnvironment,
     PhaseCycle,
+    IgnitionKinetics,
     Pressure,
     ParallelIntegrity,
     Activity,
@@ -151,6 +157,7 @@ impl DemoMode {
             DemoMode::Thermal => THERMAL_DEMO_TPS,
             DemoMode::ThermalEnvironment => TE2_TPS,
             DemoMode::PhaseCycle => TE3_TPS,
+            DemoMode::IgnitionKinetics => TE4_TPS,
             DemoMode::Pressure => PRESSURE_DEMO_TPS,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TPS,
             DemoMode::Activity => ACTIVITY_DEMO_TPS,
@@ -333,6 +340,7 @@ struct App {
     sandbox: Option<SandboxRuntime>,
     thermal_environment: Option<ThermalEnvironmentState>,
     phase_cycle: Option<PhaseCycleState>,
+    ignition_kinetics: Option<IgnitionKineticsState>,
     experiment: Option<ExperimentWorkerConfig>,
     cursor_position: Option<PhysicalPosition<f64>>,
     fatal_error: Option<String>,
@@ -358,6 +366,7 @@ impl App {
             sandbox: None,
             thermal_environment: None,
             phase_cycle: None,
+            ignition_kinetics: None,
             experiment,
             cursor_position: None,
             fatal_error: None,
@@ -371,6 +380,7 @@ impl App {
             DemoMode::Thermal => THERMAL_DEMO_TITLE,
             DemoMode::ThermalEnvironment => TE2_TITLE,
             DemoMode::PhaseCycle => TE3_TITLE,
+            DemoMode::IgnitionKinetics => TE4_TITLE,
             DemoMode::Pressure => PRESSURE_DEMO_TITLE,
             DemoMode::ParallelIntegrity => PARALLEL_INTEGRITY_DEMO_TITLE,
             DemoMode::Activity => ACTIVITY_DEMO_TITLE,
@@ -383,6 +393,7 @@ impl App {
         let (window_w, window_h) = if self.demo_mode == DemoMode::Thermal
             || self.demo_mode == DemoMode::ThermalEnvironment
             || self.demo_mode == DemoMode::PhaseCycle
+            || self.demo_mode == DemoMode::IgnitionKinetics
             || self.demo_mode == DemoMode::Pressure
             || self.demo_mode == DemoMode::ParallelIntegrity
             || self.demo_mode == DemoMode::Activity
@@ -433,6 +444,7 @@ impl App {
                 DemoMode::Thermal => (320, 192),
                 DemoMode::ThermalEnvironment => (TE2_WORLD_WIDTH, TE2_WORLD_HEIGHT),
                 DemoMode::PhaseCycle => (TE3_WORLD_WIDTH, TE3_WORLD_HEIGHT),
+                DemoMode::IgnitionKinetics => (TE4_WORLD_WIDTH, TE4_WORLD_HEIGHT),
                 DemoMode::Pressure => (256, 256),
                 DemoMode::ParallelIntegrity => (256, 256),
                 DemoMode::Activity => (256, 256),
@@ -444,6 +456,7 @@ impl App {
                 DemoMode::Sandbox => SANDBOX_CHUNK_SIZE,
                 DemoMode::ThermalEnvironment => TE2_CHUNK_SIZE,
                 DemoMode::PhaseCycle => TE3_CHUNK_SIZE,
+                DemoMode::IgnitionKinetics => TE4_CHUNK_SIZE,
                 _ => 64,
             };
             WorldConfig::new(w, h, chunk_size).expect("demo world config")
@@ -497,6 +510,11 @@ impl App {
             }
             DemoMode::PhaseCycle => {
                 println!("[powdergame][te3] candidate staging uses production phase/thermal/movement state");
+            }
+            DemoMode::IgnitionKinetics => {
+                println!(
+                    "[powdergame][te4] candidate staging uses production ignition/Air/Smoke state"
+                );
             }
             DemoMode::Pressure => {
                 stage_pressure_demo(&simulation)?;
@@ -552,6 +570,11 @@ impl App {
         } else {
             None
         };
+        let ignition_kinetics = if self.demo_mode == DemoMode::IgnitionKinetics {
+            Some(IgnitionKineticsState::new(&mut simulation)?)
+        } else {
+            None
+        };
 
         let world_view = (self.demo_mode != DemoMode::None).then_some(WorldViewSpec {
             material_buffer: &simulation.world.material_current,
@@ -565,6 +588,7 @@ impl App {
                 DemoMode::Thermal | DemoMode::Pressure => PresentationPalette::ThermalLab,
                 DemoMode::ThermalEnvironment => PresentationPalette::ThermalEnvironment,
                 DemoMode::PhaseCycle => PresentationPalette::ThermalEnvironment,
+                DemoMode::IgnitionKinetics => PresentationPalette::ThermalEnvironment,
                 DemoMode::ParallelIntegrity => PresentationPalette::Integrity,
                 DemoMode::Activity => PresentationPalette::Activity,
                 DemoMode::Gallery => PresentationPalette::Gallery,
@@ -724,6 +748,9 @@ impl App {
             if self.demo_mode == DemoMode::PhaseCycle {
                 println!("[powdergame][te3] scene 1/4 Open beaker cycle | Pressure coupling DEFERRED / NOT ACTIVE IN THIS TE-3 CANDIDATE");
             }
+            if self.demo_mode == DemoMode::IgnitionKinetics {
+                println!("[powdergame][te4] scene 1/4 Spike versus sustained heat | Air access BINARY NON-VACUUM FACE | Oxygen quantity NOT PRESENT");
+            }
             self.demo = Some(demo);
             println!(
                 "[powdergame] window + world view ready; demo {}",
@@ -745,6 +772,7 @@ impl App {
         self.sandbox = sandbox;
         self.thermal_environment = thermal_environment;
         self.phase_cycle = phase_cycle;
+        self.ignition_kinetics = ignition_kinetics;
         Ok(())
     }
 
@@ -944,6 +972,40 @@ impl App {
         window.request_redraw();
     }
 
+    fn select_ignition_kinetics_scene(&mut self, number: u8, window: &Window) {
+        if self.demo_mode != DemoMode::IgnitionKinetics {
+            return;
+        }
+        let Some(scene) = IgnitionKineticsScene::from_number(number) else {
+            return;
+        };
+        let (Some(simulation), Some(candidate), Some(demo)) = (
+            self.simulation.as_mut(),
+            self.ignition_kinetics.as_mut(),
+            self.demo.as_mut(),
+        ) else {
+            return;
+        };
+        demo.playing = false;
+        demo.pending_steps = 0;
+        match candidate.select_scene(simulation, scene) {
+            Ok(()) => {
+                demo.commit_pristine_reset();
+                println!(
+                    "[powdergame][te4] scene {}/4 {} staged | PAUSED",
+                    scene.number(),
+                    scene.name()
+                );
+            }
+            Err(error) => {
+                eprintln!("[powdergame][te4] scene staging failed: {error}");
+                self.fatal_error = Some(error.to_string());
+            }
+        }
+        window.set_title(&demo.title());
+        window.request_redraw();
+    }
+
     fn toggle_sleep(&mut self, window: &Window) {
         if let Some(sim) = &mut self.simulation {
             let next_state = !sim.sleep_enabled;
@@ -1001,6 +1063,16 @@ impl App {
                     let visible = candidate.toggle_details();
                     println!(
                         "[powdergame][te3] fixed diagnostic rows {}",
+                        if visible { "EXPANDED" } else { "COLLAPSED" }
+                    );
+                    window.request_redraw();
+                }
+            }
+            DemoMode::IgnitionKinetics => {
+                if let Some(candidate) = &mut self.ignition_kinetics {
+                    let visible = candidate.toggle_details();
+                    println!(
+                        "[powdergame][te4] fixed diagnostic rows {}",
                         if visible { "EXPANDED" } else { "COLLAPSED" }
                     );
                     window.request_redraw();
@@ -2165,6 +2237,9 @@ fn reset_demo_world(
         DemoMode::PhaseCycle => Err(GpuError::Other(
             "TE-3 candidate resets are owned by PhaseCycleState".to_string(),
         )),
+        DemoMode::IgnitionKinetics => Err(GpuError::Other(
+            "TE-4 candidate resets are owned by IgnitionKineticsState".to_string(),
+        )),
         DemoMode::Pressure => stage_pressure_demo(simulation),
         DemoMode::ParallelIntegrity => stage_parallel_integrity_demo(simulation),
         DemoMode::Activity | DemoMode::Gallery => unreachable!("handled above"),
@@ -2177,6 +2252,7 @@ fn reset_demo_world(
 
 /// Advances the demo simulation: pending reset/step first, then the
 /// fixed-rate play loop (mode TPS), decoupled from the render rate.
+#[allow(clippy::too_many_arguments)]
 fn step_demo(
     simulation: &mut Simulation,
     demo: &mut DemoState,
@@ -2184,6 +2260,7 @@ fn step_demo(
     cell_inspector: &mut Option<CellInspectorCollector>,
     thermal_environment: &mut Option<ThermalEnvironmentState>,
     phase_cycle: &mut Option<PhaseCycleState>,
+    ignition_kinetics: &mut Option<IgnitionKineticsState>,
     mode: DemoMode,
 ) {
     if demo.reset_pending {
@@ -2193,6 +2270,8 @@ fn step_demo(
         let reset_result = if let Some(candidate) = thermal_environment.as_mut() {
             candidate.reset(simulation)
         } else if let Some(candidate) = phase_cycle.as_mut() {
+            candidate.reset(simulation)
+        } else if let Some(candidate) = ignition_kinetics.as_mut() {
             candidate.reset(simulation)
         } else {
             reset_demo_world(simulation, mode, gallery_scenario)
@@ -2248,6 +2327,8 @@ fn step_demo(
             candidate.single_step(simulation)
         } else if let Some(candidate) = phase_cycle.as_mut() {
             candidate.tick(simulation, true)
+        } else if let Some(candidate) = ignition_kinetics.as_mut() {
+            candidate.tick(simulation, true)
         } else {
             simulation.tick()
         };
@@ -2288,6 +2369,8 @@ fn step_demo(
                 let tick_result = if let Some(candidate) = thermal_environment.as_mut() {
                     candidate.tick_playing(simulation)
                 } else if let Some(candidate) = phase_cycle.as_mut() {
+                    candidate.tick(simulation, false)
+                } else if let Some(candidate) = ignition_kinetics.as_mut() {
                     candidate.tick(simulation, false)
                 } else {
                     simulation.tick()
@@ -2480,8 +2563,10 @@ fn should_toggle_candidate_diagnostics(
     repeat: bool,
     character: Option<&str>,
 ) -> bool {
-    matches!(mode, DemoMode::ThermalEnvironment | DemoMode::PhaseCycle)
-        && !experiment_worker
+    matches!(
+        mode,
+        DemoMode::ThermalEnvironment | DemoMode::PhaseCycle | DemoMode::IgnitionKinetics
+    ) && !experiment_worker
         && state == ElementState::Pressed
         && !repeat
         && character.is_some_and(|value| value.eq_ignore_ascii_case("i"))
@@ -2492,6 +2577,7 @@ fn fast_forward_is_enabled(mode: DemoMode) -> bool {
         mode,
         DemoMode::ThermalEnvironment
             | DemoMode::PhaseCycle
+            | DemoMode::IgnitionKinetics
             | DemoMode::ParallelIntegrity
             | DemoMode::Activity
             | DemoMode::Gallery
@@ -2609,6 +2695,13 @@ impl ApplicationHandler for App {
                         self.select_phase_cycle_scene(number, &window);
                     }
                     Key::Character(ref c)
+                        if self.demo_mode == DemoMode::IgnitionKinetics
+                            && matches!(c.as_str(), "1" | "2" | "3" | "4") =>
+                    {
+                        let number = c.as_bytes()[0] - b'0';
+                        self.select_ignition_kinetics_scene(number, &window);
+                    }
+                    Key::Character(ref c)
                         if self.demo_mode == DemoMode::Sandbox
                             && sandbox_key_action(c).is_some() =>
                     {
@@ -2694,6 +2787,7 @@ impl ApplicationHandler for App {
                             &mut self.cell_inspector,
                             &mut self.thermal_environment,
                             &mut self.phase_cycle,
+                            &mut self.ignition_kinetics,
                             self.demo_mode,
                         );
                         if refresh_title {
@@ -2840,6 +2934,21 @@ impl ApplicationHandler for App {
                     } else {
                         None
                     };
+                let ignition_hud: Option<IgnitionHudData> =
+                    if self.demo_mode == DemoMode::IgnitionKinetics {
+                        match (
+                            self.ignition_kinetics.as_ref(),
+                            self.demo.as_ref(),
+                            self.simulation.as_ref(),
+                        ) {
+                            (Some(candidate), Some(demo), Some(simulation)) => Some(
+                                candidate.hud_data(demo.playing, demo.fast, simulation.tick_count),
+                            ),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
                 if let Some(renderer) = &mut self.renderer {
                     let hud_data = match self.demo_mode {
                         DemoMode::Thermal => self.observatory_collector.as_ref().map(|c| {
@@ -2854,6 +2963,9 @@ impl ApplicationHandler for App {
                         DemoMode::PhaseCycle => {
                             phase_cycle_hud.as_ref().map(renderer::HudData::PhaseCycle)
                         }
+                        DemoMode::IgnitionKinetics => ignition_hud
+                            .as_ref()
+                            .map(renderer::HudData::IgnitionKinetics),
                         DemoMode::Pressure => self.observatory_collector.as_ref().map(|c| {
                             renderer::HudData::Pressure(
                                 c.pressure_metrics(),
@@ -2915,6 +3027,27 @@ impl ApplicationHandler for App {
                             );
                             println!("[powdergame][te3][bounded-measurement] frames={} ticks={} wall_tps={:.2} {}",
                                 self.frames_rendered, self.simulation.as_ref().map_or(0, |s| s.tick_count), throughput, summary);
+                        }
+                        if self.demo_mode == DemoMode::IgnitionKinetics {
+                            let throughput = self
+                                .demo
+                                .as_ref()
+                                .and_then(|demo| {
+                                    demo.rate_started.map(|start| {
+                                        let seconds = start.elapsed().as_secs_f64();
+                                        if seconds > 0.0 {
+                                            demo.rate_ticks as f64 / seconds
+                                        } else {
+                                            0.0
+                                        }
+                                    })
+                                })
+                                .unwrap_or(0.0);
+                            let summary = self.ignition_kinetics.as_ref().map_or_else(
+                                || "sample=unavailable".to_string(),
+                                IgnitionKineticsState::measurement_summary,
+                            );
+                            println!("[powdergame][te4][bounded-measurement] frames={} ticks={} wall_tps={:.2} {}",self.frames_rendered,self.simulation.as_ref().map_or(0,|s|s.tick_count),throughput,summary);
                         }
                         println!(
                             "[powdergame] smoke run complete after {} frames; exiting",
@@ -3042,6 +3175,7 @@ where
             "--thermal-demo" => return Some(DemoMode::Thermal),
             "--thermal-environment-candidate" => return Some(DemoMode::ThermalEnvironment),
             "--phase-cycle-candidate" => return Some(DemoMode::PhaseCycle),
+            "--ignition-kinetics-candidate" => return Some(DemoMode::IgnitionKinetics),
             "--pressure-demo" => return Some(DemoMode::Pressure),
             "--parallel-integrity-demo" => return Some(DemoMode::ParallelIntegrity),
             "--activity-demo" => return Some(DemoMode::Activity),
@@ -3446,6 +3580,11 @@ fn main() {
              Starts PAUSED (1-4 scene | SPACE play | N step/sample | F speed | I rows | R reset | ESC quit). \
              Pressure coupling: DEFERRED / NOT ACTIVE IN THIS TE-3 CANDIDATE"
         ),
+        DemoMode::IgnitionKinetics => println!(
+            "[powdergame] TE-4 Ignition Kinetics candidate: 256x192, four scenes, 60 TPS. \
+             Starts PAUSED (1-4 scene | SPACE play | N step/sample | F speed | I rows | R reset | ESC quit). \
+             Air access: BINARY NON-VACUUM FACE | Oxygen quantity: NOT PRESENT | Ash: NOT IMPLEMENTED | Pressure coupling: NOT PART OF TE-4"
+        ),
         DemoMode::Pressure => println!(
             "[powdergame] pressure demo: 128×128 twin boilers, 60 TPS. \
              LEFT Wood relief plug should rupture/vent; RIGHT Stone control stays sealed. \
@@ -3578,6 +3717,7 @@ mod tests {
                 DemoMode::ThermalEnvironment,
             ),
             ("--phase-cycle-candidate", DemoMode::PhaseCycle),
+            ("--ignition-kinetics-candidate", DemoMode::IgnitionKinetics),
             ("--pressure-demo", DemoMode::Pressure),
             ("--parallel-integrity-demo", DemoMode::ParallelIntegrity),
             ("--activity-demo", DemoMode::Activity),
@@ -3672,9 +3812,13 @@ mod tests {
     }
 
     #[test]
-    fn candidate_i_and_fast_forward_controls_cover_te2_and_te3_only() {
+    fn candidate_i_and_fast_forward_controls_cover_te2_te3_and_te4() {
         for character in ["i", "I"] {
-            for mode in [DemoMode::ThermalEnvironment, DemoMode::PhaseCycle] {
+            for mode in [
+                DemoMode::ThermalEnvironment,
+                DemoMode::PhaseCycle,
+                DemoMode::IgnitionKinetics,
+            ] {
                 assert!(should_toggle_candidate_diagnostics(
                     mode,
                     false,
@@ -3735,6 +3879,7 @@ mod tests {
 
         assert!(fast_forward_is_enabled(DemoMode::ThermalEnvironment));
         assert!(fast_forward_is_enabled(DemoMode::PhaseCycle));
+        assert!(fast_forward_is_enabled(DemoMode::IgnitionKinetics));
         for mode in [
             DemoMode::ParallelIntegrity,
             DemoMode::Activity,

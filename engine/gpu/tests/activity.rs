@@ -391,6 +391,8 @@ fn ignition_heat_wakes_sleep_candidate_wood() {
     // Cold Wood sealed in Stone: STATIC, no frontier, stable.
     fill_rect(&sim, 8, 8, 55, 55, MATERIAL_STONE);
     fill_rect(&sim, 30, 20, 33, 21, MATERIAL_WOOD);
+    // The ignition contract requires an actual positive-Air EMPTY face.
+    set(&sim, 29, 20, MATERIAL_EMPTY);
 
     sim.tick().expect("tick 1");
     sim.tick().expect("tick 2");
@@ -398,8 +400,8 @@ fn ignition_heat_wakes_sleep_candidate_wood() {
     assert_eq!(chunk_activity(&sim)[0], 0);
     assert_eq!(chunk_stable(&sim)[0], 3);
 
-    // Ignition heat arrives (Wood above its 300 C threshold): combustion
-    // starts → reaction + thermal frontier, stable counter resets.
+    // Ignition heat arrives (Wood above its 300 C threshold) at the real Air
+    // face: exposure work wakes the chunk and resets the stable counter.
     for y in 20..=21 {
         for x in 30..=33 {
             set_t(&sim, x, y, 350.0);

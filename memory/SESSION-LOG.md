@@ -559,3 +559,15 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - D-026 records Scene 1 as direct-observation consistent and closes Q-015.
 - No runtime source or evidence changed; no tests, FULL, build, or launch ran.
 - Whole-candidate acceptance remains a separate direct user disposition.
+
+## 2026-08-22 · TE-3 direct user-acceptance closure
+
+- D-027 records the pressure-decoupled TE-3 Water/Steam phase cycle as **USER
+  ACCEPTED WITH KNOWN FOLLOW-UP** after Scenes 1–4 direct observation closed
+  consistent.
+- Production physics `4146721...`, Scene 1 app source `e9f4a37...`, automatic
+  evidence, artifact identities and limitations remain unchanged.
+- `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains deferred/not started; no
+  blocked TE-5 or packet design is revived and TE-4/G9-B/C/D/E remain gated.
+- This docs/memory-only closure reran no Cargo, GPU, FULL, build, application
+  launch or candidate validation.

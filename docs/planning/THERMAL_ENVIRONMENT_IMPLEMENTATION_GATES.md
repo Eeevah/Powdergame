@@ -1,6 +1,6 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 accepted; pressure-decoupled TE-3 candidate implemented; TE-5B/C/D/X and packet designs blocked; Pressure redesign deferred
+- **Status:** TE-2 and pressure-decoupled TE-3 accepted with known follow-up; TE-5B/C/D/X and packet designs blocked; Pressure redesign deferred
 - **Architecture:** D-013 through D-022 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007 through ADR-0010
 - **Rule:** no task may silently include the physics of a later gate
 
@@ -316,7 +316,7 @@ TE-2   USER ACCEPTED WITH KNOWN FOLLOW-UP
 Air transport / unified passive thermal exchange   IMPLEMENTED
 TE-3D  ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS
 ADR-0006  ACCEPTED / IMPLEMENTED AS PRESSURE-DECOUPLED CANDIDATE
-TE-3 runtime  WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
+TE-3 runtime  USER ACCEPTED WITH KNOWN FOLLOW-UP
 TE-5B phase-volume bridge design  DESIGN BLOCKED / FINITE-CAPACITY HIGH OPEN
 ADR-0007  PROPOSED / USER ARCHITECTURE REVISION REQUIRED
 TE-5B runtime  NOT STARTED

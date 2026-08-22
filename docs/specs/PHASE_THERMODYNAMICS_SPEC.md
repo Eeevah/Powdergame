@@ -1,8 +1,8 @@
 # Phase Thermodynamics Specification
 
-- **Status:** IMPLEMENTED CANDIDATE / USER REVIEW PENDING
+- **Status:** IMPLEMENTED / USER ACCEPTED WITH KNOWN FOLLOW-UP
 - **ADR:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
-- **Decision:** D-018 amended by D-024; D-023 packet candidate rejected
+- **Decision:** D-018 amended by D-024; D-023 packet candidate rejected; runtime accepted by D-027
 - **Runtime:** implemented at `41467219819c5d0cb3eab8ae22b652449da20480`
 - **Proposed completion bridge:** [`PHASE_VOLUME_PRESSURE_BRIDGE_SPEC`](PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md), D-019 design only
 - **Normative architecture:** accepted local phase enthalpy and one-Cell/one-quantity D-024 runtime

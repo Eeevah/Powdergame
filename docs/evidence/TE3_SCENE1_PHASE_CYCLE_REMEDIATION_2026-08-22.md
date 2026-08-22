@@ -1,6 +1,6 @@
 # TE-3 Scene 1 Phase-Cycle Remediation — 2026-08-22
 
-- **Disposition:** DIRECT OBSERVATION CONSISTENT / WHOLE-CANDIDATE DISPOSITION PENDING
+- **Disposition:** DIRECT OBSERVATION CONSISTENT / TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP (D-027)
 - **App source:** `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`
 - **Task baseline:** `a40caee00eec3d2357b6096dcf9c21dc76dc5cd7`
 - **Production physics:** `41467219819c5d0cb3eab8ae22b652449da20480` — unchanged
@@ -82,3 +82,11 @@ After rebuilding source `e9f4a37...`, the user directly confirmed that Steam
 is created, rises, condenses, and the resulting Water falls. D-026 records
 Scene 1 as **DIRECT OBSERVATION CONSISTENT** and closes Q-015. This observation
 does not by itself declare the whole TE-3 candidate user accepted.
+
+## Whole-candidate disposition
+
+The user subsequently closed TE-3 as **USER ACCEPTED WITH KNOWN FOLLOW-UP**.
+D-027 preserves this Scene 1 observation, D-025's Scenes 2–4 observations and
+all source/artifact boundaries. The known follow-up is
+`WATER_STEAM_PRESSURE_VOLUME_REDESIGN`; it remains deferred/not started and is
+not implied by this acceptance.

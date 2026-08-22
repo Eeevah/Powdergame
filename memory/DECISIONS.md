@@ -826,3 +826,29 @@ remain not started.
 
 Invalidated by: a later explicit user supersession or source-bound evidence
 that contradicts the recorded observations or 24-byte profile contract.
+
+## D-027 · Accept TE-3 with known follow-up — 2026-08-22 (source: direct user disposition in this task)
+
+Decision: Close the pressure-decoupled TE-3 Water/Steam phase-cycle candidate
+as **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Preserve D-024's one-Cell/one-
+Water-equivalent quantity contract, D-025's Scenes 2–4 direct observations and
+D-026's Scene 1 direct observation. The accepted product line creates no extra
+Steam quantity and no Water phase-pressure source.
+
+Known follow-up: `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains **DEFERRED /
+NOT STARTED**. Acceptance does not select or revive any blocked TE-5B/C/D/X or
+phase-packet model and does not authorize TE-5, TE-4, G9-B/C/D/E, optimization,
+Powdergame main promotion or a new runtime task.
+
+Evidence: production physics
+`41467219819c5d0cb3eab8ae22b652449da20480`; app/Scene 1 source
+`e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`; source-bound TE3-F01–F15/FULL
+receipt; D-025/D-026 direct observations; canonical artifact SHA-256
+`6F2EF0BF49FC39AF550B2CF958DCC5A2F551AAE65ACD9F1735D208519E8E1C0E`.
+This closure is docs/memory-only and reuses those receipts without rerunning
+Cargo, GPU, FULL, build, launch or candidate validation.
+
+Invalidated by: a later explicit user supersession or authenticated,
+source-bound evidence contradicting the accepted quantity, phase, review or
+artifact claims. A future pressure redesign is a new gated claim and does not
+rewrite this acceptance.

@@ -1,6 +1,6 @@
 # TE-3 Water / Steam Phase Accounting
 
-- **Status:** WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
+- **Status:** USER ACCEPTED WITH KNOWN FOLLOW-UP
 - **Registered from:** direct Sandbox observation after TE-2 review
 - **Audited production-physics source:** `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **Design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
@@ -266,5 +266,6 @@ Steam as one unit and compressed Steam as two units. Its new reference process
 passed mathematical conservation/grid checks; independent and user
 architecture review were never completed; TE-3Q/TE-5Q remains blocked history.
 
-Current stop: **TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW
-PENDING**. Pressure redesign, TE-4 and G9-B/C/D/E remain **NOT STARTED**.
+Current stop: **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** under D-027.
+`WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains **DEFERRED / NOT STARTED**;
+TE-4 and G9-B/C/D/E remain **NOT STARTED** and require separate authorization.

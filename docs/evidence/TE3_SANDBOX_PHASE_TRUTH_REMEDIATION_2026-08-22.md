@@ -1,6 +1,6 @@
 # TE-3 Sandbox Phase Truth and One-Click Review Remediation — 2026-08-22
 
-- **Disposition:** REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW IN PROGRESS
+- **Disposition:** DIRECT OBSERVATION CONSISTENT / TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP (D-027)
 - **App candidate source:** `89d2400d677dec7e39cba76234c18d8b2363a496`
 - **Production-physics source:** `41467219819c5d0cb3eab8ae22b652449da20480` — unchanged
 - **Task baseline:** `f1f1a8532fab3e2d7d541562643a9bebee61000f`
@@ -22,7 +22,8 @@ not full TE-3 acceptance.
   plateau and no whole lane converted in one tick.
 - Scene 4: **DIRECT OBSERVATION CONSISTENT**. Both partial reversals, true
   no-sink hold, restored-face wake and eventual Water were visible.
-- Scene 1: **USER REVIEW PENDING**.
+- Scene 1: superseded for fixture/review by source `e9f4a37...`; direct
+  observation later closed consistent under D-026.
 
 The Sandbox observation of a large upper Steam cloud, some condensed falling
 Water and Water appearing at exactly `100 C` is interpreted in the actual
@@ -140,7 +141,7 @@ The shortcut was created through the resolved Windows Desktop known folder,
 verified by reading its saved COM properties, and is not tracked by Git. No
 second executable or launcher was created.
 
-## Remaining Scene 1 direct review
+## Historical Scene 1 direct-review checklist
 
 1. Start the Desktop shortcut and leave Scene 1 selected.
 2. Confirm Water count never multiplies and family quantity remains stable.
@@ -164,3 +165,11 @@ this receipt's Scene 1 review route therefore failed. App source `e9f4a37...`
 supersedes only that candidate fixture and adds an actual ordered 584-tick
 boil/rise/condense/fall check. See
 [`TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22`](TE3_SCENE1_PHASE_CYCLE_REMEDIATION_2026-08-22.md).
+
+## Final direct disposition
+
+D-027 records the complete TE-3 candidate as **USER ACCEPTED WITH KNOWN
+FOLLOW-UP** after Scenes 1–4 were directly observed as consistent. This does
+not reactivate the failed Scene 1 fixture in this receipt or change any
+source-bound validation result. `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains
+deferred/not started.

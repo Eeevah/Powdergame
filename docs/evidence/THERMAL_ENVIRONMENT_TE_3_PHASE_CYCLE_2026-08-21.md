@@ -1,6 +1,6 @@
 # TE-3 Water/Steam Phase-Cycle Runtime Evidence — 2026-08-21
 
-- **Disposition:** WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
+- **Disposition:** USER ACCEPTED WITH KNOWN FOLLOW-UP (D-027)
 - **Runtime source:** `41467219819c5d0cb3eab8ae22b652449da20480`
 - **Decision:** D-024
 - **Architecture:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
@@ -139,8 +139,8 @@ that product contract.
 The candidate starts paused, contains four phase-cycle review scenes and
 states `Pressure coupling: DEFERRED / NOT ACTIVE IN THIS TE-3 CANDIDATE`.
 `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is deferred/not started. TE-4,
-G9-B/C/D/E, official capture, PR, main merge and user acceptance claim counts
-are zero.
+G9-B/C/D/E, official capture, PR and main merge counts are zero for the runtime
+evidence task. D-027 later supplies the separate direct user-acceptance claim.
 
 ## Direct-review surface remediation
 
@@ -149,3 +149,12 @@ source `c2f4f2bb16b00801a72ff6e4a54726cc69674bad` revises only Windows Scene
 2–4 staging and fixed multi-sample diagnostics. It has its own targeted receipt:
 [`TE3_DIRECT_REVIEW_SURFACE_REMEDIATION_2026-08-21`](TE3_DIRECT_REVIEW_SURFACE_REMEDIATION_2026-08-21.md).
 No new FULL was run or claimed.
+
+## 2026-08-22 direct user disposition
+
+After direct review of all four remediated scenes, the user closed TE-3 as
+**USER ACCEPTED WITH KNOWN FOLLOW-UP**. D-027 changes only the human product
+disposition: it does not alter this receipt's runtime source, commands,
+automatic results, artifact identities or limitations. The known follow-up is
+`WATER_STEAM_PRESSURE_VOLUME_REDESIGN`, which remains deferred/not started.
+TE-5, TE-4 and G9-B/C/D/E remain separately gated.

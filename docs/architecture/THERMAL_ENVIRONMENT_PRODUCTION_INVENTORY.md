@@ -4,7 +4,7 @@
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
 - **Scope:** implemented TE-1/TE-2/pressure-decoupled TE-3 graph plus blocked TE-5 and packet history
-- **Runtime status:** TE-2 accepted; TE-3 candidate at `41467219819c5d0cb3eab8ae22b652449da20480`; Pressure redesign deferred/not started
+- **Runtime status:** TE-2 and TE-3 user accepted with known follow-up; TE-3 production physics `41467219819c5d0cb3eab8ae22b652449da20480`; Pressure redesign deferred/not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
 Section 8 is the implemented TE-2 34-pass delta. Section 9 began as the D-018

@@ -1,6 +1,6 @@
 # TE-3 Direct Review Surface Remediation — 2026-08-21
 
-- **Disposition:** REVISED WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
+- **Disposition:** DIRECT OBSERVATION CONSISTENT / TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP (D-027)
 - **Candidate source:** `c2f4f2bb16b00801a72ff6e4a54726cc69674bad`
 - **Production-physics source:** `41467219819c5d0cb3eab8ae22b652449da20480` — unchanged
 - **Task baseline:** `6a7598a4fe6bcec98a73bf83356accba436cc646`
@@ -113,7 +113,8 @@ frames. Its 14 simulation ticks do not prove a phase cycle.
 - Size: 10,095,104 bytes
 
 Pressure redesign remains deferred/not started. TE-4 and G9-B/C/D/E remain
-not started. Direct user review is still required.
+not started. At this receipt boundary direct user review was still required;
+D-025, D-026 and D-027 later close that review without rebinding this evidence.
 
 ## 2026-08-22 partial direct review and observability follow-up
 
@@ -124,3 +125,11 @@ Sandbox phase-energy Inspector profile, sealed-world disclosure, truthful
 probe labels and a finite cold-lid reservoir. Production physics remains
 `4146721...`. Current receipt:
 [`TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22`](TE3_SANDBOX_PHASE_TRUTH_REMEDIATION_2026-08-22.md).
+
+## Final direct disposition
+
+D-025 records Scenes 2–4 as direct-observation consistent. After the separate
+Scene 1 remediation and review, D-027 records the whole TE-3 candidate as
+**USER ACCEPTED WITH KNOWN FOLLOW-UP**. This later disposition does not rewrite
+the source-bound tests, artifact or launch limitations above. Pressure redesign
+remains deferred/not started.

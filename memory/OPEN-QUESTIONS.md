@@ -463,3 +463,15 @@ The user directly observed Steam creation, ordinary rise, condensation, and
 falling Water in the remediated Scene 1. Q-015 is closed as **DIRECT
 OBSERVATION CONSISTENT**. Whole-candidate acceptance remains a separate direct
 user disposition; none is inferred here.
+
+## Q-016 · TE-3 whole-candidate disposition — closed 2026-08-22
+
+Owner: user.
+
+Disposition: D-027 records TE-3 as **USER ACCEPTED WITH KNOWN FOLLOW-UP** after
+Scenes 1–4 were directly observed as consistent. The accepted production
+physics remains `41467219819c5d0cb3eab8ae22b652449da20480`; the Scene 1 app
+source remains `e9f4a3744ea3bdab0fd70f0f78aa27cb7e9fa448`.
+
+Known follow-up: `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` remains deferred/not
+started. TE-5, TE-4 and G9-B/C/D/E still require separate user decisions.

@@ -1,11 +1,11 @@
 # ADR-0006 — Water/Steam Phase Enthalpy
 
-- **Status:** ACCEPTED / IMPLEMENTED AS PRESSURE-DECOUPLED TE-3 CANDIDATE
+- **Status:** ACCEPTED / IMPLEMENTED / TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP
 - **Date:** 2026-08-20; amended 2026-08-21
 - **Decision owner:** user at the TE-3D architecture-review boundary
-- **Decision:** D-018, amended and activated by D-024
+- **Decision:** D-018, amended and activated by D-024; runtime accepted by D-027
 - **Design source:** docs-only work descended from TE-2 closure `fd97e8b...`
-- **Runtime status:** TE-3 WATER/STEAM PHASE-CYCLE CANDIDATE / USER REVIEW PENDING
+- **Runtime status:** TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP
 - **D-023 supersession:** rejected by D-024; [`ADR-0011`](ADR-0011-conservative-phase-packets.md) is blocked history
 - **Atomic bridge attempts:** [`ADR-0007`](ADR-0007-phase-volume-pressure-bridge.md) token REJECTED / DESIGN BLOCKED; [`ADR-0008`](ADR-0008-local-vapor-capacity-pressure.md) local capacity law PROPOSED / DESIGN BLOCKED
 - **Implemented source:** `41467219819c5d0cb3eab8ae22b652449da20480`

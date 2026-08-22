@@ -1,6 +1,6 @@
 # Phase Thermodynamics Validation Contract
 
-- **Status:** SOURCE-BOUND RUNTIME VALIDATION PASS / USER REVIEW PENDING
+- **Status:** SOURCE-BOUND RUNTIME VALIDATION PASS / USER ACCEPTED WITH KNOWN FOLLOW-UP
 - **Architecture:** [`ADR-0006`](../architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)
 - **Specification:** [`PHASE_THERMODYNAMICS_SPEC`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
 - **Reference result:** v1 preserved; v2 `PASS_AMENDED_REFERENCE_MATH_ONLY`

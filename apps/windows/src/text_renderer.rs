@@ -4619,6 +4619,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let value = [0.96, 0.97, 0.99, 1.0];
         let ok = [0.42, 0.88, 1.0, 1.0];
         let card = [0.04, 0.06, 0.09, 0.94];
+        if let (Some(transform), Some(sample)) =
+            (data.world_transform, data.diagnostic.fresh_sample())
+        {
+            if let Some(target) = sample.self_smoke_marker_cell() {
+                if let Some(rect) = te2_marker_rect(transform, target) {
+                    let pulse = if data.simulation_tick.is_multiple_of(2) {
+                        [1.0, 0.78, 0.18, 1.0]
+                    } else {
+                        [0.42, 0.94, 1.0, 1.0]
+                    };
+                    for expansion in [0.0, 4.0, 9.0] {
+                        self.batch.draw_outline(
+                            rect.x - expansion,
+                            rect.y - expansion,
+                            rect.width + expansion * 2.0,
+                            rect.height + expansion * 2.0,
+                            2.0,
+                            pulse,
+                            white,
+                        );
+                    }
+                }
+            }
+        }
         self.batch
             .draw_text(&self.atlas, 22.0, 18.0, 22, "TE-4 IGNITION KINETICS", title);
         self.batch.draw_text_right(
@@ -4686,7 +4710,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             label,
         );
         let x = sw - 650.0;
-        self.batch.draw_rect(x, 70.0, 632.0, 540.0, card, white);
+        let diagnostic_height = if data.scene.number() == 4 {
+            690.0
+        } else {
+            540.0
+        };
+        self.batch
+            .draw_rect(x, 70.0, 632.0, diagnostic_height, card, white);
         self.batch.draw_text(
             &self.atlas,
             x + 16.0,
@@ -4703,18 +4733,39 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                     120.0,
                     12,
                     &format!(
-                        "Fresh | sample {} | Oil {} Wood {} | burning {} | newly ignited {}",
+                        "Fresh | sample {} | Oil {} Wood {} Smoke {} | burning {} | new {}",
                         sample.sample_tick,
                         sample.oil_count,
                         sample.wood_count,
+                        sample.smoke_count,
                         sample.burning_count,
                         sample.newly_ignited_count
                     ),
                     value,
                 );
+                if let Some(state) = sample.self_smoke_state {
+                    self.batch
+                        .draw_text(&self.atlas, x + 16.0, 144.0, 12, state.label(), header);
+                    self.batch.draw_text(
+                        &self.atlas,
+                        x + 16.0,
+                        168.0,
+                        12,
+                        &format!(
+                            "Smoke {} | source fuel {} | target {} | receiver Air {:.3}",
+                            sample.smoke_count,
+                            sample.source_fuel_progress,
+                            material_display_name(sample.self_smoke_target_material),
+                            sample.receiver_air_mass
+                        ),
+                        value,
+                    );
+                }
                 if data.details_visible {
                     for (i, row) in sample.rows.iter().enumerate() {
-                        let y = 154.0 + i as f32 * 105.0;
+                        let scene_four = data.scene.number() == 4;
+                        let y = if scene_four { 204.0 } else { 154.0 }
+                            + i as f32 * if scene_four { 76.0 } else { 105.0 };
                         let mat = match row.material {
                             5 => "Oil",
                             9 => "Wood",
@@ -4739,13 +4790,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                             x + 16.0,
                             y + 27.0,
                             12,
-                            &format!(
-                                "{mat} | T {:.2} C | exposure {}/63 | rate {} | flames {}",
-                                row.temperature,
-                                row.exposure,
-                                row.thermal_rate,
-                                row.previous_flames
-                            ),
+                            &if row.label == "Self-Smoke target" {
+                                format!(
+                                    "{mat} | T {:.2} C | Smoke age {} | Air mass {:.3}",
+                                    row.temperature, row.smoke_decay_age, row.air_mass
+                                )
+                            } else if row.label == "Air receiver" {
+                                format!(
+                                    "{mat} | Air mass {:.3} | Air energy {:.3}",
+                                    row.air_mass, row.air_energy
+                                )
+                            } else {
+                                format!(
+                                    "{mat} | T {:.2} C | exposure {}/63 | rate {} | flames {}",
+                                    row.temperature,
+                                    row.exposure,
+                                    row.thermal_rate,
+                                    row.previous_flames
+                                )
+                            },
                             value,
                         );
                         self.batch.draw_text(
@@ -4753,14 +4816,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                             x + 16.0,
                             y + 54.0,
                             12,
-                            &format!(
-                                "Air {} | burning {} | fuel {}/{} | gross Q {:.1}",
-                                if row.air_access { "YES" } else { "NO" },
-                                if row.burning { "YES" } else { "NO" },
-                                row.fuel_progress,
-                                row.fuel_duration,
-                                row.gross_q_this_tick
-                            ),
+                            &if row.label == "Self-Smoke target" {
+                                format!(
+                                    "Air energy {:.3} | sample tick {} | marker follows Smoke only",
+                                    row.air_energy, sample.sample_tick
+                                )
+                            } else if row.label == "Air receiver" {
+                                format!(
+                                    "sample tick {} | authoritative Environment",
+                                    sample.sample_tick
+                                )
+                            } else {
+                                format!(
+                                    "Air {} | burning {} | fuel {}/{} | gross Q {:.1}",
+                                    if row.air_access { "YES" } else { "NO" },
+                                    if row.burning { "YES" } else { "NO" },
+                                    row.fuel_progress,
+                                    row.fuel_duration,
+                                    row.gross_q_this_tick
+                                )
+                            },
                             header,
                         );
                     }

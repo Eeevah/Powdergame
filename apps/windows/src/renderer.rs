@@ -1230,6 +1230,21 @@ impl Renderer {
         write_world_view_params(&self.queue, world_view, &self.config);
     }
 
+    /// Focuses a candidate scene on a named authoritative world region while
+    /// retaining the same clamped camera transform used by the world shader.
+    pub fn focus_world_camera(&mut self, center_x: f32, center_y: f32, zoom: f32) {
+        let Some(world_view) = &mut self.world_view else {
+            return;
+        };
+        world_view.camera = WorldCamera {
+            center_x,
+            center_y,
+            zoom,
+        }
+        .normalized(world_view.world_width, world_view.world_height);
+        write_world_view_params(&self.queue, world_view, &self.config);
+    }
+
     /// Pans the world with a physical-pixel drag. Positive pointer movement
     /// moves the presented world with the pointer.
     pub fn pan_world_camera(&mut self, delta_x: f32, delta_y: f32) {
@@ -2254,6 +2269,34 @@ mod viewport_tests {
             )),
             None
         );
+    }
+
+    #[test]
+    fn te4_scene_four_focus_keeps_authoritative_smoke_trace_left_of_diagnostics() {
+        let viewport =
+            WorldViewport::calculate(1600, 900, 256, 192, PresentationPalette::ThermalEnvironment)
+                .unwrap();
+        let transform = WorldTransform::calculate(
+            viewport,
+            WorldCamera {
+                center_x: 200.0,
+                center_y: 110.0,
+                zoom: 2.0,
+            },
+        );
+        for cell in [(208, 110), (209, 110), (209, 111)] {
+            let screen_x = viewport.x + (cell.0 as f32 - transform.origin_x) * transform.scale;
+            let screen_y = viewport.y + (cell.1 as f32 - transform.origin_y) * transform.scale;
+            assert!(screen_x >= viewport.x && screen_x < 950.0);
+            assert!(screen_y >= viewport.y && screen_y < viewport.bottom());
+            assert_eq!(
+                transform.cell_at(PhysicalPosition::new(
+                    f64::from(screen_x + transform.scale * 0.5),
+                    f64::from(screen_y + transform.scale * 0.5),
+                )),
+                Some(cell)
+            );
+        }
     }
 
     #[test]

@@ -1,11 +1,14 @@
 //! TE-4I user-testable ignition-kinetics candidate.
 
 use powdergame_core::{
-    combustion_descriptor, fuel_progress, ignition_context, ignition_exposure, AirState,
+    combustion_descriptor, decay_age, fuel_progress, ignition_context, ignition_exposure, AirState,
     EmptyEnvironmentSeed, FLAG_COMBUSTING, FLAG_FLAME_EVENT, MATERIAL_BOUNDARY_BLOCK,
-    MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_STONE, MATERIAL_WOOD, TEMPERATURE_REFERENCE,
+    MATERIAL_EMPTY, MATERIAL_OIL, MATERIAL_SMOKE, MATERIAL_STONE, MATERIAL_WOOD,
+    TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::{GpuError, Simulation};
+
+use crate::renderer::WorldTransform;
 
 pub(crate) const TE4_TITLE: &str = "Powdergame TE-4 Ignition Kinetics";
 pub(crate) const TE4_WORLD_WIDTH: u32 = 256;
@@ -78,6 +81,28 @@ pub(crate) struct IgnitionSampleRow {
     pub fuel_progress: u32,
     pub fuel_duration: u32,
     pub gross_q_this_tick: f32,
+    pub smoke_decay_age: u32,
+    pub air_mass: f32,
+    pub air_energy: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SelfSmokeCausalState {
+    Ready,
+    Emitted,
+    Extinguished,
+    Decayed,
+}
+
+impl SelfSmokeCausalState {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Ready => "READY - sole Air face available",
+            Self::Emitted => "EMITTED - target is Smoke",
+            Self::Extinguished => "EXTINGUISHED - next snapshot has no Air",
+            Self::Decayed => "DECAYED - target returned to EMPTY / Air recovered",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -90,6 +115,20 @@ pub(crate) struct IgnitionSample {
     pub wood_count: usize,
     pub burning_count: usize,
     pub newly_ignited_count: usize,
+    pub smoke_count: usize,
+    pub source_fuel_progress: u32,
+    pub self_smoke_target_material: u32,
+    pub receiver_air_mass: f32,
+    pub self_smoke_state: Option<SelfSmokeCausalState>,
+}
+
+impl IgnitionSample {
+    pub(crate) fn self_smoke_marker_cell(&self) -> Option<(u32, u32)> {
+        self.rows
+            .iter()
+            .find(|row| row.label == "Self-Smoke target" && row.material == MATERIAL_SMOKE)
+            .map(|row| row.cell)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -108,6 +147,15 @@ pub(crate) enum IgnitionDiagnosticState {
     },
 }
 
+impl IgnitionDiagnosticState {
+    pub(crate) fn fresh_sample(&self) -> Option<&IgnitionSample> {
+        match self {
+            Self::Fresh(sample) => Some(sample),
+            Self::Sampling { .. } | Self::Failed { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct SampleRequest {
     generation: u64,
@@ -123,6 +171,7 @@ pub(crate) struct IgnitionHudData {
     pub simulation_tick: u64,
     pub diagnostic: IgnitionDiagnosticState,
     pub details_visible: bool,
+    pub world_transform: Option<WorldTransform>,
 }
 
 pub(crate) struct IgnitionKineticsState {
@@ -189,6 +238,7 @@ impl IgnitionKineticsState {
         playing: bool,
         fast: u32,
         simulation_tick: u64,
+        world_transform: Option<WorldTransform>,
     ) -> IgnitionHudData {
         IgnitionHudData {
             scene: self.scene,
@@ -197,18 +247,23 @@ impl IgnitionKineticsState {
             simulation_tick,
             diagnostic: self.diagnostic.clone(),
             details_visible: self.details_visible,
+            world_transform,
         }
     }
     pub(crate) fn measurement_summary(&self) -> String {
         match &self.diagnostic {
             IgnitionDiagnosticState::Fresh(sample) => format!(
-                "sample_tick={} oil={} wood={} burning={} new={} rows={}",
+                "sample_tick={} oil={} wood={} smoke={} burning={} new={} rows={} self_smoke={}",
                 sample.sample_tick,
                 sample.oil_count,
                 sample.wood_count,
+                sample.smoke_count,
                 sample.burning_count,
                 sample.newly_ignited_count,
-                sample.rows.len()
+                sample.rows.len(),
+                sample
+                    .self_smoke_state
+                    .map_or("n/a", SelfSmokeCausalState::label)
             ),
             _ => "sample=unavailable".to_string(),
         }
@@ -241,31 +296,33 @@ impl IgnitionKineticsState {
     }
 }
 
-fn sample_cells(scene: IgnitionKineticsScene) -> [(&'static str, (u32, u32)); 4] {
+fn sample_cells(scene: IgnitionKineticsScene) -> &'static [(&'static str, (u32, u32))] {
     match scene {
-        IgnitionKineticsScene::SpikeVsSustained => [
+        IgnitionKineticsScene::SpikeVsSustained => &[
             ("Oil short spike", (52, 110)),
             ("Wood short spike", (92, 110)),
             ("Oil sustained", (152, 110)),
             ("Wood sustained", (204, 110)),
         ],
-        IgnitionKineticsScene::FlameVsInert => [
+        IgnitionKineticsScene::FlameVsInert => &[
             ("Previous-flame target", (86, 110)),
             ("Inert-heat target", (174, 110)),
             ("Flame source", (85, 110)),
             ("Inert Stone", (173, 110)),
         ],
-        IgnitionKineticsScene::SurfaceFront => [
+        IgnitionKineticsScene::SurfaceFront => &[
             ("Heated frontier", (72, 104)),
             ("Near interior", (88, 104)),
             ("Deep interior", (108, 104)),
             ("Oil frontier", (144, 116)),
         ],
-        IgnitionKineticsScene::AirVacuumSmoke => [
+        IgnitionKineticsScene::AirVacuumSmoke => &[
             ("Atmosphere", (52, 110)),
             ("LowPressure", (104, 110)),
             ("Exact Vacuum", (156, 110)),
             ("Sole-Air self-Smoke", (208, 110)),
+            ("Self-Smoke target", (209, 110)),
+            ("Air receiver", (209, 111)),
         ],
     }
 }
@@ -281,8 +338,8 @@ fn collect_sample(
     let flags_all = simulation
         .world
         .read_flags_all(&simulation.context.device, &simulation.context.queue)?;
-    let mut rows = Vec::with_capacity(4);
-    for (label, cell) in sample_cells(scene) {
+    let mut rows = Vec::with_capacity(sample_cells(scene).len());
+    for &(label, cell) in sample_cells(scene) {
         let index = (cell.1 * TE4_WORLD_WIDTH + cell.0) as usize;
         let material = materials[index];
         let flags = flags_all[index];
@@ -292,6 +349,11 @@ fn collect_sample(
             i64::from(cell.0),
             i64::from(cell.1),
         )?;
+        let own_air = simulation.world.read_environment_cells(
+            &simulation.context.device,
+            &simulation.context.queue,
+            &[(i64::from(cell.0), i64::from(cell.1))],
+        )?[0];
         let (air_access, previous_flames) =
             context_faces(simulation, cell, &materials, &flags_all)?;
         let context = ignition_context(material, temperature, flags, air_access, previous_flames);
@@ -313,6 +375,13 @@ fn collect_sample(
             } else {
                 0.0
             },
+            smoke_decay_age: if material == MATERIAL_SMOKE {
+                decay_age(flags)
+            } else {
+                0
+            },
+            air_mass: own_air.current.mass,
+            air_energy: own_air.current.energy,
         });
     }
     let oil_count = materials.iter().filter(|&&m| m == MATERIAL_OIL).count();
@@ -325,6 +394,35 @@ fn collect_sample(
         .iter()
         .filter(|&&f| f & FLAG_FLAME_EVENT != 0 && fuel_progress(f) == 1)
         .count();
+    let smoke_count = materials
+        .iter()
+        .filter(|&&material| material == MATERIAL_SMOKE)
+        .count();
+    let source_index = (110 * TE4_WORLD_WIDTH + 208) as usize;
+    let target_index = (110 * TE4_WORLD_WIDTH + 209) as usize;
+    let receiver_air = simulation.world.read_environment_cells(
+        &simulation.context.device,
+        &simulation.context.queue,
+        &[(209, 111)],
+    )?[0];
+    let source_air_access = if scene == IgnitionKineticsScene::AirVacuumSmoke {
+        context_faces(simulation, (208, 110), &materials, &flags_all)?.0
+    } else {
+        false
+    };
+    let self_smoke_state = (scene == IgnitionKineticsScene::AirVacuumSmoke).then(|| {
+        let target = materials[target_index];
+        let source_burning = flags_all[source_index] & FLAG_COMBUSTING != 0;
+        if target == MATERIAL_SMOKE && source_burning {
+            SelfSmokeCausalState::Emitted
+        } else if request.simulation_tick > 0 && target == MATERIAL_EMPTY && source_air_access {
+            SelfSmokeCausalState::Decayed
+        } else if target == MATERIAL_SMOKE || !source_air_access {
+            SelfSmokeCausalState::Extinguished
+        } else {
+            SelfSmokeCausalState::Ready
+        }
+    });
     Ok(IgnitionSample {
         generation: request.generation,
         sequence: request.sequence,
@@ -334,6 +432,23 @@ fn collect_sample(
         wood_count,
         burning_count,
         newly_ignited_count,
+        smoke_count,
+        source_fuel_progress: if scene == IgnitionKineticsScene::AirVacuumSmoke {
+            fuel_progress(flags_all[source_index])
+        } else {
+            0
+        },
+        self_smoke_target_material: if scene == IgnitionKineticsScene::AirVacuumSmoke {
+            materials[target_index]
+        } else {
+            MATERIAL_EMPTY
+        },
+        receiver_air_mass: if scene == IgnitionKineticsScene::AirVacuumSmoke {
+            receiver_air.current.mass
+        } else {
+            0.0
+        },
+        self_smoke_state,
     })
 }
 
@@ -660,6 +775,7 @@ fn write_air(simulation: &Simulation, cell: (u32, u32), state: AirState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     fn sim() -> Simulation {
         pollster::block_on(Simulation::new(
             powdergame_core::WorldConfig::new(TE4_WORLD_WIDTH, TE4_WORLD_HEIGHT, TE4_CHUNK_SIZE)
@@ -667,6 +783,44 @@ mod tests {
         ))
         .unwrap()
     }
+
+    fn read_u32_cell(simulation: &Simulation, buffer: &wgpu::Buffer, cell_index: u64) -> u32 {
+        let staging = simulation
+            .context
+            .device
+            .create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te4-candidate-material-settle-readback"),
+                size: 4,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+        let mut encoder =
+            simulation
+                .context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("te4-candidate-material-settle-readback-encoder"),
+                });
+        encoder.copy_buffer_to_buffer(buffer, cell_index * 4, &staging, 0, 4);
+        simulation.context.queue.submit([encoder.finish()]);
+        let slice = staging.slice(..);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+        simulation
+            .context
+            .device
+            .poll(wgpu::PollType::Wait)
+            .unwrap();
+        receiver.recv().unwrap().unwrap();
+        let mapped = slice.get_mapped_range();
+        let value = u32::from_ne_bytes(mapped[..4].try_into().unwrap());
+        drop(mapped);
+        staging.unmap();
+        value
+    }
+
     #[test]
     fn all_four_scenes_stage_reset_and_sample_real_state() {
         let mut s = sim();
@@ -677,7 +831,9 @@ mod tests {
                 .unwrap();
             state.tick(&mut s, true).unwrap();
             match &state.diagnostic {
-                IgnitionDiagnosticState::Fresh(sample) => assert_eq!(sample.rows.len(), 4),
+                IgnitionDiagnosticState::Fresh(sample) => {
+                    assert_eq!(sample.rows.len(), if n == 4 { 6 } else { 4 })
+                }
                 other => panic!("unexpected {other:?}"),
             };
         }
@@ -721,9 +877,95 @@ mod tests {
         state
             .select_scene(&mut s, IgnitionKineticsScene::AirVacuumSmoke)
             .unwrap();
+        let tick_zero_material = s
+            .world
+            .read_material_all(&s.context.device, &s.context.queue)
+            .unwrap();
+        let source_index = (110 * TE4_WORLD_WIDTH + 208) as usize;
+        let target_index = (110 * TE4_WORLD_WIDTH + 209) as usize;
+        let tick_zero_flags = s
+            .world
+            .read_flags_all(&s.context.device, &s.context.queue)
+            .unwrap();
+        assert_eq!(tick_zero_material[source_index], MATERIAL_WOOD);
+        assert_ne!(tick_zero_flags[source_index] & FLAG_COMBUSTING, 0);
+        assert_eq!(tick_zero_material[target_index], MATERIAL_EMPTY);
+        assert_eq!(
+            tick_zero_material
+                .iter()
+                .filter(|&&material| material == MATERIAL_SMOKE)
+                .count(),
+            0
+        );
+        let tick_zero_sample = match &state.diagnostic {
+            IgnitionDiagnosticState::Fresh(sample) => sample,
+            other => panic!("unexpected {other:?}"),
+        };
+        assert_eq!(
+            tick_zero_sample.self_smoke_state,
+            Some(SelfSmokeCausalState::Ready)
+        );
+        assert_eq!(tick_zero_sample.self_smoke_marker_cell(), None);
+        assert!(tick_zero_sample.rows[3].burning);
+        assert!(tick_zero_sample.rows[3].air_access);
+        assert_eq!(tick_zero_sample.rows[3].fuel_progress, 0);
+        assert_eq!(tick_zero_sample.rows[4].material, MATERIAL_EMPTY);
+        assert!((tick_zero_sample.rows[4].air_mass - 1.0).abs() <= 1.0e-6);
+        assert_eq!(tick_zero_sample.rows[5].material, MATERIAL_EMPTY);
+        assert_eq!(tick_zero_sample.rows[5].air_mass, 0.0);
         state.tick(&mut s, true).unwrap();
+        let tick_one_material = s
+            .world
+            .read_material_all(&s.context.device, &s.context.queue)
+            .unwrap();
+        assert_eq!(
+            tick_one_material[target_index], MATERIAL_SMOKE,
+            "the exact candidate target must contain authoritative Smoke"
+        );
+        assert_eq!(
+            read_u32_cell(
+                &s,
+                &s.world.material_next,
+                u64::try_from(target_index).unwrap()
+            ),
+            MATERIAL_SMOKE,
+            "Matter Current and Next must settle to the same Smoke identity"
+        );
+        assert_eq!(
+            tick_one_material
+                .iter()
+                .filter(|&&material| material == MATERIAL_SMOKE)
+                .count(),
+            1
+        );
+        let tick_one_air = s
+            .world
+            .read_environment_cells(
+                &s.context.device,
+                &s.context.queue,
+                &[(209, 110), (209, 111)],
+            )
+            .unwrap();
+        assert_eq!(tick_one_air[0].current, tick_one_air[0].next);
+        assert_eq!(tick_one_air[1].current, tick_one_air[1].next);
+        assert_eq!(tick_one_air[0].current.mass, 0.0);
+        assert_eq!(tick_one_air[0].current.energy, 0.0);
+        assert!((tick_one_air[1].current.mass - 1.0).abs() <= 1.0e-6);
+        assert!(tick_one_air[1].current.energy.is_finite());
+        assert!(tick_one_air[1].current.energy > 0.0);
         let after_n = match &state.diagnostic {
-            IgnitionDiagnosticState::Fresh(v) => &v.rows[3],
+            IgnitionDiagnosticState::Fresh(v) => {
+                assert_eq!(v.self_smoke_state, Some(SelfSmokeCausalState::Emitted));
+                assert_eq!(v.self_smoke_target_material, MATERIAL_SMOKE);
+                assert_eq!(v.smoke_count, 1);
+                assert_eq!(v.rows[4].label, "Self-Smoke target");
+                assert_eq!(v.rows[4].material, MATERIAL_SMOKE);
+                assert_eq!(v.rows[4].smoke_decay_age, 0);
+                assert_eq!(v.rows[5].label, "Air receiver");
+                assert!((v.rows[5].air_mass - 1.0).abs() <= 1.0e-6);
+                assert_eq!(v.self_smoke_marker_cell(), Some((209, 110)));
+                &v.rows[3]
+            }
             _ => unreachable!(),
         };
         assert!(after_n.burning);
@@ -734,7 +976,10 @@ mod tests {
         );
         state.tick(&mut s, true).unwrap();
         let after_n1 = match &state.diagnostic {
-            IgnitionDiagnosticState::Fresh(v) => &v.rows[3],
+            IgnitionDiagnosticState::Fresh(v) => {
+                assert_eq!(v.self_smoke_state, Some(SelfSmokeCausalState::Extinguished));
+                &v.rows[3]
+            }
             _ => unreachable!(),
         };
         assert!(!after_n1.burning);
@@ -743,6 +988,57 @@ mod tests {
             "next no-Air stage consumes no fuel"
         );
         assert_eq!(after_n1.gross_q_this_tick, 0.0);
+        let tick_two_material = s
+            .world
+            .read_material_all(&s.context.device, &s.context.queue)
+            .unwrap();
+        assert_eq!(tick_two_material[target_index], MATERIAL_SMOKE);
+        assert_eq!(
+            tick_two_material
+                .iter()
+                .filter(|&&material| material == MATERIAL_SMOKE)
+                .count(),
+            1
+        );
+        assert_eq!(
+            read_u32_cell(
+                &s,
+                &s.world.material_next,
+                u64::try_from(target_index).unwrap()
+            ),
+            MATERIAL_SMOKE
+        );
+
+        let mut decayed_tick = None;
+        let mut air_recovered_tick = None;
+        for _ in 0..=powdergame_core::SMOKE_LIFETIME_TICKS + 64 {
+            state.tick(&mut s, true).unwrap();
+            let sample = match &state.diagnostic {
+                IgnitionDiagnosticState::Fresh(sample) => sample,
+                other => panic!("unexpected {other:?}"),
+            };
+            assert!(sample.smoke_count <= 1, "no extra Smoke may be generated");
+            if sample.self_smoke_target_material == MATERIAL_EMPTY && decayed_tick.is_none() {
+                decayed_tick = Some(sample.sample_tick);
+                assert_eq!(sample.smoke_count, 0);
+                assert_eq!(sample.self_smoke_marker_cell(), None);
+            }
+            if decayed_tick.is_some() && sample.rows[3].air_access {
+                air_recovered_tick = Some(sample.sample_tick);
+                assert_eq!(sample.self_smoke_state, Some(SelfSmokeCausalState::Decayed));
+                assert_eq!(sample.source_fuel_progress, 1);
+                assert_eq!(sample.smoke_count, 0);
+                break;
+            }
+        }
+        assert!(
+            decayed_tick.is_some(),
+            "the bounded horizon must observe authoritative Smoke decay"
+        );
+        assert!(
+            air_recovered_tick.is_some(),
+            "the source must regain Air access after target decay"
+        );
     }
     #[test]
     fn candidate_reset_restores_exact_authoritative_material_temperature_and_flags() {

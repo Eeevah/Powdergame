@@ -988,7 +988,7 @@ impl App {
         };
         demo.playing = false;
         demo.pending_steps = 0;
-        match candidate.select_scene(simulation, scene) {
+        let staged = match candidate.select_scene(simulation, scene) {
             Ok(()) => {
                 demo.commit_pristine_reset();
                 println!(
@@ -996,10 +996,24 @@ impl App {
                     scene.number(),
                     scene.name()
                 );
+                true
             }
             Err(error) => {
                 eprintln!("[powdergame][te4] scene staging failed: {error}");
                 self.fatal_error = Some(error.to_string());
+                false
+            }
+        };
+        if staged {
+            if let Some(renderer) = &mut self.renderer {
+                if scene == IgnitionKineticsScene::AirVacuumSmoke {
+                    // Keep the authoritative (208,110) -> (209,110) ->
+                    // (209,111) transaction visible to the left of the fixed
+                    // diagnostic panel. The physics grid is unchanged.
+                    renderer.focus_world_camera(200.0, 110.0, 2.0);
+                } else {
+                    renderer.reset_world_camera();
+                }
             }
         }
         window.set_title(&demo.title());
@@ -2941,9 +2955,14 @@ impl ApplicationHandler for App {
                             self.demo.as_ref(),
                             self.simulation.as_ref(),
                         ) {
-                            (Some(candidate), Some(demo), Some(simulation)) => Some(
-                                candidate.hud_data(demo.playing, demo.fast, simulation.tick_count),
-                            ),
+                            (Some(candidate), Some(demo), Some(simulation)) => {
+                                Some(candidate.hud_data(
+                                    demo.playing,
+                                    demo.fast,
+                                    simulation.tick_count,
+                                    world_transform,
+                                ))
+                            }
                             _ => None,
                         }
                     } else {

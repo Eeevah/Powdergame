@@ -586,3 +586,12 @@ semantics as a production implementation/evidence candidate. Q-017 now waits
 for direct user architecture/product review of the actual Core/GPU candidate,
 not another Python identity. ADR-0012 remains Proposed and is not automatically
 accepted by successful automated validation.
+
+### 2026-08-23 D-032 production candidate available
+
+Final runtime source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+passed F01..F17 production fixtures and the canonical FULL. The canonical EXE,
+four-scene candidate, fixed diagnostics, launcher routes, and Desktop shortcut
+are available. Q-017 now asks only for direct user architecture/product review
+of the twelve-item checklist in `docs/planning/TE4_IGNITION_KINETICS.md`.
+Automated PASS does not close Q-017 or accept ADR-0012.

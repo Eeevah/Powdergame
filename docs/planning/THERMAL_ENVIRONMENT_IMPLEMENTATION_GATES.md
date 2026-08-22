@@ -349,7 +349,7 @@ Air-pressure force  NOT STARTED
 TE-4D v1/v2  DESIGN BLOCKED / IMMUTABLE
 TE-4D v3  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / IMMUTABLE
 TE-4D D-031 supplement  BLOCKED / CRITICAL 0 / HIGH 3 / ADR-0012 PROPOSED
-TE-4 runtime  NOT STARTED
+TE-4I runtime  IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW PENDING
 G9-B/C/D/E  NOT STARTED
 ```
 
@@ -377,3 +377,18 @@ Matter/Air settle before the next topology decision, transaction class remains
 caller-selected, and Air receiver topology/claim is absent. It therefore does
 not compose with v3 into architecture completion. ADR-0012 stays Proposed and
 no runtime gate advances.
+
+### D-032 implementation-first production result
+
+Final runtime source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+implements the locked dose/Air/chemical-Q transaction in Core and production
+WGSL. Actual F01..F17 fixtures, the final-source FULL, one release build, one
+bounded launch, and one bounded measurement pass. The graph is 42 passes/84
+queries/1,344 profiler bytes with zero new persistent or scratch state and no
+pass above eight storage bindings.
+
+This advances TE-4 from `NOT STARTED` to **IMPLEMENTATION CANDIDATE /
+AUTOMATED VALIDATION PASS / USER REVIEW PENDING**. It does not accept ADR-0012,
+repair blocked v1/v2/v3/D-031 receipts, or start TE-5/TE-6. The source-bound
+receipt is
+[`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).

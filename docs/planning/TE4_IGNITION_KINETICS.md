@@ -1,6 +1,7 @@
 # TE-4D Ignition Kinetics Plan
 
-Status: **TE-4I IMPLEMENTATION-FIRST EVIDENCE AUTHORIZED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
+Status: **TE-4I IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS /
+ADR-0012 PROPOSED / USER REVIEW PENDING**.
 
 ## Reuse and exact inventory
 
@@ -172,3 +173,30 @@ answered by actual Core transitions, WGSL, Current/Next settle, Smoke receiver
 transactions, bounded GPU readback and the canonical candidate. No new Python
 reference identity or synthetic semantic auditor is permitted. ADR-0012 stays
 Proposed until direct user review.
+
+## D-032 production result and manual review
+
+Final runtime source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+implements the projected 42-pass graph, locked coefficients, packed-u6 state,
+binary Air-face rule, finite chemical heat, activity/wake integration, four
+candidate scenes, and fixed diagnostics. The graph is 84 queries/1,344 bytes;
+both new passes use six storage bindings; new persistent and scratch state are
+zero. See the
+[`source-bound evidence`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+
+Direct user review remains:
+
+1. Short Heat spikes do not ignite Oil or Wood.
+2. Sustained Heat ignites Oil sooner than Wood.
+3. Greater excess temperature ignites faster.
+4. Cooling visibly reduces pending exposure.
+5. Flame accelerates without a same-tick recursive chain.
+6. Connected fuel burns from a surface/frontier rather than all at once.
+7. Atmosphere and positive LowPressure permit ignition.
+8. Exact Vacuum does not permit ignition or sustain.
+9. Sole-Air self-Smoke emits once and extinguishes on the next tick.
+10. Fuel is finite and the consumption tick emits nothing.
+11. No Ash, Oxygen quantity, or Pressure behavior is implied.
+12. Reset is exact.
+
+Successful automation leaves ADR-0012 Proposed and TE-4I user review pending.

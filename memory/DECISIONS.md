@@ -1090,3 +1090,9 @@ translated or vendored implementation remains `0 files / 0 lines`.
 Invalidated by: a production Core/GPU invariant failure, a pass exceeding eight
 storage bindings, required new persistent/full-world state, failed final-source
 validation, or later explicit user supersession.
+
+Implementation record: final runtime source
+`8d9e8cbe3b6ac651335b5a728ef491abeae4772a` satisfies the authorized resource
+contract and passed source-bound production validation. This is execution of
+D-032, not a new decision: ADR-0012 remains Proposed and user architecture/
+product review remains pending.

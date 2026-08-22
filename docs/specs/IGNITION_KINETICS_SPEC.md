@@ -1,7 +1,8 @@
 # Ignition Kinetics Specification
 
-Status: **PROPOSED / V3 AND D-031 SUPPLEMENT BLOCKED / PRODUCTION NOT ESTABLISHED** under D-030/D-031 and ADR-0012. This document
-defines the candidate contract; it is not active production behavior.
+Status: **PROPOSED / PRODUCTION CANDIDATE IMPLEMENTED / USER ARCHITECTURE
+REVIEW PENDING** under D-032 and ADR-0012. V1/v2/v3 and D-031 remain blocked
+immutable history.
 
 ## State and ownership
 
@@ -132,3 +133,18 @@ settle, semantic transaction classes remain caller-selected, and Environment
 receiver topology/claim semantics are absent. These are evidence blockers, not
 changes to the candidate rule. Runtime, GPU, product and user behavior remain
 unestablished.
+
+## D-032 production realization
+
+Source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a` realizes this contract in
+Core and production WGSL. Packed exposure, rate calculation, Air access,
+consume-before-emission, chemical-Q conversion, movement/hygiene ownership,
+post-Smoke settle visibility, activity, and candidate diagnostics are now
+source-bound production facts. The 16-entry descriptor remains exactly 512
+bytes and the graph adds only the two authorized logical passes. No Oxygen,
+Ash, Pressure, persistent state, or full-world scratch was added.
+
+The implementation receipt is
+[`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+Automated production evidence does not by itself accept ADR-0012 or establish
+user approval.

@@ -1,6 +1,7 @@
 # Ignition Kinetics Validation Contract
 
-Status: **V1/V2/V3 AND D-031 SUPPLEMENT BLOCKED / PRODUCTION NOT ESTABLISHED**.
+Status: **V1/V2/V3 AND D-031 SUPPLEMENT BLOCKED / D-032 PRODUCTION EVIDENCE
+PASS / USER REVIEW PENDING**.
 
 ## Fixture matrix
 
@@ -189,3 +190,23 @@ F15B settle, caller-classified semantic counters and topology-free Air receiver
 transfer. The reported all-family negative-control and third-party-audit labels
 are also overstated. Therefore the receipt is preserved but the supplement is
 **BLOCKED** and may not be patched or rerun.
+
+## D-032 implementation-first production receipt
+
+The old Python identities were not rerun. Source
+`8d9e8cbe3b6ac651335b5a728ef491abeae4772a` instead executes the fixture matrix
+through Core, production WGSL, the actual Smoke receiver/reconcile chain,
+Current/Next settles, bounded readback, and the canonical candidate.
+
+TE4I-F01 through F17 pass within their production scope. Locked ignition ticks
+are Oil `24/12` and Wood `60/20`; F08 advances fuel `10 -> 11`, transfers Air
+mass `1.0` to the real receiver, then extinguishes without emission on N+1;
+lifecycles close at Oil `599 emitting / 8,985 gross` and Wood `899 / 7,192`.
+The final source passed the third canonical FULL attempt after two honestly
+recorded invalid-source failures. Exactly one release build, bounded launch,
+and bounded measurement completed. Full commands, counts, artifact identity,
+and limitations are in the
+[`source-bound evidence`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+
+Automated status is **PASS_PRODUCTION_CANDIDATE**. ADR-0012 acceptance and user
+product disposition remain `PENDING`.

@@ -644,3 +644,26 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
 - Supplement is BLOCKED and immutable. ADR-0012 remains Proposed; runtime is
   not started. Lesson promotion is NONE.
 - Rust/WGSL/Cargo/GPU/FULL/build/launch/application counts remain zero.
+
+## 2026-08-23 · TE-4I implementation-first production candidate
+
+- D-032 authorization commit is `ae8c04b...`; start source was `a19753b...`.
+- Runtime commits are `864159c...`, `532bd86...`, and final
+  `8d9e8cb...`. Packed-u6 exposure, locked Oil/Wood rates, binary settled Air
+  access, finite chemical Q, post-Smoke activity, and the canonical candidate
+  are implemented with zero new persistent/full-world scratch state.
+- Final graph is 42 passes / 84 queries / 1,344 profiler bytes. Both new passes
+  use six storage bindings; the 512-byte descriptor table is unchanged.
+- Targeted Core/GPU/scenario/Windows suites, all-target check, clippy, strict
+  audit, formatting and diff checks passed.
+- FULL attempt 1 exposed missing benchmark grouping; attempt 2 exposed a buried
+  FireHeat Wood seed without Air; attempt 3 passed on final source `8d9e8cb...`.
+- One release build, one 60-frame bounded launch, and one bounded measurement
+  completed. EXE SHA-256 is
+  `27D92287931421560027EF4D554DA26BBB50C5DE1565D75E52D1BC406A2A6081`,
+  size `10,141,696` bytes. The verified Desktop shortcut targets that EXE with
+  `--ignition-kinetics-candidate`.
+- ADR-0012 remains Proposed; Q-017 remains open for direct user review. No
+  Oxygen, Ash, Pressure, TE-5/TE-6, G9-B/C/D/E, PR, or main work occurred.
+- Lesson promotion is NONE; existing PG-L034/PG-L035 and Wiki contracts cover
+  the reusable failure classes.

@@ -266,3 +266,19 @@ canonical user-testable candidate. Evidence must inspect authoritative buffers,
 real pass ordering, Smoke/Environment transactions, settle boundaries and full
 fuel lifecycles. This authorization does not mark this ADR Accepted; final user
 architecture/product review remains required.
+
+## D-032 implementation result
+
+Production source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a` implements the
+locked packed-u6 dose, `COMBUSTION_STAGE_SNAPSHOT` Air predicate, finite
+chemical-Q lifecycle, two production passes, and canonical four-scene
+candidate. The final graph is 42 passes/84 queries/1,344 profiler bytes with
+zero new persistent or full-world scratch bytes; every pass remains at eight
+storage bindings or fewer. Actual Core/GPU/Smoke/Environment/sleep/reset and
+TE-2/TE-3 fixtures passed on the final source. The source-bound receipt is
+[`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+
+This evidence supersedes `RUNTIME NOT STARTED` only for TE-4I implementation
+status. It does not repair or reinterpret the blocked synthetic histories and
+does not accept this ADR. Status is now **PROPOSED — IMPLEMENTATION EVIDENCE
+AVAILABLE / USER ARCHITECTURE REVIEW PENDING**.

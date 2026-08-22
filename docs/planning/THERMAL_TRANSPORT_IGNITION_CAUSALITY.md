@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D v1/v2/v3 DESIGN BLOCKED / IMMUTABLE / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
+Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D v1/v2/v3/D-031 BLOCKED / IMMUTABLE**; **TE-4I IMPLEMENTATION CANDIDATE / AUTOMATED VALIDATION PASS / USER REVIEW PENDING / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -27,8 +27,8 @@ current baseline until TE-4:
 - A Matter-temperature value stored at an EMPTY index is not physical Air temperature; EMPTY self Matter temperature resolves to the reference state.
 - TE-1 thermal transfer was direct-contact only. TE-2 adds four-face Air flow and unified Matter/Air passive exchange without adding diagonal or line-of-sight transport.
 - Each participating Matter uses its conductivity and heat-capacity gameplay scalars; no diagonal, distance or line-of-sight transport is present.
-- Combustible Matter ignites as soon as its own current temperature reaches its Material ignition threshold. Oil and Wood share this generic threshold grammar and currently have no exposure-time or accumulated-dose requirement.
-- Production currently has no Oxygen requirement. D-029's proposed TE-4D v2 candidate adds only a non-Vacuum orthogonal EMPTY Air-face gate: positive Air mass qualifies but is not consumed or rate-scaled. This is not active runtime behavior.
+- The pre-TE-4I baseline ignited combustible Matter as soon as its own current temperature reached its Material threshold. D-032 production source `8d9e8cb...` supersedes that behavior with bounded exposure/dose.
+- Production has no Oxygen quantity. TE-4I adds only a non-Vacuum orthogonal EMPTY Air-face gate: positive Air mass qualifies but is not consumed or rate-scaled.
 
 TE-3 and later gates must not quietly change the remaining phase/ignition
 statements without their named authorization and fixtures.
@@ -116,6 +116,14 @@ Fresh review rejected the v3 transaction-closed interpretation with three
 unresolved High findings: asserted F15B next-snapshot Air, SUT-trusted semantic
 receipts and non-lifecycle F09 accounting. The frozen receipt remains narrow
 history; TE-4 runtime is still not started.
+
+D-032 then ended synthetic-reference repair and authorized actual production
+implementation. Source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+implements the locked dose, settled binary Air access, finite chemical heat,
+and post-Smoke activity semantics. F01..F17 and final-source FULL pass; the
+source-bound receipt is
+[`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).
+ADR-0012 remains Proposed and direct user review is pending.
 
 The project must evaluate a causal ignition gate beyond one-frame threshold crossing. Candidate grammar:
 

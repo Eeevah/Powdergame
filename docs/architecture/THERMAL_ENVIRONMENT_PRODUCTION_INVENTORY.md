@@ -3,8 +3,8 @@
 - **Audited design baseline:** `94b152e85ff6f5481a033d885d38dca0dbc1043a`
 - **Production-physics source:** TE-1 `1a722d239a16bade5772688fa822465d5cef4602`; TE-2 `fb7e568e21012b6067269f4e1b82c36c865023d0`
 - **TE-5B design baseline / authorization source:** `d7500e219af6f670be05f830b50c232d2bb53077` / `f1ca48cc01a906bfb4a997c72bc2744b81546ccd`
-- **Scope:** implemented TE-1/TE-2/pressure-decoupled TE-3 graph plus blocked TE-4D/TE-5/packet history
-- **Runtime status:** TE-2 and TE-3 user accepted with known follow-up; TE-3 production physics `41467219819c5d0cb3eab8ae22b652449da20480`; Pressure redesign deferred/not started
+- **Scope:** implemented TE-1/TE-2/pressure-decoupled TE-3 graph, TE-4I production candidate, plus blocked TE-4D/TE-5/packet history
+- **Runtime status:** TE-2 and TE-3 user accepted with known follow-up; TE-3 production physics `41467219819c5d0cb3eab8ae22b652449da20480`; TE-4I final runtime `8d9e8cbe3b6ac651335b5a728ef491abeae4772a` automated PASS/user review pending; Pressure redesign deferred/not started
 
 Sections 1–7 preserve the TE-1 foundation inventory at source `1a722d...`.
 Section 8 is the implemented TE-2 34-pass delta. Section 9 began as the D-018
@@ -676,3 +676,36 @@ written for exposure context, consumed by combustion, then fully overwritten
 for Smoke. New persistent and full-world scratch allocation are both zero.
 This is static source feasibility only; no binding, Naga, GPU, wake, profiler
 or performance evidence was run.
+
+## 16. TE-4I implemented production inventory
+
+D-032 final source `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`
+turns the Section 15 projection into production fact. The exact pass order is
+the 42-entry list in
+[`TE4_IGNITION_KINETICS`](../planning/TE4_IGNITION_KINETICS.md): exposure is
+pass 24, combustion/Smoke is 25..31, pressure/rupture is 32..36, the existing
+three activity proposals are 37..39, ignition activity is 40, and reduction is
+41. There are 84 timestamp queries and two 672-byte resolve buffers, or 1,344
+profiler bytes.
+
+`ignition_exposure_propose` and `ignition_activity_propose` each use five
+read-only storage bindings plus one read-write binding, with params and the
+existing combustion table as uniforms: six storage bindings each. Combustion
+remains at eight. The Section 2 binding table continues to cover every reused
+pass; no pass exceeds eight storage bindings.
+
+Proposal lifetime is now verified: pass 24 fully writes u8-bounded
+exposure/ignite/Air context into every word; pass 25 consumes it and fully
+overwrites every word with a Smoke request or zero; passes 26..28 consume the
+Smoke lifetime. Smoke hygiene/reconcile and Current copies settle Matter,
+temperature, flags, phase energy and Air before ignition activity reads the
+next-stage topology. The combustion upload is still 16 entries x 32 bytes =
+512 bytes. New persistent state is zero; new full-world scratch is zero.
+
+Authoritative flag writers and hygiene paths now preserve packed u6 exposure
+only with Oil/Wood identity and clear it on movement source replacement,
+density transfer source, Void, phase/decay/rupture/consumption replacement,
+Draw, Erase, presets, scenarios, reset, and generic identity replacement.
+Naga, binding, writer, allocation, profiler, runtime, and final-source FULL
+evidence are recorded in
+[`THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23`](../evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md).

@@ -290,15 +290,21 @@ the old G5 evidence is not rebound to this future source.
 
 ## TE-4 — Ignition kinetics
 
-Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. Vacuum combustion support requires a user decision.
+Add bounded exposure/dose, decay, surface-first Oil/Wood ignition, explicit flame bonus and chemical heat accounting. Oxygen, Ash, new Matter and final FX remain excluded. D-029 selects non-Vacuum orthogonal EMPTY Air-face access without Air consumption or Oxygen semantics.
 
-D-028 produced ADR-0012 and a frozen reference identity, but the only process
+D-028 produced ADR-0012 and a frozen v1 reference identity, but the only process
 stopped before executing any sequence/grid/fixture because the coefficient
 sweep's equal-metric tie selected a different Oil tuple than the preregistered
-tuple. Current stop: `TE-4D DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT
-STARTED`. A new user-authorized evidence identity and Vacuum-policy decision
-are required before implementation. Fresh review ended at Critical `0` /
+tuple. V1 stop remains `TE-4D DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT
+STARTED`. Its fresh review ended at Critical `0` /
 unresolved High `2` (zero completion and named-fixture aggregation/execution).
+V1 remains immutable. D-029's separate v2 identity fixes exact coefficients,
+packed u6, Air policy, chemical Q and final-tick order. Its manifest-bound
+reference completed `1/1`: 13 reference fixtures PASS and exactly four
+production fixtures remain `NOT_ESTABLISHED`. Runtime implementation still
+requires a new architecture decision because fresh review found unresolved
+High `3`: non-transactional path counters, sole-Air-face loss through same-tick
+Smoke, and an unfrozen F08 frontier oracle. TE-4D v2 is DESIGN BLOCKED.
 
 ## TE-5 — Pressure and Vacuum coupling
 

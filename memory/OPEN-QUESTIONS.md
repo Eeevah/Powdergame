@@ -517,3 +517,14 @@ accounting and consume-before-emission are selected for the distinct
 `TE4-IGNITION-KINETICS-REFERENCE-V2` identity. Q-017 remains open only for user
 review of the revised candidate after the one-shot v2 result and independent
 review. Runtime, GPU behavior and product acceptance remain unestablished.
+
+### 2026-08-22 v2 independent review — design blocked
+
+The manifest-bound process completed `1/1` and reported 13 reference PASS plus
+four expected production `NOT_ESTABLISHED`, but fresh review found Critical
+`0` / unresolved High `3` / Medium `1`. H-001: positive counters do not prove
+distinct F11–F13 transactions. H-002: same-tick Smoke can occupy the sole Air
+face after the early access check. H-003: F08's digest is a post-run self-replay,
+not a manifest-frozen exact frontier. M-001: secondary-objective completeness
+is not established. D-029 therefore blocks v2. Q-017 remains open for a new
+user decision; the next identity may not patch or rerun v1/v2.

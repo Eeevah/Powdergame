@@ -1,43 +1,52 @@
-# Checkpoint — TE-4D v2 evidence repair authorized — 2026-08-22
+# Checkpoint — TE-4D v2 design blocked — 2026-08-22
 
 ## Repository coordinate
 - Worktree: `C:\Users\mdkap\source\repos\Powdergame-g8b`
 - Branch: `feature/m0-g9-first-playable`
 - Start SHA: `febfdd1476ec02e67f1108f6683af92878f7e9e0`
+- D-029 authorization SHA: `3ac5b70afbe2344ce70c4d4dfe4e79976b68b777`
 - Wiki authority: `origin/main` `1006d360b2d44b30cf85f5a5aa1915bb384bfc03`; dirty local checkout preserved read-only
-- Runtime: unchanged
+- Runtime: unchanged / not started
 
 ## The story so far
-TE-3 remains user accepted with known follow-up. TE-4D v1 is immutable blocked
-history. D-029 authorizes a separate v2 evidence identity with formerly open
-semantic choices fixed before execution.
+TE-4D v1 remains immutable zero-completion blocked history. D-029 authorized a
+separate manifest-bound v2 identity and selected exact coefficients, packed
+u6, non-Vacuum Air-face and chemical/final-tick policies. The v2 process
+completed once, but independent review found three High blockers.
 
 ## Valid evidence
-- TE-3 production evidence remains source-bound to `41467219819c5d0cb3eab8ae22b652449da20480`.
-- v1 script/failure hashes are `886fe5b7...f82` / `6342bad5...c1bb`.
-- v1 attempts/completions are `1/0`; sequences/grids/fixtures are `0/0/0`.
+- V1 script/failure SHA-256: `886fe5b7...f82` / `6342bad5...c1bb`; attempts/completions `1/0`; model work `0/0/0`.
+- V2 manifest/script/result-file SHA-256: `9b763c1c...53ba` / `c01e2869...a769` / `24ebd797...f151`.
+- V2 scoped result payload SHA-256: `717f4ef7...132c`; attempts/completions `1/1`; 100,000 sequences; 10,000 grids.
+- Frozen process reported 13 reference PASS and four expected production `NOT_ESTABLISHED`; it was not rerun.
 
 ## Decided
-- D-029 selects exact Oil/Wood tuples, packed u6 exposure, non-Vacuum EMPTY Air-face access, finite chemical-Q accounting and consume-before-emission.
-- New evidence identity: `TE4-IGNITION-KINETICS-REFERENCE-V2`.
-- Future projection: 42 passes/84 queries, 1,344 profiler bytes, zero new persistent/scratch bytes.
+- D-029 remains historical authorization and does not become acceptance.
+- Fresh review: Critical `0` / unresolved High `3` / Medium `1`.
+- Valid stop: **TE-4D v2 DESIGN BLOCKED / ADR-0012 PROPOSED / RUNTIME NOT STARTED**.
+- PG-L035 records downstream same-tick precondition invalidation.
 
 ## Waiting on the user
-After a successful exactly-once v2 reference and zero-blocker fresh review,
-the user must accept or revise ADR-0012. Runtime remains separately gated.
+A later decision must choose sole-Air-face semantics and authorize a new
+evidence identity that uses mutation-derived path counters and a frozen exact
+F08 oracle. V1/v2 may not be patched or rerun.
 
 ## Current authorization
-Docs/reference only: freeze manifest/script, execute once, bind the result,
-conduct fresh-context review, validate, commit and push explicit paths.
+Close docs/reference/memory only, validate, commit and push the named feature
+branch. No runtime, Cargo, build, launch, PR or main merge.
 
 ## Blocker
-None yet for v2. Any execution failure, packed ownership failure, source
-binding/live-range contradiction or unresolved Critical/High finding blocks it.
+- H-001: positive counters do not prove distinct named transactions.
+- H-002: same-tick Smoke may remove the sole qualifying Air face after emission was authorized.
+- H-003: F08 digest is a post-run self-replay rather than a frozen frontier oracle.
+- M-001: coefficient secondary-objective completeness is not established.
 
 ## Next first action
-Commit and push D-029 separately, then create the manifest before the script.
+Await a new user architecture decision. Do not start TE-4 implementation or
+another proof identity without explicit authorization.
 
 ## Tried
-- Verified Wiki origin/main without touching its dirty local checkout.
-- Verified clean synchronized Powdergame `febfdd147...` and started the session.
-- Read v1 failure and source/pass/binding ownership before selecting v2.
+- Syntax/import/manifest preflight ran without evidence fixtures.
+- Exactly one v2 evidence process completed; result parse and scoped hash passed.
+- Fresh-context reviewer performed read-only static review and ran no evidence.
+- No Cargo, GPU, FULL, build or application launch was run.

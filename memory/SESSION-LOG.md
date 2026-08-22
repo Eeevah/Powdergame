@@ -591,3 +591,21 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   descriptor validation; final unresolved counts are Critical 0 / High 2 /
   Medium 0. The second High is named-fixture execution/aggregation overclaim.
 - Rust/WGSL/Cargo/runtime allocation, GPU/FULL, build and launch counts remain 0.
+
+## 2026-08-22 · TE-4D v2 evidence repair blocked by fresh review
+
+- D-029 authorization commit `3ac5b70...` fixed exact Oil/Wood coefficients,
+  packed u6, non-Vacuum Air-face and chemical/final-tick policies under the new
+  `TE4-IGNITION-KINETICS-REFERENCE-V2` identity.
+- Manifest/script SHA-256 `9b763c1c...53ba` / `c01e2869...a769` were frozen
+  after non-executing preflight. Exactly one process completed 100,000 sequences,
+  10,000 grids and reported 13 reference PASS / 4 production deferred.
+- Result file/payload hashes are `24ebd797...f151` / `717f4ef7...132c`; the
+  process was not patched or rerun.
+- Fresh review found Critical 0 / unresolved High 3 / Medium 1: path counters
+  overclaim transactions, same-tick Smoke can remove the sole Air face, and
+  F08 lacks a manifest-frozen frontier oracle. TE-4D v2 is DESIGN BLOCKED.
+- PG-L035 records same-tick downstream precondition invalidation. Wiki promotion
+  is required but not authorized in this Powdergame-only task; dirty local Wiki
+  remains unchanged.
+- Runtime/Cargo/GPU/FULL/build/launch counts remain zero.

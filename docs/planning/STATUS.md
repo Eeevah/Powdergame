@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1 DESIGN BLOCKED**; **TE-4D v2 EVIDENCE REPAIR AUTHORIZED / ADR-0012 PROPOSED**; pressure coupling deferred |
+| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP** at production physics `4146721...`; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1 DESIGN BLOCKED**; **TE-4D v2 DESIGN BLOCKED / ADR-0012 PROPOSED**; pressure coupling deferred |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -42,8 +42,11 @@ equal-metric coefficient tie selected a different Oil tuple than the
 preregistered identity. It remains immutable blocked history. D-029 authorizes
 the separate `TE4-IGNITION-KINETICS-REFERENCE-V2` identity and selects exact
 coefficients, packed u6 exposure, non-Vacuum Air-face access, chemical-Q cap
-accounting and consume-before-emission. V2 evidence/review remain pending and
-TE-4 runtime remains **NOT STARTED**.
+accounting and consume-before-emission. The manifest-bound v2 process completed
+`1/1`: 13 reference fixtures PASS and exactly four production fixtures remain
+`NOT_ESTABLISHED`. Fresh review found Critical `0` / unresolved High `3` /
+Medium `1` and invalidated the broad transaction/frontier claim. TE-4D v2 is
+**DESIGN BLOCKED** and TE-4 runtime remains **NOT STARTED**.
 
 ---
 

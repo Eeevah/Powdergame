@@ -1,6 +1,6 @@
 # Thermal Transport & Ignition Causality
 
-Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D DESIGN BLOCKED / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
+Status: **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4D v1/v2 DESIGN BLOCKED / ADR-0012 PROPOSED**; **TE-5 PRESSURE REDESIGN DEFERRED / NOT STARTED**
 
 Gate relationship: **G9-B emergence-validation prerequisite**. This document registers a bounded design project; it does not authorize implementation, retune existing physics, or reopen G8 evidence.
 
@@ -28,10 +28,23 @@ current baseline until TE-4:
 - TE-1 thermal transfer was direct-contact only. TE-2 adds four-face Air flow and unified Matter/Air passive exchange without adding diagonal or line-of-sight transport.
 - Each participating Matter uses its conductivity and heat-capacity gameplay scalars; no diagonal, distance or line-of-sight transport is present.
 - Combustible Matter ignites as soon as its own current temperature reaches its Material ignition threshold. Oil and Wood share this generic threshold grammar and currently have no exposure-time or accumulated-dose requirement.
-- There is no Oxygen requirement. TE-2 Air flow/heat exchange does not silently add combustion support or ignition dose.
+- Production currently has no Oxygen requirement. D-029's proposed TE-4D v2 candidate adds only a non-Vacuum orthogonal EMPTY Air-face gate: positive Air mass qualifies but is not consumed or rate-scaled. This is not active runtime behavior.
 
 TE-3 and later gates must not quietly change the remaining phase/ignition
 statements without their named authorization and fixtures.
+
+D-029 names that authorization for a design candidate only. Oil/Wood exposure
+uses own authoritative threshold temperature, integrated bucketed dose,
+cooling decay and previous-snapshot orthogonal flame events. Air access is a
+surface predicate rather than a transported Oxygen quantity. Loss of access
+extinguishes before same-tick heat/flame/Smoke, while fuel remains owned by the
+Matter. The reference proves this reduced state transaction; TE-2 transport,
+WGSL order and product behavior remain production-deferred.
+
+V2 review exposed an unresolved causal edge: Smoke can occupy the sole Air
+face later in the same tick after that face authorized emission. A later user
+decision must choose start-snapshot semantics, last-face protection or atomic
+post-commit cancellation before the projection can be reconsidered.
 
 The first direct TE-2 review classified the original candidate **USER REVIEWED /
 REVISION REQUIRED** because F, N, I and the thermal/Air measurements were not

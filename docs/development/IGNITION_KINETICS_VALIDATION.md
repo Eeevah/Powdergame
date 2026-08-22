@@ -1,6 +1,6 @@
 # Ignition Kinetics Validation Contract
 
-Status: **PREDECLARED / REFERENCE EXECUTION INCOMPLETE**.
+Status: **V2 PROCESS COMPLETED / REVIEW INVALIDATED BROAD PASS / DESIGN BLOCKED**.
 
 ## Fixture matrix
 
@@ -53,3 +53,57 @@ Production validation later requires Core tests, actual WGSL/Naga/binding and
 writer tests, GPU fixtures, sleep/wake equivalence, targeted TE-2/TE-3
 regression, profiler/allocation evidence and direct product review. None ran in
 this docs-only task.
+
+## D-029 manifest-bound v2 receipt
+
+The immutable v1 files and `1/0` receipt above were neither modified nor
+rerun. D-029 created the distinct identity
+`TE4-IGNITION-KINETICS-REFERENCE-V2`.
+
+- Manifest: `../reference/te4_ignition_kinetics_v2_manifest.json`
+- Manifest SHA-256: `9b763c1c7efa0ee9f9d444ef19dc5daed3833aafb546612b01d4e9db48d253ba`
+- Script: `../reference/te4_ignition_kinetics_v2_reference.py`
+- Script SHA-256: `c01e28690fa7b2a6b2c9f24e5af07f776db031f7ca3d4c9cfe27c7b4be79a769`
+- Result: `../reference/te4_ignition_kinetics_v2_result.json`
+- Result payload SHA-256: `717f4ef7f339a12a4f135c7ccbf31d0d10d41763a66fc513ac8d42422dcc132c`
+- Result file SHA-256: `24ebd7974969087de09ee2353d80696be96fbdb34c65894f51e9dbbf3918f151`
+- Seed: `0x54453444`; attempts/completions: `1/1`
+- Coverage: 100,000 single-Cell sequences, 10,000 bounded grids, one matching in-process replay
+- Fixtures: 13 `REFERENCE_REQUIRED` PASS; exactly four `PRODUCTION_DEFERRED` `NOT_ESTABLISHED`; failures 0; unexpected `NOT_ESTABLISHED` 0
+
+Preflight used Python 3.12.13 with syntax compilation, import validation,
+manifest parse/hash, fixture/class/path listing, exact coefficients/profiles and
+output-destination inspection. It executed no randomized campaign or evidence
+fixture. The evidence command was:
+
+```powershell
+& 'C:\Users\mdkap\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B `
+  docs/reference/te4_ignition_kinetics_v2_reference.py `
+  --manifest docs/reference/te4_ignition_kinetics_v2_manifest.json `
+  --result docs/reference/te4_ignition_kinetics_v2_result.json `
+  --failure docs/reference/te4_ignition_kinetics_v2_failure.json
+```
+
+F07 produced exactly `(20,1)`, `(40,2)`, `(60,3)`, `(80,4)`. F08 produced
+first ignition tick 20, maximum five new ignitions in one tick and completion
+tick 173; deterministic digest
+`072d8e25d36e8120f9fa99fcac6eae3b91885538f57affa40d6d2e4f7124f423`.
+F09 recorded Oil `599 / 8,985` and Wood `899 / 7,192` emitting-tick/gross-Q
+totals, consume-tick zero, and finite deposited+clipped closure. F15 accepted
+Atmosphere and positive LowPressure, rejected exact Vacuum and occupied Steam,
+emitted zero on access loss, preserved Air and resumed dose after access
+returned.
+
+Every declared required path counter is positive. The named ownership fixtures
+execute actual state transactions: partial/reversal history, burning/fuel/Q,
+extinguish/reignite, move/swap, five replacement paths, authoring/reset and the
+Air policy matrix. The result deliberately says `PASS_REFERENCE_MODEL_ONLY`;
+GPU, product and user status remain `NOT_ESTABLISHED`, `NOT_ESTABLISHED` and
+`PENDING`.
+
+Fresh review does not alter or rerun the receipt, but rejects its broad
+fixture/state-transition disposition. Several counters are positive constants
+rather than mutation-derived proof; F08 compares a post-run digest only with
+the same implementation's replay; and F15 omits Smoke occupying the sole Air
+face later in the same tick. The reported 13 PASS remains historical process
+output, not accepted design evidence. See the v2 adversarial review.

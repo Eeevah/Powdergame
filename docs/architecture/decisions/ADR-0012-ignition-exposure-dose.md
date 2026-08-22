@@ -1,6 +1,6 @@
 # ADR-0012: Integrated ignition exposure and finite chemical heat
 
-- Status: **PROPOSED — V2 EVIDENCE REPAIR AUTHORIZED / USER ARCHITECTURE REVIEW PENDING**
+- Status: **PROPOSED — V2 DESIGN BLOCKED / USER ARCHITECTURE REVIEW NOT REACHED**
 - Date: 2026-08-22
 - Decision authority: D-028 and D-029
 
@@ -26,7 +26,7 @@ D-029 selects the candidate below for the distinct
 `TE4-IGNITION-KINETICS-REFERENCE-V2` identity. It does not repair or continue
 the immutable v1 process and does not authorize runtime implementation.
 
-Adopt, only after a new evidence authorization, a generic Material-driven rule:
+Propose under D-029 the following generic Material-driven rule:
 
 ```text
 unlit combustible and own T >= ignition threshold
@@ -81,8 +81,8 @@ heat on later thermal ticks.
 |---|---|
 | Above-threshold tick counter | Rejected as primary: temperature excess has no effect. |
 | Integrated excess-temperature dose | Proposed semantic model. |
-| Packed u6 in flags | Preferred representation, but evidence not established. |
-| Dedicated u32 Current/Next pair | Retained fallback; adds 512 KiB at 256² and 32 MiB at 2048². |
+| Packed u6 in flags | Selected v2 representation; reduced ownership reference PASS, production not established. |
+| Dedicated u32 Current/Next pair | Unselected fallback; adds 512 KiB at 256² and 32 MiB at 2048². |
 | Reuse fuel progress | Rejected: ambiguous reversible/irreversible ownership. |
 | Stateless hysteresis/local threshold | Rejected: cannot express retained dose and decay. |
 
@@ -167,3 +167,26 @@ combustion and `ignition_activity_propose` before activity reduction. It
 projects 42 passes/84 queries, 1,344 profiler bytes, no new persistent state
 and no new scratch. Proposal is consumed as context then fully overwritten for
 Smoke. This remains a feasibility projection only.
+
+## V2 reference disposition
+
+The manifest-bound standard-library process ran exactly once and completed.
+It validated 100,000 single-Cell sequences, 10,000 bounded grids, all 13
+reference-required fixtures and one deterministic replay. Exactly TE4-F01,
+F14, F16 and F17 remain production-deferred `NOT_ESTABLISHED`; no required
+fixture failed or had a zero path counter. The result is
+`PASS_REFERENCE_MODEL_ONLY`, not a GPU, product or user PASS. Manifest/script/
+result-file SHA-256 values are `9b763c1c...53ba`, `c01e2869...a769` and
+`24ebd797...f151`; the result's scoped canonical payload hash is
+`717f4ef7...132c`.
+
+The result fixes no runtime source. Existing hygiene currently erases packed
+exposure and is a future implementation obligation, not evidence against the
+selected design representation. Runtime implementation remains prohibited
+until user review of this Proposed ADR.
+
+Fresh-context review found Critical `0` / unresolved High `3` / Medium `1`.
+Positive path counters do not establish distinct transactions; same-tick Smoke
+can occupy the sole Air face after the early check; and F08's digest is a self-
+replay rather than a frozen oracle. V2 is **DESIGN BLOCKED**. The result remains
+immutable narrow history and may not be repaired or rerun under this identity.

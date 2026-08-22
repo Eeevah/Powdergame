@@ -1,6 +1,6 @@
 # TE-4D Ignition Kinetics Plan
 
-Status: **V2 EVIDENCE REPAIR AUTHORIZED / RUNTIME NOT STARTED**.
+Status: **V2 DESIGN BLOCKED / RUNTIME NOT STARTED**.
 
 ## Reuse and exact inventory
 
@@ -50,14 +50,80 @@ non-Vacuum orthogonal EMPTY Air-face access, Oil/Wood gross Q `15/8`, and the
 consume-before-emission final tick. A manifest-bound reference must execute 13
 required fixtures while four production fixtures remain `NOT_ESTABLISHED`.
 
+The exactly-once process completed `1/1` with 100,000 sequences and 10,000
+grids. F07 events were ticks 20/40/60/80. F08 first/max/completion were
+20/5/173. All required path counters were positive. The result is reference-
+only; actual TE-2 transport, GPU sleep/wake, CPU/GPU agreement and TE-2/TE-3
+regression remain F01/F14/F16/F17 `NOT_ESTABLISHED`.
+
+Fresh review found Critical `0` / unresolved High `3` / Medium `1`. Counter
+aggregation does not prove every named transaction, same-tick Smoke may remove
+the sole Air face after the early predicate, and F08 lacks a frozen frontier
+oracle. The process result is retained without patch/rerun; architecture blocks.
+
+Projected final order is current passes 0..23, ignition exposure at 24,
+shifted combustion/Smoke at 25..31, pressure at 32, rupture/hygiene at 33..36,
+base/phase/Environment activity at 37..39, ignition activity at 40, and reduce
+at 41. Both new passes have six storage bindings plus params/descriptor
+uniforms. Proposal is fully written at 24, consumed and overwritten for Smoke
+at 25, then consumed by the existing Smoke transaction. Persistent and scratch
+world-state deltas are zero; profiler buffers total 1,344 bytes.
+
+```text
+ 0 activity_wake
+ 1 movement_propose
+ 2 movement_claim
+ 3 movement_commit
+ 4 material_flag_hygiene_movement
+ 5 environment_reconcile_movement
+ 6 phase_energy_reconcile_movement
+ 7 air_flow_scale
+ 8 air_transport_commit
+ 9 thermal_stability_scale
+10 unified_thermal_commit
+11 phase_context_propose
+12 phase_thermodynamics
+13 expansion_claim
+14 expansion_environment_receiver_claim
+15 expansion_spawn_commit
+16 expansion_pressure
+17 environment_blocked_expansion_pressure
+18 material_flag_hygiene_phase
+19 environment_reconcile_expansion
+20 decay
+21 material_flag_hygiene_decay
+22 phase_energy_hygiene_decay
+23 environment_reconcile_decay
+24 ignition_exposure_propose
+25 combustion
+26 smoke_claim
+27 smoke_environment_receiver_claim
+28 smoke_commit
+29 material_flag_hygiene_combustion
+30 phase_energy_hygiene_combustion
+31 environment_reconcile_smoke
+32 pressure
+33 rupture
+34 material_flag_hygiene_rupture
+35 phase_energy_hygiene_rupture
+36 environment_reconcile_rupture
+37 activity_propose
+38 phase_activity_propose
+39 environment_activity_propose
+40 ignition_activity_propose
+41 activity_reduce
+```
+
 ## Required next decision
 
-Do not implement. After the exactly-once v2 reference and fresh independent
-review, the user must accept or revise ADR-0012 before runtime work.
+Do not implement. A new user decision must resolve sole-Air-face/Smoke timing,
+authorize a new evidence identity with mutation-derived counters and a frozen
+F08 oracle, and decide how much coefficient tie completeness is required.
 
 ## Lesson promotion
 
-`LESSON_PROMOTION: PROJECT_ONLY`. PG-L034 records the new coefficient-selection
-identity/tie-policy preflight guard. The verified Wiki already contains the
-general one-shot preflight rule, and its local checkout is user-dirty and was
-required to remain read-only; no duplicate Wiki edit or PR is created.
+`LESSON_PROMOTION: REQUIRED — DEFERRED / NOT AUTHORIZED FOR WIKI WRITE`.
+PG-L034 remains the coefficient-selection guard. New PG-L035 records the
+same-tick downstream precondition-invalidation pattern exposed by H-002. The
+verified Wiki checkout is user-dirty and this task authorizes Powdergame
+publication only, so no Wiki edit or PR is created.

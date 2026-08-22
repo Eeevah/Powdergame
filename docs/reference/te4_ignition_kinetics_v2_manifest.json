@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "evidence_identity": "TE4-IGNITION-KINETICS-REFERENCE-V2",
+  "seed": 1413829700,
+  "trial_counts": {
+    "single_cell_sequences": 100000,
+    "bounded_grids": 10000,
+    "deterministic_replays": 1
+  },
+  "coefficients": {
+    "Oil": {
+      "budget": 48,
+      "base_rate": 2,
+      "bucket_width_C": 50,
+      "max_rate": 6,
+      "cooling_decay": 1,
+      "flame_bonus": 2,
+      "flame_bonus_cap": 4,
+      "ignition_threshold_C": 200,
+      "sustain_threshold_C": 150
+    },
+    "Wood": {
+      "budget": 60,
+      "base_rate": 1,
+      "bucket_width_C": 50,
+      "max_rate": 5,
+      "cooling_decay": 1,
+      "flame_bonus": 2,
+      "flame_bonus_cap": 4,
+      "ignition_threshold_C": 300,
+      "sustain_threshold_C": 250
+    }
+  },
+  "target_timing_metrics": {
+    "Oil": {"threshold": 24, "+100C": 12, "one_flame": 12, "half_decay": 24},
+    "Wood": {"threshold": 60, "+100C": 20, "one_flame": 20, "half_decay": 30}
+  },
+  "rate_probe_excess_C": [0, 25, 50, 75, 100, 150, 200],
+  "rate_profiles": {
+    "Oil": [2, 2, 3, 3, 4, 5, 6],
+    "Wood": [1, 1, 2, 2, 3, 4, 5]
+  },
+  "equal_primary_metric_candidates": {
+    "Oil": [
+      {
+        "identity": [48, 2, 50, 6, 1, 2, 4],
+        "rate_profile": [2, 2, 3, 3, 4, 5, 6],
+        "disposition": "SELECTED_BY_D029"
+      },
+      {
+        "identity": [48, 2, 25, 4, 1, 2, 4],
+        "rate_profile": [2, 3, 4, 4, 4, 4, 4],
+        "disposition": "REJECTED_EARLY_SATURATION"
+      }
+    ]
+  },
+  "secondary_objectives": [
+    "MINIMIZE_DISTANCE_TO_TARGET_TIMING_METRICS",
+    "MAXIMIZE_DISTINCT_THERMAL_RATE_LEVELS_OVER_PROBES",
+    "DO_NOT_SATURATE_BEFORE_PLUS_150_C",
+    "REACH_MAX_RATE_BY_PLUS_200_C",
+    "RETURN_AMBIGUOUS_AND_BLOCK_IF_STILL_TIED"
+  ],
+  "representation": {
+    "selected": "PACKED_U6",
+    "combusting_bit": 0,
+    "flame_event_bit": 1,
+    "exposure_low_bits": [2, 3],
+    "fuel_progress_bits": [4, 15],
+    "decay_age_bits": [16, 27],
+    "exposure_high_bits": [28, 31],
+    "exposure_range": [0, 63],
+    "fallback": "DEDICATED_U32_CURRENT_NEXT_NOT_SELECTED"
+  },
+  "vacuum_policy": {
+    "selected": "NON_VACUUM_AIR_FACE_REQUIRED",
+    "predicate": "ORTHOGONAL_IN_DOMAIN_AND_MATERIAL_EMPTY_AND_AIR_MASS_POSITIVE",
+    "air_consumed": false,
+    "air_rate_scaling": false,
+    "oxygen_quantity": false
+  },
+  "chemical_heat_policy": {
+    "Oil": {"gross_Q_per_emitting_tick": 15.0, "material_heat_capacity": 2.5, "duration_ticks": 600, "emitting_ticks": 599, "maximum_gross_Q": 8985.0},
+    "Wood": {"gross_Q_per_emitting_tick": 8.0, "material_heat_capacity": 2.0, "duration_ticks": 900, "emitting_ticks": 899, "maximum_gross_Q": 7192.0},
+    "temperature_cap_C": 1200.0,
+    "gpu_delta_formula": "Q_GROSS_DIVIDED_BY_HEAT_CAPACITY",
+    "final_tick": "CONSUME_BEFORE_HEAT_FLAME_SMOKE"
+  },
+  "pass_projection": {
+    "passes": 42,
+    "timestamp_queries": 84,
+    "profiler_query_bytes": 1344,
+    "new_persistent_world_bytes": 0,
+    "new_full_world_scratch_bytes": 0,
+    "future_passes": ["ignition_exposure_propose", "ignition_activity_propose"],
+    "maximum_storage_bindings": 8
+  },
+  "fixture_classes": {
+    "REFERENCE_REQUIRED": ["TE4-F02", "TE4-F03", "TE4-F04", "TE4-F05", "TE4-F06", "TE4-F07", "TE4-F08", "TE4-F09", "TE4-F10", "TE4-F11", "TE4-F12", "TE4-F13", "TE4-F15"],
+    "PRODUCTION_DEFERRED": ["TE4-F01", "TE4-F14", "TE4-F16", "TE4-F17"]
+  },
+  "required_paths": {
+    "TE4-F02": ["oil_direct_contact_ticks", "wood_direct_contact_ticks", "timing_metric_checks", "rate_profile_checks"],
+    "TE4-F03": ["one_tick_spike", "two_tick_spike", "three_tick_spike", "cooling_decay_ticks"],
+    "TE4-F04": ["oil_sustained_ticks", "wood_sustained_ticks", "first_tick_rejection", "exact_ignition_events"],
+    "TE4-F05": ["partial_exposure_ticks", "brief_cooling_ticks", "reheat_ticks", "long_cooling_ticks", "dose_delta_records"],
+    "TE4-F06": ["thermal_only_ticks", "previous_flame_ticks", "thermal_gate_checks", "same_tick_visibility_checks"],
+    "TE4-F07": ["line_simulation_ticks", "previous_snapshot_edge_checks", "ignition_event_records", "same_tick_recursion_checks"],
+    "TE4-F08": ["grid_simulation_ticks", "previous_snapshot_adjacency_checks", "ignition_event_records", "event_digest_records"],
+    "TE4-F09": ["burn_lifecycle_ticks", "fuel_progress_ticks", "cap_accounting_checks", "extinguish_zero_checks", "consumption_zero_checks", "q_conservation_checks"],
+    "TE4-F10": ["initial_ignition_ticks", "initial_burn_ticks", "extinguish_ticks", "dose_rebuild_ticks", "reignition_ticks", "fuel_preservation_checks"],
+    "TE4-F11": ["movement_transactions", "density_swap_transactions", "source_clear_checks", "ownership_conservation_checks"],
+    "TE4-F12": ["decay_replacements", "rupture_replacements", "fuel_consumptions", "void_exits", "generic_replacements", "unrelated_flag_checks"],
+    "TE4-F13": ["draw_transactions", "erase_transactions", "preset_transactions", "reset_transactions", "current_next_equality_checks", "invalid_staging_rejections"],
+    "TE4-F15": ["atmosphere_face_checks", "low_pressure_face_checks", "vacuum_face_checks", "loss_of_air_ticks", "air_recovery_ticks", "air_conservation_checks"]
+  },
+  "propagation_bounds": {
+    "TE4-F07": {"event_ticks": [20, 40, 60, 80], "event_cells": [1, 2, 3, 4]},
+    "TE4-F08": {"width": 9, "height": 9, "initial_burning": [4, 0], "first_new_ignition_tick": 20, "maximum_new_ignitions_one_tick": 5, "all_burning_by_tick": 173}
+  },
+  "expected_not_established": ["TE4-F01", "TE4-F14", "TE4-F16", "TE4-F17"],
+  "expected_status": {
+    "mathematical_result": "PASS",
+    "state_transition_result": "PASS",
+    "coefficient_result": "PASS",
+    "fixture_result": "PASS_REFERENCE_MODEL_ONLY",
+    "gpu_status": "NOT_ESTABLISHED",
+    "product_status": "NOT_ESTABLISHED",
+    "user_status": "PENDING"
+  }
+}

@@ -1,0 +1,1522 @@
+{
+  "attempts": 1,
+  "chemical_heat_policy": {
+    "Oil": {
+      "duration_ticks": 600,
+      "emitting_ticks": 599,
+      "gross_Q_per_emitting_tick": 15.0,
+      "material_heat_capacity": 2.5,
+      "maximum_gross_Q": 8985.0
+    },
+    "Wood": {
+      "duration_ticks": 900,
+      "emitting_ticks": 899,
+      "gross_Q_per_emitting_tick": 8.0,
+      "material_heat_capacity": 2.0,
+      "maximum_gross_Q": 7192.0
+    },
+    "final_tick": "CONSUME_BEFORE_HEAT_FLAME_SMOKE",
+    "gpu_delta_formula": "Q_GROSS_DIVIDED_BY_HEAT_CAPACITY",
+    "temperature_cap_C": 1200.0
+  },
+  "coefficient_identity": {
+    "Oil": {
+      "base_rate": 2,
+      "bucket_width_C": 50,
+      "budget": 48,
+      "cooling_decay": 1,
+      "flame_bonus": 2,
+      "flame_bonus_cap": 4,
+      "ignition_threshold_C": 200,
+      "max_rate": 6,
+      "sustain_threshold_C": 150
+    },
+    "Wood": {
+      "base_rate": 1,
+      "bucket_width_C": 50,
+      "budget": 60,
+      "cooling_decay": 1,
+      "flame_bonus": 2,
+      "flame_bonus_cap": 4,
+      "ignition_threshold_C": 300,
+      "max_rate": 5,
+      "sustain_threshold_C": 250
+    }
+  },
+  "coefficient_result": "PASS",
+  "completions": 1,
+  "deterministic_replay": {
+    "digest": "072d8e25d36e8120f9fa99fcac6eae3b91885538f57affa40d6d2e4f7124f423",
+    "status": "MATCH"
+  },
+  "evidence_identity": "TE4-IGNITION-KINETICS-REFERENCE-V2",
+  "fail_count": 0,
+  "fixture_executed_paths": {
+    "TE4-F01": {},
+    "TE4-F02": {
+      "oil_direct_contact_ticks": 24,
+      "rate_profile_checks": 14,
+      "timing_metric_checks": 8,
+      "wood_direct_contact_ticks": 60
+    },
+    "TE4-F03": {
+      "cooling_decay_ticks": 18,
+      "one_tick_spike": 2,
+      "three_tick_spike": 6,
+      "two_tick_spike": 4
+    },
+    "TE4-F04": {
+      "exact_ignition_events": 2,
+      "first_tick_rejection": 2,
+      "oil_sustained_ticks": 24,
+      "wood_sustained_ticks": 60
+    },
+    "TE4-F05": {
+      "brief_cooling_ticks": 3,
+      "dose_delta_records": 54,
+      "long_cooling_ticks": 40,
+      "partial_exposure_ticks": 6,
+      "reheat_ticks": 5
+    },
+    "TE4-F06": {
+      "previous_flame_ticks": 20,
+      "same_tick_visibility_checks": 20,
+      "thermal_gate_checks": 20,
+      "thermal_only_ticks": 60
+    },
+    "TE4-F07": {
+      "ignition_event_records": 4,
+      "line_simulation_ticks": 80,
+      "previous_snapshot_edge_checks": 200,
+      "same_tick_recursion_checks": 4
+    },
+    "TE4-F08": {
+      "event_digest_records": 31,
+      "grid_simulation_ticks": 173,
+      "ignition_event_records": 80,
+      "previous_snapshot_adjacency_checks": 7990
+    },
+    "TE4-F09": {
+      "burn_lifecycle_ticks": 1500,
+      "cap_accounting_checks": 1498,
+      "consumption_zero_checks": 2,
+      "extinguish_zero_checks": 2,
+      "fuel_progress_ticks": 1498,
+      "q_conservation_checks": 1498
+    },
+    "TE4-F10": {
+      "dose_rebuild_ticks": 24,
+      "extinguish_ticks": 1,
+      "fuel_preservation_checks": 2,
+      "initial_burn_ticks": 10,
+      "initial_ignition_ticks": 24,
+      "reignition_ticks": 1
+    },
+    "TE4-F11": {
+      "density_swap_transactions": 1,
+      "movement_transactions": 1,
+      "ownership_conservation_checks": 4,
+      "source_clear_checks": 2
+    },
+    "TE4-F12": {
+      "decay_replacements": 1,
+      "fuel_consumptions": 1,
+      "generic_replacements": 1,
+      "rupture_replacements": 1,
+      "unrelated_flag_checks": 5,
+      "void_exits": 1
+    },
+    "TE4-F13": {
+      "current_next_equality_checks": 3,
+      "draw_transactions": 1,
+      "erase_transactions": 1,
+      "invalid_staging_rejections": 1,
+      "preset_transactions": 1,
+      "reset_transactions": 1
+    },
+    "TE4-F14": {},
+    "TE4-F15": {
+      "air_conservation_checks": 4,
+      "air_recovery_ticks": 1,
+      "atmosphere_face_checks": 1,
+      "loss_of_air_ticks": 1,
+      "low_pressure_face_checks": 1,
+      "vacuum_face_checks": 2
+    },
+    "TE4-F16": {},
+    "TE4-F17": {}
+  },
+  "fixture_required_paths": {
+    "TE4-F02": [
+      "oil_direct_contact_ticks",
+      "wood_direct_contact_ticks",
+      "timing_metric_checks",
+      "rate_profile_checks"
+    ],
+    "TE4-F03": [
+      "one_tick_spike",
+      "two_tick_spike",
+      "three_tick_spike",
+      "cooling_decay_ticks"
+    ],
+    "TE4-F04": [
+      "oil_sustained_ticks",
+      "wood_sustained_ticks",
+      "first_tick_rejection",
+      "exact_ignition_events"
+    ],
+    "TE4-F05": [
+      "partial_exposure_ticks",
+      "brief_cooling_ticks",
+      "reheat_ticks",
+      "long_cooling_ticks",
+      "dose_delta_records"
+    ],
+    "TE4-F06": [
+      "thermal_only_ticks",
+      "previous_flame_ticks",
+      "thermal_gate_checks",
+      "same_tick_visibility_checks"
+    ],
+    "TE4-F07": [
+      "line_simulation_ticks",
+      "previous_snapshot_edge_checks",
+      "ignition_event_records",
+      "same_tick_recursion_checks"
+    ],
+    "TE4-F08": [
+      "grid_simulation_ticks",
+      "previous_snapshot_adjacency_checks",
+      "ignition_event_records",
+      "event_digest_records"
+    ],
+    "TE4-F09": [
+      "burn_lifecycle_ticks",
+      "fuel_progress_ticks",
+      "cap_accounting_checks",
+      "extinguish_zero_checks",
+      "consumption_zero_checks",
+      "q_conservation_checks"
+    ],
+    "TE4-F10": [
+      "initial_ignition_ticks",
+      "initial_burn_ticks",
+      "extinguish_ticks",
+      "dose_rebuild_ticks",
+      "reignition_ticks",
+      "fuel_preservation_checks"
+    ],
+    "TE4-F11": [
+      "movement_transactions",
+      "density_swap_transactions",
+      "source_clear_checks",
+      "ownership_conservation_checks"
+    ],
+    "TE4-F12": [
+      "decay_replacements",
+      "rupture_replacements",
+      "fuel_consumptions",
+      "void_exits",
+      "generic_replacements",
+      "unrelated_flag_checks"
+    ],
+    "TE4-F13": [
+      "draw_transactions",
+      "erase_transactions",
+      "preset_transactions",
+      "reset_transactions",
+      "current_next_equality_checks",
+      "invalid_staging_rejections"
+    ],
+    "TE4-F15": [
+      "atmosphere_face_checks",
+      "low_pressure_face_checks",
+      "vacuum_face_checks",
+      "loss_of_air_ticks",
+      "air_recovery_ticks",
+      "air_conservation_checks"
+    ]
+  },
+  "fixture_result": "PASS_REFERENCE_MODEL_ONLY",
+  "fixture_results": {
+    "TE4-F01": {
+      "class": "PRODUCTION_DEFERRED",
+      "executed_paths": {},
+      "status": "NOT_ESTABLISHED"
+    },
+    "TE4-F02": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "oil_direct_contact_ticks": 24,
+        "rate_profile_checks": 14,
+        "timing_metric_checks": 8,
+        "wood_direct_contact_ticks": 60
+      },
+      "metrics": {
+        "checks": 22,
+        "profiles": {
+          "Oil": [
+            2,
+            2,
+            3,
+            3,
+            4,
+            5,
+            6
+          ],
+          "Wood": [
+            1,
+            1,
+            2,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        "ticks": {
+          "Oil": {
+            "+100C": 12,
+            "half_decay": 24,
+            "one_flame": 12,
+            "threshold": 24
+          },
+          "Wood": {
+            "+100C": 20,
+            "half_decay": 30,
+            "one_flame": 20,
+            "threshold": 60
+          }
+        }
+      },
+      "status": "PASS"
+    },
+    "TE4-F03": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "cooling_decay_ticks": 18,
+        "one_tick_spike": 2,
+        "three_tick_spike": 6,
+        "two_tick_spike": 4
+      },
+      "metrics": {
+        "peak_exposure": {
+          "Oil": {
+            "1": 2,
+            "2": 4,
+            "3": 6
+          },
+          "Wood": {
+            "1": 1,
+            "2": 2,
+            "3": 3
+          }
+        }
+      },
+      "status": "PASS"
+    },
+    "TE4-F04": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "exact_ignition_events": 2,
+        "first_tick_rejection": 2,
+        "oil_sustained_ticks": 24,
+        "wood_sustained_ticks": 60
+      },
+      "metrics": {
+        "Oil": 24,
+        "Wood": 60
+      },
+      "status": "PASS"
+    },
+    "TE4-F05": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "brief_cooling_ticks": 3,
+        "dose_delta_records": 54,
+        "long_cooling_ticks": 40,
+        "partial_exposure_ticks": 6,
+        "reheat_ticks": 5
+      },
+      "metrics": {
+        "final_exposure": 0,
+        "records": [
+          {
+            "after": 2,
+            "before": 0,
+            "delta": 2,
+            "phase": "partial",
+            "tick": 1
+          },
+          {
+            "after": 4,
+            "before": 2,
+            "delta": 2,
+            "phase": "partial",
+            "tick": 2
+          },
+          {
+            "after": 6,
+            "before": 4,
+            "delta": 2,
+            "phase": "partial",
+            "tick": 3
+          },
+          {
+            "after": 8,
+            "before": 6,
+            "delta": 2,
+            "phase": "partial",
+            "tick": 4
+          },
+          {
+            "after": 10,
+            "before": 8,
+            "delta": 2,
+            "phase": "partial",
+            "tick": 5
+          },
+          {
+            "after": 12,
+            "before": 10,
+            "delta": 2,
+            "phase": "partial",
+            "tick": 6
+          },
+          {
+            "after": 11,
+            "before": 12,
+            "delta": -1,
+            "phase": "brief_cooling",
+            "tick": 1
+          },
+          {
+            "after": 10,
+            "before": 11,
+            "delta": -1,
+            "phase": "brief_cooling",
+            "tick": 2
+          },
+          {
+            "after": 9,
+            "before": 10,
+            "delta": -1,
+            "phase": "brief_cooling",
+            "tick": 3
+          },
+          {
+            "after": 11,
+            "before": 9,
+            "delta": 2,
+            "phase": "reheat",
+            "tick": 1
+          },
+          {
+            "after": 13,
+            "before": 11,
+            "delta": 2,
+            "phase": "reheat",
+            "tick": 2
+          },
+          {
+            "after": 15,
+            "before": 13,
+            "delta": 2,
+            "phase": "reheat",
+            "tick": 3
+          },
+          {
+            "after": 17,
+            "before": 15,
+            "delta": 2,
+            "phase": "reheat",
+            "tick": 4
+          },
+          {
+            "after": 19,
+            "before": 17,
+            "delta": 2,
+            "phase": "reheat",
+            "tick": 5
+          },
+          {
+            "after": 18,
+            "before": 19,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 1
+          },
+          {
+            "after": 17,
+            "before": 18,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 2
+          },
+          {
+            "after": 16,
+            "before": 17,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 3
+          },
+          {
+            "after": 15,
+            "before": 16,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 4
+          },
+          {
+            "after": 14,
+            "before": 15,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 5
+          },
+          {
+            "after": 13,
+            "before": 14,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 6
+          },
+          {
+            "after": 12,
+            "before": 13,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 7
+          },
+          {
+            "after": 11,
+            "before": 12,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 8
+          },
+          {
+            "after": 10,
+            "before": 11,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 9
+          },
+          {
+            "after": 9,
+            "before": 10,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 10
+          },
+          {
+            "after": 8,
+            "before": 9,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 11
+          },
+          {
+            "after": 7,
+            "before": 8,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 12
+          },
+          {
+            "after": 6,
+            "before": 7,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 13
+          },
+          {
+            "after": 5,
+            "before": 6,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 14
+          },
+          {
+            "after": 4,
+            "before": 5,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 15
+          },
+          {
+            "after": 3,
+            "before": 4,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 16
+          },
+          {
+            "after": 2,
+            "before": 3,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 17
+          },
+          {
+            "after": 1,
+            "before": 2,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 18
+          },
+          {
+            "after": 0,
+            "before": 1,
+            "delta": -1,
+            "phase": "long_cooling",
+            "tick": 19
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 20
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 21
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 22
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 23
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 24
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 25
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 26
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 27
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 28
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 29
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 30
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 31
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 32
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 33
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 34
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 35
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 36
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 37
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 38
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 39
+          },
+          {
+            "after": 0,
+            "before": 0,
+            "delta": 0,
+            "phase": "long_cooling",
+            "tick": 40
+          }
+        ]
+      },
+      "status": "PASS"
+    },
+    "TE4-F06": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "previous_flame_ticks": 20,
+        "same_tick_visibility_checks": 20,
+        "thermal_gate_checks": 20,
+        "thermal_only_ticks": 60
+      },
+      "metrics": {
+        "one_flame_ticks": 20,
+        "thermal_ticks": 60
+      },
+      "status": "PASS"
+    },
+    "TE4-F07": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "ignition_event_records": 4,
+        "line_simulation_ticks": 80,
+        "previous_snapshot_edge_checks": 200,
+        "same_tick_recursion_checks": 4
+      },
+      "metrics": {
+        "adjacency_checks": 200,
+        "completion_tick": 80,
+        "digest": "233b8284135df0d987ccd75743fa36ce143791cb5280edc8262398599c2d9d1b",
+        "events": [
+          {
+            "cells": [
+              [
+                1,
+                0
+              ]
+            ],
+            "tick": 20
+          },
+          {
+            "cells": [
+              [
+                2,
+                0
+              ]
+            ],
+            "tick": 40
+          },
+          {
+            "cells": [
+              [
+                3,
+                0
+              ]
+            ],
+            "tick": 60
+          },
+          {
+            "cells": [
+              [
+                4,
+                0
+              ]
+            ],
+            "tick": 80
+          }
+        ]
+      },
+      "status": "PASS"
+    },
+    "TE4-F08": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "event_digest_records": 31,
+        "grid_simulation_ticks": 173,
+        "ignition_event_records": 80,
+        "previous_snapshot_adjacency_checks": 7990
+      },
+      "metrics": {
+        "adjacency_checks": 7990,
+        "completion_tick": 173,
+        "digest": "072d8e25d36e8120f9fa99fcac6eae3b91885538f57affa40d6d2e4f7124f423",
+        "events": [
+          {
+            "cells": [
+              [
+                3,
+                0
+              ],
+              [
+                4,
+                1
+              ],
+              [
+                5,
+                0
+              ]
+            ],
+            "tick": 20
+          },
+          {
+            "cells": [
+              [
+                3,
+                1
+              ],
+              [
+                5,
+                1
+              ]
+            ],
+            "tick": 32
+          },
+          {
+            "cells": [
+              [
+                2,
+                0
+              ],
+              [
+                4,
+                2
+              ],
+              [
+                6,
+                0
+              ]
+            ],
+            "tick": 40
+          },
+          {
+            "cells": [
+              [
+                2,
+                1
+              ],
+              [
+                3,
+                2
+              ],
+              [
+                5,
+                2
+              ],
+              [
+                6,
+                1
+              ]
+            ],
+            "tick": 48
+          },
+          {
+            "cells": [
+              [
+                1,
+                0
+              ],
+              [
+                2,
+                2
+              ],
+              [
+                4,
+                3
+              ],
+              [
+                6,
+                2
+              ],
+              [
+                7,
+                0
+              ]
+            ],
+            "tick": 60
+          },
+          {
+            "cells": [
+              [
+                1,
+                1
+              ],
+              [
+                3,
+                3
+              ],
+              [
+                5,
+                3
+              ],
+              [
+                7,
+                1
+              ]
+            ],
+            "tick": 65
+          },
+          {
+            "cells": [
+              [
+                1,
+                2
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                6,
+                3
+              ],
+              [
+                7,
+                2
+              ]
+            ],
+            "tick": 74
+          },
+          {
+            "cells": [
+              [
+                0,
+                0
+              ],
+              [
+                4,
+                4
+              ],
+              [
+                8,
+                0
+              ]
+            ],
+            "tick": 80
+          },
+          {
+            "cells": [
+              [
+                0,
+                1
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                4
+              ],
+              [
+                8,
+                1
+              ]
+            ],
+            "tick": 83
+          },
+          {
+            "cells": [
+              [
+                1,
+                3
+              ],
+              [
+                7,
+                3
+              ]
+            ],
+            "tick": 86
+          },
+          {
+            "cells": [
+              [
+                0,
+                2
+              ],
+              [
+                2,
+                4
+              ],
+              [
+                6,
+                4
+              ],
+              [
+                8,
+                2
+              ]
+            ],
+            "tick": 90
+          },
+          {
+            "cells": [
+              [
+                0,
+                3
+              ],
+              [
+                1,
+                4
+              ],
+              [
+                4,
+                5
+              ],
+              [
+                7,
+                4
+              ],
+              [
+                8,
+                3
+              ]
+            ],
+            "tick": 100
+          },
+          {
+            "cells": [
+              [
+                3,
+                5
+              ],
+              [
+                5,
+                5
+              ]
+            ],
+            "tick": 102
+          },
+          {
+            "cells": [
+              [
+                2,
+                5
+              ],
+              [
+                6,
+                5
+              ]
+            ],
+            "tick": 107
+          },
+          {
+            "cells": [
+              [
+                0,
+                4
+              ],
+              [
+                8,
+                4
+              ]
+            ],
+            "tick": 112
+          },
+          {
+            "cells": [
+              [
+                1,
+                5
+              ],
+              [
+                7,
+                5
+              ]
+            ],
+            "tick": 115
+          },
+          {
+            "cells": [
+              [
+                4,
+                6
+              ]
+            ],
+            "tick": 120
+          },
+          {
+            "cells": [
+              [
+                3,
+                6
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "tick": 122
+          },
+          {
+            "cells": [
+              [
+                2,
+                6
+              ],
+              [
+                6,
+                6
+              ]
+            ],
+            "tick": 125
+          },
+          {
+            "cells": [
+              [
+                0,
+                5
+              ],
+              [
+                8,
+                5
+              ]
+            ],
+            "tick": 126
+          },
+          {
+            "cells": [
+              [
+                1,
+                6
+              ],
+              [
+                7,
+                6
+              ]
+            ],
+            "tick": 131
+          },
+          {
+            "cells": [
+              [
+                0,
+                6
+              ],
+              [
+                4,
+                7
+              ],
+              [
+                8,
+                6
+              ]
+            ],
+            "tick": 140
+          },
+          {
+            "cells": [
+              [
+                3,
+                7
+              ],
+              [
+                5,
+                7
+              ]
+            ],
+            "tick": 142
+          },
+          {
+            "cells": [
+              [
+                2,
+                7
+              ],
+              [
+                6,
+                7
+              ]
+            ],
+            "tick": 144
+          },
+          {
+            "cells": [
+              [
+                1,
+                7
+              ],
+              [
+                7,
+                7
+              ]
+            ],
+            "tick": 149
+          },
+          {
+            "cells": [
+              [
+                0,
+                7
+              ],
+              [
+                8,
+                7
+              ]
+            ],
+            "tick": 156
+          },
+          {
+            "cells": [
+              [
+                4,
+                8
+              ]
+            ],
+            "tick": 160
+          },
+          {
+            "cells": [
+              [
+                3,
+                8
+              ],
+              [
+                5,
+                8
+              ]
+            ],
+            "tick": 162
+          },
+          {
+            "cells": [
+              [
+                2,
+                8
+              ],
+              [
+                6,
+                8
+              ]
+            ],
+            "tick": 164
+          },
+          {
+            "cells": [
+              [
+                1,
+                8
+              ],
+              [
+                7,
+                8
+              ]
+            ],
+            "tick": 167
+          },
+          {
+            "cells": [
+              [
+                0,
+                8
+              ],
+              [
+                8,
+                8
+              ]
+            ],
+            "tick": 173
+          }
+        ],
+        "first_new_ignition_tick": 20,
+        "maximum_new_ignitions_one_tick": 5
+      },
+      "status": "PASS"
+    },
+    "TE4-F09": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "burn_lifecycle_ticks": 1500,
+        "cap_accounting_checks": 1498,
+        "consumption_zero_checks": 2,
+        "extinguish_zero_checks": 2,
+        "fuel_progress_ticks": 1498,
+        "q_conservation_checks": 1498
+      },
+      "metrics": {
+        "Oil": {
+          "clipped_Q": 8980.0,
+          "deposited_Q": 5.0,
+          "emitting_ticks": 599,
+          "final_material": "EMPTY",
+          "gross_Q": 8985.0
+        },
+        "Wood": {
+          "clipped_Q": 7188.0,
+          "deposited_Q": 4.0,
+          "emitting_ticks": 899,
+          "final_material": "EMPTY",
+          "gross_Q": 7192.0
+        }
+      },
+      "status": "PASS"
+    },
+    "TE4-F10": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "dose_rebuild_ticks": 24,
+        "extinguish_ticks": 1,
+        "fuel_preservation_checks": 2,
+        "initial_burn_ticks": 10,
+        "initial_ignition_ticks": 24,
+        "reignition_ticks": 1
+      },
+      "metrics": {
+        "fuel_after": 10,
+        "fuel_before": 10,
+        "rebuild_ticks": 24
+      },
+      "status": "PASS"
+    },
+    "TE4-F11": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "density_swap_transactions": 1,
+        "movement_transactions": 1,
+        "ownership_conservation_checks": 4,
+        "source_clear_checks": 2
+      },
+      "metrics": {
+        "decay_age": 23,
+        "fuel": 17,
+        "moved_exposure": 37,
+        "swapped_exposure": 37
+      },
+      "status": "PASS"
+    },
+    "TE4-F12": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "decay_replacements": 1,
+        "fuel_consumptions": 1,
+        "generic_replacements": 1,
+        "rupture_replacements": 1,
+        "unrelated_flag_checks": 5,
+        "void_exits": 1
+      },
+      "metrics": {
+        "cleared_paths": 5
+      },
+      "status": "PASS"
+    },
+    "TE4-F13": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "current_next_equality_checks": 3,
+        "draw_transactions": 1,
+        "erase_transactions": 1,
+        "invalid_staging_rejections": 1,
+        "preset_transactions": 1,
+        "reset_transactions": 1
+      },
+      "metrics": {
+        "atomic_preservation": true,
+        "invalid_rejected": true
+      },
+      "status": "PASS"
+    },
+    "TE4-F14": {
+      "class": "PRODUCTION_DEFERRED",
+      "executed_paths": {},
+      "status": "NOT_ESTABLISHED"
+    },
+    "TE4-F15": {
+      "class": "REFERENCE_REQUIRED",
+      "executed_paths": {
+        "air_conservation_checks": 4,
+        "air_recovery_ticks": 1,
+        "atmosphere_face_checks": 1,
+        "loss_of_air_ticks": 1,
+        "low_pressure_face_checks": 1,
+        "vacuum_face_checks": 2
+      },
+      "metrics": {
+        "air_access": {
+          "Atmosphere": true,
+          "LowPressure": true,
+          "OccupiedGas": false,
+          "Vacuum": false
+        },
+        "loss_event": {
+          "clipped_Q": 0.0,
+          "consumed": false,
+          "deposited_Q": 0.0,
+          "extinguished": true,
+          "flame": false,
+          "gross_Q": 0.0,
+          "smoke": false
+        },
+        "recovery_exposure": 2
+      },
+      "status": "PASS"
+    },
+    "TE4-F16": {
+      "class": "PRODUCTION_DEFERRED",
+      "executed_paths": {},
+      "status": "NOT_ESTABLISHED"
+    },
+    "TE4-F17": {
+      "class": "PRODUCTION_DEFERRED",
+      "executed_paths": {},
+      "status": "NOT_ESTABLISHED"
+    }
+  },
+  "gpu_status": "NOT_ESTABLISHED",
+  "grid_trials": 10000,
+  "limitations": [
+    "No Rust or WGSL production implementation was executed.",
+    "GPU bindings, races, pass order, wake behavior and profiler allocation are not established.",
+    "TE-2 transport, product visuals and user acceptance are not established.",
+    "The four PRODUCTION_DEFERRED fixtures remain NOT_ESTABLISHED by design."
+  ],
+  "manifest_sha256": "9b763c1c7efa0ee9f9d444ef19dc5daed3833aafb546612b01d4e9db48d253ba",
+  "mathematical_result": "PASS",
+  "pass_projection": {
+    "future_passes": [
+      "ignition_exposure_propose",
+      "ignition_activity_propose"
+    ],
+    "maximum_storage_bindings": 8,
+    "new_full_world_scratch_bytes": 0,
+    "new_persistent_world_bytes": 0,
+    "passes": 42,
+    "profiler_query_bytes": 1344,
+    "timestamp_queries": 84
+  },
+  "product_status": "NOT_ESTABLISHED",
+  "production_deferred_not_established_count": 4,
+  "random_campaign_digest": "40d8b2ba22ad1d8089be525fabd4804efb6ea6151557cf632062ac4ce5e5fb71",
+  "random_coverage": {
+    "atmosphere": 33468,
+    "budget_minus_one": 25384,
+    "extinguish": 7693,
+    "grid_cell_checks": 126755,
+    "low_pressure": 33206,
+    "movement": 14286,
+    "near_budget": 51061,
+    "replacement": 9091,
+    "vacuum": 33326
+  },
+  "rate_profiles": {
+    "Oil": [
+      2,
+      2,
+      3,
+      3,
+      4,
+      5,
+      6
+    ],
+    "Wood": [
+      1,
+      1,
+      2,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "reference_required_pass_count": 13,
+  "representation": {
+    "combusting_bit": 0,
+    "decay_age_bits": [
+      16,
+      27
+    ],
+    "exposure_high_bits": [
+      28,
+      31
+    ],
+    "exposure_low_bits": [
+      2,
+      3
+    ],
+    "exposure_range": [
+      0,
+      63
+    ],
+    "fallback": "DEDICATED_U32_CURRENT_NEXT_NOT_SELECTED",
+    "flame_event_bit": 1,
+    "fuel_progress_bits": [
+      4,
+      15
+    ],
+    "selected": "PACKED_U6"
+  },
+  "result_hash_scope": "CANONICAL_JSON_WITH_RESULT_SHA256_EMPTY",
+  "result_sha256": "717f4ef7f339a12a4f135c7ccbf31d0d10d41763a66fc513ac8d42422dcc132c",
+  "script_sha256": "c01e28690fa7b2a6b2c9f24e5af07f776db031f7ca3d4c9cfe27c7b4be79a769",
+  "sequence_trials": 100000,
+  "state_transition_result": "PASS",
+  "unexpected_not_established_count": 0,
+  "user_status": "PENDING",
+  "vacuum_policy": {
+    "air_consumed": false,
+    "air_rate_scaling": false,
+    "oxygen_quantity": false,
+    "predicate": "ORTHOGONAL_IN_DOMAIN_AND_MATERIAL_EMPTY_AND_AIR_MASS_POSITIVE",
+    "selected": "NON_VACUUM_AIR_FACE_REQUIRED"
+  }
+}

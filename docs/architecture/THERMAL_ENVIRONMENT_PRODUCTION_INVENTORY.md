@@ -88,11 +88,35 @@ Live combustion and activity each use eight storage bindings. The combustion
 descriptor is serialized as 16 × 32 bytes (512 bytes), with a 20-byte Rust
 logical descriptor and 12 WGSL padding bytes. Flags bits 2..3 and 28..31 are
 unowned, but the current Oil/Wood hygiene mask `0x0000FFF3` would clear them.
-Packed u6 exposure projects 0 bytes, 0 passes and an unchanged 40-pass/80-query
-graph. A dedicated u32 Current/Next pair adds 524,288 bytes at 256² or 32 MiB
-at 2048² and conservatively projects at least 42 passes/84 queries because both
-movement commit and combustion are already at the storage ceiling. ADR-0012 is
-blocked before evidence completion; none of these projections is runtime fact.
+Packed u6 exposure is selected by D-029. Because live combustion and base
+activity are already at eight storage bindings, it conservatively adds two
+logical passes while reusing proposal scratch: 42 passes/84 queries, two
+672-byte profiler buffers (1,344 bytes total), zero new persistent world bytes
+and zero new full-world scratch bytes. Dedicated u32 Current/Next remains an
+unselected fallback (524,288 bytes at 256² or 32 MiB at 2048²). None is runtime
+fact.
+
+The projected order inserts `ignition_exposure_propose` as pass 24 after decay
+and all of its hygiene/reconcile work has settled. Existing combustion/Smoke,
+pressure, rupture and activity shift by one. It inserts
+`ignition_activity_propose` as pass 40 after Environment activity and before
+activity reduce, which becomes pass 41. The exposure pass uses five read-only
+storage bindings (Material, temperature, flags, Air mass, chunk state), one
+proposal read-write binding and two uniforms (params and the existing 512-byte
+combustion table): six storage total. The activity pass uses Material,
+temperature, flags, Air mass and chunk state read-only plus `cell_activity`
+read-write, again six storage, and the same two uniforms.
+
+Proposal lifetime is source-feasible: all earlier phase/expansion consumers
+finish; the exposure pass fully overwrites every proposal word as packed
+exposure/ignite/Air context; combustion consumes it and then fully overwrites
+proposal with the existing Smoke request; Smoke claim/receiver/commit consume
+that request before later activity. No stale interpretation crosses a lifetime.
+
+Fresh review means this arithmetic projection is not implementation-ready:
+the sole-Air-face/Smoke counterexample may require target protection,
+post-commit recheck or changed snapshot semantics. Any choice requires a new
+pass/encoding/live-range audit. V2 is DESIGN BLOCKED.
 
 A spawn Environment reconcile uses exactly eight storage bindings: pre/post
 material, the original Matter claim, one new receiver claim, two Air Current

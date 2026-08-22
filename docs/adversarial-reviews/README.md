@@ -59,6 +59,10 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   there is no Recommendation or Retained fallback.
 - [`TE3Q_CONSERVATIVE_PHASE_PACKETS_DESIGN.md`](TE3Q_CONSERVATIVE_PHASE_PACKETS_DESIGN.md)
 - [`TE4_IGNITION_KINETICS_DESIGN.md`](TE4_IGNITION_KINETICS_DESIGN.md)
+- [`TE4_IGNITION_KINETICS_DESIGN_V2.md`](TE4_IGNITION_KINETICS_DESIGN_V2.md)
+  — D-029 fresh-context review. **Critical 0 / unresolved High 3 / Medium 1**;
+  positive path counters, same-tick Smoke/Air-face loss and post-run F08 digest
+  block the v2 design. Runtime remains not started.
   — D-023 fresh-context packet review. Current disposition: **TE-3Q / TE-5Q
   DESIGN BLOCKED — UNRESOLVED CRITICAL 0 / HIGH 8 / MEDIUM 1**. The reduced
   proof under-models named fixtures; local contraction and spatial pressure

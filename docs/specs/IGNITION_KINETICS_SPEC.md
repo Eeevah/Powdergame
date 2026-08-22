@@ -1,6 +1,6 @@
 # Ignition Kinetics Specification
 
-Status: **PROPOSED / V2 EVIDENCE REPAIR AUTHORIZED** under D-029 and ADR-0012. This document
+Status: **PROPOSED / V2 DESIGN BLOCKED / PRODUCTION NOT ESTABLISHED** under D-029 and ADR-0012. This document
 defines the candidate contract; it is not active production behavior.
 
 ## State and ownership
@@ -79,8 +79,14 @@ and leaves exposure zero. An inaccessible unlit Cell decays partial exposure.
 - **IG-INV-014** Stable unlit/burned-out regions may sleep.
 - **IG-INV-015** Descriptor/state values are finite and canonical.
 - **IG-INV-016** Every production pass remains at eight storage bindings or less.
-- **IG-INV-017** Vacuum policy is explicit and user-owned.
+- **IG-INV-017** Ignition/sustain require an orthogonal EMPTY face with positive Air mass; no Air is consumed.
 - **IG-INV-018** Historical evidence stays source-bound.
 
-All invariants are design obligations. D-028's execution established none of
-them as production or complete reference evidence.
+The v2 reduced reference established the mathematical/state-transition subset
+for 13 fixtures. TE4-F01/F14/F16/F17 and all actual GPU/product/user claims
+remain `NOT_ESTABLISHED`; D-028's v1 execution established none of them.
+
+Independent review invalidated the broad `state_transition_result=PASS`
+interpretation: several path counters are not mutation-derived, sole-Air-face
+loss through same-tick Smoke is unspecified, and F08 has no frozen exact
+frontier oracle. These are design/evidence blockers, not runtime bugs.

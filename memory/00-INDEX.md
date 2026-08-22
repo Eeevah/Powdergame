@@ -53,6 +53,7 @@ This directory is Powdergame's single active Ballast session-continuity map. It 
 | [`memory/checkpoints/20260823-0008-te4d-supplement-blocked-before-te4i.md`](checkpoints/20260823-0008-te4d-supplement-blocked-before-te4i.md) | D-031 supplement blocked return point before D-032 implementation-first authorization | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260823-te4i-implementation-authorized.md`](checkpoints/20260823-te4i-implementation-authorized.md) | D-032 authorization return point before the TE-4I production candidate was completed | Historical only | Immutable archive of the superseded checkpoint |
 | [`memory/checkpoints/20260823-0309-te4i-production-before-scene4-observability.md`](checkpoints/20260823-0309-te4i-production-before-scene4-observability.md) | Original TE-4I production-candidate return point before the user exposed Scene 4 observability failure | Historical only | Immutable archive of the superseded checkpoint |
+| [`memory/checkpoints/20260823-0343-te4i-scene4-rereview-pending.md`](checkpoints/20260823-0343-te4i-scene4-rereview-pending.md) | Revised Scene 4 return point before D-034 user acceptance and PG-L036 Wiki promotion | Historical only | Immutable archive of the superseded checkpoint |
 
 ## Canonical project authorities
 

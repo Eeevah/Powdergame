@@ -683,3 +683,31 @@ Terse append-only continuity audit; not a transcript and not runtime evidence.
   as Scene 4 visual proof. EXE SHA-256 is `EABC00C3...D6297`, size `10,147,328`.
 - PG-L036 was adopted. Verified Wiki `bf3d2b1...` already carries the general
   source/target/receiver evidence rule; the dirty local Wiki was untouched.
+
+## 2026-08-23 · TE-4I user acceptance and PG-L036 Wiki promotion
+
+- D-034 records Scenes 1–4 as **DIRECT OBSERVATION CONSISTENT**, TE-4I as
+  **USER ACCEPTED WITH KNOWN FOLLOW-UP**, and ADR-0012 as accepted for the
+  current production implementation. Q-017 is closed.
+- Accepted source identities remain runtime `8d9e8cbe3b6ac651335b5a728ef491abeae4772a`,
+  Scene 4 observability `a7622bf2106a11e731a46018a4afe30d236b9304`,
+  and pre-acceptance docs closure `0b5c80e93e6693d86d7be6f2d74819da6143c358`.
+- The user directly observed Scene 4 at ticks `0/1/2/1184` as
+  `READY/EMITTED/EXTINGUISHED/DECAYED`: exact Smoke target, whole-parcel Air
+  receiver transfer, next-snapshot extinguish with no duplicate Smoke, and
+  later target EMPTY/Air recovery/marker removal.
+- `LESSON_PROMOTION: REQUIRED`. PG-L036 was integrated into the existing Wiki
+  Evidence/fixture integrity Claim chain and Powdergame promoted-lessons page.
+  Clean-clone commit `fe29fde421425491087d65e09c5557d1fe8b9cc1` passed full
+  validation and PR #49 CI, then ordinary-merged to Wiki `main` as
+  `b9a36c7712cda2ac5332e3083e0e5ff5b018fa91`.
+- The original user-dirty Wiki checkout remained exactly
+  `M wiki/workflows/index.md` and `?? wiki/workflows/codex-lm-studio.md`; the
+  verified temporary clone was removed after merge verification.
+- Powdergame strict policy audit, Markdown link/fence/index, secret, scope and
+  diff checks passed. Cargo test/check/clippy, GPU/Naga/device, workspace FULL,
+  release build, application/candidate launch, G8/G8-C and TE-5/TE-6 counts
+  were all zero.
+- Exactly one next action is **TE-5 Pressure/Vacuum architecture re-entry
+  authorization — DESIGN RE-ENTRY REQUIRED / NOT STARTED**. No blocked
+  TE-5B/C/D/X/Q candidate resumes automatically.

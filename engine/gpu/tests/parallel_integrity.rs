@@ -102,7 +102,7 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
         PassContract {
             name: "air_flow_scale.wgsl",
             source: include_str!("../src/air_flow_scale.wgsl"),
-            expected_readwrite_bindings: &["donor_scale", "receiver_scale"],
+            expected_readwrite_bindings: &["donor_scale", "total_pressure"],
         },
         PassContract {
             name: "air_transport_commit.wgsl",
@@ -246,6 +246,11 @@ fn test_all_production_wgsl_write_contracts_and_binding_safety() {
         PassContract {
             name: "ignition_activity_propose.wgsl",
             source: include_str!("../src/ignition_activity_propose.wgsl"),
+            expected_readwrite_bindings: &["cell_activity"],
+        },
+        PassContract {
+            name: "pressure_activity_propose.wgsl",
+            source: include_str!("../src/pressure_activity_propose.wgsl"),
             expected_readwrite_bindings: &["cell_activity"],
         },
     ];

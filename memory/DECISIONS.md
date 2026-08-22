@@ -1251,3 +1251,62 @@ ARCHITECTURE REVISION REQUIRED**. Preserve the reviewed formula, pass graph and
 witnesses as blocked history. Do not repair the pass graph, select another
 formula or begin implementation under D-035. A later revision requires a new
 explicit user architecture decision.
+
+## D-037 · Re-enter TE-5 with post-phase Steam-load relaxing pressure — 2026-08-23 (source: direct user architecture authorization)
+
+Decision: Preserve TE-5R0 and ADR-0013 as **DESIGN BLOCKED / IMMUTABLE
+HISTORY**. Supersede only the R0 requirements that caused or retained its
+source contradictions: partial Water phase energy and pre-transition
+gas-facing context are not pressure sources; a fresh generic impulse needs no
+separate event identity after the existing expansion settle; the base activity
+pass no longer owns `ACTIVITY_PRESSURE`; Matter movement is not pressure
+biased; and Air/pressure and Matter use explicitly different domain-edge
+contracts.
+
+Authorize **TE-5R1 POST-PHASE STEAM-LOAD RELAXING PRESSURE**, classed as
+**DERIVED AIR BACKGROUND + STEAM-ONLY DISSIPATIVE DYNAMIC PRESSURE**. Reuse
+only `pressure_current/next` as dynamic-pressure state. A settled Steam Cell
+with valid `phase_energy` in `[0,480]` targets `100 * phase_energy / 480`;
+Water always targets zero. Generic expansion first settles its existing
+exactly-once impulse, after which the local `D=0.20`, `R=0.02` update reads the
+settled value, so an isolated fresh `100` with target zero becomes `98` in the
+same Tick by design.
+
+Dynamic-pressure nodes are in-domain EMPTY Cells and Liquid/Gas Matter;
+Static, Powder and Void are blocked. Air background is derived exactly once
+from canonical EMPTY Air energy and combines with dynamic pressure only at Air
+transport and structural rupture. Air and dynamic pressure are sealed/no-flux
+at the domain edge while Matter keeps its existing Void-exit semantics. Matter
+pressure force is deferred/not active. Rupture uses opposing-face total-
+pressure differential, so uniform pressure does not rupture.
+
+`pressure_activity_propose` becomes the sole `ACTIVITY_PRESSURE` writer. It
+runs full-world after settled pressure and rupture, predicts the exact next
+dynamic update, and sets the bit only when the absolute update exceeds the
+existing epsilon. Base activity must fully write the other activity bits and
+must never set the pressure bit.
+
+Before runtime edits, a source-bound input/writer/lifetime/consumer/owner/
+binding table and a fresh-context adversarial review are mandatory. Any
+unresolved Critical/High finding stops **TE-5R1 SOURCE-REALIZABILITY BLOCKED**
+without a replacement architecture or reference model. Critical `0` / High
+`0` authorizes immediate actual Core/GPU implementation, production fixtures,
+one canonical user candidate, one final-source FULL, one release build, one
+bounded launch and one bounded measurement in this task.
+
+The expected source-realizable graph is 43 passes / 86 timestamp queries with
+pressure `6`, Air scale `7`, base activity `7`, pressure activity `5`, rupture
+`8` storage bindings, no Air-commit split, no new persistent state and no new
+full-world scratch. Existing proposal/claim scratch may be reinterpreted only
+through fully written, non-overlapping lifetimes. This decision does not
+authorize tokens, matching, CCL, packets, owner fields, pressure-biased Matter
+movement, Oxygen, Ash, TE-6 or G9-B/C/D/E.
+
+D-036 Actions conservation remains active: perform all work locally, perform
+no Wiki remote operation, and allow at most one final feature-branch push with
+`[skip ci]` after validation and docs closure. ADR-0014 remains **PROPOSED —
+USER REVIEW PENDING** even if automated implementation evidence passes.
+
+Invalidated by: a source-realizability Critical/High finding, a ninth storage
+binding, required new persistent/full-world state, failed final-source
+validation, or a later explicit user decision.

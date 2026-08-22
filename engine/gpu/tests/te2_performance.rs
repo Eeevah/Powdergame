@@ -1,7 +1,7 @@
 //! One-shot TE-2 correctness-baseline timing capture.
 //!
 //! This ignored test is intentionally outside normal validation. It profiles
-//! the production 42-pass TE-3/TE-4I tick graph after the final source is frozen and
+//! the production 43-pass TE-3/TE-4I/TE-5R1 tick graph after the final source is frozen and
 //! writes one create-new CSV selected by `TE2_PERFORMANCE_OUTPUT`.
 
 use std::{

@@ -455,3 +455,13 @@ expansion proposal, creates no second Steam and adds zero blocked pressure.
 Historical G5 Water pressure evidence is not rebound. ADR-0006 is therefore
 **ACCEPTED / IMPLEMENTED AS PRESSURE-DECOUPLED TE-3 CANDIDATE**, with direct
 user review pending and `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` deferred.
+
+## D-037 pressure redesign cross-reference
+
+D-037 later authorizes Proposed
+[`ADR-0014`](ADR-0014-post-phase-steam-load-relaxing-pressure.md) without
+reopening this phase model. Water completion remains 1:1 with no proposal and
+no blocked-pressure impulse. Only the settled Steam state supplies the new
+relaxing pressure target, so ADR-0006 owns phase enthalpy while ADR-0014 owns
+the candidate pressure response. Neither decision rebinds historical G5
+evidence.

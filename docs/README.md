@@ -155,7 +155,8 @@ docs/
 │  ├─ PHASE_VOLUME_PRESSURE_BRIDGE_SPEC.md
 │  ├─ LOCAL_VAPOR_CAPACITY_PRESSURE_SPEC.md
 │  ├─ PERSISTENT_VAPOR_EXTENT_SPEC.md
-│  └─ CONSERVATIVE_PHASE_PACKETS_SPEC.md
+│  ├─ CONSERVATIVE_PHASE_PACKETS_SPEC.md
+│  └─ STEAM_LOAD_RELAXING_PRESSURE_SPEC.md
 ├─ development/
 │  ├─ QUICKSTART.md
 │  ├─ DEVELOPMENT.md
@@ -167,6 +168,7 @@ docs/
 │  ├─ LOCAL_VAPOR_CAPACITY_PRESSURE_VALIDATION.md
 │  ├─ PERSISTENT_VAPOR_EXTENT_VALIDATION.md
 │  ├─ CONSERVATIVE_PHASE_PACKETS_VALIDATION.md
+│  ├─ STEAM_LOAD_RELAXING_PRESSURE_VALIDATION.md
 │  ├─ PERFORMANCE.md
 │  ├─ DEVELOPMENT_LEARNING_LOOP.md
 │  ├─ LESSONS_LEDGER.md
@@ -243,7 +245,7 @@ docs/
 - 한 scenario 결과는 다른 scenario나 G8-C를 승인하지 않는다.
 - Review Packet은 human review용이며 forensic Audit Bundle과 역할이 다르다.
 - historical/rejected/superseded artifact를 소급 수정하지 않는다.
-- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2, pressure-decoupled TE-3, TE-4I는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. D-024는 blocked TE-5B/C/D/X와 packet history를 보존하면서 ADR-0011을 거부하고, [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 one-Cell/one-quantity 모델을 활성화했다. D-027은 source `4146721...`의 production physics와 Scenes 1–4 직접 관찰을 함께 받아들이며, 실행 근거는 [`TE-3 evidence`](evidence/THERMAL_ENVIRONMENT_TE_3_PHASE_CYCLE_2026-08-21.md)에 있다. Water phase pressure는 비활성이다. D-028/D-029의 [`ADR-0012`](architecture/decisions/ADR-0012-ignition-exposure-dose.md) v1/v2, D-030 v3, D-031 supplement는 immutable **BLOCKED** history다. D-032의 [`production evidence`](evidence/THERMAL_ENVIRONMENT_TE_4_IGNITION_KINETICS_2026-08-23.md)는 actual Core/GPU candidate를 자동 검증했고, D-033의 [`Scene 4 observability remediation`](evidence/TE4_SCENE4_SMOKE_OBSERVABILITY_REMEDIATION_2026-08-23.md)은 생산 물리를 바꾸지 않고 실제 Smoke target/receiver를 직접 노출했다. D-034는 Scenes 1–4 직접 관찰 일치를 바탕으로 ADR-0012를 현재 구현에 대해 **ACCEPTED**로, TE-4I를 **USER ACCEPTED WITH KNOWN FOLLOW-UP**로 닫았다. D-035는 blocked TE-5B/C/D/X/Q를 재개하지 않고 [`ADR-0013`](architecture/decisions/ADR-0013-local-relaxing-phase-load-pressure.md)의 local relaxing phase-load pressure 설계를 검토하도록 승인했다. 독립 검토의 Critical `0` / High `3`에 따라 TE-5R0은 **DESIGN BLOCKED**, ADR-0013은 **PROPOSED / ARCHITECTURE REVISION REQUIRED**, runtime은 **NOT STARTED**이다.
+- G8은 verified G8-C Matrix와 user dispositions를 포함해 **CLOSED / FROZEN**이다. G9-A Sandbox와 [`Thermal Environment`](planning/THERMAL_TRANSPORT_IGNITION_CAUSALITY.md) TE-2, pressure-decoupled TE-3, TE-4I는 각각 **USER ACCEPTED WITH KNOWN FOLLOW-UP**이다. D-024는 blocked TE-5B/C/D/X와 packet history를 보존하면서 [`ADR-0006`](architecture/decisions/ADR-0006-water-steam-phase-enthalpy.md)의 one-Cell/one-quantity 모델을 활성화했다. D-027은 source `4146721...`의 production physics와 Scenes 1–4 직접 관찰을 함께 받아들였다. D-028–D-031의 TE-4 reference attempts는 immutable blocked history이고, D-034는 [`ADR-0012`](architecture/decisions/ADR-0012-ignition-exposure-dose.md)를 현재 구현에 대해 **ACCEPTED**로 닫았다. D-035의 [`ADR-0013`](architecture/decisions/ADR-0013-local-relaxing-phase-load-pressure.md)은 독립 검토 High `3`으로 **DESIGN BLOCKED / IMMUTABLE**다. D-037의 [`ADR-0014`](architecture/decisions/ADR-0014-post-phase-steam-load-relaxing-pressure.md)는 그 source contradiction을 새 계약으로 supersede했고, fresh source gate Critical `0` / High `0` 뒤 실제 [`Steam-load relaxing pressure`](specs/STEAM_LOAD_RELAXING_PRESSURE_SPEC.md) 구현 후보를 만든다. ADR-0014와 TE-5R1은 자동 검증 뒤에도 **USER REVIEW PENDING**이다.
 
 현재 진행 세부 사항은 `STATUS.md`와 해당 evidence 문서에서만 확인한다.
 

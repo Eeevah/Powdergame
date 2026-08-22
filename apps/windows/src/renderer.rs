@@ -1306,6 +1306,7 @@ pub enum HudData<'a> {
     ThermalEnvironment(&'a crate::thermal_environment::ThermalEnvironmentHudData),
     PhaseCycle(&'a crate::phase_cycle::PhaseCycleHudData),
     IgnitionKinetics(&'a crate::ignition_kinetics::IgnitionHudData),
+    PressureVacuum(&'a crate::pressure_vacuum::PressureVacuumHudData),
     Pressure(&'a crate::observatory::PressureObservatoryMetrics, u64),
     ParallelIntegrity(&'a crate::observatory::IntegrityMetrics, u64),
     Activity(&'a crate::observatory::ActivityMetrics, u64),
@@ -1666,6 +1667,16 @@ impl Renderer {
                 }
                 HudData::IgnitionKinetics(data) => {
                     tr.render_ignition_kinetics_hud(
+                        &self.device,
+                        &self.queue,
+                        &mut render_pass,
+                        self.config.width,
+                        self.config.height,
+                        data,
+                    );
+                }
+                HudData::PressureVacuum(data) => {
+                    tr.render_pressure_vacuum_hud(
                         &self.device,
                         &self.queue,
                         &mut render_pass,

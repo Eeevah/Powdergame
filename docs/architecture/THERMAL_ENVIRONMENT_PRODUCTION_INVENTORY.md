@@ -754,3 +754,39 @@ sleep while the maxed base activity pass remains unchanged. This section is a
 frozen failed static projection, not Naga, GPU, allocation, profiler, sleep,
 performance or product evidence. **TE-5R0 DESIGN BLOCKED**; implementation
 requires a new user architecture decision.
+
+## 18. TE-5R1 implemented candidate inventory
+
+D-037 and [ADR-0014](decisions/ADR-0014-post-phase-steam-load-relaxing-pressure.md)
+preserve Section 17 as blocked history and replace its unavailable inputs.
+Pressure reads only settled post-phase Material/phase energy; Water target is
+zero and valid Steam target is `100*E/480`. Generic consequence is already
+settled before pressure, so the local pass reads it as `q` and applies the
+ordinary relaxation. Base activity no longer owns the pressure bit.
+
+The implemented graph is 43 passes / 86 queries. Passes 0..40 retain the TE-4I
+order, pressure activity is pass 41 and reduction is 42. Storage counts are:
+
+| Pass | Storage count |
+|---|---:|
+| Air scale | 7 |
+| Air commit | 8 |
+| pressure | 6 |
+| rupture | 8 |
+| base activity | 7 |
+| Environment activity | 6 |
+| pressure activity | 5 |
+
+Air scale fully writes proposal as donor scale and claim as total pressure;
+the unchanged eight-storage commit recomputes receiver headroom. Thermal
+stability and phase context overwrite those scratch lifetimes. Rupture uses
+Air energy in the former class slot and samples opposing total-pressure faces.
+Matter movement has no pressure binding.
+
+There is no new persistent state and no new full-world scratch. Profiler-only
+growth is 32 bytes: 86 timestamps make each resolve/readback buffer 688 bytes,
+1,376 bytes combined. At 2048² the tracked total with profiler is
+`302,018,192` bytes; the no-profiler total is unchanged. Production fixtures,
+candidate scenes and final validation are defined in
+[the validation contract](../development/STEAM_LOAD_RELAXING_PRESSURE_VALIDATION.md).
+ADR-0014 remains **PROPOSED / USER REVIEW PENDING**.

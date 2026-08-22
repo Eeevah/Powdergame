@@ -20,7 +20,8 @@ struct ThermalTable { values: array<vec4<f32>, 8> };
 @group(0) @binding(3) var<storage, read> air_mass_current: array<f32>;
 @group(0) @binding(4) var<storage, read> air_energy_current: array<f32>;
 @group(0) @binding(5) var<uniform> thermal_table: ThermalTable;
-@group(0) @binding(6) var<storage, read_write> cell_activity: array<u32>;
+@group(0) @binding(6) var<storage, read> pressure_current: array<f32>;
+@group(0) @binding(7) var<storage, read_write> cell_activity: array<u32>;
 
 const EMPTY: u32 = 0u;
 const TABLE_LEN: u32 = 16u;
@@ -64,6 +65,12 @@ fn air_pressure(index: u32) -> f32 {
     return select(0.0, air_energy_current[index] / STANDARD_AIR_ENERGY, air_mass_current[index] > 0.0);
 }
 
+fn total_pressure(index: u32) -> f32 {
+    let dynamic = pressure_current[index];
+    let safe_dynamic = select(0.0, max(dynamic, 0.0), dynamic == dynamic && abs(dynamic) <= 1.0e20);
+    return air_pressure(index) + safe_dynamic;
+}
+
 fn thermal_conductance(a: u32, b: u32) -> f32 {
     if (!has_thermal_node(a) || !has_thermal_node(b)) {
         return 0.0;
@@ -88,7 +95,7 @@ fn inspect_face(index: u32, nx: i32, ny: i32) -> u32 {
             return 0u;
         }
         var boundary_bits = 0u;
-        if (abs(air_pressure(index) - 1.0) > AIR_PRESSURE_DEADBAND) {
+        if (abs(total_pressure(index) - 1.0) > AIR_PRESSURE_DEADBAND) {
             boundary_bits |= ACTIVITY_ENVIRONMENT;
         }
         if (air_mass_current[index] > 0.0
@@ -101,7 +108,7 @@ fn inspect_face(index: u32, nx: i32, ny: i32) -> u32 {
     var bits = 0u;
     if (material_current[index] == EMPTY
         && material_current[neighbor] == EMPTY
-        && abs(air_pressure(index) - air_pressure(neighbor)) > AIR_PRESSURE_DEADBAND) {
+        && abs(total_pressure(index) - total_pressure(neighbor)) > AIR_PRESSURE_DEADBAND) {
         bits |= ACTIVITY_ENVIRONMENT;
     }
     let conductance = thermal_conductance(index, neighbor);

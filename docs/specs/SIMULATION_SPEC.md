@@ -448,31 +448,36 @@ M0에서 최소 chain은 `blocked phase expansion → pressure`를 증명한다.
 
 M0 Pressure는 정밀한 compressible fluid solver가 아니다.
 
-### Baseline
+### TE-5R1 candidate baseline
 
 - scalar `pressure[]`
 - f32 baseline
-- 4-neighbor local propagation
+- EMPTY/Liquid/Gas 4-neighbor diffusion plus Steam-target relaxation
 - direction은 별도 velocity vector를 저장하지 않고 local pressure difference에서 유도
 
-### Core causal chain
+### Candidate causal chain
 
 ```text
-phase expansion blocked
-→ pressure generated
-→ local pressure difference propagates
-→ movable Matter may be pushed
+Water completes 1:1 to Steam
+→ settled Steam phase energy defines a bounded target
+→ local dynamic pressure diffuses and relaxes
+→ derived EMPTY Air background is added once at consumers
 → resistant Matter holds
-→ pressure > rupture threshold
+→ opposing-face total-pressure difference exceeds threshold
 → structure ruptures
-→ opening allows venting
+→ opening changes Air/dynamic topology
+→ following Air and ordinary Gas movement use the opening
 ```
 
 ### Environment pressure boundary
 
-현재 runtime에서 EMPTY 자체는 pressure medium이 아니며, 기존 `pressure[]`는 Liquid/Gas와 phase-confinement/rupture를 위한 gameplay gauge overpressure다.
-
-ADR-0005는 future Environment Air의 absolute-like background pressure를 별도 derived state로 정의한다. 두 pressure를 occupancy와 무관하게 더하지 않는다. Atmosphere/Vacuum/structure face differential coupling은 TE-5 전까지 production semantics를 변경하지 않는다.
+TE-5R1 candidate에서 EMPTY와 Liquid/Gas는 dynamic-pressure node다. Static,
+Powder, Void와 missing field faces는 no-flux다. Canonical EMPTY Air background
+is `air_energy/293.15`; exact Vacuum is zero. `P_total=P_dynamic+P_air`는 Air
+transport와 rupture에서만 한 번 형성된다. Matter movement에는 pressure
+binding이 없으며 압력 힘은 deferred다. 자세한 현재 계약은
+[`STEAM_LOAD_RELAXING_PRESSURE_SPEC`](STEAM_LOAD_RELAXING_PRESSURE_SPEC.md)을
+따른다. ADR-0014는 사용자 검토 전까지 Proposed다.
 
 ### Approximate behavior
 

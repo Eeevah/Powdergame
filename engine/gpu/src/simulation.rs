@@ -194,6 +194,7 @@ pub struct Simulation {
     phase_activity_propose_pipeline: wgpu::ComputePipeline,
     environment_activity_propose_pipeline: wgpu::ComputePipeline,
     ignition_activity_propose_pipeline: wgpu::ComputePipeline,
+    pressure_activity_propose_pipeline: wgpu::ComputePipeline,
     activity_reduce_pipeline: wgpu::ComputePipeline,
     activity_wake_pipeline: wgpu::ComputePipeline,
     propose_bind_group: wgpu::BindGroup,
@@ -228,6 +229,7 @@ pub struct Simulation {
     phase_activity_propose_bind_group: wgpu::BindGroup,
     environment_activity_propose_bind_group: wgpu::BindGroup,
     ignition_activity_propose_bind_group: wgpu::BindGroup,
+    pressure_activity_propose_bind_group: wgpu::BindGroup,
     activity_reduce_bind_group: wgpu::BindGroup,
     activity_wake_bind_group: wgpu::BindGroup,
     pub params: wgpu::Buffer,
@@ -519,6 +521,15 @@ impl Simulation {
                         include_str!("ignition_activity_propose.wgsl").into(),
                     ),
                 });
+        let shader_pressure_activity_propose =
+            context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("powdergame-te5r1-pressure-activity-propose"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("pressure_activity_propose.wgsl").into(),
+                    ),
+                });
         let shader_activity_wake =
             context
                 .device
@@ -626,8 +637,9 @@ impl Simulation {
                         buffer_entry(2, &BindingKind::Read),
                         buffer_entry(3, &BindingKind::Read),
                         buffer_entry(4, &BindingKind::Read),
-                        buffer_entry(5, &BindingKind::ReadWrite),
-                        buffer_entry(6, &BindingKind::ReadWrite),
+                        buffer_entry(5, &BindingKind::Read), // pressure_current
+                        buffer_entry(6, &BindingKind::ReadWrite), // donor scale scratch
+                        buffer_entry(7, &BindingKind::ReadWrite), // total pressure scratch
                     ],
                 });
         let air_transport_layout =
@@ -927,10 +939,11 @@ impl Simulation {
                     entries: &[
                         buffer_entry(0, &BindingKind::Uniform),
                         buffer_entry(1, &BindingKind::Read), // material_current
-                        buffer_entry(2, &BindingKind::Read), // pressure_current
-                        buffer_entry(3, &BindingKind::ReadWrite), // pressure_next
-                        buffer_entry(4, &BindingKind::Read), // movement_class_table
-                        buffer_entry(5, &BindingKind::Read), // chunk_state
+                        buffer_entry(2, &BindingKind::Read), // phase_energy_current
+                        buffer_entry(3, &BindingKind::Read), // pressure_current
+                        buffer_entry(4, &BindingKind::ReadWrite), // pressure_next
+                        buffer_entry(5, &BindingKind::Read), // movement_class_table
+                        buffer_entry(6, &BindingKind::Read), // chunk_state
                     ],
                 });
 
@@ -944,7 +957,7 @@ impl Simulation {
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // pressure_current
                         buffer_entry(3, &BindingKind::Read), // rupture threshold table
-                        buffer_entry(4, &BindingKind::Read), // movement class table
+                        buffer_entry(4, &BindingKind::Read), // Air energy current
                         buffer_entry(5, &BindingKind::ReadWrite), // material_next
                         buffer_entry(6, &BindingKind::ReadWrite), // temperature_next
                         buffer_entry(7, &BindingKind::ReadWrite), // flags_next
@@ -963,12 +976,11 @@ impl Simulation {
                         uniform_entry(0, ACTIVITY_PARAMS_SIZE),
                         buffer_entry(1, &BindingKind::Read), // material_current
                         buffer_entry(2, &BindingKind::Read), // temperature_current
-                        buffer_entry(3, &BindingKind::Read), // pressure_current
-                        buffer_entry(4, &BindingKind::Read), // flags_current
-                        buffer_entry(5, &BindingKind::Read), // class table
-                        buffer_entry(6, &BindingKind::Read), // density table
-                        buffer_entry(7, &BindingKind::ReadWrite), // cell_activity
-                        buffer_entry(8, &BindingKind::Read), // phase + conductivity tables
+                        buffer_entry(3, &BindingKind::Read), // flags_current
+                        buffer_entry(4, &BindingKind::Read), // class table
+                        buffer_entry(5, &BindingKind::Read), // density table
+                        buffer_entry(6, &BindingKind::ReadWrite), // cell_activity
+                        buffer_entry(7, &BindingKind::Read), // phase + conductivity tables
                     ],
                 });
         let phase_activity_propose_layout =
@@ -1014,7 +1026,22 @@ impl Simulation {
                         buffer_entry(3, &BindingKind::Read),
                         buffer_entry(4, &BindingKind::Read),
                         uniform_entry(5, THERMAL_TABLE_SIZE),
-                        buffer_entry(6, &BindingKind::ReadWrite),
+                        buffer_entry(6, &BindingKind::Read), // pressure_current
+                        buffer_entry(7, &BindingKind::ReadWrite),
+                    ],
+                });
+        let pressure_activity_propose_layout =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("powdergame-te5r1-pressure-activity-propose-bgl"),
+                    entries: &[
+                        uniform_entry(0, ACTIVITY_PARAMS_SIZE),
+                        buffer_entry(1, &BindingKind::Read), // material_current
+                        buffer_entry(2, &BindingKind::Read), // phase_energy_current
+                        buffer_entry(3, &BindingKind::Read), // pressure_current
+                        buffer_entry(4, &BindingKind::Read), // class table
+                        buffer_entry(5, &BindingKind::ReadWrite), // cell_activity
                     ],
                 });
         let ignition_activity_propose_layout =
@@ -1278,6 +1305,12 @@ impl Simulation {
             &ignition_activity_propose_layout,
             &shader_ignition_activity_propose,
             "ignition_activity_propose_main",
+        );
+        let pressure_activity_propose_pipeline = make_pipeline(
+            "powdergame-te5r1-pressure-activity-propose",
+            &pressure_activity_propose_layout,
+            &shader_pressure_activity_propose,
+            "pressure_activity_propose_main",
         );
         let activity_wake_pipeline = make_pipeline(
             "powdergame-g7b-activity-wake",
@@ -1801,10 +1834,14 @@ impl Simulation {
                         },
                         wgpu::BindGroupEntry {
                             binding: 5,
-                            resource: world.proposal.as_entire_binding(),
+                            resource: world.pressure_current.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 6,
+                            resource: world.proposal.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
                             resource: world.claim.as_entire_binding(),
                         },
                     ],
@@ -2564,18 +2601,22 @@ impl Simulation {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: world.pressure_current.as_entire_binding(),
+                        resource: world.phase_energy_current.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
-                        resource: world.pressure_next.as_entire_binding(),
+                        resource: world.pressure_current.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 4,
-                        resource: class_table.as_entire_binding(),
+                        resource: world.pressure_next.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 5,
+                        resource: class_table.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
                         resource: world.chunk_state.as_entire_binding(),
                     },
                 ],
@@ -2605,7 +2646,7 @@ impl Simulation {
                     },
                     wgpu::BindGroupEntry {
                         binding: 4,
-                        resource: class_table.as_entire_binding(),
+                        resource: world.air_energy_current.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 5,
@@ -2647,26 +2688,22 @@ impl Simulation {
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: world.pressure_current.as_entire_binding(),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 4,
                             resource: world.flags_current.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
-                            binding: 5,
+                            binding: 4,
                             resource: class_table.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
-                            binding: 6,
+                            binding: 5,
                             resource: density_table_buf.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
-                            binding: 7,
+                            binding: 6,
                             resource: world.cell_activity.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
-                            binding: 8,
+                            binding: 7,
                             resource: activity_tables_buf.as_entire_binding(),
                         },
                     ],
@@ -2753,6 +2790,43 @@ impl Simulation {
                         },
                         wgpu::BindGroupEntry {
                             binding: 6,
+                            resource: world.pressure_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 7,
+                            resource: world.cell_activity.as_entire_binding(),
+                        },
+                    ],
+                });
+        let pressure_activity_propose_bind_group =
+            context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("powdergame-te5r1-pressure-activity-propose-bg"),
+                    layout: &pressure_activity_propose_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: activity_params.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: world.material_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: world.phase_energy_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: world.pressure_current.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 4,
+                            resource: class_table.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 5,
                             resource: world.cell_activity.as_entire_binding(),
                         },
                     ],
@@ -2894,6 +2968,7 @@ impl Simulation {
             phase_activity_propose_pipeline,
             environment_activity_propose_pipeline,
             ignition_activity_propose_pipeline,
+            pressure_activity_propose_pipeline,
             activity_reduce_pipeline,
             activity_wake_pipeline,
             propose_bind_group,
@@ -2927,6 +3002,7 @@ impl Simulation {
             phase_activity_propose_bind_group,
             environment_activity_propose_bind_group,
             ignition_activity_propose_bind_group,
+            pressure_activity_propose_bind_group,
             activity_reduce_bind_group,
             activity_wake_bind_group,
             params,
@@ -3040,7 +3116,7 @@ impl Simulation {
     /// 24..30. combustion/Smoke transaction and Matter/phase/Environment hygiene
     /// 31. pressure
     /// 32..35. rupture and Matter/phase/Environment hygiene
-    /// 36..39. Matter/phase/Environment activity proposal and reduction
+    /// 37..42. Matter/phase/Environment/pressure activity proposal and reduction
     /// ```
     fn tick_internal(&mut self, profiler: Option<&mut GpuProfiler>) -> Result<(), GpuError> {
         let cell_count = self.world.layout.cell_count;
@@ -3813,11 +3889,23 @@ impl Simulation {
                 &self.ignition_activity_propose_bind_group,
             );
         }
-        // Pass 41: activity_reduce
+        // Pass 41: sole-owner exact-update pressure activity over the full world.
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("powdergame-te5r1-pressure-activity-propose-pass"),
+                timestamp_writes: make_timestamp_writes(41),
+            });
+            dispatch(
+                &mut pass,
+                &self.pressure_activity_propose_pipeline,
+                &self.pressure_activity_propose_bind_group,
+            );
+        }
+        // Pass 42: activity_reduce
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("powdergame-g7a-activity-reduce-pass"),
-                timestamp_writes: make_timestamp_writes(41),
+                timestamp_writes: make_timestamp_writes(42),
             });
             pass.set_pipeline(&self.activity_reduce_pipeline);
             pass.set_bind_group(0, &self.activity_reduce_bind_group, &[]);

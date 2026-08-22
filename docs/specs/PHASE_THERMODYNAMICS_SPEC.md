@@ -734,3 +734,14 @@ model and supersedes its atomic TE-3/TE-5 activation constraint. Runtime source
 1:1 family transitions, family `NO_PROPOSAL`, zero Water blocked pressure and
 all D-018 locked amendments. `WATER_STEAM_PRESSURE_VOLUME_REDESIGN` is deferred
 and no pressure-volume model is defined here.
+
+## 18. D-037 TE-5R1 integration boundary
+
+D-037 does not change this specification's Water completion transaction:
+Water remains 1:1, emits `NO_PROPOSAL` and has zero blocked pressure. The
+separate Proposed [ADR-0014](../architecture/decisions/ADR-0014-post-phase-steam-load-relaxing-pressure.md)
+derives a relaxing dynamic-pressure target only from the settled post-phase
+Steam identity and accepted Steam phase energy. It adds no phase state and
+does not make phase thermodynamics read pressure. The authoritative pressure,
+Air and rupture contract is
+[STEAM_LOAD_RELAXING_PRESSURE_SPEC](STEAM_LOAD_RELAXING_PRESSURE_SPEC.md).

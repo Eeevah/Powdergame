@@ -1,9 +1,8 @@
-//! G5-A — scalar pressure field GPU semantic/invariant tests.
+//! TE-5R1 — dynamic-pressure field GPU semantic/invariant tests.
 //!
 //! These tests require the production Windows + RTX 5090 + DX12 path.
 //! GitHub CI compiles them; the reference machine executes them for final
-//! technical validation. G5-B expansion generation and G5-C rupture are out
-//! of scope here.
+//! technical validation. Historical G5 receipts remain source-bound.
 
 use powdergame_core::{
     WorldConfig, MATERIAL_EMPTY, MATERIAL_STONE, MATERIAL_WATER, PRESSURE_REFERENCE,
@@ -50,7 +49,16 @@ fn set_pressure(sim: &Simulation, x: i64, y: i64, value: f32) {
 
 fn box_water_pair(sim: &Simulation) {
     // Two Water cells at (3,3)/(4,3), all of their liquid movement exits blocked.
-    for (x, y) in [(2, 3), (5, 3), (2, 4), (3, 4), (4, 4), (5, 4)] {
+    for (x, y) in [
+        (3, 2),
+        (4, 2),
+        (2, 3),
+        (5, 3),
+        (2, 4),
+        (3, 4),
+        (4, 4),
+        (5, 4),
+    ] {
         set_mat(sim, x, y, MATERIAL_STONE);
     }
     set_mat(sim, 3, 3, MATERIAL_WATER);
@@ -71,17 +79,17 @@ fn pressure_propagates_between_adjacent_liquid_cells() {
     assert!(left < 100.0 && left > 0.0, "left={left}");
     assert!(right > 0.0 && right < left, "right={right}, left={left}");
     assert!(
-        ((left + right) - 100.0).abs() < 1.0e-3,
+        ((left + right) - 98.0).abs() < 1.0e-3,
         "sum={}",
         left + right
     );
 }
 
 #[test]
-fn isolated_pressure_has_no_time_decay() {
+fn isolated_stale_pressure_relaxes_toward_zero_target() {
     let mut sim = eight_by_eight();
     set_mat(&sim, 3, 3, MATERIAL_WATER);
-    for (x, y) in [(2, 3), (4, 3), (2, 4), (3, 4), (4, 4)] {
+    for (x, y) in [(3, 2), (2, 3), (4, 3), (2, 4), (3, 4), (4, 4)] {
         set_mat(&sim, x, y, MATERIAL_STONE);
     }
     set_pressure(&sim, 3, 3, 42.0);
@@ -91,22 +99,23 @@ fn isolated_pressure_has_no_time_decay() {
     }
 
     let p = pressure(&sim, 3, 3);
-    assert!(
-        (p - 42.0).abs() < 1.0e-4,
-        "pressure decayed without a sink: {p}"
-    );
+    let expected = 42.0 * 0.98_f32.powi(120);
+    assert!((p - expected).abs() < 2.0e-3, "p={p}, expected={expected}");
 }
 
 #[test]
-fn non_medium_cells_clear_pressure() {
+fn empty_is_a_dynamic_node_but_static_matter_clears_pressure() {
     let mut sim = eight_by_eight();
-    set_pressure(&sim, 3, 3, 50.0); // EMPTY
+    for (x, y) in [(2, 3), (4, 3), (3, 2), (3, 4)] {
+        set_mat(&sim, x, y, MATERIAL_STONE);
+    }
+    set_pressure(&sim, 3, 3, 50.0); // EMPTY dynamic-pressure node.
     set_mat(&sim, 4, 3, MATERIAL_STONE);
     set_pressure(&sim, 4, 3, 50.0);
 
     sim.tick().expect("tick");
 
-    assert_eq!(pressure(&sim, 3, 3), PRESSURE_REFERENCE);
+    assert!((pressure(&sim, 3, 3) - 49.0).abs() < 1.0e-4);
     assert_eq!(pressure(&sim, 4, 3), PRESSURE_REFERENCE);
 }
 
@@ -139,7 +148,7 @@ fn pressure_crosses_chunk_boundary() {
 }
 
 #[test]
-fn void_exit_vents_pressure_with_departing_medium() {
+fn void_exit_removes_matter_but_leaves_a_bounded_spatial_pressure_trail() {
     let mut sim = eight_by_eight();
     // Replace the editable bottom boundary cell with Water. Its first down
     // movement target is Void, so the Matter exits before the pressure pass.
@@ -149,7 +158,8 @@ fn void_exit_vents_pressure_with_departing_medium() {
     sim.tick().expect("tick");
 
     assert_eq!(cell(&sim, 4, 7), MATERIAL_EMPTY);
-    assert_eq!(pressure(&sim, 4, 7), PRESSURE_REFERENCE);
+    let trail = pressure(&sim, 4, 7);
+    assert!(trail > PRESSURE_REFERENCE && trail < 80.0, "trail={trail}");
 }
 
 #[test]

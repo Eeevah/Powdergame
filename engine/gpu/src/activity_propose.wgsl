@@ -21,13 +21,6 @@
 //                       the phase pass also marks the actual transition
 //                       tick directly in this buffer), or a phase
 //                       transition that actually fired this tick.
-//   ACTIVITY_PRESSURE  (1 << 2): |P - P_neighbor| > eps over the 4-neighbor
-//                       field, evaluated ONLY on pressure-media cells
-//                       (LIQUID/GAS — G5 contract; EMPTY/STATIC/POWDER are
-//                       not pressure media and their field is zeroed each
-//                       tick, so they never carry a pressure frontier).
-//                       Pressure is a spatial scalar field, never moved on
-//                       ownership edges.
 //   ACTIVITY_REACTION  (1 << 3): reaction state actively changing
 //                       (COMBUSTING flag, or a progressing DECAY_AGE).
 //
@@ -42,10 +35,8 @@
 // active. Combusting heat sources and phase candidates/transitions remain
 // THERMAL regardless of gradients.
 //
-// PRESSURE alignment to frozen G5: pressure propagates only between
-// pressure media (LIQUID/GAS). A pressured medium next to Stone/EMPTY has
-// no pressure work at that boundary (the non-medium neighbor is not part
-// of the exchange), so the comparison is medium-vs-medium only.
+// ACTIVITY_PRESSURE is deliberately absent. TE-5R1 assigns it exclusively
+// to pressure_activity_propose after the settled pressure/rupture state.
 //
 // Chunk seams: this pass reads 1-cell neighbors in world coordinates, so
 // a frontier on the far side of a chunk boundary is detected normally — a
@@ -97,12 +88,8 @@ struct ActivityTables {
 const EMPTY: u32 = 0u;
 const TABLE_LEN: u32 = 16u;
 const NO_PHASE_TARGET: u32 = 0xFFFFFFFFu;
-const CLASS_LIQUID: u32 = 2u;
-const CLASS_GAS: u32 = 3u;
-
 const ACTIVITY_MATTER: u32 = 1u << 0u;
 const ACTIVITY_THERMAL: u32 = 1u << 1u;
-const ACTIVITY_PRESSURE: u32 = 1u << 2u;
 const ACTIVITY_REACTION: u32 = 1u << 3u;
 
 const FLAG_COMBUSTING: u32 = 1u << 0u;
@@ -112,15 +99,14 @@ const FLAG_DECAY_AGE_MASK: u32 = 0x0FFFu << FLAG_DECAY_AGE_SHIFT;
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> material_current: array<u32>;
 @group(0) @binding(2) var<storage, read> temperature_current: array<f32>;
-@group(0) @binding(3) var<storage, read> pressure_current: array<f32>;
-@group(0) @binding(4) var<storage, read> flags_current: array<u32>;
-@group(0) @binding(5) var<storage, read> class_table: array<u32, 16>;
-@group(0) @binding(6) var<storage, read> density_table: array<u32, 16>;
-@group(0) @binding(7) var<storage, read_write> cell_activity: array<u32>;
+@group(0) @binding(3) var<storage, read> flags_current: array<u32>;
+@group(0) @binding(4) var<storage, read> class_table: array<u32, 16>;
+@group(0) @binding(5) var<storage, read> density_table: array<u32, 16>;
+@group(0) @binding(6) var<storage, read_write> cell_activity: array<u32>;
 // G4-B phase descriptor table (Material property, shared with the phase
 // pass — the activity detector reads it to flag cells whose own
 // Material + Temperature currently satisfy a phase rule).
-@group(0) @binding(8) var<storage, read> tables: ActivityTables;
+@group(0) @binding(7) var<storage, read> tables: ActivityTables;
 
 // Movement candidate kind mirroring movement_propose: 0 = out of domain
 // (Void), 1 = EMPTY, 2 = static/blocked, 3 = movable Matter.
@@ -209,10 +195,6 @@ fn neighbor_temperature(x: i32, y: i32) -> f32 {
     return temperature_current[u32(y) * params.width + u32(x)];
 }
 
-fn neighbor_pressure(x: i32, y: i32) -> f32 {
-    return pressure_current[u32(y) * params.width + u32(x)];
-}
-
 fn neighbor_material(x: i32, y: i32) -> u32 {
     return material_current[u32(y) * params.width + u32(x)];
 }
@@ -253,49 +235,6 @@ fn thermal_frontier(x: i32, y: i32, mat: u32, t: f32, flags: u32) -> bool {
     return false;
 }
 
-// G5 contract: only LIQUID/GAS are pressure media. EMPTY/STATIC/POWDER
-// cells have their pressure field zeroed every tick and never carry a
-// pressure frontier, so PRESSURE activity is evaluated on media only
-// (avoids false positives on non-medium cells at a field boundary while
-// never missing real pressure work).
-fn is_pressure_medium(mat: u32) -> bool {
-    if (mat == EMPTY || mat >= TABLE_LEN) {
-        return false;
-    }
-    let cls = class_table[mat];
-    return cls == CLASS_LIQUID || cls == CLASS_GAS;
-}
-
-// G5 alignment: pressure propagates only between pressure media. A
-// medium-medium pressure difference is work; a medium next to a
-// non-medium (Stone/EMPTY) boundary is not a frontier.
-fn pressure_medium_neighbor(x: i32, y: i32) -> bool {
-    return in_domain(x, y) && is_pressure_medium(neighbor_material(x, y));
-}
-
-fn pressure_frontier(x: i32, y: i32, mat: u32, p: f32) -> bool {
-    if (!is_pressure_medium(mat)) {
-        return false;
-    }
-    if (pressure_medium_neighbor(x - 1, y)
-        && abs(p - neighbor_pressure(x - 1, y)) > params.pressure_eps) {
-        return true;
-    }
-    if (pressure_medium_neighbor(x + 1, y)
-        && abs(p - neighbor_pressure(x + 1, y)) > params.pressure_eps) {
-        return true;
-    }
-    if (pressure_medium_neighbor(x, y - 1)
-        && abs(p - neighbor_pressure(x, y - 1)) > params.pressure_eps) {
-        return true;
-    }
-    if (pressure_medium_neighbor(x, y + 1)
-        && abs(p - neighbor_pressure(x, y + 1)) > params.pressure_eps) {
-        return true;
-    }
-    return false;
-}
-
 @compute
 @workgroup_size(64)
 fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -321,9 +260,6 @@ fn propose_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
         if (thermal_frontier(x, y, mat, t, flags)) {
             mask = mask | ACTIVITY_THERMAL;
-        }
-        if (pressure_frontier(x, y, mat, pressure_current[index])) {
-            mask = mask | ACTIVITY_PRESSURE;
         }
         if ((flags & FLAG_COMBUSTING) != 0u || (flags & FLAG_DECAY_AGE_MASK) != 0u) {
             mask = mask | ACTIVITY_REACTION;

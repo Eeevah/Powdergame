@@ -79,3 +79,9 @@ Use `YYYY-MM-DD_<GATE_OR_SCOPE>.md` filenames. If a requested report later becom
   Required phase-context and generic-impulse inputs are unavailable at the
   projected pressure pass, and unchanged base activity prevents exact
   nonuniform equilibrium from sleeping. Runtime remains not started.
+- [`TE5R1_STEAM_LOAD_RELAXING_PRESSURE_SOURCE_GATE.md`](TE5R1_STEAM_LOAD_RELAXING_PRESSURE_SOURCE_GATE.md)
+  — D-037 fresh-context source-realizability review of the replacement
+  post-phase Steam-only contract. Current disposition: **SOURCE GATE PASS —
+  UNRESOLVED CRITICAL 0 / HIGH 0 / MEDIUM 0 / LOW 0**. Implementation was
+  authorized without changing the reviewed lifetime/binding table; ADR-0014
+  remains Proposed and user review remains pending.

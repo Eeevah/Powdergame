@@ -92,11 +92,13 @@ pub use phase::{
     WATER_FREEZE_BELOW,
 };
 pub use pressure::{
-    is_pressure_medium, pressure_step, sanitize_pressure, PressureNeighbor,
-    PRESSURE_DIFFUSION_RATE, PRESSURE_MAX, PRESSURE_REFERENCE,
+    is_dynamic_pressure_node, is_pressure_medium, pressure_step, pressure_step_with_phase,
+    sanitize_pressure, steam_pressure_target, PressureNeighbor, FULL_STEAM_PRESSURE,
+    PRESSURE_DIFFUSION_RATE, PRESSURE_MAX, PRESSURE_REFERENCE, PRESSURE_RELAXATION_RATE,
 };
 pub use rupture::{
-    rupture_threshold, rupture_threshold_table, should_rupture, WOOD_RUPTURE_THRESHOLD,
+    pressure_differential, rupture_threshold, rupture_threshold_table, should_rupture,
+    WOOD_RUPTURE_THRESHOLD,
 };
 pub use thermal::{
     canonical_thermal_face_flux, conductivity_table, energy_like_total, heat_capacity_table,

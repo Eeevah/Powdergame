@@ -154,11 +154,18 @@ fn test_scenario_b_stable_steam_bulk_sleep() {
     let mut sim = make_sim(WorldConfig::new(64, 64, 32).unwrap());
     sim.set_sleep_threshold(4);
 
-    // Confined Steam basin with uniform temperature (150°C) across steam and container
+    // Confined Steam basin with uniform temperature (150°C) across Steam and
+    // container. Stage the canonical Steam at its TE-5R1 pressure target so
+    // this scenario measures equilibrium sleep rather than relaxation work.
     fill_box(&sim, 0, 0, 63, 63, MATERIAL_STONE);
     fill_box_temp(&sim, 0, 0, 63, 63, 150.0);
     fill_box(&sim, 1, 1, 62, 62, MATERIAL_STEAM);
     fill_box_temp(&sim, 1, 1, 62, 62, 150.0);
+    for y in 1..=62 {
+        for x in 1..=62 {
+            set_press(&sim, x, y, 100.0);
+        }
+    }
 
     for _ in 0..10 {
         sim.tick().expect("tick");

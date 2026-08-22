@@ -1,9 +1,7 @@
-//! G5-C — structural rupture / opening / vent GPU integration tests.
+//! TE-5R1 — total-pressure differential rupture GPU integration tests.
 //!
-//! Requires Windows + RTX 5090 + DX12. G5-C adds only a generic structural
-//! self-write rule: finite-strength Matter reads neighboring Liquid/Gas
-//! pressure and becomes EMPTY at its descriptor threshold. Venting then
-//! emerges from ordinary Matter movement through that opening.
+//! Requires Windows + RTX 5090 + DX12. Finite-strength Matter reads opposing
+//! total-pressure faces and becomes EMPTY at its descriptor threshold.
 
 use powdergame_core::{
     vacuum_air_state, WorldConfig, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY, MATERIAL_STEAM,
@@ -98,6 +96,34 @@ fn wood_ruptures_from_threshold_exceeding_neighbor_pressure() {
 }
 
 #[test]
+fn wood_survives_uniform_pressure_on_opposing_faces() {
+    let mut sim = eight_by_eight();
+    set(&sim, 3, 2, MATERIAL_WOOD);
+    set(&sim, 3, 1, MATERIAL_WATER);
+    set(&sim, 3, 3, MATERIAL_WATER);
+    for (x, y) in [
+        (2, 0),
+        (3, 0),
+        (4, 0),
+        (2, 1),
+        (4, 1),
+        (2, 3),
+        (4, 3),
+        (2, 4),
+        (3, 4),
+        (4, 4),
+    ] {
+        set(&sim, x, y, MATERIAL_STONE);
+    }
+    set_p(&sim, 3, 1, WOOD_RUPTURE_THRESHOLD + 20.0);
+    set_p(&sim, 3, 3, WOOD_RUPTURE_THRESHOLD + 20.0);
+
+    sim.tick().expect("uniform-pressure tick");
+
+    assert_eq!(cell(&sim, 3, 2), MATERIAL_WOOD);
+}
+
+#[test]
 fn stone_and_boundary_remain_reference_unbreakable_walls() {
     // Stone intentionally remains unbreakable in M0 because frozen G5-A
     // pressure fixtures use Stone containment up to PRESSURE_MAX.
@@ -123,7 +149,15 @@ fn rupture_crosses_64_cell_chunk_boundary() {
     // Pressure medium on x=63 stresses Wood on x=64 across the chunk edge.
     set(&sim, 63, 8, MATERIAL_WATER);
     set(&sim, 64, 8, MATERIAL_WOOD);
-    for (x, y) in [(62, 8), (62, 9), (63, 9), (64, 9)] {
+    for (x, y) in [
+        (62, 7),
+        (63, 7),
+        (64, 7),
+        (62, 8),
+        (62, 9),
+        (63, 9),
+        (64, 9),
+    ] {
         set(&sim, x, y, MATERIAL_STONE);
     }
     set_p(&sim, 63, 8, WOOD_RUPTURE_THRESHOLD + 20.0);

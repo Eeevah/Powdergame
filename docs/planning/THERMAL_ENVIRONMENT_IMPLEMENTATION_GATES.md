@@ -1,6 +1,6 @@
 # Thermal Environment Implementation Gates
 
-- **Status:** TE-2 and pressure-decoupled TE-3 accepted with known follow-up; TE-5B/C/D/X and packet designs blocked; Pressure redesign deferred
+- **Status:** TE-2/TE-3/TE-4 accepted with known follow-up; TE-5B/C/D/X/packet/R0 designs blocked; TE-5R1 implementation candidate / user review pending
 - **Architecture:** D-013 through D-022 / ADR-0005 / accepted ADR-0006 / proposed blocked ADR-0007 through ADR-0010
 - **Rule:** no task may silently include the physics of a later gate
 
@@ -367,6 +367,8 @@ ADR-0011  REJECTED / DESIGN BLOCKED HISTORY
 TE-3Q / TE-5Q runtime  NOT STARTED
 TE-5R0 local relaxing pressure design  DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / MEDIUM 3
 ADR-0013  PROPOSED / ARCHITECTURE REVISION REQUIRED
+TE-5R1 Steam-load relaxing pressure  IMPLEMENTATION CANDIDATE / USER REVIEW PENDING
+ADR-0014  PROPOSED / USER REVIEW PENDING
 Full TE-5 Pressure/Vacuum runtime  NOT STARTED
 Air-pressure force  NOT STARTED
 TE-4D v1/v2  DESIGN BLOCKED / IMMUTABLE
@@ -376,6 +378,17 @@ TE-4I runtime  USER ACCEPTED WITH KNOWN FOLLOW-UP
 ADR-0012  ACCEPTED FOR CURRENT TE-4 IMPLEMENTATION
 G9-B/C/D/E  NOT STARTED
 ```
+
+### TE-5R1 implementation-first gate
+
+D-037 preserves TE-5R0/ADR-0013 as blocked immutable history and authorizes
+the separate [ADR-0014](../architecture/decisions/ADR-0014-post-phase-steam-load-relaxing-pressure.md)
+contract. Fresh source review passed with Critical `0` / High `0`, so actual
+Core/GPU work was permitted. The candidate must retain 43 passes / 86 queries,
+the eight-storage ceiling, no new persistent/full-world state, Steam-only
+targeting, no Matter pressure force and total-pressure coupling only to Air and
+rupture. Automated validation can produce only **IMPLEMENTATION CANDIDATE /
+USER REVIEW PENDING**; it cannot accept ADR-0014.
 
 ### D-030 v3 transaction/oracle closure
 
@@ -426,7 +439,7 @@ without duplicate output, and DECAYED EMPTY with Air recovery. TE-4I is
 **USER ACCEPTED WITH KNOWN FOLLOW-UP** and ADR-0012 is accepted for this
 current implementation. No blocked synthetic receipt is repaired or rebound.
 
-The next action is only **TE-5 Pressure/Vacuum architecture re-entry
-authorization — DESIGN RE-ENTRY REQUIRED / NOT STARTED**. All TE-5B/C/D/X/Q
-counterexamples must be read before deciding which constraints may change;
-none resumes automatically.
+That re-entry occurred through D-035 and was blocked at TE-5R0. D-037 then
+authorized the source-realizable TE-5R1 replacement recorded above. The next
+action is only **TE-5R1 direct user review**; ADR-0014 remains Proposed and no
+later TE-5/TE-6/G9 gate resumes automatically.

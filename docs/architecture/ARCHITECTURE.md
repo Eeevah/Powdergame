@@ -86,14 +86,16 @@ implemented at source `1a722d...`, and TE-2 passive Air transport and unified
 thermal exchange are implemented at
 source `fb7e568e21012b6067269f4e1b82c36c865023d0`. Candidate-only controls,
 bounded diagnostics and staging are revised at source `0977281...`; TE-2 user
-acceptance is **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Air-pressure force and
-TE-3 runtime are not started. Accepted [`ADR-0006`](decisions/ADR-0006-water-steam-phase-enthalpy.md)
-and the [`phase-thermodynamics spec`](../specs/PHASE_THERMODYNAMICS_SPEC.md)
-define the accepted docs-only Hybrid A+C architecture: one Water-equivalent
-quantity per Matter Cell plus two reversible phase-energy halves, with no independent Steam
-fragment. Its status is **ARCHITECTURE ACCEPTED WITH LOCKED AMENDMENTS**, not
-implemented; the TE-5 pressure-volume bridge remains **DESIGN REQUIRED / NOT
-STARTED**.
+acceptance is **USER ACCEPTED WITH KNOWN FOLLOW-UP**. Accepted
+[`ADR-0006`](decisions/ADR-0006-water-steam-phase-enthalpy.md) and the
+[`phase-thermodynamics spec`](../specs/PHASE_THERMODYNAMICS_SPEC.md) are
+implemented as one Water-equivalent quantity per Matter Cell plus reversible
+phase-energy Current/Next, with no independent Steam fragment; TE-3 is **USER
+ACCEPTED WITH KNOWN FOLLOW-UP**. D-037/Proposed
+[`ADR-0014`](decisions/ADR-0014-post-phase-steam-load-relaxing-pressure.md)
+adds the user-review-pending Steam-load relaxing dynamic-pressure candidate.
+It derives EMPTY Air background, couples total pressure only to Air/rupture,
+and adds no Matter pressure force or persistent/full-world state.
 
 ---
 

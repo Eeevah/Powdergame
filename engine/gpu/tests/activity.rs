@@ -355,9 +355,16 @@ fn thermal_frontier_wakes_cold_steam_candidate() {
     fill_rect(&sim, 1, 1, 62, 62, MATERIAL_STONE); // whole interior
     fill_rect(&sim, 22, 20, 53, 43, MATERIAL_STEAM); // sealed gas chamber
                                                      // Phase 1: uniform 120 C across the ENTIRE world (incl. the ring).
+                                                     // Canonical Steam is also staged at its exact TE-5R1 load equilibrium so
+                                                     // this fixture isolates the thermal sleep/wake contract.
     for y in 0..=63 {
         for x in 0..=63 {
             set_t(&sim, x, y, 120.0);
+        }
+    }
+    for y in 20..=43 {
+        for x in 22..=53 {
+            set_p(&sim, x, y, 100.0);
         }
     }
 
@@ -547,12 +554,11 @@ fn cross_chunk_pressure_frontier_detected() {
 }
 
 #[test]
-fn uniform_pressurized_medium_sealed_by_stone_is_not_pressure_frontier() {
-    // G5 contract: pressure exchanges only between pressure media. A
-    // uniformly pressured Water body sealed by Stone has no medium-medium
-    // pressure delta, so the Stone boundary is NOT a pressure frontier (the
-    // old detector wrongly compared the medium against its non-medium
-    // neighbors' zeroed field). The Stone-only neighbor chunk is inactive.
+fn uniform_stale_pressure_relaxation_is_active_but_stone_neighbor_is_not() {
+    // TE-5R1: uniform Water pressure has no diffusion gradient, but Water's
+    // target is zero, so the dedicated exact-update proposer must keep the
+    // owning chunk awake while the stale field relaxes. Stone remains a
+    // sealed no-flux face and the Stone-only neighbor chunk stays inactive.
     let mut sim = make_sim(WorldConfig::new(128, 128, 64).unwrap());
     fill_rect(&sim, 1, 1, 126, 126, MATERIAL_STONE);
     fill_rect(&sim, 62, 31, 63, 33, MATERIAL_WATER); // sealed, chunk 0 only
@@ -566,8 +572,7 @@ fn uniform_pressurized_medium_sealed_by_stone_is_not_pressure_frontier() {
     sim.tick().expect("tick 1");
 
     let acts = chunk_activity(&sim);
-    // Uniformly pressured medium: no pressure work at the Stone boundary.
-    assert_eq!(acts[0] & ACTIVITY_PRESSURE, 0);
+    assert_ne!(acts[0] & ACTIVITY_PRESSURE, 0);
     assert_eq!(acts[1], 0); // Stone-only chunk: nothing at all
 }
 

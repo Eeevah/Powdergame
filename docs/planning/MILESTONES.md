@@ -302,6 +302,14 @@ extra Steam과 blocked-expansion pressure를 만들지 않으며 G5 PASS를
 주장하지 않는다. `WATER_STEAM_PRESSURE_VOLUME_REDESIGN`은 별도 미래 Gate로
 deferred/not started다.
 
+D-037의 [TE-5R1 Steam-load relaxing pressure](TE5R1_STEAM_LOAD_RELAXING_PRESSURE.md)는
+그 deferred 경계를 별도 source-realizable 계약으로 다시 연다. Water에는
+완료 impulse를 만들지 않고 post-phase Steam load만 동적 gauge pressure로
+완화하며, Air transport와 rupture만 total pressure를 읽는다. 이
+cross-reference는 위 역사적 G5 receipt를 재사용하지 않는다. 새 production
+source의 boil/load/rupture/open/vent trace와 사용자 직접 검토가 별도로
+완료되어야 Gate 판정이 바뀐다.
+
 ### User validation
 
 전용 `boiler_explosion()` 없이 작은 Rule chain으로 압력 사고가 납득되는지 확인한다.

@@ -116,6 +116,7 @@ fn boiling_with_space_spawns_second_steam_without_pressure() {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 fixture; D-024 active TE-3 never enters generic expansion"]
 fn environment_blocked_spawn_keeps_target_air_and_adds_pressure_exactly_once() {
     let mut sim = eight_by_eight();
     clear_region(&sim, 1, 1, 6, 6);
@@ -143,6 +144,7 @@ fn environment_blocked_spawn_keeps_target_air_and_adds_pressure_exactly_once() {
 }
 
 #[test]
+#[ignore = "historical G5 Water-yield-2 fixture; D-024 active TE-3 never enters generic expansion"]
 fn receiver_without_whole_parcel_headroom_blocks_without_clamping_or_deletion() {
     let mut sim = eight_by_eight();
     clear_region(&sim, 1, 1, 6, 6);

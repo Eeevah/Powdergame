@@ -1,8 +1,9 @@
 //! TE-3 user-testable Water / Steam phase-cycle candidate.
 
 use powdergame_core::{
-    AirState, EmptyEnvironmentSeed, AIR_ZERO_OFFSET, MATERIAL_BOUNDARY_BLOCK, MATERIAL_EMPTY,
-    MATERIAL_ICE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER, TEMPERATURE_REFERENCE,
+    AirState, EmptyEnvironmentSeed, AIR_MASS_MAX, AIR_ZERO_OFFSET, MATERIAL_BOUNDARY_BLOCK,
+    MATERIAL_EMPTY, MATERIAL_ICE, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER,
+    STANDARD_AIR_ENERGY, TEMPERATURE_REFERENCE,
 };
 use powdergame_gpu::{GpuError, Simulation};
 
@@ -22,7 +23,7 @@ const SCENE2_SURFACE: (u32, u32) = (72, 112);
 const SCENE2_BURIED: (u32, u32) = (172, 112);
 const SCENE2_OPENING: (u32, u32) = (172, 111);
 const SCENE3_LID: (u32, u32) = (60, 102);
-const SCENE3_FREE_AIR: (u32, u32) = (124, 102);
+const SCENE3_FREE_AIR: (u32, u32) = (125, 102);
 const SCENE3_BOUNDARY: (u32, u32) = (196, 102);
 const SCENE4_BOILING: (u32, u32) = (60, 108);
 const SCENE4_CONDENSATION: (u32, u32) = (128, 108);
@@ -484,17 +485,21 @@ fn stage_scene(simulation: &mut Simulation, scene: PhaseCycleScene) -> Result<()
             put(SCENE3_LID.0, SCENE3_LID.1, MATERIAL_STEAM, 94.0, LV);
 
             // Lane B: nine canonical Steam controls cannot move up,
-            // up-diagonal, or laterally. Their lower orthogonal faces remain
-            // EMPTY Air: GAS does not move downward, while TE-2 can cool
-            // through that real Air face until radius-2 nucleation is legal.
+            // up-diagonal, or laterally. Their lower orthogonal faces open
+            // into a finite, K=0 Boundary-enclosed Air reservoir: GAS does not
+            // move downward, TE-2 can cool through real Air, and TE-5R1 Air
+            // response cannot export the finite sink out of the fixture.
             for x in 124..=132 {
                 put(x, 102, MATERIAL_STEAM, 94.0, LV);
             }
             for x in 123..=133 {
                 put(x, 101, MATERIAL_BOUNDARY_BLOCK, 20.0, 0.0);
+                put(x, 123, MATERIAL_BOUNDARY_BLOCK, 20.0, 0.0);
             }
-            put(123, 102, MATERIAL_BOUNDARY_BLOCK, 20.0, 0.0);
-            put(133, 102, MATERIAL_BOUNDARY_BLOCK, 20.0, 0.0);
+            for y in 102..=123 {
+                put(123, y, MATERIAL_BOUNDARY_BLOCK, 20.0, 0.0);
+                put(133, y, MATERIAL_BOUNDARY_BLOCK, 20.0, 0.0);
+            }
 
             // Lane C: a true K=0 Boundary cage. The 20 C Boundary is adjacent
             // but supplies no TE-2 removal work.
@@ -594,6 +599,38 @@ fn stage_scene(simulation: &mut Simulation, scene: PhaseCycleScene) -> Result<()
         let bytes = bytemuck::cast_slice(&hot_air_energy);
         queue.write_buffer(&simulation.world.air_energy_current, 0, bytes);
         queue.write_buffer(&simulation.world.air_energy_next, 0, bytes);
+    } else if scene == PhaseCycleScene::ColdLidVersusFreeAir {
+        // The sealed free-Air lane owns a finite dense 0 C reservoir. It
+        // preserves the original equal-Steam controls while keeping enough
+        // real Air heat capacity after TE-5R1 total-pressure redistribution
+        // to cross the accepted 70 C nucleation threshold.
+        let mut air_mass = material
+            .iter()
+            .map(|&material_id| {
+                if material_id == MATERIAL_EMPTY {
+                    1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect::<Vec<f32>>();
+        let mut air_energy = air_mass
+            .iter()
+            .map(|&mass| mass * STANDARD_AIR_ENERGY)
+            .collect::<Vec<f32>>();
+        for y in 103..=122 {
+            for x in 124..=132 {
+                let i = idx(x, y);
+                air_mass[i] = AIR_MASS_MAX;
+                air_energy[i] = AIR_MASS_MAX * AIR_ZERO_OFFSET;
+            }
+        }
+        let mass_bytes = bytemuck::cast_slice(&air_mass);
+        let energy_bytes = bytemuck::cast_slice(&air_energy);
+        queue.write_buffer(&simulation.world.air_mass_current, 0, mass_bytes);
+        queue.write_buffer(&simulation.world.air_mass_next, 0, mass_bytes);
+        queue.write_buffer(&simulation.world.air_energy_current, 0, energy_bytes);
+        queue.write_buffer(&simulation.world.air_energy_next, 0, energy_bytes);
     }
     queue.submit([]);
     simulation
@@ -919,25 +956,35 @@ mod tests {
 
         let mut free_air_start = None;
         let mut first_partial_count = None;
+        let mut first_partial_x = None;
         for tick in 2_u64..=120 {
             state.tick(&mut simulation, true).unwrap();
-            if free_air_start.is_none() && energy(&simulation, SCENE3_FREE_AIR) < LV {
+            let partial_cells = (124..=132)
+                .filter(|&x| energy(&simulation, (x, 102)) < LV)
+                .collect::<Vec<_>>();
+            if free_air_start.is_none() && !partial_cells.is_empty() {
                 free_air_start = Some(tick);
-                first_partial_count = Some(
-                    (124..=132)
-                        .filter(|&x| energy(&simulation, (x, 102)) < LV)
-                        .count(),
-                );
+                first_partial_count = Some(partial_cells.len());
+                first_partial_x = partial_cells.first().copied();
                 break;
             }
         }
-        let free_air_start = free_air_start.expect("free-Air control must eventually nucleate");
+        let free_air_start = free_air_start.unwrap_or_else(|| {
+            panic!(
+                "free-Air control must eventually nucleate; final material={} T={:.6} E={:.6}",
+                material(&simulation, SCENE3_FREE_AIR),
+                temperature(&simulation, SCENE3_FREE_AIR),
+                energy(&simulation, SCENE3_FREE_AIR)
+            )
+        });
         let first_partial_count = first_partial_count.expect("nucleation count must be recorded");
+        let first_partial_x = first_partial_x.expect("nucleation Cell must be recorded");
         println!(
-            "[te3 scene3] free-Air start tick {} T={:.6} E={:.6}; first partial count={}; family={}",
+            "[te3 scene3] free-Air start tick {} x={} T={:.6} E={:.6}; first partial count={}; family={}",
             free_air_start,
-            temperature(&simulation, SCENE3_FREE_AIR),
-            energy(&simulation, SCENE3_FREE_AIR),
+            first_partial_x,
+            temperature(&simulation, (first_partial_x, 102)),
+            energy(&simulation, (first_partial_x, 102)),
             first_partial_count,
             fresh(&state).family_count
         );
@@ -1004,9 +1051,11 @@ mod tests {
                 lid_below_plateau = Some((tick, lid_temperature));
             }
 
-            let free_material = material(&simulation, SCENE3_FREE_AIR);
-            let free_energy = energy(&simulation, SCENE3_FREE_AIR);
-            if free_material == MATERIAL_STEAM && free_energy < LV {
+            let free_partial_exists = (124..=132).any(|x| {
+                material(&simulation, (x, 102)) == MATERIAL_STEAM
+                    && energy(&simulation, (x, 102)) < LV
+            });
+            if free_partial_exists {
                 free_air_partial_tick.get_or_insert(tick);
             }
             if free_air_completion.is_none() {
@@ -1034,8 +1083,14 @@ mod tests {
             lid_completion.expect("lid Steam must complete to Water");
         let (lid_below_tick, lid_below_temperature) =
             lid_below_plateau.expect("Water must cool below the plateau after completion");
-        let free_air_partial_tick =
-            free_air_partial_tick.expect("actual Air cooling must initiate sparse condensation");
+        let free_air_partial_tick = free_air_partial_tick.unwrap_or_else(|| {
+            panic!(
+                "actual Air cooling must initiate sparse condensation; final material={} T={:.6} E={:.6}",
+                material(&simulation, SCENE3_FREE_AIR),
+                temperature(&simulation, SCENE3_FREE_AIR),
+                energy(&simulation, SCENE3_FREE_AIR)
+            )
+        });
         let (free_air_completion_tick, free_x, free_y) =
             free_air_completion.expect("actual Air cooling must complete condensation");
         println!(

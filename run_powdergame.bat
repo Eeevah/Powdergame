@@ -18,6 +18,8 @@ if /i "%~1"=="phase-cycle" goto route_phase_cycle
 if /i "%~1"=="te3" goto route_phase_cycle
 if /i "%~1"=="ignition-kinetics" goto route_ignition_kinetics
 if /i "%~1"=="te4" goto route_ignition_kinetics
+if /i "%~1"=="pressure-vacuum" goto route_pressure_vacuum
+if /i "%~1"=="te5" goto route_pressure_vacuum
 
 if not "%~2"=="" goto usage
 if /i "%~1"=="normal" goto route_gallery
@@ -63,6 +65,15 @@ goto build
 
 :route_pressure
 set "APP_ARGS=--pressure-demo"
+goto build
+
+:route_pressure_vacuum
+set "APP_ARGS=--pressure-vacuum-candidate"
+if "%~2"=="" goto build
+if /i not "%~2"=="--smoke-frames" goto usage
+if "%~3"=="" goto usage
+if not "%~4"=="" goto usage
+set "APP_ARGS=--pressure-vacuum-candidate --smoke-frames %~3"
 goto build
 
 :route_ignition_kinetics
@@ -124,12 +135,13 @@ echo POWDERGAME_LAUNCHER_AUDIT_ARGS=%APP_ARGS%
 exit /b 0
 
 :usage
-echo Usage: run_powdergame.bat [sandbox^|play^|thermal-environment^|te2^|phase-cycle^|te3^|ignition-kinetics^|te4^|normal^|gallery^|runtime^|g0^|movement^|density^|thermal^|pressure^|parallel-integrity^|activity^|app CLI args...] 1>&2
+echo Usage: run_powdergame.bat [sandbox^|play^|thermal-environment^|te2^|phase-cycle^|te3^|ignition-kinetics^|te4^|pressure-vacuum^|te5^|normal^|gallery^|runtime^|g0^|movement^|density^|thermal^|pressure^|parallel-integrity^|activity^|app CLI args...] 1>&2
 echo   default = G9-A first playable Sandbox ^(no args^) 1>&2
 echo   normal/gallery = G8-B Benchmark Gallery 1>&2
 echo   sandbox/play = G9-A first playable Sandbox 1>&2
 echo   thermal-environment/te2 = TE-2 passive Thermal Environment candidate 1>&2
 echo   phase-cycle/te3 = TE-3 Water / Steam Phase Cycle candidate 1>&2
 echo   ignition-kinetics/te4 = TE-4 Ignition Kinetics candidate 1>&2
+echo   pressure-vacuum/te5 = TE-5 Steam-load relaxing Pressure / Vacuum candidate 1>&2
 echo   runtime/g0 = technical empty G0 baseline 1>&2
 exit /b 2

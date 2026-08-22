@@ -104,6 +104,10 @@ fn all_production_wgsl_parses_without_a_gpu() {
             include_str!("../src/environment_reconcile_identity.wgsl"),
         ),
         ("pressure.wgsl", include_str!("../src/pressure.wgsl")),
+        (
+            "pressure_activity_propose.wgsl",
+            include_str!("../src/pressure_activity_propose.wgsl"),
+        ),
         ("rupture.wgsl", include_str!("../src/rupture.wgsl")),
         (
             "activity_propose.wgsl",
@@ -159,15 +163,58 @@ fn te4i_passes_stay_within_the_eight_storage_binding_limit() {
 }
 
 #[test]
-fn te2_keeps_air_out_of_pressure_coupling() {
+fn te5r1_pressure_update_stays_air_independent_but_rupture_reads_air_energy() {
+    let pressure = include_str!("../src/pressure.wgsl");
+    assert!(!pressure.contains("air_mass") && !pressure.contains("air_energy"));
+    let rupture = include_str!("../src/rupture.wgsl");
+    assert!(rupture.contains("air_energy_current"));
+    assert!(!rupture.contains("air_mass_current"));
+}
+
+#[test]
+fn te5r1_pressure_activity_has_one_production_owner() {
+    let base = include_str!("../src/activity_propose.wgsl");
+    let pressure = include_str!("../src/pressure_activity_propose.wgsl");
+    assert!(!base.contains("const ACTIVITY_PRESSURE"));
+    assert!(!base.contains("PRESSURE_BIT"));
+    assert!(pressure.contains("const PRESSURE_BIT:u32=4u"));
+    assert_eq!(pressure.matches("|=PRESSURE_BIT").count(), 1);
+    assert!(!pressure.contains("chunk_state"));
+}
+
+#[test]
+fn te5r1_changed_passes_stay_within_eight_storage_bindings() {
     for (name, source) in [
         ("pressure.wgsl", include_str!("../src/pressure.wgsl")),
+        (
+            "pressure_activity_propose.wgsl",
+            include_str!("../src/pressure_activity_propose.wgsl"),
+        ),
         ("rupture.wgsl", include_str!("../src/rupture.wgsl")),
+        (
+            "air_flow_scale.wgsl",
+            include_str!("../src/air_flow_scale.wgsl"),
+        ),
+        (
+            "air_transport_commit.wgsl",
+            include_str!("../src/air_transport_commit.wgsl"),
+        ),
+        (
+            "activity_propose.wgsl",
+            include_str!("../src/activity_propose.wgsl"),
+        ),
+        (
+            "environment_activity_propose.wgsl",
+            include_str!("../src/environment_activity_propose.wgsl"),
+        ),
     ] {
-        assert!(
-            !source.contains("air_mass") && !source.contains("air_energy"),
-            "{name} must not couple Pressure physics to Air in TE-2"
-        );
+        let module = naga::front::wgsl::parse_str(source).unwrap();
+        let count = module
+            .global_variables
+            .iter()
+            .filter(|(_, variable)| matches!(variable.space, naga::AddressSpace::Storage { .. }))
+            .count();
+        assert!(count <= 8, "{name} declares {count} storage bindings");
     }
 }
 

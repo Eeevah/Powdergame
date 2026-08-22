@@ -377,7 +377,7 @@ fn te3_f14_cpu_gpu_semantics_agree_for_surface_boiling() {
 }
 
 #[test]
-fn te3_f15_water_never_spawns_or_sources_blocked_pressure() {
+fn te3_f15_water_never_spawns_or_sources_blocked_impulse() {
     let mut s = sim();
     seal(&s, 8, 8, MATERIAL_STONE, 300.0);
     set(&s, 8, 7, MATERIAL_EMPTY, 20.0);
@@ -386,10 +386,11 @@ fn te3_f15_water_never_spawns_or_sources_blocked_pressure() {
     s.tick().unwrap();
     assert_eq!(family_count(&s), before);
     assert_eq!(find_family(&s, MATERIAL_STEAM).len(), 1);
-    assert!(s
+    let pressures = s
         .world
         .read_pressure_all(&s.context.device, &s.context.queue)
-        .unwrap()
-        .iter()
-        .all(|p| *p == 0.0));
+        .unwrap();
+    let peak = pressures.iter().copied().fold(0.0f32, f32::max);
+    assert!(peak > 0.0 && peak <= 2.0 + 1.0e-4, "peak={peak}");
+    assert!(pressures.iter().all(|&p| p < 100.0));
 }

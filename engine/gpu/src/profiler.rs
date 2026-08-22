@@ -12,7 +12,7 @@
 use crate::context::{GpuContext, GpuError};
 
 /// Total number of distinct compute passes in a single simulation tick.
-pub const PASS_COUNT: usize = 42;
+pub const PASS_COUNT: usize = 43;
 
 /// Total number of timestamp queries per tick (start + end per pass).
 pub const QUERY_COUNT: u32 = (PASS_COUNT as u32) * 2;
@@ -60,6 +60,7 @@ pub const PASS_NAMES: [&str; PASS_COUNT] = [
     "phase_activity_propose",
     "environment_activity_propose",
     "ignition_activity_propose",
+    "pressure_activity_propose",
     "activity_reduce",
 ];
 
@@ -86,7 +87,7 @@ pub struct GroupedSubsystemSummary {
     pub reaction_phase_ms: f64,
     /// Pressure, blocked-expansion pressure, rupture, and rupture hygiene/reconciliation.
     pub pressure_structure_ms: f64,
-    /// `activity_wake` + `activity_propose` + `activity_reduce`
+    /// Activity wake, all activity proposers, and reduction.
     pub active_sleep_ms: f64,
 }
 
@@ -140,7 +141,8 @@ impl ProfiledTickReport {
                 + self.passes[38].duration_ms
                 + self.passes[39].duration_ms
                 + self.passes[40].duration_ms
-                + self.passes[41].duration_ms,
+                + self.passes[41].duration_ms
+                + self.passes[42].duration_ms,
         }
     }
 }

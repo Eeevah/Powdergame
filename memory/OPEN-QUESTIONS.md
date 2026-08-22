@@ -626,7 +626,7 @@ IMPLEMENTATION**. Q-017 is closed. Binary Air-policy refinement, Oxygen, Ash,
 G9-D final presentation and TE-5 Pressure coupling are known non-blocking
 follow-ups, not reasons to keep this question open.
 
-## Q-018 · TE-5R0 architecture revision after independent-review blockers — open 2026-08-23
+## Q-018 · TE-5R0 architecture revision after independent-review blockers — closed 2026-08-23
 
 Owner: user for a new architecture decision; no implementation owner exists.
 
@@ -643,3 +643,28 @@ ADR-0013 remains **PROPOSED — ARCHITECTURE REVISION REQUIRED**. Runtime,
 reference proof, coefficient campaign and implementation are not authorized.
 D-036 separately defers the stale Wiki project snapshot refresh until
 2026-09-01 to conserve GitHub Actions; this does not close Q-018.
+
+### D-037 closure
+
+D-037 supplies the required source-realizable replacement without repairing
+ADR-0013: Water and pre-transition context are not pressure sources; generic
+consequence is consumed after its existing settle; and a dedicated exact-
+update pass is the sole pressure-activity owner. Fresh review reported Critical
+`0` / High `0`; actual implementation retained the reviewed 43-pass/86-query,
+eight-binding and zero-new-state boundary. Q-018 is closed. User review of the
+new candidate is tracked separately by Q-019.
+
+## Q-019 · TE-5R1 implementation candidate direct review — open 2026-08-23
+
+Owner: user.
+
+Review the canonical `pressure-vacuum` / `te5` candidate Scenes 1–4 and decide
+whether ADR-0014 is acceptable for the current implementation. Check sparse
+versus dense load, condensation relief versus K=0 control, uniform versus one-
+sided structure differential, and the actual Water/Steam/pressure/rupture/Air
+vent chain. Confirm that the visible labels accurately disclose the local
+approximation, absent Matter pressure force, absent Oxygen quantity, Matter
+Void exit and explicit fixture walls.
+
+Automated validation, a bounded launch and diagnostic rows cannot close this
+question or mark ADR-0014 Accepted.

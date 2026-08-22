@@ -23,6 +23,7 @@ use crate::observatory::{
     ACTIVITY_PANEL_NAMES,
 };
 use crate::phase_cycle::{PhaseCycleDiagnosticState, PhaseCycleHudData};
+use crate::pressure_vacuum::{PressureVacuumDiagnosticState, PressureVacuumHudData};
 use crate::sandbox::{
     SandboxHudData, SandboxPaletteGroup, SandboxThermalFeedbackState, SandboxTool, SANDBOX_PALETTE,
     SANDBOX_PALETTE_GROUP_LABEL_Y, SANDBOX_PALETTE_ROW_Y, SANDBOX_PRESET_FIRST_ROW_Y,
@@ -4897,6 +4898,294 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             self.index_capacity = (self.batch.indices.len() * 3) / 2;
             self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("te4_text_index_buffer"),
+                size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.vertices),
+        );
+        queue.write_buffer(
+            &self.index_buffer,
+            0,
+            bytemuck::cast_slice(&self.batch.indices),
+        );
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        render_pass.draw_indexed(0..self.batch.indices.len() as u32, 0, 0..1);
+    }
+
+    /// TE-5R1 candidate HUD backed by authoritative Material, phase-energy,
+    /// dynamic-pressure and Environment state.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_pressure_vacuum_hud(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        surface_w: u32,
+        surface_h: u32,
+        data: &PressureVacuumHudData,
+    ) {
+        let sw = surface_w as f32;
+        let sh = surface_h as f32;
+        self.batch.clear();
+        let white = self.atlas.solid_white_uv;
+        let title = [0.96, 0.98, 1.0, 1.0];
+        let header = [1.0, 0.65, 0.20, 1.0];
+        let label = [0.68, 0.75, 0.84, 1.0];
+        let value = [0.96, 0.97, 0.99, 1.0];
+        let ok = [0.42, 0.88, 1.0, 1.0];
+        let card = [0.04, 0.06, 0.09, 0.94];
+        if let (Some(transform), Some(sample)) =
+            (data.world_transform, data.diagnostic.fresh_sample())
+        {
+            for row in &sample.rows {
+                if row.material == 0
+                    && (row.label == "One-sided Wood" || row.label == "Wood relief plug")
+                {
+                    if let Some(rect) = te2_marker_rect(transform, row.cell) {
+                        self.batch.draw_outline(
+                            rect.x - 4.0,
+                            rect.y - 4.0,
+                            rect.width + 8.0,
+                            rect.height + 8.0,
+                            3.0,
+                            header,
+                            white,
+                        );
+                    }
+                }
+            }
+        }
+        self.batch
+            .draw_text(&self.atlas, 22.0, 18.0, 22, "TE-5 PRESSURE / VACUUM", title);
+        self.batch.draw_text_right(
+            &self.atlas,
+            sw - 22.0,
+            24.0,
+            14,
+            &format!(
+                "{} | x{} | SIM TICK {}",
+                if data.playing { "PLAYING" } else { "PAUSED" },
+                data.fast,
+                data.simulation_tick
+            ),
+            ok,
+        );
+        self.batch.draw_rect(18.0, 70.0, 455.0, 300.0, card, white);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            88.0,
+            17,
+            &format!("SCENE {}/4", data.scene.number()),
+            header,
+        );
+        self.batch
+            .draw_text(&self.atlas, 32.0, 120.0, 14, data.scene.name(), value);
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            150.0,
+            12,
+            data.scene.description(),
+            label,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            194.0,
+            12,
+            "1-4 scene | SPACE play | N step/sample | F speed | I rows | R reset",
+            value,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            224.0,
+            12,
+            "Pressure model: LOCAL RELAXING APPROXIMATION",
+            header,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            250.0,
+            12,
+            "Matter pressure force: NOT ACTIVE | Oxygen quantity: NOT PRESENT",
+            label,
+        );
+        self.batch.draw_text(
+            &self.atlas,
+            32.0,
+            276.0,
+            12,
+            "World Matter edge: VOID EXIT | Fixture chamber: EXPLICITLY SEALED",
+            label,
+        );
+        let x = sw - 710.0;
+        self.batch.draw_rect(x, 70.0, 692.0, 670.0, card, white);
+        self.batch.draw_text(
+            &self.atlas,
+            x + 16.0,
+            88.0,
+            16,
+            "FIXED PRODUCTION DIAGNOSTICS",
+            ok,
+        );
+        match &data.diagnostic {
+            PressureVacuumDiagnosticState::Fresh(sample) => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    x + 16.0,
+                    120.0,
+                    12,
+                    &format!(
+                        "Fresh | sample {} | family {} Water {} Steam {} Wood {}",
+                        sample.sample_tick,
+                        sample.family_count,
+                        sample.water_count,
+                        sample.steam_count,
+                        sample.wood_count
+                    ),
+                    value,
+                );
+                if data.details_visible {
+                    for (i, row) in sample.rows.iter().enumerate() {
+                        let y = 158.0 + i as f32 * 116.0;
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y,
+                            13,
+                            &format!(
+                                "{} | Cell ({}, {}) | Fresh",
+                                row.label, row.cell.0, row.cell.1
+                            ),
+                            ok,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y + 25.0,
+                            12,
+                            &format!(
+                                "{} | E {:.3} | target {:.3} | dynamic {:.3}",
+                                material_display_name(row.material),
+                                row.phase_energy,
+                                row.steam_target,
+                                row.dynamic_pressure
+                            ),
+                            value,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y + 50.0,
+                            12,
+                            &format!(
+                                "Air P {:.3} | total {:.3} | predicted delta {:+.4}",
+                                row.air_background, row.total_pressure, row.predicted_delta
+                            ),
+                            header,
+                        );
+                        self.batch.draw_text(
+                            &self.atlas,
+                            x + 16.0,
+                            y + 75.0,
+                            12,
+                            &format!(
+                                "face diff {:.3} | Air m {:.3} e {:.3} | tick {}",
+                                row.structure_differential,
+                                row.air_mass,
+                                row.air_energy,
+                                sample.sample_tick
+                            ),
+                            label,
+                        );
+                    }
+                } else {
+                    self.batch.draw_text(
+                        &self.atlas,
+                        x + 16.0,
+                        158.0,
+                        13,
+                        "Fixed diagnostic rows collapsed [I]",
+                        label,
+                    );
+                }
+            }
+            PressureVacuumDiagnosticState::Sampling {
+                generation,
+                sequence,
+                simulation_tick,
+            } => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    x + 16.0,
+                    130.0,
+                    13,
+                    &format!(
+                        "Sampling | generation {generation} sequence {sequence} tick {simulation_tick}"
+                    ),
+                    header,
+                );
+            }
+            PressureVacuumDiagnosticState::Failed {
+                generation,
+                sequence,
+                simulation_tick,
+                message,
+            } => {
+                self.batch.draw_text(
+                    &self.atlas,
+                    x + 16.0,
+                    130.0,
+                    12,
+                    &format!(
+                        "Failed | generation {generation} sequence {sequence} tick {simulation_tick} | {message}"
+                    ),
+                    header,
+                );
+            }
+        }
+        self.batch.draw_text(
+            &self.atlas,
+            22.0,
+            sh - 31.0,
+            13,
+            "Steam-only target | dynamic + Air total exactly once | ordinary Gas movement",
+            label,
+        );
+        if self.batch.vertices.is_empty() {
+            return;
+        }
+        let screen_data = ScreenUniform {
+            screen_width: sw,
+            screen_height: sh,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        };
+        queue.write_buffer(&self.screen_buffer, 0, bytemuck::bytes_of(&screen_data));
+        if self.batch.vertices.len() > self.vertex_capacity {
+            self.vertex_capacity = (self.batch.vertices.len() * 3) / 2;
+            self.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te5_text_vertex_buffer"),
+                size: (self.vertex_capacity * std::mem::size_of::<TextVertex>()) as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        if self.batch.indices.len() > self.index_capacity {
+            self.index_capacity = (self.batch.indices.len() * 3) / 2;
+            self.index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("te5_text_index_buffer"),
                 size: (self.index_capacity * std::mem::size_of::<u32>()) as u64,
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,

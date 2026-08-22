@@ -1,37 +1,30 @@
-//! G5-A pressure field baseline — CPU reference rule.
-//!
-//! Pressure is a spatial per-cell `f32` field (`SIMULATION_SPEC` §15), not
-//! Matter-owned state. The baseline is deliberately small:
-//! - scalar pressure only (no pressure velocity vector),
-//! - 4-neighbor local propagation,
-//! - only LIQUID/GAS Matter acts as a pressure medium,
-//! - EMPTY/Void and STATIC/POWDER do not secretly transmit pressure,
-//! - no arbitrary time decay: an isolated pressured medium retains pressure,
-//! - finite/non-negative sanitization prevents NaN/Infinity runaway.
-//!
-//! G5-B will generate pressure from blocked phase expansion. G5-C will use
-//! pressure gradients to influence Matter and stress/rupture structures.
+//! TE-5R1 local Steam-load relaxing dynamic pressure reference.
 
-use crate::material::{movement_class, MovementClass};
+use crate::material::{movement_class, MovementClass, MATERIAL_EMPTY, MATERIAL_STEAM};
+use crate::phase::LATENT_VAPORIZATION;
 
-/// Neutral pressure for cells that cannot host the field.
 pub const PRESSURE_REFERENCE: f32 = 0.0;
-
-/// Explicit 4-neighbor diffusion coefficient. Must stay <= 0.25 for the
-/// symmetric four-neighbor explicit update to avoid overshoot.
 pub const PRESSURE_DIFFUSION_RATE: f32 = 0.20;
-
-/// Gameplay safety clamp, not a physical unit.
+pub const PRESSURE_RELAXATION_RATE: f32 = 0.02;
+pub const FULL_STEAM_PRESSURE: f32 = 100.0;
 pub const PRESSURE_MAX: f32 = 1.0e6;
 
-/// One orthogonal pressure sample. `None` represents Void/out-of-domain.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PressureNeighbor {
     pub material: u32,
     pub pressure: f32,
 }
 
-/// Pressure propagates only through actual Liquid/Gas Matter in G5-A.
+pub fn is_dynamic_pressure_node(material: u32) -> bool {
+    material == MATERIAL_EMPTY
+        || matches!(
+            movement_class(material),
+            Some(MovementClass::Liquid | MovementClass::Gas)
+        )
+}
+
+/// Historical G5 diagnostic category: foreground Liquid/Gas only. TE-5R1
+/// production pressure uses [`is_dynamic_pressure_node`] instead.
 pub fn is_pressure_medium(material: u32) -> bool {
     matches!(
         movement_class(material),
@@ -39,7 +32,6 @@ pub fn is_pressure_medium(material: u32) -> bool {
     )
 }
 
-/// Collapses invalid pressure to the neutral value and bounds valid values.
 pub fn sanitize_pressure(value: f32) -> f32 {
     if !value.is_finite() {
         PRESSURE_REFERENCE
@@ -48,36 +40,55 @@ pub fn sanitize_pressure(value: f32) -> f32 {
     }
 }
 
-/// One Read-Neighbors / Write-Self pressure update.
-///
-/// Only pressure-media neighbors participate. There is no implicit loss term;
-/// a sealed isolated Liquid/Gas cell therefore keeps its pressure exactly.
+/// Returns `None` only for invalid Steam phase state. Every non-Steam
+/// identity, including Water, has target zero.
+pub fn steam_pressure_target(material: u32, phase_energy: f32) -> Option<f32> {
+    if material != MATERIAL_STEAM {
+        return Some(PRESSURE_REFERENCE);
+    }
+    if !phase_energy.is_finite() || !(0.0..=LATENT_VAPORIZATION).contains(&phase_energy) {
+        return None;
+    }
+    Some(FULL_STEAM_PRESSURE * phase_energy / LATENT_VAPORIZATION)
+}
+
+/// Read-neighbours/write-self update. Missing and blocked neighbours are
+/// no-flux faces. Invalid Steam phase state fails closed to target zero;
+/// authoritative staging rejects it before production use.
+pub fn pressure_step_with_phase(
+    self_material: u32,
+    self_phase_energy: f32,
+    self_pressure: f32,
+    neighbors: [Option<PressureNeighbor>; 4],
+) -> f32 {
+    if !is_dynamic_pressure_node(self_material) {
+        return PRESSURE_REFERENCE;
+    }
+    let q = sanitize_pressure(self_pressure);
+    let mut diffusion = 0.0f32;
+    for neighbor in neighbors.into_iter().flatten() {
+        if is_dynamic_pressure_node(neighbor.material) {
+            diffusion += sanitize_pressure(neighbor.pressure) - q;
+        }
+    }
+    let target = steam_pressure_target(self_material, self_phase_energy).unwrap_or(0.0);
+    sanitize_pressure(
+        q + PRESSURE_DIFFUSION_RATE * diffusion + PRESSURE_RELAXATION_RATE * (target - q),
+    )
+}
+
 pub fn pressure_step(
     self_material: u32,
     self_pressure: f32,
     neighbors: [Option<PressureNeighbor>; 4],
 ) -> f32 {
-    if !is_pressure_medium(self_material) {
-        return PRESSURE_REFERENCE;
-    }
-
-    let self_p = sanitize_pressure(self_pressure);
-    let mut acc = 0.0f32;
-    for neighbor in neighbors.into_iter().flatten() {
-        if !is_pressure_medium(neighbor.material) {
-            continue;
-        }
-        let neighbor_p = sanitize_pressure(neighbor.pressure);
-        acc += neighbor_p - self_p;
-    }
-
-    sanitize_pressure(self_p + PRESSURE_DIFFUSION_RATE * acc)
+    pressure_step_with_phase(self_material, 0.0, self_pressure, neighbors)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::material::{MATERIAL_EMPTY, MATERIAL_STEAM, MATERIAL_STONE, MATERIAL_WATER};
+    use crate::material::{MATERIAL_STONE, MATERIAL_WATER};
 
     fn right(material: u32, pressure: f32) -> [Option<PressureNeighbor>; 4] {
         [
@@ -89,60 +100,60 @@ mod tests {
     }
 
     #[test]
-    fn only_liquid_and_gas_are_pressure_media() {
-        assert!(is_pressure_medium(MATERIAL_WATER));
-        assert!(is_pressure_medium(MATERIAL_STEAM));
-        assert!(!is_pressure_medium(MATERIAL_STONE));
-        assert!(!is_pressure_medium(MATERIAL_EMPTY));
+    fn empty_liquid_and_gas_are_nodes_but_stone_is_blocked() {
+        assert!(is_dynamic_pressure_node(MATERIAL_EMPTY));
+        assert!(is_dynamic_pressure_node(MATERIAL_WATER));
+        assert!(is_dynamic_pressure_node(MATERIAL_STEAM));
+        assert!(!is_dynamic_pressure_node(MATERIAL_STONE));
     }
 
     #[test]
-    fn pressure_moves_down_gradient_without_spontaneous_loss() {
-        let hot = pressure_step(MATERIAL_WATER, 100.0, right(MATERIAL_WATER, 0.0));
-        let cold = pressure_step(MATERIAL_WATER, 0.0, right(MATERIAL_WATER, 100.0));
-        assert!((hot - 80.0).abs() < 1.0e-5, "hot={hot}");
-        assert!((cold - 20.0).abs() < 1.0e-5, "cold={cold}");
-        assert!(((hot + cold) - 100.0).abs() < 1.0e-5);
+    fn only_valid_steam_supplies_a_target() {
+        assert_eq!(steam_pressure_target(MATERIAL_WATER, 480.0), Some(0.0));
+        assert_eq!(steam_pressure_target(MATERIAL_STEAM, 0.0), Some(0.0));
+        assert_eq!(steam_pressure_target(MATERIAL_STEAM, 240.0), Some(50.0));
+        assert_eq!(steam_pressure_target(MATERIAL_STEAM, 480.0), Some(100.0));
+        assert_eq!(steam_pressure_target(MATERIAL_STEAM, -1.0), None);
+        assert_eq!(steam_pressure_target(MATERIAL_STEAM, 481.0), None);
+        assert_eq!(steam_pressure_target(MATERIAL_STEAM, f32::NAN), None);
     }
 
     #[test]
-    fn isolated_pressure_does_not_decay_with_time() {
-        let next = pressure_step(MATERIAL_STEAM, 42.0, [None, None, None, None]);
-        assert_eq!(next, 42.0);
-    }
-
-    #[test]
-    fn empty_and_static_do_not_transmit_pressure() {
-        let through_empty = pressure_step(MATERIAL_WATER, 12.0, right(MATERIAL_EMPTY, 100.0));
-        let through_stone = pressure_step(MATERIAL_WATER, 12.0, right(MATERIAL_STONE, 100.0));
-        assert_eq!(through_empty, 12.0);
-        assert_eq!(through_stone, 12.0);
+    fn fresh_isolated_generic_impulse_relaxes_from_100_to_98() {
         assert_eq!(
-            pressure_step(MATERIAL_EMPTY, 99.0, [None; 4]),
-            PRESSURE_REFERENCE
-        );
-        assert_eq!(
-            pressure_step(MATERIAL_STONE, 99.0, [None; 4]),
-            PRESSURE_REFERENCE
+            pressure_step_with_phase(MATERIAL_WATER, 480.0, 100.0, [None; 4]),
+            98.0
         );
     }
 
     #[test]
-    fn four_neighbor_update_is_stable() {
+    fn new_canonical_steam_rises_by_two() {
+        assert_eq!(
+            pressure_step_with_phase(MATERIAL_STEAM, 480.0, 0.0, [None; 4]),
+            2.0
+        );
+    }
+
+    #[test]
+    fn empty_participates_and_static_face_is_no_flux() {
+        let from_empty =
+            pressure_step_with_phase(MATERIAL_WATER, 0.0, 12.0, right(MATERIAL_EMPTY, 100.0));
+        let stone_face =
+            pressure_step_with_phase(MATERIAL_WATER, 0.0, 12.0, right(MATERIAL_STONE, 100.0));
+        assert!((from_empty - 29.36).abs() < 1.0e-5);
+        assert!((stone_face - 11.76).abs() < 1.0e-5);
+    }
+
+    #[test]
+    fn update_stays_finite_non_negative_and_bounded() {
         let zero = Some(PressureNeighbor {
-            material: MATERIAL_WATER,
+            material: MATERIAL_EMPTY,
             pressure: 0.0,
         });
-        let next = pressure_step(MATERIAL_WATER, 100.0, [zero; 4]);
-        assert!((next - 20.0).abs() < 1.0e-5, "next={next}");
-    }
-
-    #[test]
-    fn invalid_values_are_sanitized() {
-        assert_eq!(sanitize_pressure(f32::NAN), PRESSURE_REFERENCE);
-        assert_eq!(sanitize_pressure(f32::INFINITY), PRESSURE_REFERENCE);
-        assert_eq!(sanitize_pressure(f32::NEG_INFINITY), PRESSURE_REFERENCE);
-        assert_eq!(sanitize_pressure(-4.0), PRESSURE_REFERENCE);
-        assert_eq!(sanitize_pressure(PRESSURE_MAX * 2.0), PRESSURE_MAX);
+        let next = pressure_step_with_phase(MATERIAL_STEAM, 480.0, 1.0e6, [zero; 4]);
+        assert!(next.is_finite());
+        assert!((0.0..=PRESSURE_MAX).contains(&next));
+        assert_eq!(sanitize_pressure(f32::NAN), 0.0);
+        assert_eq!(sanitize_pressure(-4.0), 0.0);
     }
 }

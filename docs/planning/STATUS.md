@@ -15,7 +15,7 @@
 | G8-C Official Performance Matrix | **OFFICIAL CAPTURE COMPLETE / INDEPENDENT VERIFICATION PASS / `PROCEED_TO_G9`** |
 | G8 Performance Evidence | **CLOSED / FROZEN** |
 | G9-A First Playable Sandbox | **USER ACCEPTED WITH KNOWN FOLLOW-UP** — Inspector continuity v2 **USER ACCEPTED**; G9-B remains separately gated |
-| Thermal Environment / Ignition Causality | **TE-2 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-3 USER ACCEPTED WITH KNOWN FOLLOW-UP**; **TE-4I USER ACCEPTED WITH KNOWN FOLLOW-UP**; Scenes 1–4 **DIRECT OBSERVATION CONSISTENT**; **TE-4D v1/v2/v3 AND D-031 BLOCKED / IMMUTABLE**; runtime `8d9e8cb...`, observability `a7622bf...`; **ADR-0012 ACCEPTED FOR CURRENT IMPLEMENTATION**; TE-5R0 **LOCAL RELAXING PHASE-LOAD PRESSURE DESIGN BLOCKED / CRITICAL 0 / HIGH 3 / RUNTIME NOT STARTED** |
+| Thermal Environment / Ignition Causality | **TE-2/TE-3/TE-4 USER ACCEPTED WITH KNOWN FOLLOW-UP**; ADR-0012 accepted; TE-5R0/ADR-0013 **DESIGN BLOCKED / IMMUTABLE**; TE-5R1/ADR-0014 **STEAM-LOAD RELAXING PRESSURE IMPLEMENTATION CANDIDATE / USER REVIEW PENDING** |
 | G9-B/C/D/E | **NOT STARTED** |
 | 최적화 구현 | **DEFERRED / NOT STARTED** |
 
@@ -115,6 +115,16 @@ project snapshot is temporarily acknowledged. At most one final `[skip ci]`
 feature push is allowed only after local workflow-trigger inspection proves
 that no relevant hosted workflow can run; otherwise the coherent commit stays
 local for deferred publication.
+
+D-037 preserves R0 as blocked history and replaces its unavailable
+pre-transition Water context, fresh-event identity and overlapping activity
+ownership. The fresh [TE-5R1 source review](../adversarial-reviews/TE5R1_STEAM_LOAD_RELAXING_PRESSURE_SOURCE_GATE.md)
+reported Critical `0` / High `0`. The implementation candidate uses a
+Steam-only target, post-settlement generic consequence, total pressure only for
+Air/rupture, opposing-face structural differential and a sole-owner exact-
+update pressure activity pass. It is 43 passes / 86 queries with no new
+persistent/full-world state. ADR-0014 and the candidate remain **USER REVIEW
+PENDING**.
 
 ---
 
